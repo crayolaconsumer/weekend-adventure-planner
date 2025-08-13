@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Places Finder</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🗺️ Weekend Adventure Planner</h1>
+            <p>Discover amazing places and plan epic weekend adventures</p>
+            <div class="stats-bar">
+                <span id="places-visited">🏆 0 places visited</span>
+                <span id="adventure-score">⭐ 0 points</span>
+                <span id="current-streak">🔥 0 day streak</span>
+            </div>
+        </header>
+
+        <div class="controls">
+            <div class="tabs">
+                <button class="tab-btn active" id="single-tab">🎯 Single Place</button>
+                <button class="tab-btn" id="adventure-tab">🗺️ Adventure Builder</button>
+                <button class="tab-btn" id="history-tab">📖 My Adventures</button>
+            </div>
+
+            <div id="single-mode" class="tab-content">
+                <div class="location-section">
+                    <label for="location">Location:</label>
+                    <input type="text" id="location" placeholder="Enter address or use current location">
+                    <button id="use-current-location">📍 Use Current Location</button>
+                </div>
+
+                <div class="settings-row">
+                    <div class="range-section">
+                        <label for="range">Search Range:</label>
+                        <select id="range">
+                            <option value="1000">1 km</option>
+                            <option value="2000">2 km</option>
+                            <option value="5000" selected>5 km</option>
+                            <option value="10000">10 km</option>
+                            <option value="20000">20 km</option>
+                        </select>
+                    </div>
+
+                    <div class="theme-section">
+                        <label for="adventure-theme">Adventure Theme:</label>
+                        <select id="adventure-theme">
+                            <option value="any">🎲 Any</option>
+                            <option value="foodie">🍕 Foodie Tour</option>
+                            <option value="historic">🏛️ Historic Journey</option>
+                            <option value="nature">🌲 Nature Escape</option>
+                            <option value="culture">🎭 Culture Quest</option>
+                            <option value="hidden">💎 Hidden Gems</option>
+                            <option value="photo">📸 Photo Safari</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="find-attraction" class="primary-btn">🎢 Random Attraction</button>
+                    <button id="find-restaurant" class="primary-btn">🍽️ Random Restaurant</button>
+                    <button id="surprise-me" class="mystery-btn">🎁 Surprise Me!</button>
+                </div>
+            </div>
+
+            <div id="adventure-mode" class="tab-content hidden">
+                <div class="adventure-builder">
+                    <div class="time-section">
+                        <label for="available-time">Available Time:</label>
+                        <select id="available-time">
+                            <option value="1">1 hour</option>
+                            <option value="2">2 hours</option>
+                            <option value="3" selected>3 hours</option>
+                            <option value="4">4 hours</option>
+                            <option value="6">Half day (6 hours)</option>
+                            <option value="8">Full day (8 hours)</option>
+                        </select>
+                    </div>
+
+                    <div class="adventure-type">
+                        <label>Adventure Style:</label>
+                        <div class="button-group">
+                            <button class="filter-btn active" data-style="mixed">🎯 Mixed</button>
+                            <button class="filter-btn" data-style="food-focused">🍽️ Food-Focused</button>
+                            <button class="filter-btn" data-style="sightseeing">👀 Sightseeing</button>
+                            <button class="filter-btn" data-style="active">🏃 Active</button>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="build-adventure" class="primary-btn">🚀 Build My Adventure</button>
+                        <button id="mystery-adventure" class="mystery-btn">🎭 Mystery Adventure</button>
+                    </div>
+                </div>
+
+                <div id="adventure-plan" class="adventure-plan hidden">
+                    <h3>🗺️ Your Adventure Plan</h3>
+                    <div id="adventure-stops"></div>
+                    <div class="adventure-actions">
+                        <button id="start-adventure" class="primary-btn">🚗 Start Adventure</button>
+                        <button id="save-adventure" class="secondary-btn">💾 Save Plan</button>
+                        <button id="new-adventure" class="secondary-btn">🔄 New Plan</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="history-mode" class="tab-content hidden">
+                <div class="adventure-history">
+                    <h3>📖 Adventure History</h3>
+                    <div class="history-stats">
+                        <div class="stat-item">
+                            <span class="stat-number" id="total-adventures">0</span>
+                            <span class="stat-label">Adventures</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number" id="total-distance">0</span>
+                            <span class="stat-label">km Traveled</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number" id="favorite-type">-</span>
+                            <span class="stat-label">Favorite Type</span>
+                        </div>
+                    </div>
+                    <div id="adventure-list" class="adventure-list">
+                        <p class="empty-state">🎯 Start your first adventure to see your history!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Finding random places...</p>
+        </div>
+
+        <div id="result" class="result hidden">
+            <div class="place-card">
+                <div class="place-badge" id="place-badge"></div>
+                <h2 id="place-name"></h2>
+                <p id="place-address"></p>
+                <div class="place-meta">
+                    <span id="place-rating"></span>
+                    <span id="place-distance"></span>
+                    <span id="place-type"></span>
+                </div>
+                <div id="place-photos"></div>
+                <div class="place-actions">
+                    <button id="get-directions">🗺️ Get Directions</button>
+                    <button id="add-to-adventure" class="secondary-btn">➕ Add to Adventure</button>
+                    <button id="mark-visited" class="secondary-btn">✅ Mark Visited</button>
+                    <button id="find-another" class="secondary-btn">🔄 Find Another</button>
+                </div>
+                <div class="place-notes hidden">
+                    <textarea id="place-note" placeholder="Add a note about this place..."></textarea>
+                    <button id="save-note" class="small-btn">💾 Save Note</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="adventure-tracker" class="adventure-tracker hidden">
+            <div class="tracker-header">
+                <h3>🎯 Current Adventure</h3>
+                <button id="end-adventure" class="small-btn">🏁 End Adventure</button>
+            </div>
+            <div id="adventure-progress"></div>
+        </div>
+
+        <div id="error" class="error hidden">
+            <p id="error-message"></p>
+            <button id="try-again">Try Again</button>
+        </div>
+    </div>
+
+    <script src="storage-manager.js"></script>
+    <script src="app.js"></script>
+    <script src="adventure-planner.js"></script>
+    <script src="init.js"></script>
+</body>
+</html>
