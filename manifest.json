@@ -1,0 +1,71 @@
+{
+  "name": "Weekend Adventure Planner",
+  "short_name": "AdventurePlanner",
+  "description": "Discover amazing places and plan epic weekend adventures with real-time location data, gamification, and smart route optimization.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#667eea",
+  "theme_color": "#667eea",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["travel", "lifestyle", "entertainment"],
+  "screenshots": [
+    {
+      "src": "https://picsum.photos/540/720?random=1",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Adventure planning on mobile"
+    },
+    {
+      "src": "https://picsum.photos/1024/768?random=2", 
+      "sizes": "1024x768",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop adventure dashboard"
+    }
+  ],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='40'%3E🗺️%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='40'%3E🗺️%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512", 
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Find Random Place",
+      "short_name": "Random",
+      "description": "Discover a random place near you",
+      "url": "/?action=random",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23ff6b6b'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='30'%3E🎯%3C/text%3E%3C/svg%3E",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Build Adventure",
+      "short_name": "Adventure", 
+      "description": "Plan a multi-stop adventure",
+      "url": "/?action=adventure",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%2328a745'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='30'%3E🚀%3C/text%3E%3C/svg%3E",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

@@ -2,11 +2,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Initializing Weekend Adventure Planner...');
     
-    // Check if all scripts are loaded
+    // Check if core scripts are loaded (managers auto-initialize)
     const checkScriptsLoaded = () => {
-        return typeof RandomPlacesFinder !== 'undefined' && 
-               typeof AdventurePlanner !== 'undefined' && 
-               typeof StorageManager !== 'undefined';
+        const required = ['RandomPlacesFinder', 'AdventurePlanner', 'StorageManager'];
+        
+        return required.every(className => {
+            const exists = typeof window[className] !== 'undefined';
+            if (!exists) console.log(`Missing core class: ${className}`);
+            return exists;
+        });
     };
     
     const initializeApp = () => {

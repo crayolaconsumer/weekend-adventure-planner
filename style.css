@@ -4,21 +4,61 @@
     box-sizing: border-box;
 }
 
+:root {
+    /* Light mode colors */
+    --bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --bg-secondary: #f8f9fa;
+    --bg-card: white;
+    --text-primary: #333;
+    --text-secondary: #666;
+    --text-light: #777;
+    --border-color: #e0e0e0;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --shadow-hover: rgba(102, 126, 234, 0.3);
+    --success-bg: #d4edda;
+    --success-text: #155724;
+    --success-border: #c3e6cb;
+    --error-bg: #f8d7da;
+    --error-text: #721c24;
+    --error-border: #f5c6cb;
+}
+
+[data-theme="dark"] {
+    /* Dark mode colors */
+    --bg-primary: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    --bg-secondary: #1e1e2e;
+    --bg-card: #252538;
+    --text-primary: #e2e8f0;
+    --text-secondary: #cbd5e1;
+    --text-light: #94a3b8;
+    --border-color: #374151;
+    --shadow: rgba(0, 0, 0, 0.3);
+    --shadow-hover: rgba(102, 126, 234, 0.4);
+    --success-bg: rgba(16, 185, 129, 0.1);
+    --success-text: #10b981;
+    --success-border: rgba(16, 185, 129, 0.2);
+    --error-bg: rgba(239, 68, 68, 0.1);
+    --error-text: #f87171;
+    --error-border: rgba(239, 68, 68, 0.2);
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bg-primary);
     min-height: 100vh;
     padding: 20px;
-    color: #333;
+    color: var(--text-primary);
+    transition: background 0.3s ease, color 0.3s ease;
 }
 
 .container {
     max-width: 800px;
     margin: 0 auto;
-    background: white;
+    background: var(--bg-card);
     border-radius: 20px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 40px var(--shadow);
     overflow: hidden;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 
 header {
@@ -56,9 +96,35 @@ header p {
     backdrop-filter: blur(10px);
 }
 
+.dark-mode-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    margin-left: 10px;
+}
+
+.dark-mode-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.theme-icon {
+    font-size: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.dark-mode-toggle:hover .theme-icon {
+    transform: rotate(15deg);
+}
+
 .controls {
     padding: 30px;
-    background: #f8f9fa;
+    background: var(--bg-secondary);
+    transition: background 0.3s ease;
 }
 
 /* Tab System */
@@ -164,11 +230,12 @@ header p {
 
 /* Adventure Plan Styles */
 .adventure-plan {
-    background: white;
+    background: var(--bg-card);
     border-radius: 15px;
     padding: 25px;
     margin-top: 20px;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--border-color);
+    transition: all 0.3s ease;
 }
 
 .adventure-summary {
@@ -176,9 +243,10 @@ header p {
     gap: 20px;
     margin-bottom: 20px;
     padding: 15px;
-    background: #f8f9fa;
+    background: var(--bg-secondary);
     border-radius: 10px;
     flex-wrap: wrap;
+    transition: background 0.3s ease;
 }
 
 .summary-item {
@@ -198,9 +266,10 @@ header p {
     gap: 15px;
     padding: 15px;
     margin-bottom: 10px;
-    background: #f8f9fa;
+    background: var(--bg-secondary);
     border-radius: 10px;
     border-left: 4px solid #667eea;
+    transition: background 0.3s ease;
 }
 
 .stop-number {
@@ -222,20 +291,23 @@ header p {
 
 .stop-content h4 {
     margin-bottom: 5px;
-    color: #333;
+    color: var(--text-primary);
+    transition: color 0.3s ease;
 }
 
 .stop-address {
-    color: #666;
+    color: var(--text-secondary);
     font-size: 14px;
     margin-bottom: 8px;
+    transition: color 0.3s ease;
 }
 
 .stop-meta {
     display: flex;
     gap: 15px;
     font-size: 12px;
-    color: #777;
+    color: var(--text-light);
+    transition: color 0.3s ease;
 }
 
 .stop-actions {
@@ -394,19 +466,22 @@ header p {
 
 label {
     font-weight: 600;
-    color: #555;
+    color: var(--text-secondary);
     min-width: 80px;
+    transition: color 0.3s ease;
 }
 
 input[type="text"],
 select {
     padding: 12px 15px;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--border-color);
     border-radius: 10px;
     font-size: 16px;
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, background 0.3s ease, color 0.3s ease;
     flex: 1;
     min-width: 200px;
+    background: var(--bg-card);
+    color: var(--text-primary);
 }
 
 input[type="text"]:focus,
@@ -556,12 +631,13 @@ button {
 }
 
 .place-card {
-    background: #f8f9fa;
+    background: var(--bg-secondary);
     border-radius: 15px;
     padding: 25px;
     text-align: center;
-    border: 1px solid #e9ecef;
+    border: 1px solid var(--border-color);
     position: relative;
+    transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .place-badge {
@@ -578,15 +654,17 @@ button {
 }
 
 .place-card h2 {
-    color: #333;
+    color: var(--text-primary);
     margin-bottom: 15px;
     font-size: 1.8rem;
+    transition: color 0.3s ease;
 }
 
 .place-card p {
     margin-bottom: 10px;
     font-size: 1.1rem;
-    color: #666;
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
 }
 
 .place-meta {
@@ -598,12 +676,14 @@ button {
 }
 
 .place-meta span {
-    background: white;
+    background: var(--bg-card);
     padding: 8px 12px;
     border-radius: 20px;
     font-size: 14px;
     font-weight: 500;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px var(--shadow);
+    color: var(--text-primary);
+    transition: all 0.3s ease;
 }
 
 .place-actions {
@@ -623,11 +703,14 @@ button {
     width: 100%;
     min-height: 80px;
     padding: 12px;
-    border: 2px solid #e0e0e0;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     resize: vertical;
     font-family: inherit;
     font-size: 14px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    transition: all 0.3s ease;
 }
 
 .place-notes textarea:focus {
@@ -827,4 +910,111 @@ button {
         margin: 15px 10px;
         padding: 15px;
     }
+}
+
+/* Weather Widget Styles */
+.weather-widget {
+    background: var(--bg-card);
+    border-radius: 15px;
+    padding: 15px;
+    margin: 20px 0;
+    box-shadow: 0 4px 8px var(--shadow);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.weather-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+
+#weather-icon {
+    font-size: 1.5rem;
+}
+
+#weather-temp {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+#weather-desc {
+    color: var(--text-secondary);
+    text-transform: capitalize;
+}
+
+/* Gesture Indicators */
+.swipe-indicator {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.swipe-indicator.show {
+    opacity: 1;
+}
+
+.pull-refresh-indicator {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 8px var(--shadow);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s ease;
+    transform: translateX(-50%) translateY(-100%);
+}
+
+.pull-refresh-indicator.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.refresh-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.refresh-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Dark mode adjustments for new elements */
+[data-theme="dark"] .weather-widget {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .pull-refresh-indicator {
+    background: var(--bg-card);
+    border-color: var(--border-color);
 }

@@ -378,6 +378,11 @@ class RandomPlacesFinder {
         document.querySelector('.place-notes').classList.add('hidden');
 
         document.getElementById('result').classList.remove('hidden');
+        
+        // Trigger event for sharing functionality
+        document.dispatchEvent(new CustomEvent('placeDisplayed', {
+            detail: { place: place }
+        }));
     }
 
     getDirections() {

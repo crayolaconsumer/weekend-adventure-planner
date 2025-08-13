@@ -3,7 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Places Finder</title>
+    <title>Weekend Adventure Planner</title>
+    <meta name="description" content="Discover amazing places and plan epic weekend adventures with real-time location data, gamification, and smart route optimization.">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Adventure Planner">
+    <meta name="msapplication-TileColor" content="#667eea">
+    <meta name="msapplication-config" content="browserconfig.xml">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='40'%3E🗺️%3C/text%3E%3C/svg%3E">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='40'%3E🗺️%3C/text%3E%3C/svg%3E">
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="style.css" as="style">
+    <link rel="preload" href="init.js" as="script">
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,8 +34,38 @@
                 <span id="places-visited">🏆 0 places visited</span>
                 <span id="adventure-score">⭐ 0 points</span>
                 <span id="current-streak">🔥 0 day streak</span>
+                <button id="dark-mode-toggle" class="dark-mode-toggle" title="Toggle dark mode">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+            <div id="install-prompt" class="install-prompt hidden">
+                <div class="install-content">
+                    <span class="install-icon">📱</span>
+                    <span class="install-text">Install app for better experience!</span>
+                    <button id="install-btn" class="install-button">Install</button>
+                    <button id="install-dismiss" class="install-dismiss">✕</button>
+                </div>
             </div>
         </header>
+
+        <!-- Weather Widget -->
+        <div id="weather-widget" class="weather-widget hidden">
+            <div class="weather-content">
+                <span id="weather-icon">🌤️</span>
+                <span id="weather-temp">--°</span>
+                <span id="weather-desc">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Gesture Indicators -->
+        <div id="swipe-indicator" class="swipe-indicator hidden">
+            <span class="swipe-text">Swipe to navigate</span>
+        </div>
+        
+        <div id="pull-refresh-indicator" class="pull-refresh-indicator hidden">
+            <div class="refresh-spinner"></div>
+            <span class="refresh-text">Pull to refresh</span>
+        </div>
 
         <div class="controls">
             <div class="tabs">
@@ -176,6 +225,14 @@
     <script src="storage-manager.js"></script>
     <script src="app.js"></script>
     <script src="adventure-planner.js"></script>
+    <script src="theme-manager.js"></script>
+    <script src="weather-manager.js"></script>
+    <script src="gesture-manager.js"></script>
+    <script src="sharing-manager.js"></script>
+    <script src="accessibility-manager.js"></script>
+    <script src="recommendations-engine.js"></script>
+    <script src="animations-manager.js"></script>
     <script src="init.js"></script>
+    <script src="pwa.js"></script>
 </body>
 </html>
