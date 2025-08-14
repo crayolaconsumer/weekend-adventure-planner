@@ -58,7 +58,7 @@ class ThemeManager {
         this.applyTheme(newTheme);
         this.updateThemeIcon();
         
-        // Add a nice transition effect
+        // Subtle transition only (no overlay ripple)
         this.addTransitionEffect();
         
         // Show feedback toast
@@ -96,46 +96,14 @@ class ThemeManager {
     }
 
     addTransitionEffect() {
-        document.body.style.transition = 'none';
-        
-        // Create a ripple effect from the toggle button
-        const toggleBtn = document.getElementById('dark-mode-toggle');
-        if (toggleBtn) {
-            const rect = toggleBtn.getBoundingClientRect();
-            const ripple = document.createElement('div');
-            
-            ripple.style.cssText = `
-                position: fixed;
-                top: ${rect.top + rect.height/2}px;
-                left: ${rect.left + rect.width/2}px;
-                width: 0;
-                height: 0;
-                border-radius: 50%;
-                background: ${this.currentTheme === 'dark' ? '#1a1a2e' : '#667eea'};
-                pointer-events: none;
-                z-index: 9999;
-                transition: all 0.6s ease;
-                transform: translate(-50%, -50%);
-            `;
-            
-            document.body.appendChild(ripple);
-            
-            // Trigger animation
-            requestAnimationFrame(() => {
-                const maxSize = Math.max(window.innerWidth, window.innerHeight) * 2;
-                ripple.style.width = maxSize + 'px';
-                ripple.style.height = maxSize + 'px';
-                ripple.style.opacity = '0.1';
-            });
-            
-            // Clean up
-            setTimeout(() => {
-                if (ripple.parentNode) {
-                    ripple.parentNode.removeChild(ripple);
-                }
-                document.body.style.transition = '';
-            }, 600);
-        }
+        // Respect reduced motion and avoid any overlays
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        // Apply a short, global color transition; no extra DOM elements
+        const root = document.documentElement;
+        const previous = root.style.transition;
+        root.style.transition = 'background-color 200ms ease, color 200ms ease';
+        // Revert after transition ends
+        setTimeout(() => { root.style.transition = previous || ''; }, 220);
     }
 
     showThemeToast(theme) {
