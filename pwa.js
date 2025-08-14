@@ -266,6 +266,12 @@ class PWAManager {
             document.body.appendChild(container);
         }
         container.appendChild(toast);
+        // Limit stacked toasts on small screens
+        if (window.innerWidth < 768) {
+            while (container.children.length > 2) {
+                container.removeChild(container.firstChild);
+            }
+        }
 
         // Handle actions
         const actionBtn = toast.querySelector('.toast-action');
@@ -289,6 +295,11 @@ class PWAManager {
             closeBtn.addEventListener('click', () => {
                 this.removeToast(toast);
             });
+            // Swipe to dismiss on mobile
+            let startX = 0; let deltaX = 0; let touching = false;
+            toast.addEventListener('touchstart', (e) => { touching = true; startX = e.touches[0].clientX; }, { passive: true });
+            toast.addEventListener('touchmove', (e) => { if (!touching) return; deltaX = e.touches[0].clientX - startX; toast.style.transform = `translateX(${deltaX}px)`; toast.style.opacity = String(1 - Math.min(Math.abs(deltaX)/120, 0.9)); }, { passive: true });
+            toast.addEventListener('touchend', () => { touching = false; if (Math.abs(deltaX) > 80) { this.removeToast(toast); } else { toast.style.transform = ''; toast.style.opacity = '1'; } }, { passive: true });
         }
 
         // Auto remove after 5 seconds

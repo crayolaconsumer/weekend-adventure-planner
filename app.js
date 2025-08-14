@@ -62,36 +62,34 @@ class RandomPlacesFinder {
             updateLabel();
         }
 
-        // Quick filter chips
-        document.querySelectorAll('.chip-btn').forEach(btn => {
+        // Quick filter chips (multi-select + clear)
+        const chipButtons = Array.from(document.querySelectorAll('.chip-btn'));
+        const restoreActive = new Set((localStorage.getItem('activeChips') || '').split(',').filter(Boolean));
+        chipButtons.forEach(btn => {
+            if (btn.dataset.clear === 'true') return;
+            if (restoreActive.has(btn.textContent)) btn.classList.add('active');
             btn.addEventListener('click', async () => {
-                document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                const category = btn.getAttribute('data-category');
-                // Pick a random type within chip
-                const types = (btn.getAttribute('data-types') || '').split(',').filter(Boolean);
-                const type = types.length ? types[Math.floor(Math.random() * types.length)] : (category === 'restaurant' ? 'restaurant' : 'tourist_attraction');
-                try {
-                    localStorage.setItem('lastChipCategory', category || '');
-                    localStorage.setItem('lastChipTypes', (btn.getAttribute('data-types') || ''));
-                } catch (e) {}
-                await this.findRandomPlace(category === 'restaurant' ? 'restaurant' : 'tourist_attraction');
+                btn.classList.toggle('active');
+                const activeLabels = chipButtons.filter(b => b.dataset.clear !== 'true' && b.classList.contains('active')).map(b => b.textContent);
+                try { localStorage.setItem('activeChips', activeLabels.join(',')); } catch (e) {}
+                await this.runChipsSearch();
             });
         });
 
-        // Restore last chip selection (and optionally auto-run if we already have location)
+        // Clear chip resets selections
+        const clearChip = document.querySelector('.chip-btn.clear-chip');
+        if (clearChip) {
+            clearChip.addEventListener('click', async () => {
+                chipButtons.forEach(b => b.classList.remove('active'));
+                localStorage.removeItem('activeChips');
+                if (this.currentLocation) await this.findRandomPlace('tourist_attraction');
+            });
+        }
+
+        // Auto-run if we already have location and chips
         try {
-            const lastTypes = localStorage.getItem('lastChipTypes');
-            const lastCategory = localStorage.getItem('lastChipCategory');
-            if (lastTypes || lastCategory) {
-                const selector = lastTypes ? `.chip-btn[data-types="${CSS.escape(lastTypes)}"]` : `.chip-btn[data-category="${CSS.escape(lastCategory)}"]`;
-                const lastBtn = document.querySelector(selector);
-                if (lastBtn) {
-                    lastBtn.classList.add('active');
-                    if (this.currentLocation) {
-                        setTimeout(() => lastBtn.click(), 300);
-                    }
-                }
+            if (this.currentLocation && (localStorage.getItem('activeChips') || '').length) {
+                setTimeout(() => this.runChipsSearch(), 300);
             }
         } catch (e) {}
 
@@ -112,6 +110,15 @@ class RandomPlacesFinder {
                 range?.dispatchEvent(new Event('input'));
             });
         }
+    }
+
+    async runChipsSearch() {
+        // Aggregate selected chips to choose category/type
+        const activeChips = Array.from(document.querySelectorAll('.chip-btn.active'));
+        if (activeChips.length === 0) return;
+        // If any restaurant chip active, run restaurant search; otherwise attraction
+        const isRestaurant = activeChips.some(c => c.getAttribute('data-category') === 'restaurant');
+        return this.findRandomPlace(isRestaurant ? 'restaurant' : 'tourist_attraction');
     }
 
     setUnits(units) {
@@ -644,10 +651,14 @@ class RandomPlacesFinder {
             badgeElement.style.display = 'none';
         }
 
-        // Handle photos
+        // Handle photos (skeletons)
         const photosContainer = document.getElementById('place-photos');
         photosContainer.innerHTML = '';
+        const skeleton = document.createElement('div');
+        skeleton.className = 'skeleton skeleton-rect';
+        photosContainer.appendChild(skeleton);
         const renderGallery = (urls) => {
+            photosContainer.innerHTML = '';
             if (!urls || urls.length === 0) return;
             const gallery = document.createElement('div');
             gallery.className = 'place-gallery';
@@ -666,11 +677,24 @@ class RandomPlacesFinder {
                     currentIndex = urls.indexOf(u);
                     if (currentIndex < 0) currentIndex = 0;
                     main.src = urls[currentIndex];
+                    updateDots();
                 });
                 thumbs.appendChild(t);
             });
+            const dots = document.createElement('div');
+            dots.className = 'gallery-dots';
+            const updateDots = () => {
+                dots.innerHTML = '';
+                urls.slice(0, 5).forEach((_, i) => {
+                    const d = document.createElement('span');
+                    d.className = 'gallery-dot' + (i === currentIndex ? ' active' : '');
+                    dots.appendChild(d);
+                });
+            };
+            updateDots();
             gallery.appendChild(main);
             gallery.appendChild(thumbs);
+            gallery.appendChild(dots);
             photosContainer.appendChild(gallery);
 
             // Swipe support for main image
@@ -683,8 +707,25 @@ class RandomPlacesFinder {
                 if (Math.abs(dx) > threshold) {
                     if (dx < 0) currentIndex = (currentIndex + 1) % urls.length; else currentIndex = (currentIndex - 1 + urls.length) % urls.length;
                     main.src = urls[currentIndex];
+                    updateDots();
                 }
                 touchStartX = null;
+            }, { passive: true });
+
+            // Pinch-to-zoom via double-tap toggle
+            let zoomed = false;
+            main.addEventListener('dblclick', () => {
+                zoomed = !zoomed;
+                main.style.transform = zoomed ? 'scale(1.6)' : 'scale(1)';
+            });
+            let lastTap = 0;
+            main.addEventListener('touchend', () => {
+                const now = Date.now();
+                if (now - lastTap < 350) {
+                    zoomed = !zoomed;
+                    main.style.transform = zoomed ? 'scale(1.6)' : 'scale(1)';
+                }
+                lastTap = now;
             }, { passive: true });
         };
 
@@ -700,10 +741,13 @@ class RandomPlacesFinder {
         // Try to load a real photo asynchronously
         attemptRealPhoto();
 
-        // Render map preview
+        // Render map preview with skeleton
         const mapDiv = document.getElementById('place-map');
         if (mapDiv) {
             mapDiv.innerHTML = '';
+            const sk = document.createElement('div');
+            sk.className = 'skeleton skeleton-rect';
+            mapDiv.appendChild(sk);
             if (place.lat && place.lng) {
                 const zoom = 14;
                 const width = 320;
@@ -713,16 +757,30 @@ class RandomPlacesFinder {
                 const wikUrl = `https://maps.wikimedia.org/img/osm-intl,${zoom},${place.lat},${place.lng},${width}x${height}.png`;
                 const img = new Image();
                 img.alt = `Map of ${place.name}`;
-                img.onload = () => { mapDiv.classList.remove('hidden'); };
+                img.loading = 'lazy';
+                const setIframeFallback = () => {
+                    const delta = 0.01;
+                    const bbox = `${place.lng - delta},${place.lat - delta},${place.lng + delta},${place.lat + delta}`;
+                    const iframe = document.createElement('iframe');
+                    iframe.src = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(place.lat + ',' + place.lng)}`;
+                    iframe.loading = 'lazy';
+                    iframe.style.width = width + 'px';
+                    iframe.style.height = height + 'px';
+                    iframe.style.border = '0';
+                    mapDiv.classList.remove('hidden');
+                    mapDiv.innerHTML = '';
+                    mapDiv.appendChild(iframe);
+                };
+                img.onload = () => { mapDiv.classList.remove('hidden'); mapDiv.innerHTML = ''; mapDiv.appendChild(img); };
                 img.onerror = () => {
-                    if (img.src === osmUrl) {
-                        img.src = wikUrl;
+                    if (img.src === wikUrl) {
+                        img.src = osmUrl;
                     } else {
-                        mapDiv.classList.add('hidden');
+                        setIframeFallback();
                     }
                 };
-                img.src = osmUrl;
-                mapDiv.appendChild(img);
+                // Prefer Wikimedia first to avoid DNS issues with staticmap.openstreetmap.de
+                img.src = wikUrl;
             } else {
                 mapDiv.classList.add('hidden');
             }
@@ -748,11 +806,31 @@ class RandomPlacesFinder {
         document.querySelector('.place-notes').classList.add('hidden');
 
         document.getElementById('result').classList.remove('hidden');
+
+        // Sync sticky actions (mobile)
+        this.updateStickyActions();
         
         // Trigger event for sharing functionality
         document.dispatchEvent(new CustomEvent('placeDisplayed', {
             detail: { place: place }
         }));
+    }
+
+    updateStickyActions() {
+        const bar = document.getElementById('sticky-actions');
+        if (!bar) return;
+        if (!this.currentPlace) { bar.classList.add('hidden'); return; }
+        const bind = (selector, handler) => {
+            const btn = bar.querySelector(selector);
+            if (btn) {
+                btn.onclick = handler;
+            }
+        };
+        bind('.sa-directions', () => this.getDirections());
+        bind('.sa-add', () => document.getElementById('add-to-adventure').click());
+        bind('.sa-visited', () => document.getElementById('mark-visited').click());
+        bind('.sa-another', () => document.getElementById('find-another').click());
+        bar.classList.remove('hidden');
     }
 
     getDirections() {
@@ -777,6 +855,8 @@ class RandomPlacesFinder {
         loadingElement.classList.remove('hidden');
         document.getElementById('result').classList.add('hidden');
         document.getElementById('error').classList.add('hidden');
+        const sticky = document.getElementById('sticky-actions');
+        if (sticky) sticky.classList.add('hidden');
     }
 
     hideLoading() {
@@ -788,6 +868,8 @@ class RandomPlacesFinder {
         document.getElementById('error-message').textContent = message;
         document.getElementById('error').classList.remove('hidden');
         document.getElementById('result').classList.add('hidden');
+        const sticky = document.getElementById('sticky-actions');
+        if (sticky) sticky.classList.add('hidden');
     }
 
     hideError() {
@@ -893,4 +975,5 @@ RandomPlacesFinder.prototype.getPlaceBadge = function(place) {
 
 // Initialization moved to init.js
 // Expose class on global for init check
+window.RandomPlacesFinder = window.RandomPlacesFinder || RandomPlacesFinder;
 window.RandomPlacesFinder = window.RandomPlacesFinder || RandomPlacesFinder;

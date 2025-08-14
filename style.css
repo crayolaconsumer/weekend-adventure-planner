@@ -502,8 +502,11 @@ header p {
 .quick-filters {
     display: flex;
     gap: 8px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     margin-top: 10px;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
 }
 .chip-btn {
     padding: 6px 10px;
@@ -512,12 +515,14 @@ header p {
     border-radius: 16px;
     cursor: pointer;
     font-size: 13px;
+    white-space: nowrap;
 }
 .chip-btn.active {
     border-color: #667eea;
     background: rgba(102,126,234,0.1);
     color: #667eea;
 }
+.chip-btn.clear-chip { color: #991b1b; border-color: #fecaca; background: #fff5f5; }
 
 /* Map preview */
 .place-map {
@@ -795,6 +800,23 @@ button {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
+/* Skeleton loaders */
+[data-theme="dark"] .skeleton { background: #334155; }
+.skeleton { position: relative; overflow: hidden; background: #e5e7eb; }
+.skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent); animation: shimmer 1.2s infinite; }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.gallery-main.skeleton, .skeleton-rect { height: 200px; border-radius: 12px; }
+.skeleton-line { height: 14px; border-radius: 6px; margin: 6px auto; max-width: 60%; }
+
+/* Sticky action bar */
+.sticky-actions { position: fixed; left: 0; right: 0; bottom: 12px; margin: 0 auto; max-width: 900px; display: flex; gap: 8px; justify-content: center; padding: 8px; z-index: 9999; }
+.sticky-actions .sa-btn { flex: 1; max-width: 200px; padding: 12px 10px; border-radius: 12px; border: none; color: white; background: #4b5563; font-weight: 600; }
+.sticky-actions .sa-directions { background: #2563eb; }
+.sticky-actions .sa-add { background: #7c3aed; }
+.sticky-actions .sa-visited { background: #059669; }
+.sticky-actions .sa-another { background: #6b7280; }
+@media (min-width: 769px) { .sticky-actions { display: none; } }
+
 /* Gallery */
 .place-gallery {
     display: flex;
@@ -806,6 +828,8 @@ button {
     width: 100%;
     max-width: 320px;
     border-radius: 12px;
+    transition: transform 0.2s ease;
+    touch-action: pan-y;
 }
 .gallery-thumbs {
     display: flex;
@@ -823,6 +847,11 @@ button {
     transition: transform 0.2s ease, opacity 0.2s ease;
 }
 .gallery-thumbs img:hover { transform: scale(1.04); opacity: 1; }
+
+/* Gallery dots */
+.gallery-dots { display: flex; gap: 6px; justify-content: center; align-items: center; }
+.gallery-dot { width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1; }
+.gallery-dot.active { background: #6366f1; transform: scale(1.2); }
 
 .error {
     background: #fef2f2;
