@@ -1,6 +1,7 @@
 class ThemeManager {
     constructor() {
         this.currentTheme = this.getStoredTheme();
+        this.themeInterval = null;
         this.init();
     }
 
@@ -166,8 +167,13 @@ class ThemeManager {
     }
 
     enableAutoThemeScheduling() {
+        // Clear existing interval
+        if (this.themeInterval) {
+            clearInterval(this.themeInterval);
+        }
+        
         // Check every hour for auto theme switching
-        setInterval(() => {
+        this.themeInterval = setInterval(() => {
             this.scheduleAutoTheme();
         }, 60 * 60 * 1000); // 1 hour
         
@@ -259,3 +265,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Add cleanup method to ThemeManager prototype
+ThemeManager.prototype.destroy = function() {
+    if (this.themeInterval) {
+        clearInterval(this.themeInterval);
+        this.themeInterval = null;
+    }
+};

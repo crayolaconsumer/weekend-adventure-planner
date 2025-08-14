@@ -190,7 +190,11 @@ class WeatherManager {
     }
 
     cacheWeather(weather) {
-        localStorage.setItem('cachedWeather', JSON.stringify(weather));
+        try {
+            localStorage.setItem('cachedWeather', JSON.stringify(weather));
+        } catch (error) {
+            console.warn('Failed to cache weather data:', error);
+        }
     }
 
     loadStoredWeather() {

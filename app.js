@@ -4,6 +4,7 @@ class RandomPlacesFinder {
         this.lastSearchType = null;
         this.lastRange = null;
         this.currentPlace = null;
+        this.isSearching = false;
         this.initializeEventListeners();
     }
 
@@ -129,6 +130,12 @@ class RandomPlacesFinder {
     }
 
     async findRandomPlace(type) {
+        if (this.isSearching) {
+            console.log('Search already in progress...');
+            return;
+        }
+        
+        this.isSearching = true;
         this.lastSearchType = type;
         this.lastRange = document.getElementById('range').value;
 
@@ -140,6 +147,7 @@ class RandomPlacesFinder {
             location = await this.getLocationFromAddress(locationInput);
             if (!location) {
                 this.showError('Could not find the specified location. Please try a different address or use your current location.');
+                this.isSearching = false;
                 return;
             }
             this.currentLocation = location;
@@ -147,6 +155,7 @@ class RandomPlacesFinder {
 
         if (!location) {
             this.showError('Please provide a location or use your current location.');
+            this.isSearching = false;
             return;
         }
 
@@ -168,12 +177,15 @@ class RandomPlacesFinder {
                 
                 const randomPlace = filteredPlaces[Math.floor(Math.random() * filteredPlaces.length)];
                 this.displayPlace(randomPlace, location);
+                this.isSearching = false;
             } else {
                 this.showError(`No ${type === 'restaurant' ? 'restaurants' : 'attractions'} found in the specified range. Try increasing the search range.`);
+                this.isSearching = false;
             }
         } catch (error) {
             console.error('Search error:', error);
             this.showError('Failed to search for places. Please try again.');
+            this.isSearching = false;
         }
     }
 

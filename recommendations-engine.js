@@ -3,6 +3,7 @@ class RecommendationsEngine {
         this.userProfile = this.loadUserProfile();
         this.recommendations = [];
         this.learningData = this.loadLearningData();
+        this.analysisInterval = null;
         this.init();
     }
 
@@ -49,11 +50,19 @@ class RecommendationsEngine {
     }
 
     saveUserProfile() {
-        localStorage.setItem('userProfile', JSON.stringify(this.userProfile));
+        try {
+            localStorage.setItem('userProfile', JSON.stringify(this.userProfile));
+        } catch (error) {
+            console.warn('Failed to save user profile:', error);
+        }
     }
 
     saveLearningData() {
-        localStorage.setItem('learningData', JSON.stringify(this.learningData));
+        try {
+            localStorage.setItem('learningData', JSON.stringify(this.learningData));
+        } catch (error) {
+            console.warn('Failed to save learning data:', error);
+        }
     }
 
     analyzeUserBehavior() {
@@ -679,8 +688,13 @@ class RecommendationsEngine {
     }
 
     periodicAnalysis() {
+        // Clear existing interval
+        if (this.analysisInterval) {
+            clearInterval(this.analysisInterval);
+        }
+        
         // Re-analyze user behavior periodically
-        setInterval(() => {
+        this.analysisInterval = setInterval(() => {
             this.analyzeUserBehavior();
             this.saveLearningData();
         }, 5 * 60 * 1000); // Every 5 minutes
@@ -873,3 +887,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 2000);
 });
+
+// Add cleanup method to RecommendationsEngine prototype
+RecommendationsEngine.prototype.destroy = function() {
+    if (this.analysisInterval) {
+        clearInterval(this.analysisInterval);
+        this.analysisInterval = null;
+    }
+};

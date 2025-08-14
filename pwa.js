@@ -2,6 +2,7 @@ class PWAManager {
     constructor() {
         this.deferredPrompt = null;
         this.isInstalled = false;
+        this.updateInterval = null;
         this.init();
     }
 
@@ -171,8 +172,13 @@ class PWAManager {
     }
 
     listenForUpdates() {
+        // Clear existing interval
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+        
         // Check for updates periodically
-        setInterval(async () => {
+        this.updateInterval = setInterval(async () => {
             if ('serviceWorker' in navigator) {
                 const registration = await navigator.serviceWorker.getRegistration();
                 if (registration) {
@@ -450,3 +456,11 @@ document.head.appendChild(pwaStyles);
 document.addEventListener('DOMContentLoaded', () => {
     window.pwaManager = new PWAManager();
 });
+
+// Add cleanup method to PWAManager prototype
+PWAManager.prototype.destroy = function() {
+    if (this.updateInterval) {
+        clearInterval(this.updateInterval);
+        this.updateInterval = null;
+    }
+};
