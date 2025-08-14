@@ -540,6 +540,51 @@ header p {
 }
 .map-toggle { margin-top: 8px; }
 
+/* Fullscreen map overlay (mobile-friendly) */
+.map-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 10000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+.map-sheet {
+    width: 100%;
+    max-width: 900px;
+    height: 80vh;
+    background: var(--bg-card);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: sheetUp 200ms ease;
+}
+.map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+.map-title { font-weight: 700; color: var(--text-primary); font-size: 14px; }
+.map-close {
+    background: transparent;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    font-size: 18px;
+    color: var(--text-primary);
+}
+.map-close:active { transform: scale(0.95); }
+.map-body { flex: 1; }
+.map-body iframe { width: 100%; height: 100%; border: 0; }
+
+@keyframes sheetUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
 label {
     font-weight: 700;
     color: var(--text-primary);

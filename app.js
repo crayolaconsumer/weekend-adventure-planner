@@ -841,19 +841,19 @@ class RandomPlacesFinder {
                 openBtn.classList.remove('hidden');
                 openBtn.onclick = () => {
                     if (!(place.lat && place.lng)) return;
-                    const delta = 0.01; const width = 320; const height = 320;
-                    const bbox = `${place.lng - delta},${place.lat - delta},${place.lng + delta},${place.lat + delta}`;
-                    const overlay = document.createElement('div');
-                    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:10px;';
+                    const delta = 0.01; const bbox = `${place.lng - delta},${place.lat - delta},${place.lng + delta},${place.lat + delta}`;
+                    const overlay = document.createElement('div'); overlay.className = 'map-overlay';
+                    const sheet = document.createElement('div'); sheet.className = 'map-sheet';
+                    const header = document.createElement('div'); header.className = 'map-header';
+                    header.innerHTML = `<span class="map-title">Map · ${place.name}</span>`;
+                    const close = document.createElement('button'); close.className = 'map-close'; close.setAttribute('aria-label','Close map'); close.textContent = '✕';
+                    close.onclick = () => overlay.remove();
+                    const body = document.createElement('div'); body.className = 'map-body';
                     const frame = document.createElement('iframe');
                     frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(place.lat + ',' + place.lng)}`;
-                    frame.style.cssText = 'width:95%;height:80%;border:0;border-radius:12px;background:#fff;';
-                    const close = document.createElement('button');
-                    close.textContent = '✕';
-                    close.className = 'small-btn';
-                    close.style.cssText = 'position:absolute;top:12px;right:12px;';
-                    close.onclick = () => overlay.remove();
-                    overlay.appendChild(frame); overlay.appendChild(close);
+                    body.appendChild(frame);
+                    header.appendChild(close); sheet.appendChild(header); sheet.appendChild(body); overlay.appendChild(sheet);
+                    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
                     document.body.appendChild(overlay);
                 };
             }

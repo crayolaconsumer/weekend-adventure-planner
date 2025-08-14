@@ -3,8 +3,8 @@ class GestureManager {
         this.isEnabled = 'ontouchstart' in window; // Only enable on touch devices
         this.activeTab = 'single';
         this.tabs = ['single', 'adventure', 'history'];
-        this.swipeThreshold = 50; // Minimum distance for swipe
-        this.swipeTimeout = 300; // Maximum time for swipe
+        this.swipeThreshold = 80; // Minimum distance for swipe (less sensitive)
+        this.swipeTimeout = 280; // Maximum time for swipe
         this.touchStart = null;
         this.touchEnd = null;
         this.init();
@@ -28,14 +28,21 @@ class GestureManager {
 
         // Add swipe listeners to content area
         contentContainer.addEventListener('touchstart', (e) => {
+            // Ignore gestures that start inside horizontally scrollable or form controls
+            const ignore = e.target.closest('.quick-filters, select, input, textarea');
+            if (ignore) return;
             this.handleSwipeStart(e);
         }, { passive: true });
 
         contentContainer.addEventListener('touchmove', (e) => {
+            const ignore = e.target.closest('.quick-filters, select, input, textarea');
+            if (ignore) return;
             this.handleSwipeMove(e);
         }, { passive: true });
 
         contentContainer.addEventListener('touchend', (e) => {
+            const ignore = e.target.closest('.quick-filters, select, input, textarea');
+            if (ignore) return;
             this.handleSwipeEnd(e);
         }, { passive: true });
 
@@ -68,7 +75,8 @@ class GestureManager {
         const diffY = this.touchStart.y - currentY;
 
         // Only handle horizontal swipes (ignore vertical scrolling)
-        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 20) {
+        // Require stronger horizontal intent to avoid vertical scroll collisions
+        if (Math.abs(diffX) > Math.abs(diffY) * 1.5 && Math.abs(diffX) > 30) {
             this.showSwipeIndicator(diffX > 0 ? 'left' : 'right');
         }
     }
@@ -87,8 +95,8 @@ class GestureManager {
         const swipeDistanceY = this.touchStart.y - this.touchEnd.y;
 
         // Check if it's a valid swipe (horizontal, fast enough, long enough)
-        if (Math.abs(swipeDistanceX) > this.swipeThreshold && 
-            Math.abs(swipeDistanceX) > Math.abs(swipeDistanceY) && 
+        if (Math.abs(swipeDistanceX) > this.swipeThreshold &&
+            Math.abs(swipeDistanceX) > Math.abs(swipeDistanceY) * 1.5 &&
             swipeTime < this.swipeTimeout) {
             
             if (swipeDistanceX > 0) {
@@ -190,7 +198,7 @@ class GestureManager {
             if (pullStart !== null) {
                 pullDistance = e.touches[0].clientY - pullStart;
                 
-                if (pullDistance > 20) {
+                if (pullDistance > 30) {
                     this.showPullToRefreshIndicator(Math.min(pullDistance / threshold, 1));
                 }
             }
