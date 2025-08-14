@@ -1,7 +1,7 @@
 {
-  "name": "Weekend Adventure Planner",
-  "short_name": "AdventurePlanner",
-  "description": "Discover amazing places and plan epic weekend adventures with real-time location data, gamification, and smart route optimization.",
+  "name": "Roam",
+  "short_name": "Roam",
+  "description": "Discover amazing places and plan epic adventures with real-time location data, gamification, and smart route optimization.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#667eea",

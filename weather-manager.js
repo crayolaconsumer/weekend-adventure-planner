@@ -64,7 +64,7 @@ class WeatherManager {
         }
 
         if (!weather) {
-            weather = this.generateMockWeather(lat, lng);
+            weather = this.generateMockWeather(lat);
         }
 
         this.cacheWeather(weather);
@@ -189,7 +189,7 @@ class WeatherManager {
         };
     }
 
-    generateMockWeather(lat, lng) {
+    generateMockWeather(lat) {
         // Generate realistic weather based on location and season
         const conditions = ['sunny', 'partly cloudy', 'cloudy', 'rainy', 'clear'];
         const condition = conditions[Math.floor(Math.random() * conditions.length)];

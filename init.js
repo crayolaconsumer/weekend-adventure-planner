@@ -16,7 +16,7 @@ window.addEventListener('unhandledrejection', (e) => {
 
 // Initialize all components in the correct order
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Initializing Weekend Adventure Planner...');
+    console.log('Initializing Roam...');
     
     // Check if core scripts are loaded (managers auto-initialize)
     const checkScriptsLoaded = () => {
@@ -43,10 +43,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Update initial stats
             if (window.adventurePlanner.updateStats) {
-                window.adventurePlanner.updateStats();
+                // Small delay to ensure DOM is fully ready
+                setTimeout(() => {
+                    window.adventurePlanner.updateStats();
+                }, 100);
             }
             
-            console.log('Weekend Adventure Planner initialized successfully!');
+            console.log('Roam initialized successfully!');
             
         } catch (error) {
             console.error('Error initializing app:', error);

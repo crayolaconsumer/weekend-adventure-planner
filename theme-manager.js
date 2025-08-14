@@ -66,18 +66,21 @@ class ThemeManager {
     }
 
     setupToggleButton() {
-        const toggleBtn = document.getElementById('dark-mode-toggle');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => {
+        const toggleCheckbox = document.getElementById('dark-mode-toggle');
+        if (toggleCheckbox) {
+            // Set initial state
+            toggleCheckbox.checked = this.currentTheme === 'dark';
+            
+            toggleCheckbox.addEventListener('change', () => {
                 this.toggleTheme();
             });
         }
     }
 
     updateThemeIcon() {
-        const themeIcon = document.querySelector('.theme-icon');
-        if (themeIcon) {
-            themeIcon.textContent = this.currentTheme === 'light' ? '🌙' : '☀️';
+        const toggleCheckbox = document.getElementById('dark-mode-toggle');
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = this.currentTheme === 'dark';
         }
     }
 

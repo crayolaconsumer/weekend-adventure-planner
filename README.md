@@ -1,6 +1,6 @@
-# 🗺️ Weekend Adventure Planner
+# 🗺️ Roam
 
-A comprehensive Progressive Web App that helps you discover amazing places and plan epic weekend adventures with AI-powered recommendations, accessibility features, and real-time location data.
+A comprehensive Progressive Web App that helps you discover amazing places and plan epic adventures with AI-powered recommendations, accessibility features, and real-time location data.
 
 ## ✨ Key Features
 

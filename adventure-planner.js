@@ -115,7 +115,7 @@ class AdventurePlanner {
         const desc = this.currentAdventure.places.map((p,i)=>`${i+1}. ${p.name} ${p.address?'- '+p.address:''}`).join('\n');
         const loc = this.currentAdventure.places[0]?.name || 'Adventure';
         const ics = [
-            'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Weekend Adventure Planner//EN','BEGIN:VEVENT',
+            'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Roam//EN','BEGIN:VEVENT',
             `UID:${Date.now()}@weekend-adventure`,`DTSTAMP:${toICSDate(new Date())}`,
             `DTSTART:${toICSDate(start)}`,`DTEND:${toICSDate(end)}`,
             `SUMMARY:${summary}`,`LOCATION:${loc}`,`DESCRIPTION:${desc.replace(/\n/g,'\\n')}`,'END:VEVENT','END:VCALENDAR'
@@ -646,53 +646,97 @@ class AdventurePlanner {
     }
 
     updateStats() {
-        const stats = window.storageManager.getStats();
-        document.getElementById('places-visited').textContent = `🏆 ${stats.placesVisited} places visited`;
-        document.getElementById('adventure-score').textContent = `⭐ ${stats.totalScore} points`;
-        document.getElementById('current-streak').textContent = `🔥 ${stats.currentStreak} day streak`;
-        const units = localStorage.getItem('units') || 'metric';
-        const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
-        document.getElementById('total-distance').textContent = distVal;
-        const unitLabel = document.getElementById('distance-unit-label');
-        if (unitLabel) unitLabel.textContent = units === 'imperial' ? 'mi Traveled' : 'km Traveled';
+        try {
+            const stats = window.storageManager.getStats();
+            console.log('Updating stats with:', stats);
+            
+            const placesElement = document.getElementById('places-visited');
+            const scoreElement = document.getElementById('adventure-score');
+            const streakElement = document.getElementById('current-streak');
+            
+            console.log('Found elements:', { placesElement, scoreElement, streakElement });
+            
+            if (placesElement) {
+                placesElement.textContent = stats.placesVisited;
+                console.log('Set places to:', stats.placesVisited);
+            }
+            if (scoreElement) {
+                scoreElement.textContent = stats.totalScore;
+                console.log('Set score to:', stats.totalScore);
+            }
+            if (streakElement) {
+                streakElement.textContent = stats.currentStreak;
+                console.log('Set streak to:', stats.currentStreak);
+            }
+            
+            // Only update distance if the element exists
+            const distanceElement = document.getElementById('total-distance');
+            if (distanceElement) {
+                const units = localStorage.getItem('units') || 'metric';
+                const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
+                distanceElement.textContent = distVal;
+            }
+            
+            const unitLabel = document.getElementById('distance-unit-label');
+            if (unitLabel) unitLabel.textContent = units === 'imperial' ? 'mi Traveled' : 'km Traveled';
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
     }
 
     loadAdventureHistory() {
-        const adventures = window.storageManager.getSavedAdventures();
-        const stats = window.storageManager.getStats();
-        
-        // Update stats
-        document.getElementById('total-adventures').textContent = stats.totalAdventures;
-        const units = localStorage.getItem('units') || 'metric';
-        const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
-        document.getElementById('total-distance').textContent = distVal;
-        const unitLabel = document.getElementById('distance-unit-label');
-        if (unitLabel) unitLabel.textContent = units === 'imperial' ? 'mi Traveled' : 'km Traveled';
-        document.getElementById('favorite-type').textContent = stats.favoriteType || '-';
-        
-        // Load adventure list
-        const listContainer = document.getElementById('adventure-list');
-        
-        if (adventures.length === 0) {
-            listContainer.innerHTML = '<p class="empty-state">🎯 Start your first adventure to see your history!</p>';
-            return;
-        }
-        
-        let html = '';
-        adventures.slice(-10).reverse().forEach(adventure => { // Show last 10
-            const date = new Date(adventure.created).toLocaleDateString();
-            html += `
-                <div class="history-item">
-                    <div class="history-content">
-                        <h4>🗺️ ${adventure.places.length}-stop adventure</h4>
-                        <p>📅 ${date} • ⭐ ${adventure.score || 0} points</p>
+        try {
+            const adventures = window.storageManager.getSavedAdventures();
+            const stats = window.storageManager.getStats();
+            
+            // Update stats
+            const totalAdventuresElement = document.getElementById('total-adventures');
+            if (totalAdventuresElement) {
+                totalAdventuresElement.textContent = stats.totalAdventures;
+            }
+            
+            const distanceElement = document.getElementById('total-distance');
+            if (distanceElement) {
+                const units = localStorage.getItem('units') || 'metric';
+                const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
+                distanceElement.textContent = distVal;
+            }
+            
+            const unitLabel = document.getElementById('distance-unit-label');
+            if (unitLabel) unitLabel.textContent = units === 'imperial' ? 'mi Traveled' : 'km Traveled';
+            
+            const favoriteTypeElement = document.getElementById('favorite-type');
+            if (favoriteTypeElement) {
+                favoriteTypeElement.textContent = stats.favoriteType || '-';
+            }
+            
+            // Load adventure list
+            const listContainer = document.getElementById('adventure-list');
+            if (!listContainer) return;
+            
+            if (adventures.length === 0) {
+                listContainer.innerHTML = '<p class="empty-state">🎯 Start your first adventure to see your history!</p>';
+                return;
+            }
+            
+            let html = '';
+            adventures.slice(-10).reverse().forEach(adventure => { // Show last 10
+                const date = new Date(adventure.created).toLocaleDateString();
+                html += `
+                    <div class="history-item">
+                        <div class="history-content">
+                            <h4>🗺️ ${adventure.places.length}-stop adventure</h4>
+                            <p>📅 ${date} • ⭐ ${adventure.score || 0} points</p>
+                        </div>
+                        <button class="small-btn" onclick="window.adventurePlanner.repeatAdventure('${adventure.id}')">🔄</button>
                     </div>
-                    <button class="small-btn" onclick="window.adventurePlanner.repeatAdventure('${adventure.id}')">🔄</button>
-                </div>
-            `;
-        });
-        
-        listContainer.innerHTML = html;
+                `;
+            });
+            
+            listContainer.innerHTML = html;
+        } catch (error) {
+            console.error('Error loading adventure history:', error);
+        }
     }
 }
 

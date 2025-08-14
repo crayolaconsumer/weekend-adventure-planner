@@ -317,22 +317,36 @@ class AccessibilityManager {
     }
 
     setupHighContrastMode() {
-        // High contrast mode toggle
-        const highContrastToggle = document.createElement('button');
-        highContrastToggle.id = 'high-contrast-toggle';
-        highContrastToggle.className = 'accessibility-toggle quick-setting';
-        highContrastToggle.innerHTML = '🎨';
-        highContrastToggle.title = 'Toggle high contrast mode';
-        highContrastToggle.setAttribute('aria-label', 'Toggle high contrast mode');
-        
-        highContrastToggle.addEventListener('click', () => {
-            this.toggleHighContrast();
-        });
-
-        // Add to header
-        const slot = document.getElementById('quick-settings') || document.querySelector('.stats-bar');
-        if (slot) {
-            slot.appendChild(highContrastToggle);
+        // High contrast mode toggle for new settings panel
+        const accessibilityContainer = document.getElementById('accessibility-settings');
+        if (accessibilityContainer) {
+            const settingItem = document.createElement('label');
+            settingItem.className = 'setting-item';
+            settingItem.innerHTML = `
+                <div class="setting-info">
+                    <span class="setting-icon">🎨</span>
+                    <div class="setting-text">
+                        <span class="setting-title">High Contrast</span>
+                        <span class="setting-desc">Enhanced visual accessibility</span>
+                    </div>
+                </div>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="high-contrast-toggle">
+                    <span class="toggle-slider"></span>
+                </div>
+            `;
+            
+            accessibilityContainer.appendChild(settingItem);
+            
+            const toggleCheckbox = settingItem.querySelector('#high-contrast-toggle');
+            if (toggleCheckbox) {
+                toggleCheckbox.addEventListener('change', () => {
+                    this.toggleHighContrast();
+                });
+                
+                // Set initial state
+                toggleCheckbox.checked = document.documentElement.classList.contains('high-contrast');
+            }
         }
 
         // Check for system preference
@@ -355,6 +369,11 @@ class AccessibilityManager {
         document.documentElement.classList.add('high-contrast');
         localStorage.setItem('highContrast', 'true');
         this.isHighContrast = true;
+        
+        // Update checkbox state
+        const checkbox = document.getElementById('high-contrast-toggle');
+        if (checkbox) checkbox.checked = true;
+        
         this.announceToScreenReader('High contrast mode enabled');
     }
 
@@ -362,6 +381,11 @@ class AccessibilityManager {
         document.documentElement.classList.remove('high-contrast');
         localStorage.setItem('highContrast', 'false');
         this.isHighContrast = false;
+        
+        // Update checkbox state
+        const checkbox = document.getElementById('high-contrast-toggle');
+        if (checkbox) checkbox.checked = false;
+        
         this.announceToScreenReader('High contrast mode disabled');
     }
 

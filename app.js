@@ -117,12 +117,80 @@ class RandomPlacesFinder {
             }
         } catch (e) {}
 
-        // Settings toggle (show/hide quick settings)
+        // Settings panel toggle
         const settingsBtn = document.getElementById('settings-toggle');
-        if (settingsBtn) {
-            settingsBtn.addEventListener('click', () => {
-                const bar = document.querySelector('.stats-bar');
-                bar.classList.toggle('settings-open');
+        const settingsPanel = document.getElementById('settings-panel');
+        const settingsClose = document.getElementById('settings-close');
+        const settingsBackdrop = document.getElementById('settings-backdrop');
+        
+        const openSettings = () => {
+            settingsPanel?.classList.add('show');
+            settingsBackdrop?.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            
+            // Premium haptic feedback
+            try { 
+                if (navigator.vibrate && document.hasStoredUserActivation) {
+                    navigator.vibrate([5, 10, 5]); // Subtle double tap
+                }
+            } catch(e) {}
+        };
+        
+        const closeSettings = () => {
+            settingsPanel?.classList.remove('show');
+            settingsBackdrop?.classList.remove('show');
+            document.body.style.overflow = '';
+            
+            // Subtle close feedback
+            try { 
+                if (navigator.vibrate && document.hasStoredUserActivation) {
+                    navigator.vibrate(3); // Single gentle tap
+                }
+            } catch(e) {}
+        };
+        
+        if (settingsBtn && settingsPanel) {
+            let settingsClickCount = 0;
+            let settingsClickTimer = null;
+            
+            settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                settingsClickCount++;
+                
+                // Easter egg: Triple click for premium animation
+                if (settingsClickCount === 3) {
+                    settingsBtn.style.animation = 'pulseGlow 1s ease-in-out';
+                    setTimeout(() => {
+                        settingsBtn.style.animation = '';
+                    }, 1000);
+                    settingsClickCount = 0;
+                }
+                
+                clearTimeout(settingsClickTimer);
+                settingsClickTimer = setTimeout(() => {
+                    settingsClickCount = 0;
+                }, 1000);
+                
+                if (settingsPanel.classList.contains('show')) {
+                    closeSettings();
+                } else {
+                    openSettings();
+                }
+            });
+            
+            if (settingsClose) {
+                settingsClose.addEventListener('click', closeSettings);
+            }
+            
+            if (settingsBackdrop) {
+                settingsBackdrop.addEventListener('click', closeSettings);
+            }
+            
+            // Close settings when pressing Escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && settingsPanel.classList.contains('show')) {
+                    closeSettings();
+                }
             });
         }
 
@@ -915,13 +983,13 @@ class RandomPlacesFinder {
         // Try to load a real photo asynchronously
         attemptRealPhoto();
 
-        // Render map preview with skeleton
+        // Render map preview only if no photos are available
         const mapDiv = document.getElementById('place-map');
         if (mapDiv) {
+            mapDiv.classList.add('hidden');
             mapDiv.innerHTML = '';
-            const sk = document.createElement('div');
-            sk.className = 'skeleton skeleton-rect';
-            mapDiv.appendChild(sk);
+            
+            // Only show map if we have coordinates
             if (place.lat && place.lng) {
                 const zoom = 14;
                 const width = 320;
@@ -995,7 +1063,7 @@ class RandomPlacesFinder {
             addBtn.dataset.added = 'false';
         }
         
-        const visited = window.storageManager?.getVisitedPlaces() || [];
+        const visited = window.storageManager?.getVisitedPlaces?.() || [];
         const isVisited = visited.some(v => v.name === place.name);
         
         const visitButton = document.getElementById('mark-visited');

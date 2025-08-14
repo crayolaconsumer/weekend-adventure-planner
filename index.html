@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weekend Adventure Planner</title>
-    <meta name="description" content="Discover amazing places and plan epic weekend adventures with real-time location data, gamification, and smart route optimization.">
+    <title>Roam</title>
+    <meta name="description" content="Discover amazing places and plan epic adventures with real-time location data, gamification, and smart route optimization.">
     <meta name="theme-color" content="#667eea">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Adventure Planner">
+    <meta name="apple-mobile-web-app-title" content="Roam">
     <meta name="msapplication-TileColor" content="#667eea">
     <meta name="msapplication-config" content="browserconfig.xml">
     
@@ -44,19 +44,76 @@
 <body>
     <div class="container">
         <header>
-            <h1>🗺️ Weekend Adventure Planner</h1>
-            <p>Discover amazing places and plan epic weekend adventures</p>
-            <div class="stats-bar">
-                <span id="places-visited">🏆 0 places visited</span>
-                <span id="adventure-score">⭐ 0 points</span>
-                <span id="current-streak">🔥 0 day streak</span>
-                <button id="settings-toggle" class="dark-mode-toggle" title="Settings">⚙️</button>
-                <div class="quick-settings" id="quick-settings">
-                    <button id="units-toggle" class="dark-mode-toggle quick-setting" title="Toggle units (km/mi)">km</button>
-                    <button id="dark-mode-toggle" class="dark-mode-toggle quick-setting" title="Toggle dark mode">
-                        <span class="theme-icon">🌙</span>
+            <h1>🗺️ Roam</h1>
+            <p>Discover amazing places and plan epic adventures</p>
+            <div class="header-top">
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-icon">🏆</span>
+                        <span class="stat-value" id="places-visited">0</span>
+                        <span class="stat-label">places</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">⭐</span>
+                        <span class="stat-value" id="adventure-score">0</span>
+                        <span class="stat-label">points</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">🔥</span>
+                        <span class="stat-value" id="current-streak">0</span>
+                        <span class="stat-label">streak</span>
+                    </div>
+                </div>
+                
+                <div class="settings-container">
+                    <div class="settings-backdrop" id="settings-backdrop"></div>
+                    <button id="settings-toggle" class="settings-btn" title="Settings">
+                        <svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                        <span class="settings-emoji" style="display: none;">⚙️</span>
                     </button>
-                    <!-- high-contrast toggle will be inserted here by accessibility-manager.js -->
+                    
+                    <div class="settings-panel" id="settings-panel">
+                        <div class="settings-header">
+                            <h3>Settings</h3>
+                            <button class="settings-close" id="settings-close">×</button>
+                        </div>
+                        <div class="settings-content">
+                            <div class="setting-group">
+                                <label class="setting-item">
+                                    <div class="setting-info">
+                                        <span class="setting-icon">🌙</span>
+                                        <div class="setting-text">
+                                            <span class="setting-title">Dark Mode</span>
+                                            <span class="setting-desc">Toggle dark/light theme</span>
+                                        </div>
+                                    </div>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="dark-mode-toggle">
+                                        <span class="toggle-slider"></span>
+                                    </div>
+                                </label>
+                                
+                                <label class="setting-item">
+                                    <div class="setting-info">
+                                        <span class="setting-icon">📏</span>
+                                        <div class="setting-text">
+                                            <span class="setting-title">Distance Units</span>
+                                            <span class="setting-desc">km or miles</span>
+                                        </div>
+                                    </div>
+                                    <div class="unit-toggle">
+                                        <button id="units-toggle" class="unit-btn">km</button>
+                                    </div>
+                                </label>
+                                
+                                <!-- High contrast toggle will be inserted here -->
+                                <div id="accessibility-settings"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="install-prompt" class="install-prompt hidden">

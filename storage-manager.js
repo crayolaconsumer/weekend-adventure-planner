@@ -159,7 +159,10 @@ class StorageManager {
     }
 
     getStats() {
-        return this.getData().stats || {};
+        const data = this.getData();
+        const stats = data.stats || {};
+        console.log('StorageManager.getStats() called, returning:', stats);
+        return stats;
     }
 
     updateStreak(data) {

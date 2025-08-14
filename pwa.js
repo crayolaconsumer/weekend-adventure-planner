@@ -109,7 +109,7 @@ class PWAManager {
             console.log('✅ PWA installed successfully');
             this.isInstalled = true;
             this.hideInstallPrompt();
-            this.showToast('🎉 App installed! Welcome to Weekend Adventure Planner!');
+            this.showToast('🎉 App installed! Welcome to Roam!');
         });
 
         // Auto-show install prompt after user engagement
