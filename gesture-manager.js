@@ -3,8 +3,9 @@ class GestureManager {
         this.isEnabled = 'ontouchstart' in window; // Only enable on touch devices
         this.activeTab = 'single';
         this.tabs = ['single', 'adventure', 'history'];
-        this.swipeThreshold = 80; // Minimum distance for swipe (less sensitive)
-        this.swipeTimeout = 280; // Maximum time for swipe
+        this.swipeThreshold = 100; // Minimum distance for swipe (less sensitive)
+        this.swipeTimeout = 260; // Maximum time for swipe
+        this.swipeAngleTolerance = 25; // degrees from horizontal
         this.touchStart = null;
         this.touchEnd = null;
         this.init();
@@ -74,9 +75,9 @@ class GestureManager {
         const diffX = this.touchStart.x - currentX;
         const diffY = this.touchStart.y - currentY;
 
-        // Only handle horizontal swipes (ignore vertical scrolling)
-        // Require stronger horizontal intent to avoid vertical scroll collisions
-        if (Math.abs(diffX) > Math.abs(diffY) * 1.5 && Math.abs(diffX) > 30) {
+        // Only handle mostly-horizontal swipes
+        const angle = Math.abs(Math.atan2(diffY, diffX) * 180 / Math.PI);
+        if (Math.abs(diffX) > 30 && angle < this.swipeAngleTolerance) {
             this.showSwipeIndicator(diffX > 0 ? 'left' : 'right');
         }
     }
@@ -95,9 +96,8 @@ class GestureManager {
         const swipeDistanceY = this.touchStart.y - this.touchEnd.y;
 
         // Check if it's a valid swipe (horizontal, fast enough, long enough)
-        if (Math.abs(swipeDistanceX) > this.swipeThreshold &&
-            Math.abs(swipeDistanceX) > Math.abs(swipeDistanceY) * 1.5 &&
-            swipeTime < this.swipeTimeout) {
+        const angle = Math.abs(Math.atan2(swipeDistanceY, swipeDistanceX) * 180 / Math.PI);
+        if (Math.abs(swipeDistanceX) > this.swipeThreshold && angle < this.swipeAngleTolerance && swipeTime < this.swipeTimeout) {
             
             if (swipeDistanceX > 0) {
                 this.swipeLeft();

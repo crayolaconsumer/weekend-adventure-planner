@@ -514,13 +514,47 @@ class AdventurePlanner {
     addPlaceToAdventure() {
         const currentPlace = window.randomPlacesFinder.currentPlace;
         if (!currentPlace) return;
+        // Avoid duplicates
+        const exists = this.adventurePlaces.some(p => window.randomPlacesFinder.isSamePlace(p, currentPlace));
+        if (!exists) {
+            this.adventurePlaces.push(currentPlace);
+            this.showSuccess('📍 Place added to your adventure list!');
+        }
+        // Update button state to allow remove
+        const addBtn = document.getElementById('add-to-adventure');
+        if (addBtn) {
+            addBtn.textContent = exists ? '✅ Added' : '✅ Added';
+            addBtn.disabled = false;
+            addBtn.dataset.added = 'true';
+            addBtn.title = 'Tap to remove from adventure';
+        }
+    }
 
-        this.adventurePlaces.push(currentPlace);
-        this.showSuccess('📍 Place added to your adventure list!');
-        
-        // Update button state
-        document.getElementById('add-to-adventure').textContent = '✅ Added';
-        document.getElementById('add-to-adventure').disabled = true;
+    toggleCurrentPlaceInAdventure() {
+        const currentPlace = window.randomPlacesFinder.currentPlace;
+        if (!currentPlace) return;
+        const idx = this.adventurePlaces.findIndex(p => window.randomPlacesFinder.isSamePlace(p, currentPlace));
+        const addBtn = document.getElementById('add-to-adventure');
+        if (idx >= 0) {
+            this.adventurePlaces.splice(idx, 1);
+            this.showSuccess('❌ Removed from adventure');
+            if (addBtn) { addBtn.textContent = '➕ Add to Adventure'; addBtn.dataset.added = 'false'; addBtn.title = 'Add this place to current adventure'; }
+        } else {
+            this.addPlaceToAdventure();
+        }
+    }
+
+    removeStop(index) {
+        if (this.currentAdventure) {
+            this.currentAdventure.places.splice(index, 1);
+            this.displayAdventurePlan(this.currentAdventure, this.currentAdventure.isMystery);
+            return;
+        }
+        // If no current plan, allow removing from pending list
+        if (index >= 0 && index < this.adventurePlaces.length) {
+            this.adventurePlaces.splice(index, 1);
+            this.showSuccess('❌ Removed from adventure');
+        }
     }
 
     markPlaceVisited() {

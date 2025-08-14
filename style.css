@@ -132,6 +132,7 @@ header p {
     padding: 32px;
     background: var(--bg-secondary);
     transition: background 0.3s ease;
+    touch-action: pan-y;
 }
 
 /* Tab System */
@@ -471,6 +472,10 @@ header p {
     align-items: center;
 }
 
+@media (max-width: 768px) {
+  .range-section { justify-content: center; }
+}
+
 /* Range slider */
 #range[type="range"] {
     -webkit-appearance: none;
@@ -728,8 +733,12 @@ button {
 .loading {
     text-align: center;
     padding: 40px;
-    background: white;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
 }
+.loading p { color: var(--text-secondary); }
 
 .spinner {
     width: 40px;
@@ -739,6 +748,16 @@ button {
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin: 0 auto 20px;
+}
+
+/* Dark mode adjustments for loading block */
+[data-theme="dark"] .loading {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+[data-theme="dark"] .spinner {
+    border-color: rgba(148, 163, 184, 0.25);
+    border-top-color: #818cf8;
 }
 
 @keyframes spin {
@@ -800,8 +819,15 @@ button {
     text-align: center;
     font-size: 13px;
     color: var(--text-secondary);
-    margin-bottom: 10px;
+    margin-bottom: 6px;
 }
+
+/* Amenities chips */
+.amenities { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 12px; }
+.amenity { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); }
+.amenity a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.amenity.open { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.35); color: #059669; }
+.amenity.closed { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.35); color: #ef4444; }
 
 .place-meta span {
     background: var(--bg-card);

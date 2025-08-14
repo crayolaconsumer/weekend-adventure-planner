@@ -34,7 +34,15 @@ class RandomPlacesFinder {
         // Analytics for actions
         const a = (name) => { try { if (typeof window.va === 'function') window.va('event', { type: name }); } catch(e) {} };
         document.getElementById('get-directions').addEventListener('click', () => a('get_directions'));
-        document.getElementById('add-to-adventure').addEventListener('click', () => a('add_to_adventure'));
+        document.getElementById('add-to-adventure').addEventListener('click', () => {
+            const btn = document.getElementById('add-to-adventure');
+            if (btn?.dataset.added === 'true') {
+                window.adventurePlanner?.toggleCurrentPlaceInAdventure();
+            } else {
+                window.adventurePlanner?.addPlaceToAdventure();
+                a('add_to_adventure');
+            }
+        });
         document.getElementById('mark-visited').addEventListener('click', () => a('mark_visited'));
 
         // Check if adventure planner elements exist before adding listeners
@@ -617,6 +625,15 @@ class RandomPlacesFinder {
         return deg * (Math.PI/180);
     }
 
+    isSamePlace(a, b) {
+        if (!a || !b) return false;
+        if (a.osmElementId && b.osmElementId && a.osmElementId === b.osmElementId) return true;
+        const sameName = a.name && b.name && a.name === b.name;
+        const sameCoords = typeof a.lat === 'number' && typeof b.lat === 'number' &&
+                           Math.abs(a.lat - b.lat) < 1e-4 && Math.abs(a.lng - b.lng) < 1e-4;
+        return sameName || sameCoords;
+    }
+
     formatAddress(tags) {
         const parts = [];
         if (tags['addr:housenumber']) parts.push(tags['addr:housenumber']);
@@ -695,19 +712,22 @@ class RandomPlacesFinder {
             badgeElement.style.display = 'none';
         }
 
-        // Add small metadata row (opening hours / accessibility / fee)
+        // Amenities chips (opening hours / accessibility / fee / site / phone)
         try {
-            const meta = document.createElement('div');
-            meta.className = 'place-small-meta';
-            const bits = [];
-            if (place.opening_hours) bits.push(`⏰ ${this.formatOpeningHours(place.opening_hours)}`);
-            if (place.wheelchair && /yes|designated/i.test(place.wheelchair)) bits.push('♿ Accessible');
-            if (place.fee && /yes/i.test(place.fee)) bits.push('💳 Entry fee');
-            if (place.website) bits.push(`<a href="${place.website}" target="_blank" rel="noopener">🔗 Website</a>`);
-            if (place.phone) bits.push(`📞 ${place.phone}`);
-            meta.innerHTML = bits.join(' • ');
             const nameEl = document.getElementById('place-address');
-            if (nameEl && bits.length) nameEl.insertAdjacentElement('afterend', meta);
+            const row = document.createElement('div');
+            row.className = 'amenities';
+            const add = (html, cls) => { const chip = document.createElement('span'); chip.className = 'amenity' + (cls ? ' ' + cls : ''); chip.innerHTML = html; row.appendChild(chip); };
+            if (place.opening_hours) {
+                const oh = this.formatOpeningHours(place.opening_hours);
+                const isOpen = /24\/7|open\b/i.test(oh) && !/off|closed/i.test(oh);
+                add(`⏰ ${oh}`, isOpen ? 'open' : undefined);
+            }
+            if (place.wheelchair && /yes|designated/i.test(place.wheelchair)) add('♿ Accessible');
+            if (place.fee && /yes/i.test(place.fee)) add('💳 Entry fee');
+            if (place.website) add(`<a href="${place.website}" target="_blank" rel="noopener">🔗 Website</a>`);
+            if (place.phone) add(`📞 ${place.phone}`);
+            if (row.children.length) nameEl?.insertAdjacentElement('afterend', row);
         } catch(e) {}
 
         // Handle photos (skeletons)
@@ -900,8 +920,17 @@ class RandomPlacesFinder {
         }
 
         // Reset button states
-        document.getElementById('add-to-adventure').textContent = '➕ Add to Adventure';
-        document.getElementById('add-to-adventure').disabled = false;
+        const addBtn = document.getElementById('add-to-adventure');
+        addBtn.disabled = false;
+        // Reflect current membership in pending list
+        const already = (window.adventurePlanner?.adventurePlaces || []).some(p => this.isSamePlace(p, place));
+        if (already) {
+            addBtn.textContent = '❌ Remove from Adventure';
+            addBtn.dataset.added = 'true';
+        } else {
+            addBtn.textContent = '➕ Add to Adventure';
+            addBtn.dataset.added = 'false';
+        }
         
         const visited = window.storageManager ? window.storageManager.getVisitedPlaces() : [];
         const isVisited = visited.some(v => v.name === place.name);
