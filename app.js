@@ -32,7 +32,7 @@ class RandomPlacesFinder {
         });
 
         // Analytics for actions
-        const a = (name) => { try { if (typeof window.va === 'function') window.va('event', { type: name }); } catch(e) {} };
+        const a = (name) => { try { if (typeof window.va === 'function' && window.__vaReady) window.va('event', { type: name }); } catch(e) {} };
         document.getElementById('get-directions').addEventListener('click', () => a('get_directions'));
         document.getElementById('add-to-adventure').addEventListener('click', () => {
             const btn = document.getElementById('add-to-adventure');
@@ -1013,7 +1013,7 @@ class RandomPlacesFinder {
         }));
 
         // Analytics event (free Vercel analytics)
-        try { if (typeof window.va === 'function') window.va('event', { type: 'place_displayed', name: place.name, kind: place.type }); } catch (e) {}
+        try { if (typeof window.va === 'function' && window.__vaReady) window.va('event', { type: 'place_displayed', name: place.name, kind: place.type }); } catch (e) {}
     }
 
     updateStickyActions() { /* intentionally removed */ }

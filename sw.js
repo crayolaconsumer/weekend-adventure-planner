@@ -160,8 +160,8 @@ async function handleAPIRequest(request) {
     // Try network first
     const response = await fetch(request);
     
-    if (response.status === 200) {
-      // Cache successful API responses
+    if (response.status === 200 && request.method === 'GET') {
+      // Cache successful API responses (GET only)
       const cache = await caches.open(API_CACHE);
       cache.put(request, response.clone());
       console.log('Service Worker: API response cached:', request.url);
@@ -191,8 +191,8 @@ async function handleDynamicRequest(request) {
   try {
     const response = await fetch(request);
     
-    // Cache successful responses
-    if (response.status === 200) {
+    // Cache successful responses (GET only)
+    if (response.status === 200 && request.method === 'GET') {
       const cache = await caches.open(DYNAMIC_CACHE);
       cache.put(request, response.clone());
     }

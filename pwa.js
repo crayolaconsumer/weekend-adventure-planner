@@ -15,7 +15,7 @@ class PWAManager {
 
         // Initialize Vercel Analytics if available
         try {
-            if (typeof window.va === 'function') {
+            if (typeof window.va === 'function' && window.__vaReady) {
                 window.va('init');
             }
         } catch (e) {}
@@ -237,7 +237,7 @@ class PWAManager {
     }
 
     showToast(message, type = 'info', action = null) {
-        try { if (typeof window.va === 'function') window.va('event', { type: 'toast', level: type }); } catch (e) {}
+        try { if (typeof window.va === 'function' && window.__vaReady) window.va('event', { type: 'toast', level: type }); } catch (e) {}
         // Create toast element
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;

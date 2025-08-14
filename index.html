@@ -34,8 +34,10 @@
           var s = document.createElement('script');
           s.defer = true;
           s.src = '/_vercel/insights/script.js';
+          s.onload = function(){ window.__vaReady = true; };
           document.head.appendChild(s);
         }
+        // Stub; real script will replace window.va; we gate usage on window.__vaReady
         window.va = window.va || function(){ (window.vaq = window.vaq || []).push(arguments) };
       })();
     </script>
