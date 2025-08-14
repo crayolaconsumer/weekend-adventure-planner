@@ -116,7 +116,9 @@ class AnimationsManager {
     }
 
     addButtonHoverEffects() {
-        // Enhanced button hover effects
+        // Skip hover effects on coarse pointers (touch devices)
+        const isCoarse = window.matchMedia('(pointer: coarse)').matches;
+        if (isCoarse) return;
         document.addEventListener('mouseover', (e) => {
             if (e.target.matches('button, .btn, .primary-btn, .secondary-btn')) {
                 this.animateButtonHover(e.target, true);
@@ -144,6 +146,8 @@ class AnimationsManager {
     }
 
     addRippleEffect(element) {
+        // Avoid ripple on small/compact controls to prevent layout glitches
+        if (element.matches('.chip-btn, .filter-btn, .tab-btn, .dark-mode-toggle, .accessibility-toggle')) return;
         const ripple = document.createElement('span');
         ripple.className = 'ripple-effect';
         
@@ -184,6 +188,8 @@ class AnimationsManager {
 
     animateClick(element) {
         if (this.isReducedMotion) return;
+        // Avoid scale bounce on compact buttons
+        if (element.matches('.chip-btn, .filter-btn, .tab-btn, .dark-mode-toggle, .accessibility-toggle')) return;
 
         element.style.transform = 'scale(0.95)';
         

@@ -1,8 +1,33 @@
 class WeatherManager {
     constructor() {
         this.apiKey = null; // Users can add their own API key
-        this.fallbackWeather = null;
+    this.fallbackWeather = null;
+    this.lastWeather = null;
         this.init();
+    }
+
+    async fetchHourlyForecast(lat, lng) {
+        try {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,weathercode&timezone=auto&forecast_days=1`;
+            const res = await fetch(url);
+            if (!res.ok) return [];
+            const data = await res.json();
+            const times = data?.hourly?.time || [];
+            const temps = data?.hourly?.temperature_2m || [];
+            const codes = data?.hourly?.weathercode || [];
+            const list = [];
+            const now = Date.now();
+            for (let i = 0; i < times.length; i++) {
+                const t = new Date(times[i]);
+                if (t.getTime() >= now && list.length < 12) {
+                    const hour = t.toLocaleTimeString([], { hour: '2-digit' });
+                    const desc = this.describeOpenMeteoCode(codes[i]);
+                    const icon = this.getWeatherIcon(desc);
+                    list.push({ time: hour, temp: Math.round(temps[i]), icon });
+                }
+            }
+            return list.slice(0, 6);
+        } catch (e) { return []; }
     }
 
     init() {
@@ -237,8 +262,10 @@ class WeatherManager {
         // Add weather-based class for styling
         widget.className = `weather-widget weather-${weather.condition.replace(/\s+/g, '-')}`;
         
-        // Add tooltip with more details
-        widget.title = `${weather.description}\nHumidity: ${weather.humidity}%\nWind: ${weather.windSpeed} km/h\nSource: ${weather.source}`;
+    // Add tooltip with more details
+    widget.title = `${weather.description}\nHumidity: ${weather.humidity}%\nWind: ${weather.windSpeed} km/h\nSource: ${weather.source}`;
+    this.lastWeather = weather;
+    widget.onclick = () => this.showWeatherModal();
     }
 
     cacheWeather(weather) {
@@ -408,6 +435,56 @@ class WeatherManager {
             if (window.pwaManager) {
                 window.pwaManager.showToast('🌤️ Weather API key removed', 'info');
             }
+
+  showWeatherModal() {
+    const w = this.lastWeather || this.fallbackWeather;
+    if (!w) return;
+    const c = Number(w.temperature);
+    const f = Math.round((c * 9) / 5 + 32);
+    const windKmh = Number(w.windSpeed) || 0;
+    const windMph = (windKmh * 0.621371).toFixed(1);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'weather-modal-overlay';
+    overlay.setAttribute('role','dialog');
+    overlay.setAttribute('aria-modal','true');
+    overlay.innerHTML = `
+      <div class="weather-modal">
+        <div class="wm-header">
+          <h3>Weather details</h3>
+          <button class="wm-close" aria-label="Close">✕</button>
+        </div>
+        <div class="wm-body">
+          <div class="wm-row"><span>Condition</span><span>${w.icon} ${w.description}</span></div>
+          <div class="wm-row"><span>Temperature</span><span>${c}°C / ${f}°F</span></div>
+          ${w.humidity != null ? `<div class=\"wm-row\"><span>Humidity</span><span>${w.humidity}%</span></div>` : ''}
+          ${w.windSpeed != null ? `<div class=\"wm-row\"><span>Wind</span><span>${windKmh} km/h • ${windMph} mph</span></div>` : ''}
+          <div class="wm-row"><span>Source</span><span>${w.source}</span></div>
+          <div class="wm-forecast"><div class="wm-forecast-title">Next hours</div><div class="wm-forecast-row" id="wm-forecast-row"></div></div>
+          <div class="wm-footnote">Updated: ${new Date(w.timestamp).toLocaleString()}</div>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    overlay.querySelector('.wm-close').onclick = () => overlay.remove();
+    document.addEventListener('keydown', function onEsc(ev){ if (ev.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onEsc); } });
+    document.body.appendChild(overlay);
+
+    // Load forecast asynchronously
+    if (this.lastCoords) {
+      this.fetchHourlyForecast(this.lastCoords.lat, this.lastCoords.lng)
+        .then(items => {
+          const row = overlay.querySelector('#wm-forecast-row');
+          if (!row || !items || items.length === 0) return;
+          items.forEach(it => {
+            const el = document.createElement('div');
+            el.className = 'wm-fItem';
+            el.innerHTML = `<div class=\"wm-fTime\">${it.time}</div><div class=\"wm-fIcon\">${it.icon}</div><div class=\"wm-fTemp\">${it.temp}°</div>`;
+            row.appendChild(el);
+          });
+        })
+        .catch(() => {});
+    }
+  }
         }
     }
 }
@@ -416,7 +493,7 @@ class WeatherManager {
 const weatherStyles = document.createElement('style');
 weatherStyles.textContent = `
     .weather-widget {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
         background: rgba(255, 255, 255, 0.2);
@@ -427,6 +504,7 @@ weatherStyles.textContent = `
         cursor: pointer;
         transition: all 0.3s ease;
         margin-left: 10px;
+        white-space: nowrap;
     }
 
     .weather-widget:hover {
@@ -471,6 +549,24 @@ weatherStyles.textContent = `
             gap: 6px;
         }
     }
+
+    /* Weather modal */
+    .weather-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 11000; }
+    .weather-modal { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 12px; width: 92%; max-width: 420px; box-shadow: 0 10px 30px var(--shadow); animation: fadeInUp 180ms ease; }
+    .wm-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border-color); }
+    .wm-header h3 { margin: 0; font-size: 1rem; }
+    .wm-close { background: transparent; border: none; width: 34px; height: 34px; border-radius: 6px; font-size: 16px; color: var(--text-primary); }
+    .wm-body { padding: 12px 14px; }
+    .wm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 0.95rem; }
+    .wm-row span:first-child { color: var(--text-secondary); }
+    .wm-footnote { margin-top: 6px; color: var(--text-secondary); font-size: 0.8rem; }
+    .wm-forecast { margin-top: 8px; }
+    .wm-forecast-title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 6px; }
+    .wm-forecast-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    .wm-fItem { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 4px; text-align: center; }
+    .wm-fTime { font-size: 0.75rem; color: var(--text-secondary); }
+    .wm-fIcon { font-size: 1rem; margin: 2px 0; }
+    .wm-fTemp { font-weight: 600; }
 `;
 document.head.appendChild(weatherStyles);
 

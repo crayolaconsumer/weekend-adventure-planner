@@ -90,6 +90,16 @@ class RandomPlacesFinder {
             });
         });
 
+        // Prevent double-tap zoom on chip area (mobile safari)
+        const chipRow = document.querySelector('.quick-filters');
+        if (chipRow) {
+            chipRow.addEventListener('touchend', (e) => {
+                if (e.target.closest('.chip-btn')) {
+                    e.preventDefault(); // avoid double-tap zoom/layout shift
+                }
+            }, { passive: false });
+        }
+
         // Clear chip resets selections
         const clearChip = document.querySelector('.chip-btn.clear-chip');
         if (clearChip) {
@@ -958,8 +968,7 @@ class RandomPlacesFinder {
 
         document.getElementById('result').classList.remove('hidden');
 
-        // Sync sticky actions (mobile)
-        this.updateStickyActions();
+        // Sticky actions removed per UX choice
         
         // Trigger event for sharing functionality
         document.dispatchEvent(new CustomEvent('placeDisplayed', {
@@ -970,22 +979,7 @@ class RandomPlacesFinder {
         try { if (typeof window.va === 'function') window.va('event', { type: 'place_displayed', name: place.name, kind: place.type }); } catch (e) {}
     }
 
-    updateStickyActions() {
-        const bar = document.getElementById('sticky-actions');
-        if (!bar) return;
-        if (!this.currentPlace) { bar.classList.add('hidden'); return; }
-        const bind = (selector, handler) => {
-            const btn = bar.querySelector(selector);
-            if (btn) {
-                btn.onclick = handler;
-            }
-        };
-        bind('.sa-directions', () => this.getDirections());
-        bind('.sa-add', () => document.getElementById('add-to-adventure').click());
-        bind('.sa-visited', () => document.getElementById('mark-visited').click());
-        bind('.sa-another', () => document.getElementById('find-another').click());
-        bar.classList.remove('hidden');
-    }
+    updateStickyActions() { /* intentionally removed */ }
 
     getDirections() {
         if (!this.currentPlace) return;

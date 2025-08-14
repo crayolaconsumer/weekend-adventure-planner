@@ -107,15 +107,20 @@ header p {
 .dark-mode-toggle {
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.25);
-    padding: 8px 12px;
-    border-radius: 20px;
+    padding: 6px 10px;
+    border-radius: 16px;
     cursor: pointer;
     transition: all 0.2s ease;
     margin-left: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    line-height: 1;
 }
 /* Quick settings wrapper */
 .quick-settings { display: inline-flex; align-items: center; gap: 8px; overflow: hidden; max-width: 0; opacity: 0; transform: translateY(-2px); transition: max-width 220ms ease, opacity 220ms ease; vertical-align: middle; }
-.settings-open .quick-settings { max-width: 260px; opacity: 1; }
+.settings-open .quick-settings { max-width: 220px; opacity: 1; }
 
 /* Hide individual quick settings until wrapper expands */
 [data-theme] .quick-setting { opacity: 0; transform: translateY(-4px); transition: opacity 200ms ease, transform 200ms ease; }
@@ -125,10 +130,10 @@ header p {
 .quick-settings .accessibility-toggle {
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.25);
-    padding: 8px 12px;
-    border-radius: 20px;
+    padding: 6px 10px;
+    border-radius: 16px;
     margin: 0;
-    height: auto;
+    min-height: 32px;
     line-height: 1;
 }
 .quick-settings .accessibility-toggle:hover { background: rgba(255,255,255,0.25); }
@@ -139,8 +144,10 @@ header p {
 }
 
 .theme-icon {
-    font-size: 1rem;
+    font-size: 0.95rem;
     transition: transform 0.3s ease;
+    display: block;
+    line-height: 1;
 }
 
 .dark-mode-toggle:hover .theme-icon {
@@ -242,6 +249,7 @@ header p {
     transition: all 0.3s ease;
     font-size: 14px;
     font-weight: 500;
+    transform: translateZ(0); /* prevent layout shift on mobile */
 }
 
 .filter-btn.active {
@@ -493,6 +501,7 @@ header p {
 
 @media (max-width: 768px) {
   .range-section { justify-content: center; }
+  .range-section label { text-align: center; width: 100%; }
 }
 
 /* Range slider */
@@ -908,14 +917,7 @@ button {
 .gallery-main.skeleton, .skeleton-rect { height: 200px; border-radius: 12px; }
 .skeleton-line { height: 14px; border-radius: 6px; margin: 6px auto; max-width: 60%; }
 
-/* Sticky action bar */
-.sticky-actions { position: fixed; left: 0; right: 0; bottom: 12px; margin: 0 auto; max-width: 900px; display: flex; gap: 8px; justify-content: center; padding: 8px; z-index: 9999; }
-.sticky-actions .sa-btn { flex: 1; max-width: 200px; padding: 12px 10px; border-radius: 12px; border: none; color: white; background: #4b5563; font-weight: 600; }
-.sticky-actions .sa-directions { background: #2563eb; }
-.sticky-actions .sa-add { background: #7c3aed; }
-.sticky-actions .sa-visited { background: #059669; }
-.sticky-actions .sa-another { background: #6b7280; }
-@media (min-width: 769px) { .sticky-actions { display: none; } }
+/* Sticky action bar removed intentionally */
 
 /* Gallery */
 .place-gallery {
