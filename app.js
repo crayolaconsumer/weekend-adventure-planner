@@ -5,6 +5,8 @@ class RandomPlacesFinder {
         this.lastRange = null;
         this.currentPlace = null;
         this.isSearching = false;
+        this.activeChips = []; // Initialize active chips array
+        this.units = localStorage.getItem('units') || 'metric'; // Initialize units
         this.initializeEventListeners();
     }
 
@@ -79,16 +81,103 @@ class RandomPlacesFinder {
         // Quick filter chips (multi-select + clear)
         const chipButtons = Array.from(document.querySelectorAll('.chip-btn'));
         const restoreActive = new Set((localStorage.getItem('activeChips') || '').split(',').filter(Boolean));
+        
+        console.log('Found chip buttons:', chipButtons.length);
+        console.log('Restored active chips:', restoreActive);
+        
+        // Initialize chip buttons with proper event listeners
         chipButtons.forEach(btn => {
             if (btn.dataset.clear === 'true') return;
-            if (restoreActive.has(btn.textContent)) btn.classList.add('active');
-            btn.addEventListener('click', async () => {
+            
+            // Restore active state from localStorage
+            if (restoreActive.has(btn.textContent)) {
+                btn.classList.add('active');
+            }
+            
+            // Add single event listener for each chip button
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('Chip button clicked:', btn.textContent, btn.dataset);
+                
+                // Toggle active state
                 btn.classList.toggle('active');
-                const activeLabels = chipButtons.filter(b => b.dataset.clear !== 'true' && b.classList.contains('active')).map(b => b.textContent);
-                try { localStorage.setItem('activeChips', activeLabels.join(',')); } catch (e) {}
-                await this.runChipsSearch();
+                const isActive = btn.classList.contains('active');
+                console.log('Chip button active state:', isActive);
+                
+                // Update localStorage
+                const activeLabels = chipButtons
+                    .filter(b => b.dataset.clear !== 'true' && b.classList.contains('active'))
+                    .map(b => b.textContent);
+                
+                console.log('Active chips:', activeLabels);
+                
+                try { 
+                    localStorage.setItem('activeChips', activeLabels.join(',')); 
+                    console.log('Saved to localStorage:', activeLabels.join(','));
+                } catch (e) {
+                    console.warn('Failed to save chip selection to localStorage');
+                }
+                
+                // Update search summary
+                this.updateSearchSummary();
+                
+                // Run search if we have active chips
+                if (activeLabels.length > 0) {
+                    console.log('Running chip search with:', activeLabels);
+                    await this.runChipsSearch();
+                } else {
+                    console.log('No active chips, skipping search');
+                }
+            });
+            
+            // Add touchstart as fallback for mobile
+            btn.addEventListener('touchstart', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('Chip button touched:', btn.textContent, btn.dataset);
+                
+                // Toggle active state
+                btn.classList.toggle('active');
+                const isActive = btn.classList.contains('active');
+                console.log('Chip button active state (touch):', isActive);
+                
+                // Update localStorage
+                const activeLabels = chipButtons
+                    .filter(b => b.dataset.clear !== 'true' && b.classList.contains('active'))
+                    .map(b => b.textContent);
+                
+                console.log('Active chips (touch):', activeLabels);
+                
+                try { 
+                    localStorage.setItem('activeChips', activeLabels.join(',')); 
+                    console.log('Saved to localStorage (touch):', activeLabels.join(','));
+                } catch (e) {
+                    console.warn('Failed to save chip selection to localStorage');
+                }
+                
+                // Update search summary
+                this.updateSearchSummary();
+                
+                // Run search if we have active chips
+                if (activeLabels.length > 0) {
+                    console.log('Running chip search with (touch):', activeLabels);
+                    await this.runChipsSearch();
+                } else {
+                    console.log('No active chips, skipping search (touch)');
+                }
             });
         });
+
+        // Update search summary when theme changes
+        const themeSelect = document.getElementById('adventure-theme');
+        if (themeSelect) {
+            themeSelect.addEventListener('change', () => {
+                this.updateSearchSummary();
+            });
+        }
 
         // Prevent double-tap zoom on chip area (mobile safari)
         const chipRow = document.querySelector('.quick-filters');
@@ -103,10 +192,29 @@ class RandomPlacesFinder {
         // Clear chip resets selections
         const clearChip = document.querySelector('.chip-btn.clear-chip');
         if (clearChip) {
-            clearChip.addEventListener('click', async () => {
+            clearChip.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Remove active class from all chips
                 chipButtons.forEach(b => b.classList.remove('active'));
+                
+                // Clear localStorage
                 localStorage.removeItem('activeChips');
-                if (this.currentLocation) await this.findRandomPlace('tourist_attraction');
+                
+                // Reset activeChips property
+                this.activeChips = [];
+                
+                // Update search summary
+                this.updateSearchSummary();
+                
+                // Show feedback
+                this.showSuccess('Filters cleared!');
+                
+                // If we have a location, find a random place
+                if (this.currentLocation) {
+                    await this.findRandomPlace('tourist_attraction');
+                }
             });
         }
 
@@ -116,6 +224,9 @@ class RandomPlacesFinder {
                 setTimeout(() => this.runChipsSearch(), 300);
             }
         } catch (e) {}
+        
+        // Initialize search summary
+        this.updateSearchSummary();
 
         // Settings panel toggle
         const settingsBtn = document.getElementById('settings-toggle');
@@ -249,13 +360,64 @@ class RandomPlacesFinder {
         }
     }
 
+    updateSearchSummary() {
+        const themeElement = document.getElementById('current-theme');
+        const filtersElement = document.getElementById('current-filters');
+        
+        if (themeElement) {
+            const themeSelect = document.getElementById('adventure-theme');
+            const theme = themeSelect ? themeSelect.value : 'any';
+            const themeLabels = {
+                'any': '🎲 Any',
+                'foodie': '🍕 Foodie Tour',
+                'historic': '🏛️ Historic Journey',
+                'nature': '🌲 Nature Escape',
+                'culture': '🎭 Culture Quest',
+                'hidden': '💎 Hidden Gems',
+                'photo': '📸 Photo Safari'
+            };
+            themeElement.textContent = themeLabels[theme] || '🎲 Any';
+        }
+        
+        if (filtersElement) {
+            const activeChips = Array.from(document.querySelectorAll('.chip-btn.active'));
+            if (activeChips.length === 0) {
+                filtersElement.textContent = 'None selected';
+            } else {
+                const chipLabels = activeChips.map(c => c.textContent).join(', ');
+                filtersElement.textContent = chipLabels;
+            }
+        }
+    }
+
     async runChipsSearch() {
-        // Aggregate selected chips to choose category/type
-        const activeChips = Array.from(document.querySelectorAll('.chip-btn.active'));
-        if (activeChips.length === 0) return;
-        // If any restaurant chip active, run restaurant search; otherwise attraction
-        const isRestaurant = activeChips.some(c => c.getAttribute('data-category') === 'restaurant');
-        return this.findRandomPlace(isRestaurant ? 'restaurant' : 'tourist_attraction');
+        try {
+            // Aggregate selected chips to choose category/type
+            const activeChips = Array.from(document.querySelectorAll('.chip-btn.active'));
+            
+            if (activeChips.length === 0) {
+                this.showError('Please select at least one filter category first.');
+                return;
+            }
+            
+            // Store active chips for use in search
+            this.activeChips = activeChips;
+            
+            // Show which filters are active
+            const activeLabels = activeChips.map(c => c.textContent).join(', ');
+            this.showSuccess(`Searching with filters: ${activeLabels}`);
+            
+            // If any restaurant chip active, run restaurant search; otherwise attraction
+            const isRestaurant = activeChips.some(c => c.getAttribute('data-category') === 'restaurant');
+            const searchType = isRestaurant ? 'restaurant' : 'tourist_attraction';
+            
+            // Run the search
+            await this.findRandomPlace(searchType);
+            
+        } catch (error) {
+            console.error('Error in runChipsSearch:', error);
+            this.showError('Failed to run chip search. Please try again.');
+        }
     }
 
     setUnits(units) {
@@ -279,10 +441,31 @@ class RandomPlacesFinder {
             const themes = ['any', 'foodie', 'historic', 'nature', 'culture', 'hidden', 'photo'];
             const randomTheme = themes[Math.floor(Math.random() * themes.length)];
             themeSelect.value = randomTheme;
+            
+            // Show what theme was selected
+            const themeLabels = {
+                'any': '🎲 Any theme',
+                'foodie': '🍕 Foodie theme',
+                'historic': '🏛️ Historic theme',
+                'nature': '🌲 Nature theme',
+                'culture': '🎭 Culture theme',
+                'hidden': '💎 Hidden gems theme',
+                'photo': '📸 Photo theme'
+            };
+            this.showSuccess(`Surprise theme selected: ${themeLabels[randomTheme]}`);
         }
         
+        // Randomly choose between restaurant and attraction
         const types = ['restaurant', 'tourist_attraction'];
         const randomType = types[Math.floor(Math.random() * types.length)];
+        
+        // Clear any active chips for a true surprise
+        if (this.activeChips) {
+            this.activeChips.forEach(chip => chip.classList.remove('active'));
+            this.activeChips = [];
+        }
+        
+        this.showSuccess('🎁 Surprise mode activated! Finding a random place...');
         this.findRandomPlace(randomType);
     }
 
@@ -402,7 +585,16 @@ class RandomPlacesFinder {
         const theme = document.getElementById('adventure-theme')?.value || 'any';
         const filteredType = this.applyThemeFilter(type, theme);
 
-        this.showLoading(`Finding random ${type === 'restaurant' ? 'restaurant' : 'attraction'}...`);
+        // Show what we're searching for
+        let searchDescription = `Finding random ${type === 'restaurant' ? 'restaurant' : 'attraction'}`;
+        if (theme !== 'any') {
+            searchDescription += ` with ${theme} theme`;
+        }
+        if (this.activeChips && this.activeChips.length > 0) {
+            const chipLabels = this.activeChips.map(c => c.textContent).join(', ');
+            searchDescription += ` (${chipLabels})`;
+        }
+        this.showLoading(searchDescription + '...');
 
         try {
             const places = await this.searchNearbyPlaces(location, filteredType, this.lastRange);
@@ -430,29 +622,53 @@ class RandomPlacesFinder {
 
     async searchNearbyPlaces(location, type, radius) {
         try {
-            // Build Overpass query (increase timeout for reliability)
+            // Build Overpass query based on active chips and type
             let overpassQuery;
+            
             if (type === 'restaurant') {
+                // Use active chips to determine restaurant types
+                const restaurantTypes = this.activeChips ? 
+                    this.activeChips
+                        .filter(c => c.getAttribute('data-category') === 'restaurant')
+                        .map(c => c.getAttribute('data-types'))
+                        .flatMap(types => types.split(','))
+                        .filter(Boolean) : 
+                    ['restaurant', 'cafe', 'bar'];
+                
+                const uniqueTypes = [...new Set(restaurantTypes)];
+                const typeQueries = uniqueTypes.map(t => `node["amenity"="${t}"](around:${radius},${location.lat},${location.lng});`).join('\n');
+                
                 overpassQuery = `
                     [out:json][timeout:60];
                     (
-                        node["amenity"="restaurant"](around:${radius},${location.lat},${location.lng});
-                        node["amenity"="fast_food"](around:${radius},${location.lat},${location.lng});
-                        node["amenity"="cafe"](around:${radius},${location.lat},${location.lng});
-                        node["amenity"="bar"](around:${radius},${location.lat},${location.lng});
+                        ${typeQueries}
                     );
                     out geom;
                 `;
             } else {
+                // Use active chips to determine attraction types
+                const attractionTypes = this.activeChips ? 
+                    this.activeChips
+                        .filter(c => c.getAttribute('data-category') === 'attraction')
+                        .map(c => c.getAttribute('data-types'))
+                        .flatMap(types => types.split(','))
+                        .filter(Boolean) : 
+                    ['tourist_attraction', 'museum', 'park', 'historic', 'theatre', 'viewpoint'];
+                
+                const uniqueTypes = [...new Set(attractionTypes)];
+                const typeQueries = uniqueTypes.map(t => {
+                    if (t === 'park') return `node["leisure"="park"](around:${radius},${location.lat},${location.lng});`;
+                    if (t === 'museum') return `node["tourism"="museum"](around:${radius},${location.lat},${location.lng});`;
+                    if (t === 'historic') return `node["historic"](around:${radius},${location.lat},${location.lng});`;
+                    if (t === 'theatre') return `node["amenity"="theatre"](around:${radius},${location.lat},${location.lng});`;
+                    if (t === 'viewpoint') return `node["tourism"="viewpoint"](around:${radius},${location.lat},${location.lng});`;
+                    return `node["tourism"="${t}"](around:${radius},${location.lat},${location.lng});`;
+                }).join('\n');
+                
                 overpassQuery = `
                     [out:json][timeout:60];
                     (
-                        node["tourism"="attraction"](around:${radius},${location.lat},${location.lng});
-                        node["tourism"="museum"](around:${radius},${location.lat},${location.lng});
-                        node["leisure"="park"](around:${radius},${location.lat},${location.lng});
-                        node["historic"](around:${radius},${location.lat},${location.lng});
-                        node["amenity"="theatre"](around:${radius},${location.lat},${location.lng});
-                        node["tourism"="viewpoint"](around:${radius},${location.lat},${location.lng});
+                        ${typeQueries}
                     );
                     out geom;
                 `;

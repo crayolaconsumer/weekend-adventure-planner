@@ -167,31 +167,45 @@
 
                     <div class="theme-section">
                         <label for="adventure-theme">Adventure Theme:</label>
-                        <select id="adventure-theme">
-                            <option value="any">🎲 Any</option>
-                            <option value="foodie">🍕 Foodie Tour</option>
-                            <option value="historic">🏛️ Historic Journey</option>
-                            <option value="nature">🌲 Nature Escape</option>
-                            <option value="culture">🎭 Culture Quest</option>
-                            <option value="hidden">💎 Hidden Gems</option>
-                            <option value="photo">📸 Photo Safari</option>
+                        <select id="adventure-theme" title="Choose a theme to filter your search results">
+                            <option value="any">🎲 Any - All types of places</option>
+                            <option value="foodie">🍕 Foodie Tour - Restaurants & cafes</option>
+                            <option value="historic">🏛️ Historic Journey - Museums & historic sites</option>
+                            <option value="nature">🌲 Nature Escape - Parks & nature reserves</option>
+                            <option value="culture">🎭 Culture Quest - Theatres & arts centres</option>
+                            <option value="hidden">💎 Hidden Gems - Lesser-known places</option>
+                            <option value="photo">📸 Photo Safari - Scenic viewpoints</option>
                         </select>
                     </div>
                 </div>
 
+                <div class="search-summary" id="search-summary">
+                    <div class="summary-item">
+                        <span class="summary-label">Theme:</span>
+                        <span class="summary-value" id="current-theme">🎲 Any</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Filters:</span>
+                        <span class="summary-value" id="current-filters">None selected</span>
+                    </div>
+                </div>
+
                 <div class="quick-filters">
-                    <button class="chip-btn" data-category="restaurant" data-types="restaurant,cafe,bar">🍽️ Food</button>
-                    <button class="chip-btn" data-category="attraction" data-types="park,viewpoint,nature_reserve">🌳 Park</button>
-                    <button class="chip-btn" data-category="attraction" data-types="museum,gallery,historic">🏛️ Museum</button>
-                    <button class="chip-btn" data-category="attraction" data-types="viewpoint,attraction">📸 Viewpoint</button>
-                    <button class="chip-btn" data-category="attraction" data-types="theatre,arts_centre">🎭 Culture</button>
-                    <button class="chip-btn clear-chip" data-clear="true">Clear</button>
+                    <div class="filter-instructions">
+                        <small>💡 Select one or more categories to filter your search results:</small>
+                    </div>
+                    <button class="chip-btn" data-category="restaurant" data-types="restaurant,cafe,bar" title="Show only food & drink places">🍽️ Food & Drink</button>
+                    <button class="chip-btn" data-category="attraction" data-types="park,viewpoint,nature_reserve" title="Show only outdoor & nature places">🌳 Parks & Nature</button>
+                    <button class="chip-btn" data-category="attraction" data-types="museum,gallery,historic" title="Show only cultural & historic places">🏛️ Culture & History</button>
+                    <button class="chip-btn" data-category="attraction" data-types="viewpoint,attraction" title="Show only scenic viewpoints">📸 Scenic Views</button>
+                    <button class="chip-btn" data-category="attraction" data-types="theatre,arts_centre" title="Show only arts & entertainment">🎭 Arts & Entertainment</button>
+                    <button class="chip-btn clear-chip" data-clear="true" title="Clear all filters">Clear Filters</button>
                 </div>
 
                 <div class="action-buttons">
-                    <button id="find-attraction" class="primary-btn">🎢 Random Attraction</button>
-                    <button id="find-restaurant" class="primary-btn">🍽️ Random Restaurant</button>
-                    <button id="surprise-me" class="mystery-btn">🎁 Surprise Me!</button>
+                    <button id="find-attraction" class="primary-btn" title="Find a random attraction based on your selected theme and filters">🎢 Random Attraction</button>
+                    <button id="find-restaurant" class="primary-btn" title="Find a random restaurant or cafe based on your selected theme and filters">🍽️ Random Restaurant</button>
+                    <button id="surprise-me" class="mystery-btn" title="Surprise me with a random place and theme combination">🎁 Surprise Me!</button>
                 </div>
             </div>
 

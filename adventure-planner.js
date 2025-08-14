@@ -669,10 +669,12 @@ class AdventurePlanner {
                 console.log('Set streak to:', stats.currentStreak);
             }
             
+            // Get units for distance calculations
+            const units = localStorage.getItem('units') || 'metric';
+            
             // Only update distance if the element exists
             const distanceElement = document.getElementById('total-distance');
             if (distanceElement) {
-                const units = localStorage.getItem('units') || 'metric';
                 const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
                 distanceElement.textContent = distVal;
             }
@@ -689,6 +691,9 @@ class AdventurePlanner {
             const adventures = window.storageManager.getSavedAdventures();
             const stats = window.storageManager.getStats();
             
+            // Get units for distance calculations
+            const units = localStorage.getItem('units') || 'metric';
+            
             // Update stats
             const totalAdventuresElement = document.getElementById('total-adventures');
             if (totalAdventuresElement) {
@@ -697,7 +702,6 @@ class AdventurePlanner {
             
             const distanceElement = document.getElementById('total-distance');
             if (distanceElement) {
-                const units = localStorage.getItem('units') || 'metric';
                 const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
                 distanceElement.textContent = distVal;
             }

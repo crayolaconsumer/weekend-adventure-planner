@@ -1162,7 +1162,19 @@ header p {
     margin-top: 10px;
     padding-bottom: 6px;
     -webkit-overflow-scrolling: touch;
+    flex-direction: column;
+    align-items: center;
 }
+
+.quick-filters .filter-instructions {
+    order: -1;
+    width: 100%;
+}
+
+.quick-filters .chip-btn {
+    order: 1;
+}
+
 .chip-btn {
     padding: 5px 9px;
     border: 1px solid var(--border-color);
@@ -1171,13 +1183,62 @@ header p {
     cursor: pointer;
     font-size: 12px;
     white-space: nowrap;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    /* Mobile touch improvements */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
+
+.chip-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 14px;
+}
+
+.chip-btn:hover::before {
+    opacity: 1;
+}
+
 .chip-btn.active {
     border-color: #667eea;
-    background: rgba(102,126,234,0.1);
+    background: rgba(102, 126, 234, 0.15);
     color: #667eea;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px);
 }
-.chip-btn.clear-chip { color: #991b1b; border-color: #fecaca; background: #fff5f5; }
+
+.chip-btn.active::before {
+    opacity: 1;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+}
+
+.chip-btn.clear-chip { 
+    color: #991b1b; 
+    border-color: #fecaca; 
+    background: #fff5f5; 
+}
+
+.chip-btn.clear-chip:hover {
+    background: #fecaca;
+    color: #7f1d1d;
+    transform: translateY(-1px);
+}
+
+.chip-btn.clear-chip.active {
+    background: #fecaca;
+    color: #7f1d1d;
+    border-color: #f87171;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
 
 /* Map preview */
 .place-map {
@@ -1707,13 +1768,16 @@ button {
         transform-origin: center center;
         width: calc(100vw - 32px);
         max-width: 320px;
-        max-height: 70vh;
+        max-height: 85vh;
         overflow-y: auto;
         z-index: 10000;
+        /* Ensure it stays within viewport */
+        top: max(20px, 50vh - 40vh);
+        transform: translate(-50%, 0) scale(0.95);
     }
     
     .settings-panel.show {
-        transform: translate(-50%, -50%) scale(1);
+        transform: translate(-50%, 0) scale(1);
     }
     
     .settings-header {
@@ -2164,4 +2228,80 @@ button {
 .result {
     margin-top: 0;
     padding-top: 0;
+}
+
+/* Filter instructions */
+.filter-instructions {
+    text-align: center;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.filter-instructions small {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+/* Search Summary */
+.search-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 20px 0;
+    font-size: 14px;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.summary-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.summary-value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .search-summary {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+}
+
+/* Mobile-specific chip button improvements */
+@media (max-width: 768px) {
+    .chip-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+        min-height: 36px;
+        min-width: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .quick-filters {
+        gap: 10px;
+        padding: 10px 0;
+    }
+    
+    .filter-instructions {
+        margin-bottom: 15px;
+    }
+    
+    .filter-instructions small {
+        font-size: 12px;
+    }
 }
