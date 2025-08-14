@@ -41,10 +41,14 @@
                 <span id="places-visited">🏆 0 places visited</span>
                 <span id="adventure-score">⭐ 0 points</span>
                 <span id="current-streak">🔥 0 day streak</span>
-                <button id="units-toggle" class="dark-mode-toggle" title="Toggle units (km/mi)">km</button>
-                <button id="dark-mode-toggle" class="dark-mode-toggle" title="Toggle dark mode">
-                    <span class="theme-icon">🌙</span>
-                </button>
+                <button id="settings-toggle" class="dark-mode-toggle" title="Settings">⚙️</button>
+                <div class="quick-settings" id="quick-settings">
+                    <button id="units-toggle" class="dark-mode-toggle quick-setting" title="Toggle units (km/mi)">km</button>
+                    <button id="dark-mode-toggle" class="dark-mode-toggle quick-setting" title="Toggle dark mode">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                    <!-- high-contrast toggle will be inserted here by accessibility-manager.js -->
+                </div>
             </div>
             <div id="install-prompt" class="install-prompt hidden">
                 <div class="install-content">

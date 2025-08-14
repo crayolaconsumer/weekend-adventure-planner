@@ -88,7 +88,7 @@ header p {
 .stats-bar {
     display: flex;
     justify-content: center;
-    gap: 20px;
+    gap: 12px;
     flex-wrap: wrap;
     margin-top: 15px;
     position: relative;
@@ -113,6 +113,25 @@ header p {
     transition: all 0.2s ease;
     margin-left: 10px;
 }
+/* Quick settings wrapper */
+.quick-settings { display: inline-flex; align-items: center; gap: 8px; overflow: hidden; max-width: 0; opacity: 0; transform: translateY(-2px); transition: max-width 220ms ease, opacity 220ms ease; vertical-align: middle; }
+.settings-open .quick-settings { max-width: 260px; opacity: 1; }
+
+/* Hide individual quick settings until wrapper expands */
+[data-theme] .quick-setting { opacity: 0; transform: translateY(-4px); transition: opacity 200ms ease, transform 200ms ease; }
+.settings-open .quick-setting { opacity: 1; transform: translateY(0); }
+
+/* Make High Contrast toggle match other quick-setting buttons */
+.quick-settings .accessibility-toggle {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    padding: 8px 12px;
+    border-radius: 20px;
+    margin: 0;
+    height: auto;
+    line-height: 1;
+}
+.quick-settings .accessibility-toggle:hover { background: rgba(255,255,255,0.25); }
 
 .dark-mode-toggle:hover {
     background: rgba(255, 255, 255, 0.25);

@@ -320,7 +320,7 @@ class AccessibilityManager {
         // High contrast mode toggle
         const highContrastToggle = document.createElement('button');
         highContrastToggle.id = 'high-contrast-toggle';
-        highContrastToggle.className = 'accessibility-toggle';
+        highContrastToggle.className = 'accessibility-toggle quick-setting';
         highContrastToggle.innerHTML = '🎨';
         highContrastToggle.title = 'Toggle high contrast mode';
         highContrastToggle.setAttribute('aria-label', 'Toggle high contrast mode');
@@ -330,9 +330,9 @@ class AccessibilityManager {
         });
 
         // Add to header
-        const statsBar = document.querySelector('.stats-bar');
-        if (statsBar) {
-            statsBar.appendChild(highContrastToggle);
+        const slot = document.getElementById('quick-settings') || document.querySelector('.stats-bar');
+        if (slot) {
+            slot.appendChild(highContrastToggle);
         }
 
         // Check for system preference

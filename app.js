@@ -107,6 +107,15 @@ class RandomPlacesFinder {
             }
         } catch (e) {}
 
+        // Settings toggle (show/hide quick settings)
+        const settingsBtn = document.getElementById('settings-toggle');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                const bar = document.querySelector('.stats-bar');
+                bar.classList.toggle('settings-open');
+            });
+        }
+
         // Units toggle (metric/imperial)
         const unitsBtn = document.getElementById('units-toggle');
         if (unitsBtn) {
