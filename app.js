@@ -136,7 +136,7 @@ class RandomPlacesFinder {
                 this.setUnits(this.units === 'imperial' ? 'metric' : 'imperial');
                 unitsBtn.textContent = this.units === 'imperial' ? 'mi' : 'km';
                 // Re-render current place and stats with new units
-                if (this.currentPlace) this.displayPlace(this.currentPlace, this.currentLocation);
+                if (this.currentPlace) this.displayPlace(this.currentPlace);
                 if (window.adventurePlanner?.updateStats) window.adventurePlanner.updateStats();
                 // Update range label units
                 const range = document.getElementById('range');
@@ -228,7 +228,10 @@ class RandomPlacesFinder {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
                 };
-                document.getElementById('location').value = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`;
+                const locationInput = document.getElementById('location');
+                if (locationInput) {
+                    locationInput.value = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`;
+                }
                 // Notify other components about location update
                 document.dispatchEvent(new CustomEvent('locationUpdated', {
                     detail: { location: this.currentLocation }
@@ -297,10 +300,10 @@ class RandomPlacesFinder {
         
         this.isSearching = true;
         this.lastSearchType = type;
-        this.lastRange = document.getElementById('range').value;
+        this.lastRange = document.getElementById('range')?.value || 5000;
 
         let location = this.currentLocation;
-        const locationInput = document.getElementById('location').value.trim();
+        const locationInput = document.getElementById('location')?.value?.trim() || '';
 
         if (!location && locationInput) {
             this.showLoading('Finding location...');
@@ -340,7 +343,7 @@ class RandomPlacesFinder {
                 }
                 
                 const randomPlace = filteredPlaces[Math.floor(Math.random() * filteredPlaces.length)];
-                this.displayPlace(randomPlace, location);
+                this.displayPlace(randomPlace);
                 this.isSearching = false;
             } else {
                 this.showError(`No ${type === 'restaurant' ? 'restaurants' : 'attractions'} found in the specified range. Try increasing the search range.`);
@@ -447,7 +450,7 @@ class RandomPlacesFinder {
             const allowMock = localStorage.getItem('enableMockPlaces') === 'true';
             if (allowMock) {
                 console.log('Falling back to mock data (explicitly enabled)...');
-            return this.generateMockPlaces(location, type, radius);
+            return this.generateMockPlaces(type, radius);
             }
             return [];
         }
@@ -712,7 +715,7 @@ class RandomPlacesFinder {
         return (Math.random() * 2 + 3).toFixed(1); // Random rating between 3.0 and 5.0
     }
 
-    generateMockPlaces(location, type, radius) {
+    generateMockPlaces(type, radius) {
         const attractions = [
             { name: 'Historic Downtown District', rating: 4.2, address: '123 Main St' },
             { name: 'City Art Museum', rating: 4.5, address: '456 Culture Ave' },
@@ -744,7 +747,7 @@ class RandomPlacesFinder {
         }));
     }
 
-    displayPlace(place, userLocation) {
+    displayPlace(place) {
         this.hideLoading();
         this.hideError();
 
@@ -988,7 +991,7 @@ class RandomPlacesFinder {
             addBtn.dataset.added = 'false';
         }
         
-        const visited = window.storageManager ? window.storageManager.getVisitedPlaces() : [];
+        const visited = window.storageManager?.getVisitedPlaces() || [];
         const isVisited = visited.some(v => v.name === place.name);
         
         const visitButton = document.getElementById('mark-visited');
