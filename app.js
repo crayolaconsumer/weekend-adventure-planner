@@ -796,13 +796,18 @@ class RandomPlacesFinder {
                 main.style.transform = zoomed ? 'scale(1.6)' : 'scale(1)';
             };
             main.addEventListener('dblclick', toggleZoom);
-            let lastTap = 0;
-            main.addEventListener('touchend', () => {
+            let lastTap = 0; let lastX = 0; let lastY = 0;
+            main.addEventListener('touchend', (ev) => {
+                const t = ev.changedTouches && ev.changedTouches[0];
                 const now = Date.now();
-                if (now - lastTap < 350) {
+                const dt = now - lastTap;
+                const dist = t ? Math.hypot(t.clientX - lastX, t.clientY - lastY) : 0;
+                if (dt > 0 && dt < 280 && dist < 12) {
                     toggleZoom();
+                    lastTap = 0; lastX = 0; lastY = 0;
+                } else {
+                    lastTap = now; lastX = t ? t.clientX : 0; lastY = t ? t.clientY : 0;
                 }
-                lastTap = now;
             }, { passive: true });
         };
 

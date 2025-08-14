@@ -268,17 +268,29 @@ class GestureManager {
 
     setupDoubleTapActions() {
         let lastTap = 0;
+        let lastX = 0;
+        let lastY = 0;
         
         document.addEventListener('touchend', (e) => {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
-            
-            if (tapLength < 500 && tapLength > 0) {
-                // Double tap detected
-                this.handleDoubleTap(e);
+            const now = Date.now();
+            const touch = e.changedTouches && e.changedTouches[0];
+            const x = touch ? touch.clientX : 0;
+            const y = touch ? touch.clientY : 0;
+            const dt = now - lastTap;
+            const dist = Math.hypot(x - lastX, y - lastY);
+
+            // Ignore if gesture starts on interactive elements
+            if (e.target.closest('.gallery-main, .gallery-thumbs, .map-overlay, .map-sheet, .chip-btn, select, input, textarea, .quick-filters')) {
+                lastTap = now; lastX = x; lastY = y; return;
             }
-            lastTap = currentTime;
-        });
+
+            if (dt > 0 && dt < 300 && dist < 15) {
+                this.handleDoubleTap(e);
+                lastTap = 0; lastX = 0; lastY = 0;
+            } else {
+                lastTap = now; lastX = x; lastY = y;
+            }
+        }, { passive: true });
     }
 
     handleDoubleTap(e) {
@@ -292,8 +304,12 @@ class GestureManager {
             if (this.activeTab === 'single') {
                 const surpriseBtn = document.getElementById('surprise-me');
                 if (surpriseBtn) {
-                    surpriseBtn.click();
-                    this.showGestureToast('🎯 Double tap = Random place!');
+                    // Throttle: prevent accidental rapid retriggers
+                    if (!this._lastRandomTap || Date.now() - this._lastRandomTap > 1200) {
+                        surpriseBtn.click();
+                        this.showGestureToast('🎯 Double tap = Random place!');
+                        this._lastRandomTap = Date.now();
+                    }
                 }
             }
         }

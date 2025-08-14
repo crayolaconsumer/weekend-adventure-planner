@@ -505,6 +505,8 @@ class AdventurePlanner {
         
         // Show completion message
         this.showSuccess(`🎉 Adventure completed! You visited ${adventurePlaces.length}/${this.currentAdventure.places.length} places and earned ${score} points!`);
+        // Subtle confetti celebration
+        try { window.animationsManager?.showConfetti(); } catch (e) {}
         
         this.currentAdventure = null;
     }
