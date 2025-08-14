@@ -239,7 +239,11 @@ class PWAManager {
     }
 
     showToast(message, type = 'info', action = null) {
-        try { if (typeof window.va === 'function' && window.__vaReady) window.va('event', { type: 'toast', level: type }); } catch (e) {}
+        try { 
+            if (typeof window.va === 'function' && window.__vaReady && document.hasStoredUserActivation) {
+                window.va('event', { type: 'toast', level: type }); 
+            }
+        } catch (e) {}
         // Create toast element
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;

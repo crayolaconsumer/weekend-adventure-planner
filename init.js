@@ -1,3 +1,19 @@
+// Suppress Chrome extension runtime errors
+window.addEventListener('error', (e) => {
+    if (e.message && e.message.includes('runtime.lastError')) {
+        e.preventDefault();
+        return false;
+    }
+});
+
+// Handle unhandled promise rejections from extensions
+window.addEventListener('unhandledrejection', (e) => {
+    if (e.reason && (e.reason.message?.includes('runtime.lastError') || e.reason.message?.includes('Extension context'))) {
+        e.preventDefault();
+        return false;
+    }
+});
+
 // Initialize all components in the correct order
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Initializing Weekend Adventure Planner...');

@@ -32,7 +32,7 @@ class RandomPlacesFinder {
         });
 
         // Analytics for actions
-        const a = (name) => { try { if (typeof window.va === 'function' && window.__vaReady) window.va('event', { type: name }); } catch(e) {} };
+        const a = (name) => { try { if (typeof window.va === 'function' && window.__vaReady && document.hasStoredUserActivation) window.va('event', { type: name }); } catch(e) {} };
         document.getElementById('get-directions').addEventListener('click', () => a('get_directions'));
         document.getElementById('add-to-adventure').addEventListener('click', () => {
             const btn = document.getElementById('add-to-adventure');
@@ -165,8 +165,12 @@ class RandomPlacesFinder {
                 if (themeSelect && mapStyleToTheme[style]) {
                     themeSelect.value = mapStyleToTheme[style];
                 }
-                // Subtle haptic and toast feedback
-                try { if (navigator.vibrate) navigator.vibrate(10); } catch(e) {}
+                // Subtle haptic feedback (only after user interaction)
+                try { 
+                    if (navigator.vibrate && document.hasStoredUserActivation) {
+                        navigator.vibrate(10); 
+                    }
+                } catch(e) {}
                 try { window.pwaManager?.showToast(`Style set: ${btn.textContent.trim()}`, 'info'); } catch(e) {}
             };
             // Restore saved style or default
@@ -1016,7 +1020,7 @@ class RandomPlacesFinder {
         }));
 
         // Analytics event (free Vercel analytics)
-        try { if (typeof window.va === 'function' && window.__vaReady) window.va('event', { type: 'place_displayed', name: place.name, kind: place.type }); } catch (e) {}
+        try { if (typeof window.va === 'function' && window.__vaReady && document.hasStoredUserActivation) window.va('event', { type: 'place_displayed', name: place.name, kind: place.type }); } catch (e) {}
     }
 
     updateStickyActions() { /* intentionally removed */ }

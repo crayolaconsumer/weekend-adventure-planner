@@ -1,4 +1,4 @@
-const CACHE_NAME = 'weekend-adventure-v1.0.2';
+const CACHE_NAME = 'weekend-adventure-v1.0.3';
 const STATIC_CACHE = `${CACHE_NAME}-static`;
 const DYNAMIC_CACHE = `${CACHE_NAME}-dynamic`;
 const API_CACHE = `${CACHE_NAME}-api`;
