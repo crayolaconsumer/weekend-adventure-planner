@@ -20,7 +20,6 @@ const STATIC_FILES = [
   './animations-manager.js',
   './pwa.js',
   './init.js',
-  './manifest.json',
   // Add fallback pages
   './offline.html'
 ];
@@ -86,19 +85,43 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
-  
+
   // Skip non-HTTP requests
   if (!request.url.startsWith('http')) {
     return;
   }
-  
-  // Handle different types of requests
-  if (isStaticFile(url)) {
-    event.respondWith(handleStaticFile(request));
-  } else if (isAPIRequest(url)) {
-    event.respondWith(handleAPIRequest(request));
-  } else {
-    event.respondWith(handleDynamicRequest(request));
+
+  // Handle top-level navigations with a safe network-first strategy
+  if (request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        const networkResponse = await fetch(request);
+        return networkResponse;
+      } catch (e) {
+        const cache = await caches.open(STATIC_CACHE);
+        return (
+          (await cache.match('./index.html')) ||
+          (await cache.match('/index.html')) ||
+          (await cache.match('index.html')) ||
+          (await cache.match('./offline.html')) ||
+          new Response('Offline', { status: 408 })
+        );
+      }
+    })());
+    return;
+  }
+
+  try {
+    // Handle different types of requests
+    if (isStaticFile(url)) {
+      event.respondWith(handleStaticFile(request));
+    } else if (isAPIRequest(url)) {
+      event.respondWith(handleAPIRequest(request));
+    } else {
+      event.respondWith(handleDynamicRequest(request));
+    }
+  } catch (e) {
+    // As a last resort, just let the network handle it
   }
 });
 

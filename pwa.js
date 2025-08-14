@@ -33,17 +33,19 @@ class PWAManager {
     async registerServiceWorker() {
         if ('serviceWorker' in navigator) {
             try {
-                const registration = await navigator.serviceWorker.register('./sw.js');
+                const registration = await navigator.serviceWorker.register('/sw.js');
                 console.log('✅ Service Worker registered:', registration.scope);
                 
                 // Listen for updates
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
-                    newWorker.addEventListener('statechange', () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            this.showUpdateAvailable();
-                        }
-                    });
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                this.showUpdateAvailable();
+                            }
+                        });
+                    }
                 });
                 
                 // Listen for messages from SW
