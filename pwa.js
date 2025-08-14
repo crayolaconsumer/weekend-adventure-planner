@@ -12,6 +12,13 @@ class PWAManager {
         
         // Setup install prompt
         this.setupInstallPrompt();
+
+        // Initialize Vercel Analytics if available
+        try {
+            if (typeof window.va === 'function') {
+                window.va('init');
+            }
+        } catch (e) {}
         
         // Handle URL parameters for shortcuts
         this.handleShortcuts();
@@ -228,6 +235,7 @@ class PWAManager {
     }
 
     showToast(message, type = 'info', action = null) {
+        try { if (typeof window.va === 'function') window.va('event', { type: 'toast', level: type }); } catch (e) {}
         // Create toast element
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
