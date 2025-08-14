@@ -1038,6 +1038,57 @@ button {
     }
 }
 
+/* Dark mode accessibility for buttons and chips */
+[data-theme="dark"] .tab-btn {
+    color: var(--text-primary);
+}
+[data-theme="dark"] .tab-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.08);
+}
+[data-theme="dark"] .tab-btn.active {
+    background: #2d3348;
+    color: #ffffff;
+}
+[data-theme="dark"] .chip-btn {
+    background: #1f2937;
+    border-color: #475569;
+    color: var(--text-primary);
+}
+[data-theme="dark"] .chip-btn.active {
+    background: rgba(99,102,241,0.25);
+    color: #c7d2fe;
+    border-color: #818cf8;
+}
+[data-theme="dark"] .filter-btn {
+    background: #1f2937;
+    border-color: #475569;
+    color: var(--text-primary);
+}
+[data-theme="dark"] .filter-btn.active {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: #ffffff;
+}
+
+/* High-contrast overrides for all interactive controls */
+.high-contrast button:not(.secondary-btn):not(.primary-btn),
+.high-contrast .tab-btn,
+.high-contrast .chip-btn,
+.high-contrast .filter-btn,
+.high-contrast .mystery-btn,
+.high-contrast .small-btn,
+.high-contrast .dark-mode-toggle,
+.high-contrast .accessibility-toggle {
+    background: #ffff00 !important;
+    color: #000000 !important;
+    border: 2px solid #000000 !important;
+}
+.high-contrast .tab-btn.active {
+    background: #000000 !important;
+    color: #ffff00 !important;
+    border-color: #ffff00 !important;
+}
+
 /* Weather Widget Styles */
 .weather-widget {
     background: var(--bg-card);
