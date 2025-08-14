@@ -6,7 +6,32 @@ class PWAManager {
         this.init();
     }
 
+    async injectManifest() {
+        // Dynamically inject manifest to avoid caching issues
+        const existingManifest = document.querySelector('link[rel="manifest"]');
+        if (!existingManifest) {
+            // Test if manifest is accessible
+            try {
+                const response = await fetch('./manifest.json', { method: 'HEAD' });
+                if (response.ok) {
+                    const manifestLink = document.createElement('link');
+                    manifestLink.rel = 'manifest';
+                    manifestLink.href = './manifest.json';
+                    manifestLink.crossOrigin = 'use-credentials';
+                    document.head.appendChild(manifestLink);
+                } else {
+                    console.warn('Manifest not accessible, PWA features may be limited');
+                }
+            } catch (error) {
+                console.warn('Manifest check failed, PWA features may be limited:', error);
+            }
+        }
+    }
+
     async init() {
+        // Inject manifest first
+        await this.injectManifest();
+        
         // Register service worker
         await this.registerServiceWorker();
         

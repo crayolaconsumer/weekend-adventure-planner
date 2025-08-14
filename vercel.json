@@ -8,12 +8,12 @@
           "value": "application/manifest+json"
         },
         {
-          "key": "Cache-Control",
-          "value": "public, max-age=86400"
-        },
-        {
           "key": "Access-Control-Allow-Origin",
           "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
         }
       ]
     },
@@ -29,12 +29,15 @@
           "value": "public, max-age=0"
         }
       ]
-    }
-  ],
-  "rewrites": [
+    },
     {
-      "source": "/manifest.json",
-      "destination": "/manifest.json"
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0"
+        }
+      ]
     }
   ]
 }
