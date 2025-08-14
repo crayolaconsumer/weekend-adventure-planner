@@ -255,8 +255,17 @@ class PWAManager {
             fontSize: '14px'
         });
 
-        // Add to page
-        document.body.appendChild(toast);
+        // Container for stacking
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            Object.assign(container.style, {
+                position: 'fixed', top: '16px', right: '16px', left: 'auto', zIndex: '10000', display: 'flex', flexDirection: 'column', gap: '8px'
+            });
+            document.body.appendChild(container);
+        }
+        container.appendChild(toast);
 
         // Handle actions
         const actionBtn = toast.querySelector('.toast-action');
@@ -459,10 +468,9 @@ pwaStyles.textContent = `
             font-size: 14px;
         }
         
-        .toast {
+        #toast-container {
             right: 10px !important;
             left: 10px !important;
-            max-width: none !important;
         }
     }
 `;

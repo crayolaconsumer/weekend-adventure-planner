@@ -35,6 +35,7 @@
                 <span id="places-visited">🏆 0 places visited</span>
                 <span id="adventure-score">⭐ 0 points</span>
                 <span id="current-streak">🔥 0 day streak</span>
+                <button id="units-toggle" class="dark-mode-toggle" title="Toggle units (km/mi)">km</button>
                 <button id="dark-mode-toggle" class="dark-mode-toggle" title="Toggle dark mode">
                     <span class="theme-icon">🌙</span>
                 </button>
@@ -84,14 +85,8 @@
 
                 <div class="settings-row">
                     <div class="range-section">
-                        <label for="range">Search Range:</label>
-                        <select id="range">
-                            <option value="1000">1 km</option>
-                            <option value="2000">2 km</option>
-                            <option value="5000" selected>5 km</option>
-                            <option value="10000">10 km</option>
-                            <option value="20000">20 km</option>
-                        </select>
+                        <label for="range">Search Range: <span id="range-value">5 km</span></label>
+                        <input id="range" type="range" min="500" max="20000" step="500" value="5000" />
                     </div>
 
                     <div class="theme-section">
@@ -106,6 +101,14 @@
                             <option value="photo">📸 Photo Safari</option>
                         </select>
                     </div>
+                </div>
+
+                <div class="quick-filters">
+                    <button class="chip-btn" data-category="restaurant" data-types="restaurant,cafe,bar">🍽️ Food</button>
+                    <button class="chip-btn" data-category="attraction" data-types="park,viewpoint,nature_reserve">🌳 Park</button>
+                    <button class="chip-btn" data-category="attraction" data-types="museum,gallery,historic">🏛️ Museum</button>
+                    <button class="chip-btn" data-category="attraction" data-types="viewpoint,attraction">📸 Viewpoint</button>
+                    <button class="chip-btn" data-category="attraction" data-types="theatre,arts_centre">🎭 Culture</button>
                 </div>
 
                 <div class="action-buttons">
@@ -166,7 +169,7 @@
                         </div>
                         <div class="stat-item">
                             <span class="stat-number" id="total-distance">0</span>
-                            <span class="stat-label">km Traveled</span>
+                            <span class="stat-label" id="distance-unit-label">km Traveled</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-number" id="favorite-type">-</span>
@@ -196,6 +199,7 @@
                     <span id="place-type"></span>
                 </div>
                 <div id="place-photos"></div>
+                <div id="place-map" class="place-map hidden"></div>
                 <div class="place-actions">
                     <button id="get-directions">🗺️ Get Directions</button>
                     <button id="add-to-adventure" class="secondary-btn">➕ Add to Adventure</button>
@@ -235,5 +239,21 @@
     <script src="animations-manager.js"></script>
     <script src="init.js"></script>
     <script src="pwa.js"></script>
+    <script>
+      // Lightweight onboarding tips (one-time)
+      document.addEventListener('DOMContentLoaded', () => {
+        try {
+          if (!localStorage.getItem('onboarding_shown')) {
+            setTimeout(() => {
+              if (window.pwaManager) {
+                window.pwaManager.showToast('💡 Tip: Use 📍 to set your location, then tap Surprise Me!', 'info');
+                setTimeout(() => window.pwaManager.showToast('💡 Try the chips to filter quickly (Food, Park, Museum)', 'info'), 3000);
+              }
+              localStorage.setItem('onboarding_shown', 'true');
+            }, 1200);
+          }
+        } catch (e) {}
+      });
+    </script>
 </body>
 </html>

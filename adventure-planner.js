@@ -378,39 +378,41 @@ class AdventurePlanner {
         
         planContainer.classList.remove('hidden');
 
+        const totalMinutes = (adventure.totalTime || 1) * 60;
+        const perStop = Math.max(20, Math.floor(totalMinutes / Math.max(1, adventure.places.length)) - 15);
+
         let html = `
-            <div class=\"adventure-summary\">
-                <div class=\"summary-item\">
-                    <span class=\"summary-icon\">🎯</span>
+            <div class="adventure-summary">
+                <div class="summary-item">
+                    <span class="summary-icon">🎯</span>
                     <span>${adventure.places.length} stops</span>
                 </div>
-                <div class=\"summary-item\">
-                    <span class=\"summary-icon\">⏱️</span>
+                <div class="summary-item">
+                    <span class="summary-icon">⏱️</span>
                     <span>${adventure.totalTime} hours</span>
                 </div>
-                <div class=\"summary-item\">
-                    <span class=\"summary-icon\">📍</span>
-                    <span>${adventure.timing.stayTime} min per stop</span>
+                <div class="summary-item">
+                    <span class="summary-icon">📍</span>
+                    <span>${perStop} min per stop</span>
                 </div>
             </div>
         `;
 
         adventure.places.forEach((place, index) => {
             html += `
-                <div class=\"adventure-stop\" data-index=\"${index}\">
-                    <div class=\"stop-number\">${index + 1}</div>
-                    <div class=\"stop-content\">
+                <div class="adventure-stop" data-index="${index}">
+                    <div class="stop-number">${index + 1}</div>
+                    <div class="stop-content">
                         <h4>${isMystery ? '🎭 Mystery Stop ' + (index + 1) : place.name}</h4>
-                        <p class=\"stop-address\">${isMystery ? 'Address revealed when you start!' : place.address}</p>
-                        <div class=\"stop-meta\">
-                            <span>⭐ ${place.rating}/5</span>
+                        <p class="stop-address">${isMystery ? 'Address revealed when you start!' : place.address}</p>
+                        <div class="stop-meta">
                             <span>📍 ${place.distance} km</span>
-                            <span>⏱️ ${adventure.timing.stayTime} min visit</span>
+                            <span>⏱️ ${perStop} min visit</span>
                         </div>
                     </div>
-                    <div class=\"stop-actions\">
-                        ${!isMystery ? `<button class=\"small-btn\" onclick=\"window.adventurePlanner.getStopDirections(${index})\">🗺️</button>` : ''}
-                        <button class=\"small-btn\" onclick=\"window.adventurePlanner.removeStop(${index})\">❌</button>
+                    <div class="stop-actions">
+                        ${!isMystery ? `<button class="small-btn" onclick="window.adventurePlanner.getStopDirections(${index})">🗺️</button>` : ''}
+                        <button class="small-btn" onclick="window.adventurePlanner.removeStop(${index})">❌</button>
                     </div>
                 </div>
             `;
@@ -441,14 +443,14 @@ class AdventurePlanner {
         const progressContainer = document.getElementById('adventure-progress');
         const visited = window.storageManager.getVisitedPlaces();
         
-        let html = '<div class=\"progress-stops\">';
+        let html = '<div class="progress-stops">';
         
         this.currentAdventure.places.forEach((place, index) => {
             const isVisited = visited.some(v => v.name === place.name);
             html += `
-                <div class=\"progress-stop ${isVisited ? 'visited' : ''}\">
-                    <span class=\"stop-indicator\">${isVisited ? '✅' : index + 1}</span>
-                    <span class=\"stop-name\">${place.name}</span>
+                <div class="progress-stop ${isVisited ? 'visited' : ''}">
+                    <span class="stop-indicator">${isVisited ? '✅' : index + 1}</span>
+                    <span class="stop-name">${place.name}</span>
                 </div>
             `;
         });
@@ -561,20 +563,36 @@ class AdventurePlanner {
         document.getElementById('adventure-plan').classList.add('hidden');
     }
 
+    updateStats() {
+        const stats = window.storageManager.getStats();
+        document.getElementById('places-visited').textContent = `🏆 ${stats.placesVisited} places visited`;
+        document.getElementById('adventure-score').textContent = `⭐ ${stats.totalScore} points`;
+        document.getElementById('current-streak').textContent = `🔥 ${stats.currentStreak} day streak`;
+        const units = localStorage.getItem('units') || 'metric';
+        const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
+        document.getElementById('total-distance').textContent = distVal;
+        const unitLabel = document.getElementById('distance-unit-label');
+        if (unitLabel) unitLabel.textContent = units === 'imperial' ? 'mi Traveled' : 'km Traveled';
+    }
+
     loadAdventureHistory() {
         const adventures = window.storageManager.getSavedAdventures();
         const stats = window.storageManager.getStats();
         
         // Update stats
         document.getElementById('total-adventures').textContent = stats.totalAdventures;
-        document.getElementById('total-distance').textContent = stats.totalDistance.toFixed(1);
+        const units = localStorage.getItem('units') || 'metric';
+        const distVal = units === 'imperial' ? (stats.totalDistance * 0.621371).toFixed(1) : stats.totalDistance.toFixed(1);
+        document.getElementById('total-distance').textContent = distVal;
+        const unitLabel = document.getElementById('distance-unit-label');
+        if (unitLabel) unitLabel.textContent = units === 'imperial' ? 'mi Traveled' : 'km Traveled';
         document.getElementById('favorite-type').textContent = stats.favoriteType || '-';
         
         // Load adventure list
         const listContainer = document.getElementById('adventure-list');
         
         if (adventures.length === 0) {
-            listContainer.innerHTML = '<p class=\"empty-state\">🎯 Start your first adventure to see your history!</p>';
+            listContainer.innerHTML = '<p class="empty-state">🎯 Start your first adventure to see your history!</p>';
             return;
         }
         
@@ -582,45 +600,17 @@ class AdventurePlanner {
         adventures.slice(-10).reverse().forEach(adventure => { // Show last 10
             const date = new Date(adventure.created).toLocaleDateString();
             html += `
-                <div class=\"history-item\">
-                    <div class=\"history-content\">
+                <div class="history-item">
+                    <div class="history-content">
                         <h4>🗺️ ${adventure.places.length}-stop adventure</h4>
                         <p>📅 ${date} • ⭐ ${adventure.score || 0} points</p>
                     </div>
-                    <button class=\"small-btn\" onclick=\"window.adventurePlanner.repeatAdventure('${adventure.id}')\">🔄</button>
+                    <button class="small-btn" onclick="window.adventurePlanner.repeatAdventure('${adventure.id}')">🔄</button>
                 </div>
             `;
         });
         
         listContainer.innerHTML = html;
-    }
-
-    repeatAdventure(adventureId) {
-        const adventures = window.storageManager.getSavedAdventures();
-        const adventure = adventures.find(a => a.id == adventureId);
-        
-        if (adventure) {
-            this.currentAdventure = { ...adventure, id: Date.now() }; // New ID for repeat
-            this.switchTab('adventure');
-            this.displayAdventurePlan(this.currentAdventure);
-        }
-    }
-
-    updateStats() {
-        const stats = window.storageManager.getStats();
-        document.getElementById('places-visited').textContent = `🏆 ${stats.placesVisited} places visited`;
-        document.getElementById('adventure-score').textContent = `⭐ ${stats.totalScore} points`;
-        document.getElementById('current-streak').textContent = `🔥 ${stats.currentStreak} day streak`;
-    }
-
-    showSuccess(message) {
-        if (window.randomPlacesFinder && window.randomPlacesFinder.showSuccess) {
-            window.randomPlacesFinder.showSuccess(message);
-        } else {
-            // Fallback success display
-            console.log('Success:', message);
-            alert(message);
-        }
     }
 }
 

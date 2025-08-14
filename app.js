@@ -42,6 +42,90 @@ class RandomPlacesFinder {
         document.getElementById('try-again').addEventListener('click', () => {
             this.hideError();
         });
+
+        // Range slider live label
+        const range = document.getElementById('range');
+        const rangeValue = document.getElementById('range-value');
+        if (range && rangeValue) {
+            const updateLabel = () => {
+                const meters = parseInt(range.value, 10) || 0;
+                const km = meters / 1000;
+                const units = this.units || localStorage.getItem('units') || 'metric';
+                if (units === 'imperial') {
+                    const miles = (km * 0.621371).toFixed(1);
+                    rangeValue.textContent = `${miles} mi`;
+                } else {
+                    rangeValue.textContent = `${km.toFixed(1)} km`;
+                }
+            };
+            range.addEventListener('input', updateLabel);
+            updateLabel();
+        }
+
+        // Quick filter chips
+        document.querySelectorAll('.chip-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const category = btn.getAttribute('data-category');
+                // Pick a random type within chip
+                const types = (btn.getAttribute('data-types') || '').split(',').filter(Boolean);
+                const type = types.length ? types[Math.floor(Math.random() * types.length)] : (category === 'restaurant' ? 'restaurant' : 'tourist_attraction');
+                try {
+                    localStorage.setItem('lastChipCategory', category || '');
+                    localStorage.setItem('lastChipTypes', (btn.getAttribute('data-types') || ''));
+                } catch (e) {}
+                await this.findRandomPlace(category === 'restaurant' ? 'restaurant' : 'tourist_attraction');
+            });
+        });
+
+        // Restore last chip selection (and optionally auto-run if we already have location)
+        try {
+            const lastTypes = localStorage.getItem('lastChipTypes');
+            const lastCategory = localStorage.getItem('lastChipCategory');
+            if (lastTypes || lastCategory) {
+                const selector = lastTypes ? `.chip-btn[data-types="${CSS.escape(lastTypes)}"]` : `.chip-btn[data-category="${CSS.escape(lastCategory)}"]`;
+                const lastBtn = document.querySelector(selector);
+                if (lastBtn) {
+                    lastBtn.classList.add('active');
+                    if (this.currentLocation) {
+                        setTimeout(() => lastBtn.click(), 300);
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // Units toggle (metric/imperial)
+        const unitsBtn = document.getElementById('units-toggle');
+        if (unitsBtn) {
+            const storedUnits = localStorage.getItem('units') || 'metric';
+            this.setUnits(storedUnits);
+            unitsBtn.textContent = this.units === 'imperial' ? 'mi' : 'km';
+            unitsBtn.addEventListener('click', () => {
+                this.setUnits(this.units === 'imperial' ? 'metric' : 'imperial');
+                unitsBtn.textContent = this.units === 'imperial' ? 'mi' : 'km';
+                // Re-render current place and stats with new units
+                if (this.currentPlace) this.displayPlace(this.currentPlace, this.currentLocation);
+                if (window.adventurePlanner?.updateStats) window.adventurePlanner.updateStats();
+                // Update range label units
+                const range = document.getElementById('range');
+                range?.dispatchEvent(new Event('input'));
+            });
+        }
+    }
+
+    setUnits(units) {
+        this.units = units;
+        localStorage.setItem('units', units);
+    }
+
+    formatDistanceKm(km) {
+        const units = this.units || localStorage.getItem('units') || 'metric';
+        if (units === 'imperial') {
+            const miles = (parseFloat(km) * 0.621371).toFixed(1);
+            return { text: `${miles} mi`, value: miles };
+        }
+        return { text: `${parseFloat(km).toFixed(1)} km`, value: parseFloat(km).toFixed(1) };
     }
 
     surpriseMe() {
@@ -271,7 +355,7 @@ class RandomPlacesFinder {
             const allowMock = localStorage.getItem('enableMockPlaces') === 'true';
             if (allowMock) {
                 console.log('Falling back to mock data (explicitly enabled)...');
-                return this.generateMockPlaces(location, type, radius);
+            return this.generateMockPlaces(location, type, radius);
             }
             return [];
         }
@@ -366,6 +450,58 @@ class RandomPlacesFinder {
             }
         } catch (e) {}
         return null;
+    }
+
+    async loadRealPhotoGalleryForPlace(place) {
+        const gallery = [];
+        // 1) From OSM direct image
+        if (place.imageTag) {
+            const direct = this.normalizeImageTag(place.imageTag);
+            if (direct) gallery.push(direct);
+        }
+        // 2) From Wikipedia page (by wikipedia tag or pageid)
+        if (place.wikipedia) {
+            const wp = this.parseWikipediaTag(place.wikipedia);
+            const pageImgs = await this.fetchWikipediaGallery(wp.lang, wp.title);
+            gallery.push(...pageImgs);
+        } else if (place.pageid) {
+            const pageImgs = await this.fetchWikipediaGallery('en', null, place.pageid);
+            gallery.push(...pageImgs);
+        }
+        // 3) From Wikidata P18
+        if (place.wikidata) {
+            const p18 = await this.fetchWikidataImage(place.wikidata);
+            if (p18) gallery.push(p18);
+        }
+        // Deduplicate
+        return Array.from(new Set(gallery)).slice(0, 6);
+    }
+
+    async fetchWikipediaGallery(lang = 'en', title = null, pageid = null) {
+        try {
+            const base = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages|images&pithumbsize=600`;
+            const url = title ? `${base}&titles=${encodeURIComponent(title)}` : `${base}&pageids=${encodeURIComponent(pageid)}`;
+            const res = await fetch(url);
+            if (!res.ok) return [];
+            const data = await res.json();
+            const pages = data?.query?.pages || {};
+            const first = Object.values(pages)[0];
+            const thumbs = [];
+            if (first?.thumbnail?.source) thumbs.push(first.thumbnail.source);
+            // Try to resolve first few images when available
+            const images = first?.images || [];
+            for (let i = 0; i < Math.min(images.length, 4); i++) {
+                const fileTitle = images[i]?.title; // e.g., File:Something.jpg
+                if (fileTitle && /^File:/i.test(fileTitle)) {
+                    thumbs.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileTitle)}?width=600`);
+                }
+            }
+            return thumbs;
+        } catch (e) { return []; }
+    }
+
+    isPlaceholderUrl(url) {
+        return /picsum\.photos|placekitten|placehold\.it/i.test(url);
     }
 
     normalizeImageTag(tag) {
@@ -494,7 +630,8 @@ class RandomPlacesFinder {
         document.getElementById('place-name').textContent = place.name;
         document.getElementById('place-address').textContent = place.address;
         document.getElementById('place-rating').textContent = `⭐ ${place.rating}/5`;
-        document.getElementById('place-distance').textContent = `📍 ${place.distance} km away`;
+        const dist = this.formatDistanceKm(place.distance);
+        document.getElementById('place-distance').textContent = `📍 ${dist.text} away`;
         document.getElementById('place-type').textContent = this.formatPlaceType(place.type);
 
         // Add place badge based on type/theme
@@ -510,25 +647,86 @@ class RandomPlacesFinder {
         // Handle photos
         const photosContainer = document.getElementById('place-photos');
         photosContainer.innerHTML = '';
-        const renderImage = (url) => {
-            if (!url) return;
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = place.name;
-            img.style.width = '100%';
-            img.style.maxWidth = '300px';
-            img.style.borderRadius = '8px';
-            photosContainer.appendChild(img);
+        const renderGallery = (urls) => {
+            if (!urls || urls.length === 0) return;
+            const gallery = document.createElement('div');
+            gallery.className = 'place-gallery';
+            const main = document.createElement('img');
+            main.className = 'gallery-main';
+            let currentIndex = 0;
+            main.src = urls[currentIndex];
+            main.alt = place.name;
+            const thumbs = document.createElement('div');
+            thumbs.className = 'gallery-thumbs';
+            urls.slice(0, 5).forEach((u) => {
+                const t = document.createElement('img');
+                t.src = u;
+                t.alt = place.name;
+                t.addEventListener('click', () => {
+                    currentIndex = urls.indexOf(u);
+                    if (currentIndex < 0) currentIndex = 0;
+                    main.src = urls[currentIndex];
+                });
+                thumbs.appendChild(t);
+            });
+            gallery.appendChild(main);
+            gallery.appendChild(thumbs);
+            photosContainer.appendChild(gallery);
+
+            // Swipe support for main image
+            let touchStartX = null;
+            main.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+            main.addEventListener('touchend', (e) => {
+                if (touchStartX == null) return;
+                const dx = e.changedTouches[0].clientX - touchStartX;
+                const threshold = 30;
+                if (Math.abs(dx) > threshold) {
+                    if (dx < 0) currentIndex = (currentIndex + 1) % urls.length; else currentIndex = (currentIndex - 1 + urls.length) % urls.length;
+                    main.src = urls[currentIndex];
+                }
+                touchStartX = null;
+            }, { passive: true });
         };
 
         const attemptRealPhoto = async () => {
-            const url = await this.loadRealPhotoForPlace(place);
-            if (url) renderImage(url);
-            else if (place.photos && place.photos.length > 0) renderImage(place.photos[0]);
+            const urls = await this.loadRealPhotoGalleryForPlace(place);
+            // Filter out placeholder sources
+            const filtered = (urls || []).filter(u => !this.isPlaceholderUrl(u));
+            if (filtered.length > 0) {
+                renderGallery(filtered);
+            }
         };
 
         // Try to load a real photo asynchronously
         attemptRealPhoto();
+
+        // Render map preview
+        const mapDiv = document.getElementById('place-map');
+        if (mapDiv) {
+            mapDiv.innerHTML = '';
+            if (place.lat && place.lng) {
+                const zoom = 14;
+                const width = 320;
+                const height = 200;
+                const marker = `${place.lat},${place.lng}`;
+                const osmUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${place.lat},${place.lng}&zoom=${zoom}&size=${width}x${height}&maptype=mapnik&markers=${marker},red-pushpin`;
+                const wikUrl = `https://maps.wikimedia.org/img/osm-intl,${zoom},${place.lat},${place.lng},${width}x${height}.png`;
+                const img = new Image();
+                img.alt = `Map of ${place.name}`;
+                img.onload = () => { mapDiv.classList.remove('hidden'); };
+                img.onerror = () => {
+                    if (img.src === osmUrl) {
+                        img.src = wikUrl;
+                    } else {
+                        mapDiv.classList.add('hidden');
+                    }
+                };
+                img.src = osmUrl;
+                mapDiv.appendChild(img);
+            } else {
+                mapDiv.classList.add('hidden');
+            }
+        }
 
         // Reset button states
         document.getElementById('add-to-adventure').textContent = '➕ Add to Adventure';

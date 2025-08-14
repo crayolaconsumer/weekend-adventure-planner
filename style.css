@@ -43,26 +43,30 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Noto Sans, "Apple Color Emoji", "Segoe UI Emoji";
     background: var(--bg-primary);
     min-height: 100vh;
     padding: 20px;
     color: var(--text-primary);
     transition: background 0.3s ease, color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
 }
 
 .container {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
     background: var(--bg-card);
     border-radius: 20px;
-    box-shadow: 0 20px 40px var(--shadow);
+    box-shadow: 0 20px 50px var(--shadow);
     overflow: hidden;
     transition: background 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid var(--border-color);
 }
 
 header {
-    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 40%, #f59e0b 100%);
     color: white;
     text-align: center;
     padding: 40px 20px;
@@ -89,11 +93,12 @@ header p {
 }
 
 .stats-bar span {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.22);
+    padding: 10px 14px;
     border-radius: 20px;
-    font-size: 0.9rem;
-    backdrop-filter: blur(10px);
+    font-size: 0.95rem;
+    backdrop-filter: saturate(1.2) blur(10px);
+    color: #fff;
 }
 
 .dark-mode-toggle {
@@ -122,7 +127,7 @@ header p {
 }
 
 .controls {
-    padding: 30px;
+    padding: 32px;
     background: var(--bg-secondary);
     transition: background 0.3s ease;
 }
@@ -130,7 +135,7 @@ header p {
 /* Tab System */
 .tabs {
     display: flex;
-    background: #e9ecef;
+    background: rgba(0,0,0,0.06);
     border-radius: 10px;
     padding: 5px;
     margin-bottom: 25px;
@@ -150,9 +155,9 @@ header p {
 }
 
 .tab-btn.active {
-    background: white;
-    color: #667eea;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background: #ffffff;
+    color: #4c51bf;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
 }
 
 .tab-btn:hover:not(.active) {
@@ -464,9 +469,72 @@ header p {
     align-items: center;
 }
 
+/* Range slider */
+#range[type="range"] {
+    -webkit-appearance: none;
+    width: 220px;
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 6px;
+    outline: none;
+}
+#range[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 4px var(--shadow);
+}
+#range[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #667eea;
+    cursor: pointer;
+    border: 2px solid white;
+}
+
+/* Quick filter chips */
+.quick-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+.chip-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    border-radius: 16px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.chip-btn.active {
+    border-color: #667eea;
+    background: rgba(102,126,234,0.1);
+    color: #667eea;
+}
+
+/* Map preview */
+.place-map {
+    margin-top: 12px;
+    display: flex;
+    justify-content: center;
+}
+.place-map img {
+    width: 100%;
+    max-width: 320px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
 label {
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-weight: 700;
+    color: var(--text-primary);
     min-width: 80px;
     transition: color 0.3s ease;
 }
@@ -476,7 +544,7 @@ select {
     padding: 12px 15px;
     border: 2px solid var(--border-color);
     border-radius: 10px;
-    font-size: 16px;
+    font-size: 15px;
     transition: border-color 0.3s ease, background 0.3s ease, color 0.3s ease;
     flex: 1;
     min-width: 200px;
@@ -515,7 +583,7 @@ button {
 }
 
 .primary-btn {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #6366f1, #7c3aed);
     color: white;
 }
 
@@ -525,7 +593,7 @@ button {
 }
 
 .secondary-btn {
-    background: #6c757d;
+    background: #4b5563;
     color: white;
 }
 
@@ -535,7 +603,7 @@ button {
 }
 
 .mystery-btn {
-    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    background: linear-gradient(135deg, #ef4444, #f97316);
     color: white;
     position: relative;
     overflow: hidden;
@@ -727,12 +795,41 @@ button {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
+/* Gallery */
+.place-gallery {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.gallery-main {
+    width: 100%;
+    max-width: 320px;
+    border-radius: 12px;
+}
+.gallery-thumbs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.gallery-thumbs img {
+    width: 64px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    opacity: 0.9;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.gallery-thumbs img:hover { transform: scale(1.04); opacity: 1; }
+
 .error {
-    background: #f8d7da;
-    color: #721c24;
+    background: #fef2f2;
+    color: #991b1b;
     padding: 30px;
     text-align: center;
-    border: 1px solid #f5c6cb;
+    border: 1px solid #fecaca;
 }
 
 .error p {
@@ -1013,6 +1110,20 @@ button {
     background: var(--bg-card);
     border-color: var(--border-color);
 }
+
+/* Dark mode adjustments for error and chips */
+[data-theme="dark"] .error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #fecaca;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.chip-btn {
+    box-shadow: 0 1px 4px var(--shadow);
+}
+
+/* Make weather row more legible */
+.weather-widget { color: var(--text-primary); }
 
 [data-theme="dark"] .pull-refresh-indicator {
     background: var(--bg-card);
