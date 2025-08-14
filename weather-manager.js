@@ -349,6 +349,7 @@ class WeatherManager {
         if (!location) return null;
 
         try {
+            this.lastCoords = { lat: location.lat, lng: location.lng };
             const weather = await this.getWeatherForLocation(location.lat, location.lng);
             
             // Show weather-based suggestions
@@ -435,8 +436,10 @@ class WeatherManager {
             if (window.pwaManager) {
                 window.pwaManager.showToast('🌤️ Weather API key removed', 'info');
             }
+        }
+    }
 
-  showWeatherModal() {
+    showWeatherModal() {
     const w = this.lastWeather || this.fallbackWeather;
     if (!w) return;
     const c = Number(w.temperature);
@@ -484,8 +487,6 @@ class WeatherManager {
         })
         .catch(() => {});
     }
-  }
-        }
     }
 }
 
@@ -555,7 +556,7 @@ weatherStyles.textContent = `
     .weather-modal { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 12px; width: 92%; max-width: 420px; box-shadow: 0 10px 30px var(--shadow); animation: fadeInUp 180ms ease; }
     .wm-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border-color); }
     .wm-header h3 { margin: 0; font-size: 1rem; }
-    .wm-close { background: transparent; border: none; width: 34px; height: 34px; border-radius: 6px; font-size: 16px; color: var(--text-primary); }
+    .wm-close { background: transparent; border: none; width: 34px; height: 34px; min-width: 34px; padding: 0; border-radius: 6px; font-size: 16px; color: var(--text-primary); display: inline-flex; align-items: center; justify-content: center; box-shadow: none; }
     .wm-body { padding: 12px 14px; }
     .wm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 0.95rem; }
     .wm-row span:first-child { color: var(--text-secondary); }

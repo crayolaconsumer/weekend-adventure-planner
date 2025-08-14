@@ -26,10 +26,18 @@
     
     <link rel="stylesheet" href="style.css">
 
-    <!-- Vercel Web Analytics (for static sites) -->
-    <script defer src="/_vercel/insights/script.js"></script>
+    <!-- Vercel Web Analytics (load only in production to avoid 404 locally) -->
     <script>
-      window.va = window.va || function(){ (window.vaq = window.vaq || []).push(arguments) }
+      (function(){
+        var host = location.hostname;
+        if (/vercel\.app$/.test(host)) {
+          var s = document.createElement('script');
+          s.defer = true;
+          s.src = '/_vercel/insights/script.js';
+          document.head.appendChild(s);
+        }
+        window.va = window.va || function(){ (window.vaq = window.vaq || []).push(arguments) };
+      })();
     </script>
 </head>
 <body>

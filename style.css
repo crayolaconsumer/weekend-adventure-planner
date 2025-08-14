@@ -95,7 +95,7 @@ header p {
     z-index: 1;
 }
 
-.stats-bar span {
+.stats-bar > span {
     background: rgba(255, 255, 255, 0.18);
     padding: 10px 14px;
     border-radius: 20px;
@@ -117,6 +117,7 @@ header p {
     gap: 6px;
     min-height: 32px;
     line-height: 1;
+    color: #fff;
 }
 /* Quick settings wrapper */
 .quick-settings { display: inline-flex; align-items: center; gap: 8px; overflow: hidden; max-width: 0; opacity: 0; transform: translateY(-2px); transition: max-width 220ms ease, opacity 220ms ease; vertical-align: middle; }
@@ -984,6 +985,8 @@ button {
     .stats-bar {
         gap: 10px;
     }
+    .quick-settings { gap: 6px; }
+    .dark-mode-toggle, .quick-settings .accessibility-toggle, #units-toggle { padding: 6px 10px; min-height: 32px; }
     
     .stats-bar span {
         padding: 6px 12px;
