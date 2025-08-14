@@ -512,6 +512,9 @@ class RandomPlacesFinder {
 
     async fetchWikipediaGallery(lang = 'en', title = null, pageid = null) {
         try {
+            const cacheKey = `wp:gal:${lang}:${title || pageid}`;
+            const cached = await window.cacheManager?.get(cacheKey);
+            if (cached) return cached;
             const base = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages|images&pithumbsize=600`;
             const url = title ? `${base}&titles=${encodeURIComponent(title)}` : `${base}&pageids=${encodeURIComponent(pageid)}`;
             const res = await fetch(url);
@@ -521,15 +524,16 @@ class RandomPlacesFinder {
             const first = Object.values(pages)[0];
             const thumbs = [];
             if (first?.thumbnail?.source) thumbs.push(first.thumbnail.source);
-            // Try to resolve first few images when available
             const images = first?.images || [];
-            for (let i = 0; i < Math.min(images.length, 4); i++) {
-                const fileTitle = images[i]?.title; // e.g., File:Something.jpg
+            for (let i = 0; i < Math.min(images.length, 6); i++) {
+                const fileTitle = images[i]?.title;
                 if (fileTitle && /^File:/i.test(fileTitle)) {
-                    thumbs.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileTitle)}?width=600`);
+                    thumbs.push(`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileTitle)}?width=800`);
                 }
             }
-            return thumbs;
+            const unique = Array.from(new Set(thumbs));
+            window.cacheManager?.set(cacheKey, unique, 1000 * 60 * 60); // 1h TTL
+            return unique;
         } catch (e) { return []; }
     }
 
@@ -558,13 +562,18 @@ class RandomPlacesFinder {
 
     async fetchWikidataImage(qid) {
         try {
+            const cacheKey = `wd:P18:${qid}`;
+            const cached = await window.cacheManager?.get(cacheKey);
+            if (cached) return cached;
             const url = `https://www.wikidata.org/w/api.php?action=wbgetclaims&format=json&origin=*&entity=${encodeURIComponent(qid)}&property=P18`;
             const res = await fetch(url);
             if (!res.ok) return null;
             const data = await res.json();
             const file = data?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
             if (!file) return null;
-            return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent('File:' + file)}?width=600`;
+            const out = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent('File:' + file)}?width=800`;
+            window.cacheManager?.set(cacheKey, out, 1000 * 60 * 60);
+            return out;
         } catch (e) { return null; }
     }
 
@@ -715,12 +724,28 @@ class RandomPlacesFinder {
             const main = document.createElement('img');
             main.className = 'gallery-main';
             let currentIndex = 0;
-            main.src = urls[currentIndex];
+            const tryLoad = (url, onFail) => new Promise((resolve) => {
+                const test = new Image();
+                test.onload = () => resolve(url);
+                test.onerror = () => resolve(onFail ? onFail() : null);
+                test.src = url;
+            });
+            // Progressive load: try current, else next
+            const pickUrl = async (i) => {
+                if (i >= urls.length) return null;
+                return await tryLoad(urls[i], () => pickUrl(i+1));
+            };
+            (async () => {
+                const firstOk = await pickUrl(0);
+                if (firstOk) main.src = firstOk;
+            })();
             main.alt = place.name;
             const thumbs = document.createElement('div');
             thumbs.className = 'gallery-thumbs';
             urls.slice(0, 5).forEach((u) => {
                 const t = document.createElement('img');
+                // Lazy thumbnails with error fallback
+                t.loading = 'lazy';
                 t.src = u;
                 t.alt = place.name;
                 t.addEventListener('click', () => {
@@ -729,6 +754,7 @@ class RandomPlacesFinder {
                     main.src = urls[currentIndex];
                     updateDots();
                 });
+                t.onerror = () => { t.remove(); };
                 thumbs.appendChild(t);
             });
             const dots = document.createElement('div');
@@ -782,10 +808,19 @@ class RandomPlacesFinder {
 
         const attemptRealPhoto = async () => {
             const urls = await this.loadRealPhotoGalleryForPlace(place);
-            // Filter out placeholder sources
             const filtered = (urls || []).filter(u => !this.isPlaceholderUrl(u));
             if (filtered.length > 0) {
                 renderGallery(filtered);
+                return;
+            }
+            // Graceful fallback: static map image or minimal no-photo banner
+            if (place.lat && place.lng) {
+                const zoom = 14; const width = 320; const height = 200;
+                const fallback = `https://maps.wikimedia.org/img/osm-intl,${zoom},${place.lat},${place.lng},${width}x${height}.png`;
+                renderGallery([fallback]);
+            } else {
+                const svg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='320' height='200'><rect width='100%' height='100%' fill='#e5e7eb'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='#6b7280' font-family='system-ui' font-size='16'>No photo available</text></svg>`);
+                renderGallery([`data:image/svg+xml;utf8,${svg}`]);
             }
         };
 
