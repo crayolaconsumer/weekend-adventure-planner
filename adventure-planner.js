@@ -60,9 +60,7 @@ class AdventurePlanner {
             this.buildMysteryAdventure();
         });
 
-        document.getElementById('surprise-me')?.addEventListener('click', () => {
-            this.surpriseMe();
-        });
+        // Note: surprise-me button is handled by app.js to avoid duplicate listeners
 
         // Adventure management
         document.getElementById('start-adventure')?.addEventListener('click', () => {
@@ -399,8 +397,8 @@ class AdventurePlanner {
                         </div>
                     </div>
                     <div class=\"stop-actions\">
-                        ${!isMystery ? `<button class=\"small-btn\" onclick=\"adventurePlanner.getStopDirections(${index})\">🗺️</button>` : ''}
-                        <button class=\"small-btn\" onclick=\"adventurePlanner.removeStop(${index})\">❌</button>
+                        ${!isMystery ? `<button class=\"small-btn\" onclick=\"window.adventurePlanner.getStopDirections(${index})\">🗺️</button>` : ''}
+                        <button class=\"small-btn\" onclick=\"window.adventurePlanner.removeStop(${index})\">❌</button>
                     </div>
                 </div>
             `;
@@ -577,7 +575,7 @@ class AdventurePlanner {
                         <h4>🗺️ ${adventure.places.length}-stop adventure</h4>
                         <p>📅 ${date} • ⭐ ${adventure.score || 0} points</p>
                     </div>
-                    <button class=\"small-btn\" onclick=\"adventurePlanner.repeatAdventure('${adventure.id}')\">🔄</button>
+                    <button class=\"small-btn\" onclick=\"window.adventurePlanner.repeatAdventure('${adventure.id}')\">🔄</button>
                 </div>
             `;
         });

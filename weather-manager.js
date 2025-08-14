@@ -11,18 +11,15 @@ class WeatherManager {
     }
 
     setupWeatherDisplay() {
-        // Add weather widget to the header
-        const statsBar = document.querySelector('.stats-bar');
-        if (statsBar) {
-            const weatherWidget = document.createElement('div');
-            weatherWidget.id = 'weather-widget';
-            weatherWidget.className = 'weather-widget hidden';
-            weatherWidget.innerHTML = `
-                <span class="weather-icon">🌤️</span>
-                <span class="weather-temp">--°</span>
-                <span class="weather-desc">Loading...</span>
-            `;
-            statsBar.appendChild(weatherWidget);
+        // Use existing weather widget from HTML
+        const weatherWidget = document.getElementById('weather-widget');
+        if (weatherWidget) {
+            // Widget already exists in HTML, just ensure it has the right structure
+            const content = weatherWidget.querySelector('.weather-content');
+            if (content) {
+                // Elements already exist, no need to create them
+                return;
+            }
         }
     }
 

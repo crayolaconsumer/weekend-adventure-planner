@@ -559,7 +559,7 @@ class RecommendationsEngine {
                             </span>
                         </div>
                     </div>
-                    <button class="recommendation-action" onclick="recommendationsEngine.executeRecommendation(${index})">
+                    <button class="recommendation-action" onclick="window.recommendationsEngine.executeRecommendation(${index})">
                         Try It
                     </button>
                 </div>

@@ -190,25 +190,28 @@ class GestureManager {
     }
 
     showPullToRefreshIndicator(progress) {
-        let indicator = document.getElementById('pull-refresh-indicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'pull-refresh-indicator';
-            indicator.className = 'pull-refresh-indicator';
-            indicator.innerHTML = '<div class="refresh-icon">↓</div><span>Pull to refresh</span>';
-            document.body.appendChild(indicator);
-        }
+        const indicator = document.getElementById('pull-refresh-indicator');
+        if (!indicator) return;
 
-        indicator.style.transform = `translateY(${progress * 60 - 60}px)`;
-        indicator.style.opacity = progress;
-        
-        const icon = indicator.querySelector('.refresh-icon');
-        icon.style.transform = `rotate(${progress * 180}deg)`;
-        
-        if (progress >= 1) {
-            indicator.querySelector('span').textContent = 'Release to refresh';
+        // Use existing HTML structure
+        if (progress > 0.3) {
+            indicator.classList.add('show');
         } else {
-            indicator.querySelector('span').textContent = 'Pull to refresh';
+            indicator.classList.remove('show');
+        }
+        
+        const spinner = indicator.querySelector('.refresh-spinner');
+        if (spinner && progress > 0.3) {
+            spinner.style.animation = 'spin 1s linear infinite';
+        }
+        
+        const text = indicator.querySelector('.refresh-text');
+        if (text) {
+            if (progress >= 1) {
+                text.textContent = 'Release to refresh';
+            } else {
+                text.textContent = 'Pull to refresh';
+            }
         }
     }
 

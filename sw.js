@@ -5,24 +5,24 @@ const API_CACHE = `${CACHE_NAME}-api`;
 
 // Files to cache immediately
 const STATIC_FILES = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/adventure-planner.js',
-  '/storage-manager.js',
-  '/theme-manager.js',
-  '/weather-manager.js',
-  '/gesture-manager.js',
-  '/sharing-manager.js',
-  '/accessibility-manager.js',
-  '/recommendations-engine.js',
-  '/animations-manager.js',
-  '/pwa.js',
-  '/init.js',
-  '/manifest.json',
+  './',
+  './index.html',
+  './style.css',
+  './app.js',
+  './adventure-planner.js',
+  './storage-manager.js',
+  './theme-manager.js',
+  './weather-manager.js',
+  './gesture-manager.js',
+  './sharing-manager.js',
+  './accessibility-manager.js',
+  './recommendations-engine.js',
+  './animations-manager.js',
+  './pwa.js',
+  './init.js',
+  './manifest.json',
   // Add fallback pages
-  '/offline.html'
+  './offline.html'
 ];
 
 // API endpoints to cache
@@ -42,7 +42,7 @@ self.addEventListener('install', event => {
         console.log('Service Worker: Caching static files');
         return cache.addAll(STATIC_FILES.map(url => {
           // Handle root path
-          return url === '/' ? '/index.html' : url;
+          return url === './' ? './index.html' : url;
         }));
       })
       .catch(error => {

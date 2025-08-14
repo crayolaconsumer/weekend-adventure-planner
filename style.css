@@ -930,16 +930,16 @@ button {
     font-size: 0.9rem;
 }
 
-#weather-icon {
+.weather-icon {
     font-size: 1.5rem;
 }
 
-#weather-temp {
+.weather-temp {
     font-weight: 600;
     color: var(--text-primary);
 }
 
-#weather-desc {
+.weather-desc {
     color: var(--text-secondary);
     text-transform: capitalize;
 }
