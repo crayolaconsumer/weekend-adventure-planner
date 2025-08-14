@@ -206,11 +206,13 @@ class PWAManager {
         window.addEventListener('online', () => {
             this.showToast('🟢 Back online!', 'success');
             // Trigger any pending syncs
-            if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
-                navigator.serviceWorker.ready.then(registration => {
-                    registration.sync.register('upload-adventure');
-                });
-            }
+            try {
+                if ('serviceWorker' in navigator && 'sync' in (window.ServiceWorkerRegistration?.prototype || {})) {
+                    navigator.serviceWorker.ready.then(registration => {
+                        try { registration.sync.register('upload-adventure'); } catch (e) {}
+                    });
+                }
+            } catch (e) {}
         });
 
         window.addEventListener('offline', () => {

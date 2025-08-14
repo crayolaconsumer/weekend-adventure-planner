@@ -222,9 +222,7 @@ header p {
     margin-bottom: 0;
 }
 
-.adventure-builder {
-    space-y: 20px;
-}
+.adventure-builder { margin-top: 0; }
 
 .time-section {
     margin-bottom: 20px;
@@ -239,6 +237,10 @@ header p {
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 10px;
+}
+
+.button-group .filter-btn[aria-pressed="true"] {
+    outline: 2px solid rgba(102,126,234,0.45);
 }
 
 .filter-btn {
@@ -257,11 +259,17 @@ header p {
     border-color: #667eea;
     background: #667eea;
     color: white;
+    box-shadow: 0 6px 14px rgba(102, 126, 234, 0.28);
 }
 
 .filter-btn:hover:not(.active) {
     border-color: #667eea;
     color: #667eea;
+}
+
+/* Pressed feedback for touch devices */
+.filter-btn:active {
+    transform: translateZ(0) scale(0.98);
 }
 
 /* Adventure Plan Styles */
@@ -507,6 +515,7 @@ header p {
 
 /* Range slider */
 #range[type="range"] {
+    appearance: none;
     -webkit-appearance: none;
     width: 220px;
     height: 6px;

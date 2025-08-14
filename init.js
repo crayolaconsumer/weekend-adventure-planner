@@ -34,7 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error('Error initializing app:', error);
-            alert('There was an error starting the app. Please refresh the page.');
+            try {
+                window.pwaManager?.showToast('There was an error starting the app. Please refresh the page.', 'error');
+            } catch (e) {}
         }
     };
     
@@ -48,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 initializeApp();
             } else {
                 console.error('Scripts failed to load properly');
-                alert('Some features may not work. Please refresh the page.');
+                try { window.pwaManager?.showToast('Some features may not work. Please refresh the page.', 'warning'); } catch (e) {}
             }
         }, 500);
     }

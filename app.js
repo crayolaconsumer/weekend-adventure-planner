@@ -143,6 +143,38 @@ class RandomPlacesFinder {
                 range?.dispatchEvent(new Event('input'));
             });
         }
+
+        // Adventure style pills (visual + functional feedback)
+        const styleButtons = Array.from(document.querySelectorAll('.adventure-type .filter-btn'));
+        if (styleButtons.length) {
+            const mapStyleToTheme = {
+                'mixed': 'any',
+                'food-focused': 'foodie',
+                'sightseeing': 'photo',
+                'active': 'nature'
+            };
+            const themeSelect = document.getElementById('adventure-theme');
+            const setActiveStyle = (btn) => {
+                styleButtons.forEach(b => {
+                    const isActive = b === btn;
+                    b.classList.toggle('active', isActive);
+                    b.setAttribute('aria-pressed', String(isActive));
+                });
+                const style = btn.getAttribute('data-style');
+                try { localStorage.setItem('adventure_style', style); } catch (e) {}
+                if (themeSelect && mapStyleToTheme[style]) {
+                    themeSelect.value = mapStyleToTheme[style];
+                }
+                // Subtle haptic and toast feedback
+                try { if (navigator.vibrate) navigator.vibrate(10); } catch(e) {}
+                try { window.pwaManager?.showToast(`Style set: ${btn.textContent.trim()}`, 'info'); } catch(e) {}
+            };
+            // Restore saved style or default
+            const savedStyle = (localStorage.getItem('adventure_style') || 'mixed');
+            const initialBtn = styleButtons.find(b => b.getAttribute('data-style') === savedStyle) || styleButtons[0];
+            if (initialBtn) setActiveStyle(initialBtn);
+            styleButtons.forEach(b => b.addEventListener('click', () => setActiveStyle(b)));
+        }
     }
 
     async runChipsSearch() {
@@ -429,12 +461,14 @@ class RandomPlacesFinder {
             'https://z.overpass-api.de/api/interpreter',
             'https://overpass.openstreetmap.fr/api/interpreter'
         ];
-        const controller = new AbortController();
         const perEndpointTimeoutMs = 15000; // 15s per endpoint
 
         for (const endpoint of endpoints) {
+            let controller;
+            let timeoutId;
             try {
-                const timeoutId = setTimeout(() => controller.abort(), perEndpointTimeoutMs);
+                controller = new AbortController();
+                timeoutId = setTimeout(() => controller.abort(), perEndpointTimeoutMs);
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -444,10 +478,13 @@ class RandomPlacesFinder {
                 clearTimeout(timeoutId);
                 if (response.ok) {
                     return await response.json();
+                } else {
+                    console.warn('Overpass endpoint responded non-OK:', endpoint, response.status);
                 }
             } catch (e) {
-                // Try next endpoint
-                controller.abort();
+                console.warn('Overpass endpoint failed:', endpoint, e?.name || e);
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
             }
         }
         throw new Error('All Overpass endpoints failed');
@@ -1123,5 +1160,4 @@ RandomPlacesFinder.prototype.getPlaceBadge = function(place) {
 
 // Initialization moved to init.js
 // Expose class on global for init check
-window.RandomPlacesFinder = window.RandomPlacesFinder || RandomPlacesFinder;
 window.RandomPlacesFinder = window.RandomPlacesFinder || RandomPlacesFinder;

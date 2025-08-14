@@ -436,7 +436,7 @@ class AdventurePlanner {
                     </div>
                     <div class="stop-actions">
                         ${!isMystery ? `<button class="small-btn" onclick="window.adventurePlanner.getStopDirections(${index})">🗺️</button>` : ''}
-                        <button class="small-btn" onclick="window.adventurePlanner.removeStop(${index})">❌</button>
+                        <button class="small-btn" onclick="window.adventurePlanner.removeStop(${index})" aria-label="Remove stop ${index + 1}">❌</button>
                     </div>
                 </div>
             `;
@@ -604,11 +604,33 @@ class AdventurePlanner {
         window.open(url, '_blank');
     }
 
-    removeStop(index) {
-        if (!this.currentAdventure) return;
-        
-        this.currentAdventure.places.splice(index, 1);
-        this.displayAdventurePlan(this.currentAdventure, this.currentAdventure.isMystery);
+    // Repeat a previously saved adventure by id
+    repeatAdventure(adventureId) {
+        try {
+            const list = window.storageManager.getSavedAdventures();
+            const adv = list.find(a => String(a.id) === String(adventureId));
+            if (!adv) return;
+            this.currentAdventure = adv;
+            // Ensure we are on the adventure tab and show plan
+            this.switchTab('adventure');
+            this.displayAdventurePlan(adv, !!adv.isMystery);
+            this.showSuccess('🔁 Adventure loaded');
+        } catch (e) {
+            console.error('Failed to repeat adventure:', e);
+        }
+    }
+
+    // Local success helper for consistent feedback
+    showSuccess(message) {
+        if (window.pwaManager && typeof window.pwaManager.showToast === 'function') {
+            window.pwaManager.showToast(message, 'success');
+            return;
+        }
+        const div = document.createElement('div');
+        div.textContent = message;
+        div.style.cssText = 'position:fixed;top:16px;right:16px;background:#10b981;color:#fff;padding:8px 12px;border-radius:8px;z-index:9999;font-size:14px;';
+        document.body.appendChild(div);
+        setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 2000);
     }
 
     saveAdventure() {
