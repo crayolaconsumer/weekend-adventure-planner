@@ -538,6 +538,7 @@ header p {
     border-radius: 10px;
     box-shadow: 0 4px 12px var(--shadow);
 }
+.map-toggle { margin-top: 8px; }
 
 label {
     font-weight: 700;
@@ -748,6 +749,13 @@ button {
     gap: 20px;
     margin-bottom: 15px;
     flex-wrap: wrap;
+}
+
+.place-small-meta {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
 }
 
 .place-meta span {
@@ -1038,6 +1046,13 @@ button {
         margin: 15px 10px;
         padding: 15px;
     }
+    /* Mobile-first enhancements */
+    .place-meta span { font-size: 13px; }
+    .place-card h2 { font-size: 1.4rem; }
+    .gallery-main { max-width: 100%; }
+    .sticky-actions { bottom: 10px; padding: 6px; gap: 6px; }
+    .sticky-actions .sa-btn { padding: 10px 8px; font-size: 14px; }
+    .map-toggle { width: 100%; }
 }
 
 /* Dark mode accessibility for buttons and chips */

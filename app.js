@@ -31,6 +31,12 @@ class RandomPlacesFinder {
             }
         });
 
+        // Analytics for actions
+        const a = (name) => { try { if (typeof window.va === 'function') window.va('event', { type: name }); } catch(e) {} };
+        document.getElementById('get-directions').addEventListener('click', () => a('get_directions'));
+        document.getElementById('add-to-adventure').addEventListener('click', () => a('add_to_adventure'));
+        document.getElementById('mark-visited').addEventListener('click', () => a('mark_visited'));
+
         // Check if adventure planner elements exist before adding listeners
         const surpriseBtn = document.getElementById('surprise-me');
         if (surpriseBtn) {
@@ -318,7 +324,13 @@ class RandomPlacesFinder {
                 `;
             }
 
-            const data = await this.fetchOverpassWithFailover(overpassQuery);
+            // Try cache first
+            const cacheKey = `overpass:${type}:${radius}:${location.lat.toFixed(3)},${location.lng.toFixed(3)}`;
+            let data = await window.cacheManager?.get(cacheKey);
+            if (!data) {
+                data = await this.fetchOverpassWithFailover(overpassQuery);
+                if (data) window.cacheManager?.set(cacheKey, data, 1000 * 60 * 30); // 30 min TTL
+            }
 
             if (!data || !data.elements || data.elements.length === 0) {
                 // Try Wikipedia geosearch for attractions if Overpass returned empty
@@ -354,7 +366,21 @@ class RandomPlacesFinder {
                 })
                 .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
 
-            return places;
+            // Enrich with OSM tags (opening_hours, wheelchair, fee, website, phone)
+            const enriched = places.map(p => {
+                const el = (data.elements || []).find(e => e.id === p.osmElementId) || {};
+                const t = el.tags || {};
+                return {
+                    ...p,
+                    opening_hours: t.opening_hours || null,
+                    wheelchair: t.wheelchair || null,
+                    fee: t.fee || null,
+                    website: t.website || t['contact:website'] || null,
+                    phone: t.phone || t['contact:phone'] || null
+                };
+            });
+
+            return enriched;
 
         } catch (error) {
             console.error('Error fetching places:', error);
@@ -591,6 +617,15 @@ class RandomPlacesFinder {
         return parts.length > 0 ? parts.join(' ') : 'Address not available';
     }
 
+    formatOpeningHours(oh) {
+        // Very lightweight humanization: show raw or short open status
+        try {
+            if (/24\/7/.test(oh)) return 'Open 24/7';
+            // If contains day ranges, show as-is trimmed
+            return String(oh).replace(/;\s*/g, ' · ');
+        } catch(e) { return oh; }
+    }
+
     generateRandomRating() {
         return (Math.random() * 2 + 3).toFixed(1); // Random rating between 3.0 and 5.0
     }
@@ -650,6 +685,21 @@ class RandomPlacesFinder {
         } else {
             badgeElement.style.display = 'none';
         }
+
+        // Add small metadata row (opening hours / accessibility / fee)
+        try {
+            const meta = document.createElement('div');
+            meta.className = 'place-small-meta';
+            const bits = [];
+            if (place.opening_hours) bits.push(`⏰ ${this.formatOpeningHours(place.opening_hours)}`);
+            if (place.wheelchair && /yes|designated/i.test(place.wheelchair)) bits.push('♿ Accessible');
+            if (place.fee && /yes/i.test(place.fee)) bits.push('💳 Entry fee');
+            if (place.website) bits.push(`<a href="${place.website}" target="_blank" rel="noopener">🔗 Website</a>`);
+            if (place.phone) bits.push(`📞 ${place.phone}`);
+            meta.innerHTML = bits.join(' • ');
+            const nameEl = document.getElementById('place-address');
+            if (nameEl && bits.length) nameEl.insertAdjacentElement('afterend', meta);
+        } catch(e) {}
 
         // Handle photos (skeletons)
         const photosContainer = document.getElementById('place-photos');
@@ -712,18 +762,19 @@ class RandomPlacesFinder {
                 touchStartX = null;
             }, { passive: true });
 
-            // Pinch-to-zoom via double-tap toggle
+            // Zoom via double-tap toggle + fade transition
             let zoomed = false;
-            main.addEventListener('dblclick', () => {
+            const toggleZoom = () => {
                 zoomed = !zoomed;
+                main.style.transition = 'transform 150ms ease';
                 main.style.transform = zoomed ? 'scale(1.6)' : 'scale(1)';
-            });
+            };
+            main.addEventListener('dblclick', toggleZoom);
             let lastTap = 0;
             main.addEventListener('touchend', () => {
                 const now = Date.now();
                 if (now - lastTap < 350) {
-                    zoomed = !zoomed;
-                    main.style.transform = zoomed ? 'scale(1.6)' : 'scale(1)';
+                    toggleZoom();
                 }
                 lastTap = now;
             }, { passive: true });
@@ -784,6 +835,28 @@ class RandomPlacesFinder {
             } else {
                 mapDiv.classList.add('hidden');
             }
+            // Mobile: allow opening map in full screen (iframe)
+            const openBtn = document.getElementById('open-map');
+            if (openBtn) {
+                openBtn.classList.remove('hidden');
+                openBtn.onclick = () => {
+                    if (!(place.lat && place.lng)) return;
+                    const delta = 0.01; const width = 320; const height = 320;
+                    const bbox = `${place.lng - delta},${place.lat - delta},${place.lng + delta},${place.lat + delta}`;
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:10px;';
+                    const frame = document.createElement('iframe');
+                    frame.src = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(place.lat + ',' + place.lng)}`;
+                    frame.style.cssText = 'width:95%;height:80%;border:0;border-radius:12px;background:#fff;';
+                    const close = document.createElement('button');
+                    close.textContent = '✕';
+                    close.className = 'small-btn';
+                    close.style.cssText = 'position:absolute;top:12px;right:12px;';
+                    close.onclick = () => overlay.remove();
+                    overlay.appendChild(frame); overlay.appendChild(close);
+                    document.body.appendChild(overlay);
+                };
+            }
         }
 
         // Reset button states
@@ -814,6 +887,9 @@ class RandomPlacesFinder {
         document.dispatchEvent(new CustomEvent('placeDisplayed', {
             detail: { place: place }
         }));
+
+        // Analytics event (free Vercel analytics)
+        try { if (typeof window.va === 'function') window.va('event', { type: 'place_displayed', name: place.name, kind: place.type }); } catch (e) {}
     }
 
     updateStickyActions() {

@@ -42,6 +42,15 @@
   ],
   "shortcuts": [
     {
+      "name": "Nearby Parks",
+      "short_name": "Parks",
+      "description": "Find parks nearby",
+      "url": "/?action=random&chip=park",
+      "icons": [
+        { "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%2322c55e'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='30'%3E🌳%3C/text%3E%3C/svg%3E", "sizes": "96x96" }
+      ]
+    },
+    {
       "name": "Find Random Place",
       "short_name": "Random",
       "description": "Discover a random place near you",

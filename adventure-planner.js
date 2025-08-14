@@ -71,6 +71,10 @@ class AdventurePlanner {
             this.saveAdventure();
         });
 
+        document.getElementById('export-ics')?.addEventListener('click', () => {
+            this.exportICS();
+        });
+
         document.getElementById('new-adventure')?.addEventListener('click', () => {
             this.resetAdventureBuilder();
         });
@@ -99,6 +103,26 @@ class AdventurePlanner {
                 e.target.classList.add('active');
             });
         });
+    }
+
+    exportICS() {
+        if (!this.currentAdventure) return;
+        const pad = (n) => String(n).padStart(2, '0');
+        const toICSDate = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+        const start = new Date(this.currentAdventure.startTime || Date.now());
+        const end = new Date(start.getTime() + (this.currentAdventure.totalTime || 1) * 60 * 60 * 1000);
+        const summary = `Weekend Adventure (${this.currentAdventure.places.length} stops)`;
+        const desc = this.currentAdventure.places.map((p,i)=>`${i+1}. ${p.name} ${p.address?'- '+p.address:''}`).join('\n');
+        const loc = this.currentAdventure.places[0]?.name || 'Adventure';
+        const ics = [
+            'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Weekend Adventure Planner//EN','BEGIN:VEVENT',
+            `UID:${Date.now()}@weekend-adventure`,`DTSTAMP:${toICSDate(new Date())}`,
+            `DTSTART:${toICSDate(start)}`,`DTEND:${toICSDate(end)}`,
+            `SUMMARY:${summary}`,`LOCATION:${loc}`,`DESCRIPTION:${desc.replace(/\n/g,'\\n')}`,'END:VEVENT','END:VCALENDAR'
+        ].join('\r\n');
+        const blob = new Blob([ics], { type: 'text/calendar' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'adventure.ics'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     }
 
     switchTab(tabName) {

@@ -161,6 +161,7 @@
                     <div class="adventure-actions">
                         <button id="start-adventure" class="primary-btn">🚗 Start Adventure</button>
                         <button id="save-adventure" class="secondary-btn">💾 Save Plan</button>
+                        <button id="export-ics" class="secondary-btn">📅 Add to Calendar</button>
                         <button id="new-adventure" class="secondary-btn">🔄 New Plan</button>
                     </div>
                 </div>
@@ -207,6 +208,7 @@
                 </div>
                 <div id="place-photos"></div>
                 <div id="place-map" class="place-map hidden"></div>
+                <button id="open-map" class="small-btn map-toggle hidden">🗺️ Open Map</button>
                 <div class="place-actions">
                     <button id="get-directions">🗺️ Get Directions</button>
                     <button id="add-to-adventure" class="secondary-btn">➕ Add to Adventure</button>
@@ -243,6 +245,7 @@
     </div>
 
     <script src="storage-manager.js"></script>
+    <script src="cache-manager.js"></script>
     <script src="app.js"></script>
     <script src="adventure-planner.js"></script>
     <script src="theme-manager.js"></script>
