@@ -24,20 +24,40 @@ class WeatherManager {
     }
 
     async getWeatherForLocation(lat, lng) {
-        // Try multiple free weather sources
-        let weather = await this.tryOpenWeatherMap(lat, lng);
-        
+        // Prefer keyless sources first (Open-Meteo, wttr.in). OWM only if key provided.
+        let weather = await this.tryOpenMeteo(lat, lng);
+
         if (!weather) {
             weather = await this.tryWeatherAPI(lat, lng);
         }
-        
+
+        if (!weather) {
+            const hasKey = !!localStorage.getItem('openweather_api_key');
+            if (hasKey) {
+                weather = await this.tryOpenWeatherMap(lat, lng);
+            }
+        }
+
         if (!weather) {
             weather = this.generateMockWeather(lat, lng);
         }
-        
+
         this.cacheWeather(weather);
         this.displayWeather(weather);
         return weather;
+    }
+
+    async tryOpenMeteo(lat, lng) {
+        try {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('API request failed');
+            const data = await response.json();
+            return this.parseOpenMeteo(data);
+        } catch (error) {
+            console.warn('Open-Meteo failed:', error);
+            return null;
+        }
     }
 
     async tryOpenWeatherMap(lat, lng) {
@@ -95,6 +115,38 @@ class WeatherManager {
             source: 'OpenWeatherMap',
             timestamp: Date.now()
         };
+    }
+
+    parseOpenMeteo(data) {
+        const cw = data && data.current_weather;
+        if (!cw) return null;
+        const desc = this.describeOpenMeteoCode(cw.weathercode);
+        return {
+            temperature: Math.round(cw.temperature),
+            description: desc,
+            condition: desc,
+            humidity: null,
+            windSpeed: cw.windspeed,
+            icon: this.getWeatherIcon(desc),
+            isGoodForOutdoor: this.isGoodWeatherForOutdoor({ temp: cw.temperature, weatherDesc: [{ value: desc }] }),
+            source: 'Open-Meteo',
+            timestamp: Date.now()
+        };
+    }
+
+    describeOpenMeteoCode(code) {
+        const map = {
+            0: 'clear', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast',
+            45: 'fog', 48: 'fog',
+            51: 'drizzle', 53: 'drizzle', 55: 'drizzle',
+            61: 'rain', 63: 'rain', 65: 'rain',
+            66: 'freezing rain', 67: 'freezing rain',
+            71: 'snow', 73: 'snow', 75: 'snow', 77: 'snow',
+            80: 'rain', 81: 'rain', 82: 'rain',
+            85: 'snow', 86: 'snow',
+            95: 'thunderstorm', 96: 'thunderstorm', 99: 'thunderstorm'
+        };
+        return map[code] || 'clear';
     }
 
     parseWttrIn(data) {
@@ -426,6 +478,14 @@ document.head.appendChild(weatherStyles);
 document.addEventListener('DOMContentLoaded', () => {
     window.weatherManager = new WeatherManager();
     
+    // Listen for app-level location updates
+    document.addEventListener('locationUpdated', (e) => {
+        const loc = e.detail?.location;
+        if (loc && window.weatherManager) {
+            window.weatherManager.updateWeatherForAdventure(loc);
+        }
+    });
+
     // Integrate with existing location detection
     if (window.randomPlacesFinder) {
         const originalGetCurrentLocation = window.randomPlacesFinder.getCurrentLocation;

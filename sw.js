@@ -1,4 +1,4 @@
-const CACHE_NAME = 'weekend-adventure-v1.0.0';
+const CACHE_NAME = 'weekend-adventure-v1.0.1';
 const STATIC_CACHE = `${CACHE_NAME}-static`;
 const DYNAMIC_CACHE = `${CACHE_NAME}-dynamic`;
 const API_CACHE = `${CACHE_NAME}-api`;
@@ -29,7 +29,13 @@ const STATIC_FILES = [
 const API_URLS = [
   'https://nominatim.openstreetmap.org',
   'https://overpass-api.de/api/interpreter',
-  'https://api.openweathermap.org'
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://z.overpass-api.de/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://api.open-meteo.com',
+  'https://api.openweathermap.org',
+  'https://en.wikipedia.org/w/api.php'
 ];
 
 // Install event - cache static files
@@ -40,10 +46,10 @@ self.addEventListener('install', event => {
     caches.open(STATIC_CACHE)
       .then(cache => {
         console.log('Service Worker: Caching static files');
-        return cache.addAll(STATIC_FILES.map(url => {
-          // Handle root path
-          return url === './' ? './index.html' : url;
-        }));
+        // Map and de-duplicate URLs to avoid addAll duplicate request error
+        const mapped = STATIC_FILES.map(url => (url === './' ? './index.html' : url));
+        const unique = Array.from(new Set(mapped));
+        return cache.addAll(unique);
       })
       .catch(error => {
         console.error('Service Worker: Failed to cache static files', error);
@@ -99,9 +105,12 @@ self.addEventListener('fetch', event => {
 // Check if request is for static files
 function isStaticFile(url) {
   const staticExtensions = ['.html', '.css', '.js', '.json', '.png', '.jpg', '.svg', '.ico'];
-  return staticExtensions.some(ext => url.pathname.endsWith(ext)) || 
-         url.pathname === '/' || 
-         STATIC_FILES.includes(url.pathname);
+  const path = url.pathname;
+  const normalizedMatchesStaticList = STATIC_FILES.some(p => {
+    const normalized = p.replace(/^\.\//, '/');
+    return normalized === path || p === path || ('./' + path.replace(/^\//, '')) === p;
+  });
+  return staticExtensions.some(ext => path.endsWith(ext)) || path === '/' || normalizedMatchesStaticList;
 }
 
 // Check if request is for API
@@ -133,7 +142,12 @@ async function handleStaticFile(request) {
     // Return offline page for HTML requests
     if (request.destination === 'document') {
       const cache = await caches.open(STATIC_CACHE);
-      return cache.match('/offline.html') || new Response('Offline');
+      return (
+        (await cache.match('./offline.html')) ||
+        (await cache.match('/offline.html')) ||
+        (await cache.match('offline.html')) ||
+        new Response('Offline')
+      );
     }
     
     return new Response('Network error', { status: 408 });

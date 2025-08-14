@@ -235,7 +235,7 @@ class PWAManager {
             <div class="toast-content">
                 <span class="toast-message">${message}</span>
                 ${action ? '<button class="toast-action">Act</button>' : ''}
-                <button class="toast-close">×</button>
+                <button class="toast-close" aria-label="Close">×</button>
             </div>
         `;
 
@@ -251,7 +251,7 @@ class PWAManager {
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             zIndex: '10000',
             animation: 'slideInRight 0.3s ease',
-            maxWidth: '300px',
+            maxWidth: '320px',
             fontSize: '14px'
         });
 
@@ -268,9 +268,19 @@ class PWAManager {
         }
 
         const closeBtn = toast.querySelector('.toast-close');
-        closeBtn.addEventListener('click', () => {
-            this.removeToast(toast);
-        });
+        if (closeBtn) {
+            closeBtn.style.fontSize = '14px';
+            closeBtn.style.width = '22px';
+            closeBtn.style.height = '22px';
+            closeBtn.style.display = 'inline-flex';
+            closeBtn.style.alignItems = 'center';
+            closeBtn.style.justifyContent = 'center';
+            closeBtn.style.lineHeight = '1';
+            closeBtn.style.borderRadius = '4px';
+            closeBtn.addEventListener('click', () => {
+                this.removeToast(toast);
+            });
+        }
 
         // Auto remove after 5 seconds
         setTimeout(() => {
@@ -422,10 +432,16 @@ pwaStyles.textContent = `
         background: rgba(255,255,255,0.2);
         border: none;
         color: white;
-        padding: 4px 8px;
+        padding: 2px 6px;
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
+        line-height: 1;
+        height: 22px;
+        min-width: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .toast-action:hover, .toast-close:hover {

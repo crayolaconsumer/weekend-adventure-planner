@@ -55,10 +55,15 @@ class AccessibilityManager {
             tab.setAttribute('tabindex', tab.classList.contains('active') ? '0' : '-1');
         });
 
-        // Add ARIA labels to tab panels
-        document.querySelectorAll('.tab-content').forEach((panel, index) => {
+        // Add ARIA labels to tab panels mapped to their corresponding tabs
+        const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+        const panels = Array.from(document.querySelectorAll('.tab-content'));
+        panels.forEach((panel, index) => {
             panel.setAttribute('role', 'tabpanel');
-            panel.setAttribute('aria-labelledby', `tab-${index}`);
+            const labelledById = tabs[index]?.id || '';
+            if (labelledById) {
+                panel.setAttribute('aria-labelledby', labelledById);
+            }
         });
     }
 
@@ -367,7 +372,7 @@ class AccessibilityManager {
         skipLinks.innerHTML = `
             <a href="#main-content" class="skip-link">Skip to main content</a>
             <a href="#navigation" class="skip-link">Skip to navigation</a>
-            <a href="#search" class="skip-link">Skip to search</a>
+            <a href="#location" class="skip-link">Skip to search</a>
         `;
         
         document.body.insertBefore(skipLinks, document.body.firstChild);
@@ -384,10 +389,7 @@ class AccessibilityManager {
             navigation.id = 'navigation';
         }
 
-        const search = document.querySelector('#location');
-        if (search) {
-            search.id = 'search';
-        }
+        // Keep original input id (#location) to avoid breaking logic
     }
 
     improveFormAccessibility() {

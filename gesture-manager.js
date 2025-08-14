@@ -39,8 +39,15 @@ class GestureManager {
             this.handleSwipeEnd(e);
         }, { passive: true });
 
-        // Add visual feedback for swipes
+        // Add visual feedback for swipes (reuse existing element if present)
         this.createSwipeIndicator();
+
+        // Keep active tab in sync when tabs change elsewhere
+        document.addEventListener('tabSwitched', (e) => {
+            if (e.detail?.tabName) {
+                this.activeTab = e.detail.tabName;
+            }
+        });
     }
 
     handleSwipeStart(e) {
@@ -124,6 +131,8 @@ class GestureManager {
     }
 
     createSwipeIndicator() {
+        // Reuse pre-rendered indicator in HTML if available
+        if (document.getElementById('swipe-indicator')) return;
         const indicator = document.createElement('div');
         indicator.id = 'swipe-indicator';
         indicator.className = 'swipe-indicator hidden';
@@ -135,11 +144,19 @@ class GestureManager {
         const indicator = document.getElementById('swipe-indicator');
         if (!indicator) return;
 
-        indicator.className = `swipe-indicator swipe-${direction}`;
+        indicator.classList.remove('hidden');
+        indicator.className = `swipe-indicator swipe-${direction} show`;
         indicator.style.opacity = '0.7';
-        
+
         const arrow = indicator.querySelector('.swipe-arrow');
-        arrow.textContent = direction === 'left' ? '→' : '←';
+        if (arrow) {
+            arrow.textContent = direction === 'left' ? '→' : '←';
+        } else {
+            const text = indicator.querySelector('.swipe-text');
+            if (text) {
+                text.textContent = direction === 'left' ? 'Swipe left' : 'Swipe right';
+            }
+        }
     }
 
     hideSwipeIndicator() {

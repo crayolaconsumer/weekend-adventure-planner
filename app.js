@@ -73,6 +73,10 @@ class RandomPlacesFinder {
                     lng: position.coords.longitude
                 };
                 document.getElementById('location').value = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`;
+                // Notify other components about location update
+                document.dispatchEvent(new CustomEvent('locationUpdated', {
+                    detail: { location: this.currentLocation }
+                }));
                 this.hideLoading();
                 this.showSuccess('Location found! You can now search for places.');
             },
@@ -151,6 +155,10 @@ class RandomPlacesFinder {
                 return;
             }
             this.currentLocation = location;
+            // Notify other components about location update
+            document.dispatchEvent(new CustomEvent('locationUpdated', {
+                detail: { location: this.currentLocation }
+            }));
         }
 
         if (!location) {
@@ -191,14 +199,11 @@ class RandomPlacesFinder {
 
     async searchNearbyPlaces(location, type, radius) {
         try {
-            // Convert radius from meters to degrees (approximate)
-            const radiusInDegrees = radius / 111000; // 1 degree ≈ 111km
-            
-            // Define query for Overpass API based on type
+            // Build Overpass query (increase timeout for reliability)
             let overpassQuery;
             if (type === 'restaurant') {
                 overpassQuery = `
-                    [out:json][timeout:25];
+                    [out:json][timeout:60];
                     (
                         node["amenity"="restaurant"](around:${radius},${location.lat},${location.lng});
                         node["amenity"="fast_food"](around:${radius},${location.lat},${location.lng});
@@ -209,7 +214,7 @@ class RandomPlacesFinder {
                 `;
             } else {
                 overpassQuery = `
-                    [out:json][timeout:25];
+                    [out:json][timeout:60];
                     (
                         node["tourism"="attraction"](around:${radius},${location.lat},${location.lng});
                         node["tourism"="museum"](around:${radius},${location.lat},${location.lng});
@@ -222,25 +227,17 @@ class RandomPlacesFinder {
                 `;
             }
 
-            const response = await fetch('https://overpass-api.de/api/interpreter', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: 'data=' + encodeURIComponent(overpassQuery)
-            });
+            const data = await this.fetchOverpassWithFailover(overpassQuery);
 
-            if (!response.ok) {
-                throw new Error('Failed to fetch places');
-            }
-
-            const data = await response.json();
-            
-            if (!data.elements || data.elements.length === 0) {
+            if (!data || !data.elements || data.elements.length === 0) {
+                // Try Wikipedia geosearch for attractions if Overpass returned empty
+                if (type !== 'restaurant') {
+                    const wikiPlaces = await this.searchWikipediaAttractions(location, radius);
+                    return wikiPlaces;
+                }
                 return [];
             }
 
-            // Process and format the results
             const places = data.elements
                 .filter(element => element.tags && element.tags.name)
                 .map(element => {
@@ -248,7 +245,6 @@ class RandomPlacesFinder {
                         location.lat, location.lng,
                         element.lat, element.lon
                     );
-                    
                     return {
                         name: element.tags.name || 'Unknown Place',
                         address: this.formatAddress(element.tags),
@@ -257,7 +253,12 @@ class RandomPlacesFinder {
                         distance: distance.toFixed(1),
                         rating: this.generateRandomRating(),
                         type: element.tags.amenity || element.tags.tourism || element.tags.leisure || element.tags.historic || 'place',
-                        photos: [`https://picsum.photos/300/200?random=${element.id || Math.floor(Math.random() * 1000)}`]
+                        photos: [`https://picsum.photos/300/200?random=${element.id || Math.floor(Math.random() * 1000)}`],
+                        wikipedia: element.tags.wikipedia || null,
+                        wikidata: element.tags.wikidata || null,
+                        imageTag: element.tags.image || null,
+                        commons: element.tags['wikimedia_commons'] || null,
+                        osmElementId: element.id
                     };
                 })
                 .sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
@@ -266,10 +267,159 @@ class RandomPlacesFinder {
 
         } catch (error) {
             console.error('Error fetching places:', error);
-            // Fallback to mock data if API fails
-            console.log('Falling back to mock data...');
-            return this.generateMockPlaces(location, type, radius);
+            // Only use mock data if explicitly enabled by user
+            const allowMock = localStorage.getItem('enableMockPlaces') === 'true';
+            if (allowMock) {
+                console.log('Falling back to mock data (explicitly enabled)...');
+                return this.generateMockPlaces(location, type, radius);
+            }
+            return [];
         }
+    }
+
+    async fetchOverpassWithFailover(overpassQuery) {
+        const endpoints = [
+            'https://overpass.kumi.systems/api/interpreter',
+            'https://overpass-api.de/api/interpreter',
+            'https://lz4.overpass-api.de/api/interpreter',
+            'https://z.overpass-api.de/api/interpreter',
+            'https://overpass.openstreetmap.fr/api/interpreter'
+        ];
+        const controller = new AbortController();
+        const perEndpointTimeoutMs = 15000; // 15s per endpoint
+
+        for (const endpoint of endpoints) {
+            try {
+                const timeoutId = setTimeout(() => controller.abort(), perEndpointTimeoutMs);
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'data=' + encodeURIComponent(overpassQuery),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (response.ok) {
+                    return await response.json();
+                }
+            } catch (e) {
+                // Try next endpoint
+                controller.abort();
+            }
+        }
+        throw new Error('All Overpass endpoints failed');
+    }
+
+    async searchWikipediaAttractions(location, radius) {
+        try {
+            // radius in meters; Wikipedia expects meters and caps at 10000
+            const cappedRadius = Math.min(parseInt(radius, 10) || 5000, 10000);
+            const url = `https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${location.lat}%7C${location.lng}&gsradius=${cappedRadius}&gslimit=20&format=json&origin=*`;
+            const response = await fetch(url);
+            if (!response.ok) return [];
+            const data = await response.json();
+            const results = data?.query?.geosearch || [];
+            return results.map(item => ({
+                name: item.title,
+                address: 'Wikipedia POI',
+                lat: item.lat,
+                lng: item.lon,
+                distance: (item.dist / 1000).toFixed(1),
+                rating: this.generateRandomRating(),
+                type: 'tourist_attraction',
+                photos: [`https://picsum.photos/300/200?random=${item.pageid}`],
+                pageid: item.pageid,
+                wikipediaLang: 'en'
+            }));
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // ===== Real photo helpers (Wikidata/Wikipedia/Commons) =====
+    async loadRealPhotoForPlace(place) {
+        try {
+            // 1) Direct image tag in OSM
+            if (place.imageTag) {
+                const direct = this.normalizeImageTag(place.imageTag);
+                if (direct) return direct;
+            }
+            // 2) Wikidata P18
+            if (place.wikidata) {
+                const url = await this.fetchWikidataImage(place.wikidata);
+                if (url) return url;
+            }
+            // 3) Wikipedia page image (by lang:title)
+            if (place.wikipedia) {
+                const wp = this.parseWikipediaTag(place.wikipedia);
+                const url = await this.fetchWikipediaThumbnail(wp.lang, wp.title);
+                if (url) return url;
+            }
+            // 4) Wikipedia geosearch pageid
+            if (place.pageid) {
+                const url = await this.fetchWikipediaThumbnail(place.wikipediaLang || 'en', null, place.pageid);
+                if (url) return url;
+            }
+            // 5) Commons tag
+            if (place.commons) {
+                const url = await this.fetchCommonsFileThumbnail(place.commons);
+                if (url) return url;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    normalizeImageTag(tag) {
+        if (!tag) return null;
+        if (/^https?:\/\//i.test(tag)) return tag;
+        if (/^File:/i.test(tag)) {
+            return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(tag)}?width=600`;
+        }
+        return null;
+    }
+
+    parseWikipediaTag(tag) {
+        const parts = String(tag).split(':');
+        if (parts.length >= 2) {
+            const lang = parts[0];
+            const title = parts.slice(1).join(':');
+            return { lang, title };
+        }
+        return { lang: 'en', title: tag };
+    }
+
+    async fetchWikidataImage(qid) {
+        try {
+            const url = `https://www.wikidata.org/w/api.php?action=wbgetclaims&format=json&origin=*&entity=${encodeURIComponent(qid)}&property=P18`;
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const file = data?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
+            if (!file) return null;
+            return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent('File:' + file)}?width=600`;
+        } catch (e) { return null; }
+    }
+
+    async fetchWikipediaThumbnail(lang = 'en', title = null, pageid = null) {
+        try {
+            const base = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=pageimages&piprop=thumbnail|original&pithumbsize=600`;
+            const url = title ? `${base}&titles=${encodeURIComponent(title)}` : `${base}&pageids=${encodeURIComponent(pageid)}`;
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            const data = await res.json();
+            const pages = data?.query?.pages || {};
+            const first = Object.values(pages)[0];
+            const thumb = first?.thumbnail?.source || first?.original?.source;
+            return thumb || null;
+        } catch (e) { return null; }
+    }
+
+    async fetchCommonsFileThumbnail(fileOrCategory) {
+        try {
+            let file = fileOrCategory;
+            if (/^Category:/i.test(file)) return null;
+            if (!/^File:/i.test(file)) file = 'File:' + file;
+            return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=600`;
+        } catch (e) { return null; }
     }
 
     calculateDistance(lat1, lon1, lat2, lon2) {
@@ -360,15 +510,25 @@ class RandomPlacesFinder {
         // Handle photos
         const photosContainer = document.getElementById('place-photos');
         photosContainer.innerHTML = '';
-        if (place.photos && place.photos.length > 0) {
+        const renderImage = (url) => {
+            if (!url) return;
             const img = document.createElement('img');
-            img.src = place.photos[0];
+            img.src = url;
             img.alt = place.name;
             img.style.width = '100%';
             img.style.maxWidth = '300px';
             img.style.borderRadius = '8px';
             photosContainer.appendChild(img);
-        }
+        };
+
+        const attemptRealPhoto = async () => {
+            const url = await this.loadRealPhotoForPlace(place);
+            if (url) renderImage(url);
+            else if (place.photos && place.photos.length > 0) renderImage(place.photos[0]);
+        };
+
+        // Try to load a real photo asynchronously
+        attemptRealPhoto();
 
         // Reset button states
         document.getElementById('add-to-adventure').textContent = '➕ Add to Adventure';
@@ -534,3 +694,5 @@ RandomPlacesFinder.prototype.getPlaceBadge = function(place) {
 };
 
 // Initialization moved to init.js
+// Expose class on global for init check
+window.RandomPlacesFinder = window.RandomPlacesFinder || RandomPlacesFinder;

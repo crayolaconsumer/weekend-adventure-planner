@@ -321,3 +321,5 @@ class StorageManager {
 }
 
 // Initialization moved to init.js
+// Expose class on global for init check
+window.StorageManager = window.StorageManager || StorageManager;

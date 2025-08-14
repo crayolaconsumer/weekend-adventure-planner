@@ -702,9 +702,10 @@ class RecommendationsEngine {
 
     // Placeholder action methods
     findPlaceByType(type, location) {
-        if (window.randomPlacesFinder) {
-            window.randomPlacesFinder.findRandomPlace(type === 'tourist_attraction' ? 'tourist_attraction' : 'restaurant');
-        }
+        if (!window.randomPlacesFinder) return;
+        const foodTypes = new Set(['restaurant', 'cafe', 'bar', 'fast_food']);
+        const category = foodTypes.has(type) ? 'restaurant' : 'tourist_attraction';
+        window.randomPlacesFinder.findRandomPlace(category);
     }
 
     generateExplorerAdventure(location) {

@@ -103,8 +103,17 @@ class AdventurePlanner {
 
     switchTab(tabName) {
         // Update tab buttons
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(`${tabName}-tab`).classList.add('active');
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.setAttribute('aria-selected', 'false');
+            btn.setAttribute('tabindex', '-1');
+        });
+        const activeBtn = document.getElementById(`${tabName}-tab`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            activeBtn.setAttribute('aria-selected', 'true');
+            activeBtn.setAttribute('tabindex', '0');
+        }
 
         // Update tab content
         document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
@@ -114,6 +123,9 @@ class AdventurePlanner {
         if (tabName === 'history') {
             this.loadAdventureHistory();
         }
+
+        // Notify other components
+        document.dispatchEvent(new CustomEvent('tabSwitched', { detail: { tabName } }));
     }
 
     async buildAdventure() {
@@ -613,3 +625,5 @@ class AdventurePlanner {
 }
 
 // Initialization moved to init.js
+// Expose class on global for init check
+window.AdventurePlanner = window.AdventurePlanner || AdventurePlanner;
