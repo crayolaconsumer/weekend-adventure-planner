@@ -78,6 +78,38 @@ class RandomPlacesFinder {
             updateLabel();
         }
 
+        // Location input field - convert coordinates to addresses
+        const locationInput = document.getElementById('location');
+        if (locationInput) {
+            locationInput.addEventListener('blur', async () => {
+                const inputValue = locationInput.value.trim();
+                if (inputValue) {
+                    // Check if it's coordinates and convert to address
+                    const coordResult = await this.convertCoordinatesToAddress(inputValue);
+                    if (coordResult) {
+                        // Show loading while converting
+                        this.showLoading('Converting coordinates to address...');
+                        
+                        // Update the input with the readable address
+                        locationInput.value = coordResult.address;
+                        // Set the current location
+                        this.currentLocation = { lat: coordResult.lat, lng: coordResult.lng };
+                        
+                        this.hideLoading();
+                        this.showSuccess(`Location set to: ${coordResult.address}`);
+                        
+                        // Update location info with coordinates
+                        this.updateLocationInfo(coordResult.lat, coordResult.lng);
+                        
+                        // Notify other components about location update
+                        document.dispatchEvent(new CustomEvent('locationUpdated', {
+                            detail: { location: this.currentLocation }
+                        }));
+                    }
+                }
+            });
+        }
+
         // Quick filter chips (multi-select + clear)
         const chipButtons = Array.from(document.querySelectorAll('.chip-btn'));
         const restoreActive = new Set((localStorage.getItem('activeChips') || '').split(',').filter(Boolean));
@@ -469,6 +501,36 @@ class RandomPlacesFinder {
         this.findRandomPlace(randomType);
     }
 
+    updateLocationInfo(lat, lng) {
+        const locationInfo = document.getElementById('location-info');
+        if (locationInfo && lat && lng) {
+            // Store coordinates but don't display them by default
+            locationInfo.textContent = `Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            locationInfo.className = 'location-info coordinates';
+            // Don't show by default - coordinates are stored but hidden
+            
+            // Log for developers (can be removed in production)
+            console.log(`Coordinates stored: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+            console.log('To show coordinates: window.randomPlacesFinder.showCoordinates()');
+        }
+    }
+
+    // Utility function to show coordinates if needed (for debugging)
+    showCoordinates() {
+        const locationInfo = document.getElementById('location-info');
+        if (locationInfo && locationInfo.classList.contains('coordinates')) {
+            locationInfo.classList.add('show-coordinates');
+        }
+    }
+
+    // Utility function to hide coordinates
+    hideCoordinates() {
+        const locationInfo = document.getElementById('location-info');
+        if (locationInfo) {
+            locationInfo.classList.remove('show-coordinates');
+        }
+    }
+
     getCurrentLocation() {
         this.showLoading('Getting your location...');
 
@@ -478,21 +540,45 @@ class RandomPlacesFinder {
         }
 
         navigator.geolocation.getCurrentPosition(
-            (position) => {
+            async (position) => {
                 this.currentLocation = {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
                 };
+                
+                // Try to get a human-readable address from coordinates
+                let readableAddress = null;
+                try {
+                    readableAddress = await this.getAddressFromCoordinates(
+                        this.currentLocation.lat, 
+                        this.currentLocation.lng
+                    );
+                } catch (error) {
+                    console.warn('Could not get address from coordinates:', error);
+                }
+                
+                // Update the location input with readable address or coordinates as fallback
                 const locationInput = document.getElementById('location');
                 if (locationInput) {
-                    locationInput.value = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`;
+                    if (readableAddress) {
+                        locationInput.value = readableAddress;
+                        this.showSuccess(`Location found: ${readableAddress}`);
+                    } else {
+                        // Fallback to coordinates if address lookup fails
+                        locationInput.value = `${this.currentLocation.lat.toFixed(6)}, ${this.currentLocation.lng.toFixed(6)}`;
+                        this.showSuccess('Location found! You can now search for places.');
+                    }
                 }
+                
+                // Update location info with coordinates
+                this.updateLocationInfo(this.currentLocation.lat, this.currentLocation.lng);
+                
                 // Notify other components about location update
                 document.dispatchEvent(new CustomEvent('locationUpdated', {
                     detail: { location: this.currentLocation }
                 }));
+                
                 this.hideLoading();
-                this.showSuccess('Location found! You can now search for places.');
             },
             (error) => {
                 this.hideLoading();
@@ -521,6 +607,67 @@ class RandomPlacesFinder {
         );
     }
 
+    async getAddressFromCoordinates(lat, lng) {
+        try {
+            // Using Nominatim reverse geocoding to get address from coordinates
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`);
+            
+            if (!response.ok) {
+                throw new Error('Reverse geocoding failed');
+            }
+            
+            const data = await response.json();
+            
+            if (data && data.display_name) {
+                // Extract the most relevant parts of the address
+                const addressParts = data.display_name.split(', ');
+                
+                // Try to get a concise address (city, state, country)
+                let readableAddress = '';
+                
+                if (data.address) {
+                    // Build a readable address from components
+                    const components = data.address;
+                    
+                    if (components.city) {
+                        readableAddress = components.city;
+                    } else if (components.town) {
+                        readableAddress = components.town;
+                    } else if (components.village) {
+                        readableAddress = components.village;
+                    } else if (components.suburb) {
+                        readableAddress = components.suburb;
+                    }
+                    
+                    if (components.state && readableAddress) {
+                        readableAddress += `, ${components.state}`;
+                    } else if (components.state) {
+                        readableAddress = components.state;
+                    }
+                    
+                    if (components.country && readableAddress) {
+                        readableAddress += `, ${components.country}`;
+                    } else if (components.country) {
+                        readableAddress = components.country;
+                    }
+                }
+                
+                // Fallback to a shortened version of the full address if components are missing
+                if (!readableAddress) {
+                    const shortParts = addressParts.slice(-3); // Last 3 parts usually give city, state, country
+                    readableAddress = shortParts.join(', ');
+                }
+                
+                return readableAddress;
+            } else {
+                throw new Error('No address data available');
+            }
+        } catch (error) {
+            console.error('Reverse geocoding error:', error);
+            return null;
+        }
+    }
+
     async getLocationFromAddress(address) {
         try {
             // Using Nominatim (OpenStreetMap) for free geocoding
@@ -534,10 +681,15 @@ class RandomPlacesFinder {
             
             if (data && data.length > 0) {
                 const result = data[0];
-                return {
+                const location = {
                     lat: parseFloat(result.lat),
                     lng: parseFloat(result.lon)
                 };
+                
+                // Update location info with coordinates
+                this.updateLocationInfo(location.lat, location.lng);
+                
+                return location;
             } else {
                 throw new Error('Location not found');
             }
@@ -1374,6 +1526,31 @@ class RandomPlacesFinder {
                 successDiv.parentNode.removeChild(successDiv);
             }
         }, 3000);
+    }
+
+    async convertCoordinatesToAddress(inputValue) {
+        // Check if input looks like coordinates (e.g., "40.7128, -74.0060")
+        const coordPattern = /^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/;
+        const match = inputValue.match(coordPattern);
+        
+        if (match) {
+            const lat = parseFloat(match[1]);
+            const lng = parseFloat(match[2]);
+            
+            // Validate coordinate ranges
+            if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                try {
+                    const address = await this.getAddressFromCoordinates(lat, lng);
+                    if (address) {
+                        return { lat, lng, address };
+                    }
+                } catch (error) {
+                    console.warn('Failed to convert coordinates to address:', error);
+                }
+            }
+        }
+        
+        return null;
     }
 }
 

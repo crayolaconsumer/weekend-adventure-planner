@@ -3,17 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roam</title>
+    <title>Roam - Discover Amazing Places & Plan Epic Adventures</title>
     <meta name="description" content="Discover amazing places and plan epic adventures with real-time location data, gamification, and smart route optimization.">
-    <meta name="theme-color" content="#667eea">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://go-roam.uk/">
+    <meta property="og:title" content="Roam - Discover Amazing Places & Plan Epic Adventures">
+    <meta property="og:description" content="Plan your next adventure with AI-powered location discovery, smart route optimization, and real-time weather data. Find hidden gems near you!">
+    <meta property="og:image" content="https://go-roam.uk/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Roam - Adventure Planning App">
+    <meta property="og:site_name" content="Roam">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://go-roam.uk/">
+    <meta property="twitter:title" content="Roam - Discover Amazing Places & Plan Epic Adventures">
+    <meta property="twitter:description" content="Plan your next adventure with AI-powered location discovery, smart route optimization, and real-time weather data. Find hidden gems near you!">
+    <meta property="twitter:image" content="https://go-roam.uk/og-image.png">
+    <meta property="twitter:image:alt" content="Roam - Adventure Planning App">
+    
+    <!-- Additional SEO & Sharing -->
+    <meta name="keywords" content="adventure planning, travel app, location discovery, route optimization, outdoor activities, local attractions, restaurants, tourist spots, adventure app, travel planning">
+    <meta name="author" content="Roam">
+    <meta name="robots" content="index, follow">
+    <meta name="language" content="English">
+    
+    <!-- Mobile & Social Media Optimization -->
+    <meta name="format-detection" content="telephone=no">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="msapplication-TileImage" content="/mstile-144x144.png">
+    <meta name="msapplication-TileColor" content="#667eea">
+    
+    <!-- Social Media Specific -->
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:secure_url" content="https://go-roam.uk/og-image.png">
+    <meta property="og:updated_time" content="2024-01-01T00:00:00+00:00">
+    
+    <!-- Twitter Specific -->
+    <meta name="twitter:site" content="@roamapp">
+    <meta name="twitter:creator" content="@roamapp">
+    
+    <!-- Additional Social Media -->
+    <meta property="og:image:alt" content="Roam - Your AI-powered adventure planning companion. Discover amazing places, plan epic routes, and explore with confidence.">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    
+    <!-- WhatsApp & Telegram Optimization -->
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:secure_url" content="https://go-roam.uk/og-image.png">
+    
+    <!-- Mobile App Optimization -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Roam">
+    
+    <!-- App Store Optimization -->
+    <meta name="apple-itunes-app" content="app-argument=roam">
+    <meta name="application-name" content="Roam">
+    <meta name="msapplication-TileColor" content="#667eea">
+    <meta name="msapplication-TileImage" content="/mstile-144x144.png">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://go-roam.uk/">
+    
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#667eea">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Roam">
     <meta name="msapplication-TileColor" content="#667eea">
     <meta name="msapplication-config" content="browserconfig.xml">
     
-    <!-- PWA Manifest - Dynamically injected to avoid caching issues -->
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Roam",
+        "description": "Discover amazing places and plan epic adventures with real-time location data, gamification, and smart route optimization.",
+        "url": "https://go-roam.uk/",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "Web Browser",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "Roam"
+        },
+        "featureList": [
+            "AI-powered location discovery",
+            "Smart route optimization",
+            "Real-time weather data",
+            "Adventure planning tools",
+            "Local attraction finder",
+            "Restaurant recommendations"
+        ]
+    }
+    </script>
     
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' text-anchor='middle' fill='white' font-size='40'%3E🗺️%3C/text%3E%3C/svg%3E">
@@ -155,8 +256,9 @@
             <div id="single-mode" class="tab-content">
                 <div class="location-section">
                     <label for="location">Location:</label>
-                    <input type="text" id="location" placeholder="Enter address or use current location">
+                    <input type="text" id="location" placeholder="Enter address or coordinates (e.g., 40.7128, -74.0060)">
                     <button id="use-current-location">📍 Use Current Location</button>
+                    <div id="location-info" class="location-info"></div>
                 </div>
 
                 <div class="settings-row">

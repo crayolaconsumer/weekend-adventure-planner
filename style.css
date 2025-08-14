@@ -2305,3 +2305,29 @@ button {
         font-size: 12px;
     }
 }
+
+/* Location info display */
+.location-info {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+    min-height: 16px;
+    display: none; /* Hidden by default to clean up the interface */
+}
+
+.location-info.coordinates {
+    color: var(--text-primary);
+    font-style: normal;
+    font-family: 'Courier New', monospace;
+    background: var(--bg-card);
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    display: none; /* Hidden by default */
+}
+
+/* Show coordinates only when explicitly needed (for debugging) */
+.location-info.show-coordinates {
+    display: inline-block;
+}
