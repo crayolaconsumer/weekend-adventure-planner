@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════════════
+   PLACE REVIEWS
+   User's own review display in place detail
+   ═══════════════════════════════════════════════════════ */
+
+.place-reviews {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--roam-parchment);
+}
+
+.place-reviews-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-md) 0;
+}
+
+.place-review-card {
+  background: var(--roam-paper);
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.place-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.place-review-recommendation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.place-review-recommendation.positive {
+  color: #16a34a;
+}
+
+.place-review-recommendation.negative {
+  color: #dc2626;
+}
+
+.place-review-date {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.place-review-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.place-review-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  background: white;
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.place-review-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}

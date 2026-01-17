@@ -1,0 +1,68 @@
+/* ═══════════════════════════════════════════════════════
+   SOCIAL PROOF
+   Shows user/community recommendation status
+   ═══════════════════════════════════════════════════════ */
+
+.social-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+/* Compact variant for swipe cards */
+.social-proof-compact {
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-full);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.social-proof-compact.recommended {
+  background: rgba(110, 231, 183, 0.2);
+  color: #6ee7b7;
+}
+
+.social-proof-compact.not-recommended {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.social-proof-compact.community {
+  background: rgba(232, 198, 119, 0.2);
+  color: var(--roam-gold-light);
+}
+
+/* Full variant for detail views */
+.social-proof-full {
+  padding: 6px 12px;
+  background: var(--roam-paper);
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+}
+
+.social-proof-full.recommended {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #16a34a;
+}
+
+.social-proof-full.not-recommended {
+  background: var(--roam-paper);
+  border-color: var(--roam-parchment);
+  color: var(--color-text-muted);
+}
+
+.social-proof-full.community {
+  background: rgba(212, 168, 85, 0.1);
+  border-color: rgba(212, 168, 85, 0.3);
+  color: var(--roam-gold);
+}
+
+.social-proof svg {
+  flex-shrink: 0;
+}

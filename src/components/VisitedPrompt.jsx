@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { saveVisitedPlace } from '../utils/statsUtils'
+import { saveRating, VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
 import './VisitedPrompt.css'
 
 // Pre-generated confetti particles (random values computed once at module load)
@@ -60,30 +61,61 @@ const ThumbsDownIcon = () => (
 )
 
 export default function VisitedPrompt({ place, userLocation, onConfirm, onDismiss }) {
-  const [step, setStep] = useState('confirm') // 'confirm' | 'rating' | 'success'
+  // Steps: 'confirm' | 'recommend' | 'feedback' | 'review' | 'success'
+  const [step, setStep] = useState('confirm')
   const [showConfetti, setShowConfetti] = useState(false)
 
+  // Rating state
+  const [recommended, setRecommended] = useState(null)
+  const [selectedVibe, setSelectedVibe] = useState(null)
+  const [selectedNoise, setSelectedNoise] = useState(null)
+  const [selectedValue, setSelectedValue] = useState(null)
+  const [reviewText, setReviewText] = useState('')
+
   const handleVisited = () => {
-    setStep('rating')
+    setStep('recommend')
   }
 
-  const handleRating = (liked) => {
-    // Save visited place with full data (location, distance, category)
-    saveVisitedPlace(place, userLocation, liked)
+  const handleRecommend = (isRecommended) => {
+    setRecommended(isRecommended)
+    setStep('feedback')
+  }
 
-    // Save the rating (legacy format for compatibility)
-    const ratings = JSON.parse(localStorage.getItem('roam_ratings') || '{}')
-    ratings[place.id] = {
-      liked,
-      visitedAt: new Date().toISOString(),
-      category: place.category?.key
-    }
-    localStorage.setItem('roam_ratings', JSON.stringify(ratings))
+  const handleFeedbackContinue = () => {
+    setStep('review')
+  }
+
+  const handleFeedbackSkip = () => {
+    finishRating()
+  }
+
+  const handleReviewSubmit = () => {
+    finishRating()
+  }
+
+  const handleReviewSkip = () => {
+    finishRating()
+  }
+
+  const finishRating = () => {
+    // Save visited place with full data
+    saveVisitedPlace(place, userLocation, recommended)
+
+    // Save enhanced rating
+    saveRating(place.id, {
+      recommended: recommended === true,
+      vibe: selectedVibe,
+      noiseLevel: selectedNoise,
+      valueForMoney: selectedValue,
+      review: reviewText.trim() || null,
+      visitedAt: Date.now(),
+      categoryKey: place.category?.key || null
+    })
 
     // Update stats
     const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
     stats.placesVisited = (stats.placesVisited || 0) + 1
-    if (liked) {
+    if (recommended) {
       stats.placesLiked = (stats.placesLiked || 0) + 1
     }
     localStorage.setItem('roam_stats', JSON.stringify(stats))
@@ -93,7 +125,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     setShowConfetti(true)
 
     // Notify parent and auto-close
-    onConfirm?.(place, liked)
+    onConfirm?.(place, recommended)
     setTimeout(() => {
       onDismiss?.()
     }, 2500)
@@ -114,6 +146,11 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     setTimeout(() => {
       onDismiss?.()
     }, 2500)
+  }
+
+  // Feedback chip toggle helper
+  const toggleChip = (current, value, setter) => {
+    setter(current === value ? null : value)
   }
 
   return (
@@ -181,9 +218,9 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
               </motion.div>
             )}
 
-            {step === 'rating' && (
+            {step === 'recommend' && (
               <motion.div
-                key="rating"
+                key="recommend"
                 className="visited-content"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -198,33 +235,147 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                   🎉
                 </motion.div>
 
-                <h3 className="visited-title">How was it?</h3>
-                <p className="visited-subtitle">Your feedback helps us recommend better places</p>
+                <h3 className="visited-title">Would you recommend it?</h3>
+                <p className="visited-subtitle">Help fellow explorers find great places</p>
 
                 <div className="visited-rating-btns">
                   <motion.button
                     className="rating-btn like"
-                    onClick={() => handleRating(true)}
+                    onClick={() => handleRecommend(true)}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                   >
                     <ThumbsUpIcon />
-                    <span>Loved it</span>
+                    <span>Yes!</span>
                   </motion.button>
                   <motion.button
                     className="rating-btn dislike"
-                    onClick={() => handleRating(false)}
+                    onClick={() => handleRecommend(false)}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                   >
                     <ThumbsDownIcon />
-                    <span>Not great</span>
+                    <span>Not really</span>
                   </motion.button>
                 </div>
 
                 <button className="visited-skip" onClick={handleSkipRating}>
                   Skip rating
                 </button>
+              </motion.div>
+            )}
+
+            {step === 'feedback' && (
+              <motion.div
+                key="feedback"
+                className="visited-content"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <h3 className="visited-title">Quick feedback</h3>
+                <p className="visited-subtitle">Optional - tap any that apply</p>
+
+                <div className="feedback-section">
+                  <span className="feedback-label">Vibe</span>
+                  <div className="feedback-chips">
+                    {VIBE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        className={`feedback-chip ${selectedVibe === opt.value ? 'selected' : ''}`}
+                        onClick={() => toggleChip(selectedVibe, opt.value, setSelectedVibe)}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="feedback-section">
+                  <span className="feedback-label">Noise level</span>
+                  <div className="feedback-chips">
+                    {NOISE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        className={`feedback-chip ${selectedNoise === opt.value ? 'selected' : ''}`}
+                        onClick={() => toggleChip(selectedNoise, opt.value, setSelectedNoise)}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="feedback-section">
+                  <span className="feedback-label">Value</span>
+                  <div className="feedback-chips">
+                    {VALUE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        className={`feedback-chip ${selectedValue === opt.value ? 'selected' : ''}`}
+                        onClick={() => toggleChip(selectedValue, opt.value, setSelectedValue)}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="feedback-actions">
+                  <motion.button
+                    className="visited-btn primary"
+                    onClick={handleFeedbackContinue}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Add a review
+                  </motion.button>
+                  <button className="visited-skip" onClick={handleFeedbackSkip}>
+                    Done
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 'review' && (
+              <motion.div
+                key="review"
+                className="visited-content"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <h3 className="visited-title">Share your thoughts</h3>
+                <p className="visited-subtitle">Optional - what made it memorable?</p>
+
+                <div className="review-input-wrapper">
+                  <textarea
+                    className="review-textarea"
+                    placeholder="E.g., Great atmosphere, loved the outdoor seating..."
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value.slice(0, 500))}
+                    maxLength={500}
+                    rows={4}
+                  />
+                  <span className="review-char-count">{reviewText.length}/500</span>
+                </div>
+
+                <div className="feedback-actions">
+                  <motion.button
+                    className="visited-btn primary"
+                    onClick={handleReviewSubmit}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Submit
+                  </motion.button>
+                  <button className="visited-skip" onClick={handleReviewSkip}>
+                    Skip
+                  </button>
+                </div>
               </motion.div>
             )}
 

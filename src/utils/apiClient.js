@@ -16,6 +16,7 @@
 import { getAllGoodTypes, getTypesForCategory } from './categories'
 import { managedFetch, isCircuitOpen } from './requestManager'
 import { makeCacheKey, makeKey } from './geoCache'
+import { selectBestImage } from './imageScoring'
 
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -29,8 +30,9 @@ const NOMINATIM_API = 'https://nominatim.openstreetmap.org'
 const OPENTRIPMAP_API = 'https://api.opentripmap.com/0.1'
 
 // OpenTripMap API key - free tier allows 5000 requests/day
-// In production, this should be proxied through a backend
-const OTM_API_KEY = import.meta.env.VITE_OPENTRIPMAP_KEY || '5ae2e3f221c38a28845f05b6aee17e9c8e5ce61a8c2a0bb07a4c1595'
+// Configure VITE_OPENTRIPMAP_KEY in .env.local for local dev
+// For production, this should be proxied through a backend API route
+const OTM_API_KEY = import.meta.env.VITE_OPENTRIPMAP_KEY || null
 
 /**
  * Build Overpass query for places
@@ -784,33 +786,85 @@ function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
  */
 export async function enrichPlace(place) {
   const enriched = { ...place }
+  const imagePromises = []
 
-  // If it's an OTM place, fetch full details
+  // Fetch all sources in parallel for better performance
+  const fetchPromises = []
+
+  // OTM details fetch
   if (place.xid && !place.description) {
-    const details = await fetchOpenTripMapDetails(place.xid)
-    if (details) {
-      enriched.description = details.description || enriched.description
-      enriched.image = details.image || enriched.image
-      enriched.address = details.address || enriched.address
-      enriched.website = details.website || enriched.website
-    }
+    fetchPromises.push(
+      fetchOpenTripMapDetails(place.xid).then(details => {
+        if (details) {
+          enriched.description = details.description || enriched.description
+          enriched.address = details.address || enriched.address
+          enriched.website = details.website || enriched.website
+          if (details.image) {
+            imagePromises.push(Promise.resolve({
+              url: details.image,
+              source: 'opentripmap',
+              width: null,
+              height: null
+            }))
+          }
+        }
+        return details
+      })
+    )
   }
 
-  // If has Wikipedia reference, fetch summary
-  if (place.wikipedia && !enriched.description) {
-    const wiki = await fetchWikipediaSummary(place.wikipedia)
-    if (wiki) {
-      enriched.description = wiki.extractShort || enriched.description
-      enriched.image = wiki.image || enriched.image
-      enriched.wikipediaUrl = wiki.url
-    }
+  // Wikipedia summary fetch
+  if (place.wikipedia) {
+    fetchPromises.push(
+      fetchWikipediaSummary(place.wikipedia).then(wiki => {
+        if (wiki) {
+          if (!enriched.description) {
+            enriched.description = wiki.extractShort || enriched.description
+          }
+          enriched.wikipediaUrl = wiki.url
+          if (wiki.image) {
+            imagePromises.push(Promise.resolve({
+              url: wiki.image,
+              source: 'wikipedia',
+              width: wiki.imageWidth || null,
+              height: wiki.imageHeight || null
+            }))
+          }
+        }
+        return wiki
+      })
+    )
   }
 
-  // If has Wikidata reference, try to get image
-  if (place.wikidata && !enriched.image) {
-    const image = await fetchWikidataImage(place.wikidata)
-    if (image) {
-      enriched.image = image
+  // Wikidata image fetch
+  if (place.wikidata) {
+    fetchPromises.push(
+      fetchWikidataImage(place.wikidata).then(image => {
+        if (image) {
+          imagePromises.push(Promise.resolve({
+            url: image,
+            source: 'wikidata',
+            width: null,
+            height: null
+          }))
+        }
+        return image
+      })
+    )
+  }
+
+  // Wait for all fetches to complete
+  await Promise.allSettled(fetchPromises)
+
+  // Select the best image from all candidates using scoring
+  const imageCandidates = await Promise.all(imagePromises)
+  const validCandidates = imageCandidates.filter(c => c && c.url)
+
+  if (validCandidates.length > 0) {
+    const bestImage = selectBestImage(validCandidates)
+    if (bestImage) {
+      enriched.image = bestImage.url
+      enriched.imageSource = bestImage.source
     }
   }
 

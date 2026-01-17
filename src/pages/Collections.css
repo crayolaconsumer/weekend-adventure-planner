@@ -1,0 +1,384 @@
+/* ═══════════════════════════════════════════════════════
+   COLLECTIONS PAGE
+   User-created place collections
+   ═══════════════════════════════════════════════════════ */
+
+.collections-page {
+  min-height: 100vh;
+  background: var(--roam-cream);
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0));
+}
+
+/* ═══════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════ */
+
+.collections-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  padding-top: calc(var(--space-lg) + env(safe-area-inset-top, 0));
+  background: var(--roam-cream);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.collections-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(26, 58, 47, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collections-back-btn:hover {
+  background: rgba(26, 58, 47, 0.12);
+}
+
+.collections-header-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1;
+}
+
+.collections-header-emoji {
+  font-size: var(--text-2xl);
+}
+
+.collections-title {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0;
+}
+
+.collections-add-btn,
+.collections-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(26, 58, 47, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collections-add-btn:hover {
+  background: var(--roam-gold);
+  color: white;
+}
+
+.collections-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+/* ═══════════════════════════════════════════════════════
+   COLLECTION DETAIL
+   ═══════════════════════════════════════════════════════ */
+
+.collections-description {
+  padding: 0 var(--space-lg);
+  margin: 0 0 var(--space-md) 0;
+  font-size: var(--text-sm);
+  color: var(--roam-text-muted);
+  line-height: 1.5;
+}
+
+.collections-place-count {
+  padding: 0 var(--space-lg);
+  margin-bottom: var(--space-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-forest);
+  opacity: 0.7;
+}
+
+.collections-places-list {
+  padding: 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.collections-place-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--roam-parchment);
+}
+
+.collections-place-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.collections-place-name {
+  font-weight: 500;
+  color: var(--roam-forest);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collections-place-note {
+  font-size: var(--text-xs);
+  color: var(--roam-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collections-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--roam-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collections-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+/* ═══════════════════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════════════════ */
+
+.collections-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3xl) var(--space-lg);
+  text-align: center;
+}
+
+.collections-empty-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-md);
+  opacity: 0.5;
+}
+
+.collections-empty h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.collections-empty p {
+  font-size: var(--text-sm);
+  color: var(--roam-text-muted);
+  margin: 0 0 var(--space-lg) 0;
+}
+
+.collections-create-btn,
+.collections-discover-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--roam-gold);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.collections-create-btn:hover,
+.collections-discover-btn:hover {
+  background: var(--roam-gold-light);
+}
+
+/* ═══════════════════════════════════════════════════════
+   COLLECTIONS GRID
+   ═══════════════════════════════════════════════════════ */
+
+.collections-grid {
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.collections-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: white;
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.collections-card:hover {
+  border-color: var(--roam-gold);
+  box-shadow: var(--shadow-sm);
+}
+
+.collections-card-emoji {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: rgba(26, 58, 47, 0.06);
+  border-radius: var(--radius-md);
+}
+
+.collections-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.collections-card-name {
+  font-weight: 500;
+  color: var(--roam-forest);
+}
+
+.collections-card-count {
+  font-size: var(--text-xs);
+  color: var(--roam-text-muted);
+}
+
+.collections-card svg {
+  color: var(--roam-text-muted);
+  opacity: 0.5;
+}
+
+/* Add new collection card */
+.collections-card-add {
+  border-style: dashed;
+  border-color: rgba(26, 58, 47, 0.2);
+  background: transparent;
+  justify-content: center;
+  color: var(--roam-forest);
+  opacity: 0.7;
+}
+
+.collections-card-add:hover {
+  opacity: 1;
+  border-color: var(--roam-gold);
+  background: rgba(212, 168, 85, 0.05);
+}
+
+.collections-card-add svg {
+  opacity: 1;
+  color: var(--roam-forest);
+}
+
+/* ═══════════════════════════════════════════════════════
+   DELETE CONFIRMATION MODAL
+   ═══════════════════════════════════════════════════════ */
+
+.collections-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 58, 47, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  z-index: 1000;
+}
+
+.collections-confirm-modal {
+  background: var(--roam-cream);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+}
+
+.collections-confirm-modal h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.collections-confirm-modal p {
+  font-size: var(--text-sm);
+  color: var(--roam-text-muted);
+  margin: 0 0 var(--space-lg) 0;
+}
+
+.collections-confirm-buttons {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.collections-confirm-cancel,
+.collections-confirm-delete {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collections-confirm-cancel {
+  background: rgba(26, 58, 47, 0.1);
+  color: var(--roam-forest);
+}
+
+.collections-confirm-cancel:hover {
+  background: rgba(26, 58, 47, 0.15);
+}
+
+.collections-confirm-delete {
+  background: #dc2626;
+  color: white;
+}
+
+.collections-confirm-delete:hover {
+  background: #b91c1c;
+}

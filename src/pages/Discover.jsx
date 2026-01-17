@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast'
 import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { GOOD_CATEGORIES } from '../utils/categories'
+import { isPlaceOpen } from '../utils/openingHours'
 import './Discover.css'
 
 // Travel mode configurations
@@ -37,6 +38,9 @@ export default function Discover({ location }) {
   const toast = useToast()
   const [places, setPlaces] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [seenPlaceIds, setSeenPlaceIds] = useState(new Set())
+  const [fetchOffset, setFetchOffset] = useState(0)
   const [weather, setWeather] = useState(null)
   const [selectedCategories, setSelectedCategories] = useState(() => {
     // Load saved interests from onboarding
@@ -68,13 +72,17 @@ export default function Discover({ location }) {
   const [accessibilityMode, setAccessibilityMode] = useState(() => {
     return localStorage.getItem('roam_accessibility') === 'true'
   })
+  const [showOpenOnly, setShowOpenOnly] = useState(() => {
+    return localStorage.getItem('roam_open_only') === 'true'
+  })
 
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('roam_travel_mode', travelMode)
     localStorage.setItem('roam_free_only', showFreeOnly.toString())
     localStorage.setItem('roam_accessibility', accessibilityMode.toString())
-  }, [travelMode, showFreeOnly, accessibilityMode])
+    localStorage.setItem('roam_open_only', showOpenOnly.toString())
+  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly])
 
   // Check for pending visit prompt on mount and when page becomes visible
   useEffect(() => {
@@ -146,14 +154,95 @@ export default function Discover({ location }) {
         )
       }
 
-      setPlaces(filtered.slice(0, 30))
+      // Filter for open places only if enabled
+      if (showOpenOnly) {
+        filtered = filtered.filter(p => {
+          const openStatus = isPlaceOpen(p)
+          // Include if open, or if status is unknown (null)
+          return openStatus === true || openStatus === null
+        })
+      }
+
+      // Reset seen IDs and offset on fresh load
+      const newSeenIds = new Set(filtered.map(p => p.id))
+      setSeenPlaceIds(newSeenIds)
+      setFetchOffset(filtered.length)
+      setPlaces(filtered)
     } catch (error) {
       console.error('Failed to load places:', error)
       setPlaces([])
       toast.error("Couldn't load places. Try refreshing.")
     }
     setLoading(false)
-  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, toast])
+  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, toast])
+
+  // Load more places when running low on cards
+  const loadMorePlaces = useCallback(async () => {
+    if (!location || loadingMore) return
+
+    setLoadingMore(true)
+    const mode = TRAVEL_MODES[travelMode]
+
+    try {
+      // Expand the radius slightly to find more places
+      const expandedRadius = Math.min(mode.maxRadius * 1.5, 50000)
+
+      const rawPlaces = await fetchEnrichedPlaces(
+        location.lat,
+        location.lng,
+        expandedRadius,
+        selectedCategories.length === 1 ? selectedCategories[0] : null
+      )
+
+      // Enhance and filter
+      let enhanced = rawPlaces.map(p => enhancePlace(p, location, { weather }))
+
+      let filtered = filterPlaces(enhanced, {
+        categories: selectedCategories.length > 0 ? selectedCategories : null,
+        minScore: 25, // Lower threshold for more results
+        maxResults: 100,
+        sortBy: 'smart',
+        weather,
+        ensureDiversity: selectedCategories.length === 0
+      })
+
+      // Apply user filters
+      if (showFreeOnly) {
+        filtered = filtered.filter(p =>
+          !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
+        )
+      }
+      if (accessibilityMode) {
+        filtered = filtered.filter(p =>
+          p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
+        )
+      }
+      if (showOpenOnly) {
+        filtered = filtered.filter(p => {
+          const openStatus = isPlaceOpen(p)
+          return openStatus === true || openStatus === null
+        })
+      }
+
+      // Filter out places we've already shown
+      const newPlaces = filtered.filter(p => !seenPlaceIds.has(p.id))
+
+      if (newPlaces.length > 0) {
+        // Update seen IDs
+        const updatedSeenIds = new Set(seenPlaceIds)
+        newPlaces.forEach(p => updatedSeenIds.add(p.id))
+        setSeenPlaceIds(updatedSeenIds)
+        setFetchOffset(prev => prev + newPlaces.length)
+
+        // Append new places to existing list
+        setPlaces(prev => [...prev, ...newPlaces])
+      }
+    } catch (error) {
+      console.error('Failed to load more places:', error)
+    }
+
+    setLoadingMore(false)
+  }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds])
 
   // Load places when location or settings change
 
@@ -444,6 +533,19 @@ export default function Discover({ location }) {
                     Accessibility friendly
                   </span>
                 </label>
+
+                <label className="settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showOpenOnly}
+                    onChange={(e) => setShowOpenOnly(e.target.checked)}
+                  />
+                  <span className="settings-toggle-slider"></span>
+                  <span className="settings-toggle-label">
+                    <span>🕐</span>
+                    Open now only
+                  </span>
+                </label>
               </div>
             </div>
           </motion.div>
@@ -484,10 +586,12 @@ export default function Discover({ location }) {
         places={places}
         onSwipe={handleSwipe}
         onExpand={(place) => setSelectedPlace(place)}
-        onEmpty={() => loadPlaces()}
+        onEmpty={() => {}}
         onRefresh={() => loadPlaces()}
         onOpenSettings={() => setShowSettings(true)}
+        onLoadMore={loadMorePlaces}
         loading={loading}
+        loadingMore={loadingMore}
       />
 
       {/* Boredom Buster Overlay */}

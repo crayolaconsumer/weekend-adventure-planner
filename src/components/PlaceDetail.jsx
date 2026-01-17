@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { enrichPlace } from '../utils/apiClient'
+import PlaceReviews from './PlaceReviews'
+import SocialProof from './SocialProof'
+import PlaceBadges from './PlaceBadges'
+import ShareButton from './ShareButton'
+import CollectionManager from './CollectionManager'
 import './PlaceDetail.css'
 
 // Icons
@@ -65,6 +70,14 @@ const WheelchairIcon = () => (
   </svg>
 )
 
+const FolderPlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+    <line x1="12" y1="10" x2="12" y2="16"/>
+    <line x1="9" y1="13" x2="15" y2="13"/>
+  </svg>
+)
+
 // Category-specific placeholder images (same as SwipeCard)
 const CATEGORY_IMAGES = {
   food: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
@@ -83,6 +96,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [enrichedPlace, setEnrichedPlace] = useState(place)
   const [loading, setLoading] = useState(true)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [showCollectionManager, setShowCollectionManager] = useState(false)
 
   // Fetch enriched data when modal opens
   useEffect(() => {
@@ -198,10 +212,13 @@ export default function PlaceDetail({ place, onClose, onGo }) {
             />
             <div className="place-detail-hero-gradient" />
 
-            {/* Close button */}
-            <button className="place-detail-close" onClick={onClose}>
-              <CloseIcon />
-            </button>
+            {/* Header buttons */}
+            <div className="place-detail-header-buttons">
+              <ShareButton place={enrichedPlace} variant="icon" />
+              <button className="place-detail-close" onClick={onClose}>
+                <CloseIcon />
+              </button>
+            </div>
 
             {/* Category badge */}
             {category && (
@@ -252,7 +269,9 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                     Accessible
                   </span>
                 )}
+                <SocialProof placeId={place.id} variant="full" />
               </div>
+              <PlaceBadges place={enrichedPlace} variant="full" maxVisible={4} />
             </motion.div>
 
             {/* Description */}
@@ -338,7 +357,14 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                   <span>Wikipedia</span>
                 </button>
               )}
+              <button className="place-detail-action-btn" onClick={() => setShowCollectionManager(true)}>
+                <FolderPlusIcon />
+                <span>Save</span>
+              </button>
             </motion.div>
+
+            {/* User Review */}
+            <PlaceReviews placeId={place.id} />
 
             {/* Go Button */}
             <motion.button
@@ -356,6 +382,13 @@ export default function PlaceDetail({ place, onClose, onGo }) {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Collection Manager Modal */}
+      <CollectionManager
+        isOpen={showCollectionManager}
+        onClose={() => setShowCollectionManager(false)}
+        place={enrichedPlace}
+      />
     </AnimatePresence>
   )
 }

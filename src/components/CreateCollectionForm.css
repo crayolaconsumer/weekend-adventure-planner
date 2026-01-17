@@ -1,0 +1,200 @@
+/* ═══════════════════════════════════════════════════════
+   CREATE COLLECTION FORM
+   Modal form for creating new collections
+   ═══════════════════════════════════════════════════════ */
+
+.create-collection-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 58, 47, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: var(--space-md);
+  padding-bottom: 0;
+  z-index: 1100;
+}
+
+.create-collection-modal {
+  background: var(--roam-cream);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(var(--stable-vh, 100dvh) - 40px);
+  overflow-y: auto;
+}
+
+/* ═══════════════════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════════════════ */
+
+.create-collection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--roam-parchment);
+  position: sticky;
+  top: 0;
+  background: var(--roam-cream);
+  z-index: 1;
+}
+
+.create-collection-header h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0;
+}
+
+.create-collection-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(26, 58, 47, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-collection-close:hover {
+  background: rgba(26, 58, 47, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════
+   FORM
+   ═══════════════════════════════════════════════════════ */
+
+.create-collection-modal form {
+  padding: var(--space-lg);
+  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 16px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.create-collection-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.create-collection-field label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-forest);
+}
+
+.create-collection-field input,
+.create-collection-field textarea {
+  padding: var(--space-sm) var(--space-md);
+  background: white;
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--roam-forest);
+  transition: border-color 0.2s ease;
+  resize: none;
+}
+
+.create-collection-field input:focus,
+.create-collection-field textarea:focus {
+  outline: none;
+  border-color: var(--roam-gold);
+}
+
+.create-collection-field input::placeholder,
+.create-collection-field textarea::placeholder {
+  color: var(--roam-text-muted);
+  opacity: 0.6;
+}
+
+/* ═══════════════════════════════════════════════════════
+   EMOJI PICKER
+   ═══════════════════════════════════════════════════════ */
+
+.create-collection-emojis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.create-collection-emoji {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  background: white;
+  border: 2px solid var(--roam-parchment);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-collection-emoji:hover {
+  border-color: var(--roam-gold);
+}
+
+.create-collection-emoji.selected {
+  border-color: var(--roam-gold);
+  background: rgba(212, 168, 85, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ERROR & SUBMIT
+   ═══════════════════════════════════════════════════════ */
+
+.create-collection-error {
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: #dc2626;
+}
+
+.create-collection-submit {
+  padding: var(--space-md);
+  background: var(--roam-gold);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-collection-submit:hover {
+  background: var(--roam-gold-light);
+}
+
+.create-collection-submit:active {
+  transform: scale(0.98);
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════ */
+
+@media (min-width: 640px) {
+  .create-collection-overlay {
+    align-items: center;
+    padding: var(--space-xl);
+  }
+
+  .create-collection-modal {
+    border-radius: var(--radius-xl);
+    max-height: calc(var(--stable-vh, 100dvh) - 80px);
+  }
+}

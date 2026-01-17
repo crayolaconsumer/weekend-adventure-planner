@@ -3,10 +3,35 @@
    Saved places for later
    ═══════════════════════════════════════════════════════ */
 
+.wishlist-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .wishlist-subtitle {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   margin-top: var(--space-xs);
+}
+
+.wishlist-collections-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(26, 58, 47, 0.08);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-forest);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.wishlist-collections-link:hover {
+  background: var(--roam-gold);
+  color: white;
 }
 
 /* Filters */

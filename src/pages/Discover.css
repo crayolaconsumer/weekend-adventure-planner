@@ -7,13 +7,16 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--stable-vh, 100dvh);
   background: linear-gradient(
     180deg,
     var(--roam-cream) 0%,
     var(--roam-paper) 30%,
     var(--roam-parchment) 100%
   );
+  /* Prevent layout thrashing from child animations */
+  contain: layout style;
+  overflow-x: hidden;
 }
 
 /* ═══════════════════════════════════════════════════════

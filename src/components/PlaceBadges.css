@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════════════════
+   PLACE BADGES
+   Visual indicators for place qualities
+   ═══════════════════════════════════════════════════════ */
+
+.place-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.place-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 500;
+  transition: transform 0.15s ease;
+}
+
+.place-badge:hover {
+  transform: scale(1.05);
+}
+
+.place-badge-icon {
+  font-size: inherit;
+  line-height: 1;
+}
+
+/* Compact variant - icon only pills for swipe cards */
+.place-badges-compact .place-badge {
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+}
+
+.place-badges-compact .place-badge-icon {
+  font-size: 11px;
+}
+
+/* Full variant - icon + label for detail views */
+.place-badges-full .place-badge {
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--badge-color, #888) 15%, white);
+  border: 1px solid color-mix(in srgb, var(--badge-color, #888) 30%, transparent);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--badge-color);
+}
+
+.place-badges-full .place-badge-icon {
+  font-size: var(--text-sm);
+}
+
+.place-badges-full .place-badge-label {
+  font-weight: 600;
+}
+
+/* Overflow indicator */
+.place-badge-overflow {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-size: 10px !important;
+  font-weight: 600;
+}
+
+.place-badges-full .place-badge-overflow {
+  background: var(--roam-parchment) !important;
+  border-color: var(--roam-parchment) !important;
+  color: var(--color-text-muted) !important;
+}
+
+/* Filter chip variant for settings panel */
+.place-badges-filter .place-badge {
+  padding: 6px 12px;
+  background: var(--roam-paper);
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.place-badges-filter .place-badge:hover {
+  border-color: var(--roam-stone);
+  background: white;
+}
+
+.place-badges-filter .place-badge.selected {
+  background: var(--roam-forest);
+  border-color: var(--roam-forest);
+  color: white;
+}
+
+.place-badges-filter .place-badge-count {
+  margin-left: 4px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+}
+
+.place-badges-filter .place-badge.selected .place-badge-count {
+  background: rgba(255, 255, 255, 0.2);
+}

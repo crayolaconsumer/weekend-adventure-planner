@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
+import { getOpeningState } from '../utils/openingHours'
+import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
+import SocialProof from './SocialProof'
+import PlaceBadges from './PlaceBadges'
 import './SwipeCard.css'
 
 // Category-specific placeholder images
@@ -117,9 +121,48 @@ export default function SwipeCard({
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
+  const [cachedImageUrl, setCachedImageUrl] = useState(null)
 
   const x = useMotionValue(0)
   const y = useMotionValue(0)
+
+  // Get the source image URL
+  const category = place.category
+  const sourceImageUrl = place.photo || place.image || getPlaceholderImage(place.id, category?.key)
+
+  // Load and cache image
+  const loadImage = useCallback(async () => {
+    if (!sourceImageUrl) return
+
+    try {
+      // Check cache first for instant load
+      const cached = await getCachedImage(sourceImageUrl)
+      if (cached) {
+        setCachedImageUrl(URL.createObjectURL(cached))
+        setImageLoaded(true)
+        return
+      }
+
+      // Fetch and cache the image
+      const objectUrl = await fetchAndCacheImage(sourceImageUrl, place.id)
+      setCachedImageUrl(objectUrl)
+    } catch (error) {
+      // Fall back to direct URL on error
+      setCachedImageUrl(sourceImageUrl)
+    }
+  }, [sourceImageUrl, place.id])
+
+  // Load image on mount and when source changes
+  useEffect(() => {
+    loadImage()
+
+    // Cleanup object URLs on unmount
+    return () => {
+      if (cachedImageUrl && cachedImageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(cachedImageUrl)
+      }
+    }
+  }, [loadImage])
 
   // Transform values based on drag
   const rotate = useTransform(x, [-200, 200], [-15, 15])
@@ -189,8 +232,10 @@ export default function SwipeCard({
     onExpand?.(place)
   }
 
-  const category = place.category
-  const imageUrl = place.photo || place.image || getPlaceholderImage(place.id, category?.key)
+  // Get rich opening hours state
+  const openingState = useMemo(() => {
+    return getOpeningState(place.openingHours || place.opening_hours, place)
+  }, [place.openingHours, place.opening_hours, place.lat, place.lng])
 
   const formatDistance = (km) => {
     if (!km) return null
@@ -214,7 +259,7 @@ export default function SwipeCard({
       <div className="swipe-card-image-container">
         {!imageLoaded && <div className="swipe-card-image-placeholder" />}
         <img
-          src={imageUrl}
+          src={cachedImageUrl || sourceImageUrl}
           alt={place.name}
           className={`swipe-card-image ${imageLoaded ? 'loaded' : ''}`}
           onLoad={() => setImageLoaded(true)}
@@ -247,15 +292,18 @@ export default function SwipeCard({
 
       {/* Content */}
       <div className="swipe-card-content">
-        {category && (
-          <span
-            className="swipe-card-category"
-            style={{ '--category-color': category.color }}
-          >
-            <span>{category.icon}</span>
-            {category.label}
-          </span>
-        )}
+        <div className="swipe-card-badges-row">
+          {category && (
+            <span
+              className="swipe-card-category"
+              style={{ '--category-color': category.color }}
+            >
+              <span>{category.icon}</span>
+              {category.label}
+            </span>
+          )}
+          <PlaceBadges place={place} variant="compact" maxVisible={2} />
+        </div>
 
         <h2 className="swipe-card-name">{place.name}</h2>
 
@@ -266,10 +314,11 @@ export default function SwipeCard({
               {formatDistance(place.distance)}
             </span>
           )}
-          {place.isOpen !== null && (
-            <span className={`swipe-card-meta-item ${place.isOpen ? 'open' : 'closed'}`}>
+          {openingState.state !== 'unknown' && (
+            <span className={`swipe-card-meta-item hours-${openingState.state}`}>
               <ClockIcon />
-              {place.isOpen ? 'Open' : 'Closed'}
+              {openingState.stateLabel}
+              {openingState.state === 'closing_soon' && <span className="pulse-dot" />}
             </span>
           )}
           {place.type && (
@@ -277,6 +326,7 @@ export default function SwipeCard({
               {place.type.replace(/_/g, ' ')}
             </span>
           )}
+          <SocialProof placeId={place.id} variant="compact" />
         </div>
 
         {place.description && (

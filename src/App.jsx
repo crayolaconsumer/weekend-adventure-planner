@@ -4,7 +4,9 @@ import { AnimatePresence } from 'framer-motion'
 
 import Discover from './pages/Discover'
 import Plan from './pages/Plan'
+import Events from './pages/Events'
 import Wishlist from './pages/Wishlist'
+import Collections from './pages/Collections'
 import Profile from './pages/Profile'
 import Onboarding from './components/Onboarding'
 import { ToastProvider } from './components/Toast'
@@ -35,6 +37,15 @@ const UserIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20,21V19a4,4,0,0,0-4-4H8a4,4,0,0,0-4,4v2"/>
     <circle cx="12" cy="7" r="4"/>
+  </svg>
+)
+
+const CalendarIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
   </svg>
 )
 
@@ -76,6 +87,27 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return !localStorage.getItem('roam_onboarded')
   })
+
+  // Set stable viewport height to prevent mobile resize jank
+  useEffect(() => {
+    const updateStableVh = () => {
+      // Use visualViewport if available (more accurate on mobile)
+      const vh = window.visualViewport?.height || window.innerHeight
+      document.documentElement.style.setProperty('--stable-vh', `${vh}px`)
+    }
+
+    updateStableVh()
+
+    // Listen to visualViewport resize (handles keyboard, address bar)
+    window.visualViewport?.addEventListener('resize', updateStableVh)
+    // Fallback for browsers without visualViewport
+    window.addEventListener('resize', updateStableVh)
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateStableVh)
+      window.removeEventListener('resize', updateStableVh)
+    }
+  }, [])
 
   // Get user location on mount
   useEffect(() => {
@@ -136,8 +168,10 @@ function App() {
           <AnimatePresence mode="wait">
             <Routes>
             <Route path="/" element={<Discover location={location} />} />
+            <Route path="/events" element={<Events location={location} />} />
             <Route path="/plan" element={<Plan location={location} />} />
             <Route path="/wishlist" element={<Wishlist />} />
+            <Route path="/collections" element={<Collections />} />
             <Route path="/profile" element={<Profile />} />
           </Routes>
         </AnimatePresence>
@@ -147,13 +181,17 @@ function App() {
             <CompassIcon />
             <span>Discover</span>
           </NavLink>
+          <NavLink to="/events" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <CalendarIcon />
+            <span>Events</span>
+          </NavLink>
           <NavLink to="/plan" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <MapIcon />
             <span>Plan</span>
           </NavLink>
           <NavLink to="/wishlist" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <HeartIcon />
-            <span>Wishlist</span>
+            <span>Saved</span>
           </NavLink>
           <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <UserIcon />

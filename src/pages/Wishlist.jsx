@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import './Wishlist.css'
 
 // Icons
+const FolderIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+  </svg>
+)
+
 const MapPinIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21,10c0,7-9,13-9,13S3,17,3,10a9,9,0,0,1,18,0Z"/>
@@ -88,11 +94,17 @@ export default function Wishlist() {
 
   return (
     <div className="page wishlist-page">
-      <header className="page-header">
-        <h1 className="page-title">Wishlist</h1>
-        <p className="wishlist-subtitle">
-          {wishlist.length} {wishlist.length === 1 ? 'place' : 'places'} saved
-        </p>
+      <header className="page-header wishlist-header">
+        <div>
+          <h1 className="page-title">Wishlist</h1>
+          <p className="wishlist-subtitle">
+            {wishlist.length} {wishlist.length === 1 ? 'place' : 'places'} saved
+          </p>
+        </div>
+        <Link to="/collections" className="wishlist-collections-link">
+          <FolderIcon />
+          Collections
+        </Link>
       </header>
 
       <div className="page-content">

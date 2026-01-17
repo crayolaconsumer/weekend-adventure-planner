@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import SwipeCard from './SwipeCard'
+import { fetchAndCacheImage } from '../utils/imageCache'
 import './CardStack.css'
 
 // Rotating loading messages for variety
@@ -48,7 +49,9 @@ export default function CardStack({
   onEmpty,
   onRefresh,
   onOpenSettings,
+  onLoadMore,
   loading = false,
+  loadingMore = false,
   emptyReason = 'swiped' // 'swiped' | 'no-places' | 'error'
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -69,6 +72,37 @@ export default function CardStack({
     }, 2500)
     return () => clearInterval(interval)
   }, [loading])
+
+  // Preload images for upcoming cards (next 3 after visible ones)
+  useEffect(() => {
+    if (loading || places.length === 0) return
+
+    // Visible cards are currentIndex to currentIndex + 2
+    // Preload currentIndex + 3 to currentIndex + 5
+    const preloadStart = currentIndex + 3
+    const preloadEnd = Math.min(preloadStart + 3, places.length)
+
+    for (let i = preloadStart; i < preloadEnd; i++) {
+      const place = places[i]
+      const imageUrl = place?.photo || place?.image
+      if (imageUrl) {
+        // Fire and forget - just cache the image for later
+        fetchAndCacheImage(imageUrl, place.id).catch(() => {
+          // Silently ignore preload errors
+        })
+      }
+    }
+  }, [currentIndex, places, loading])
+
+  // Load more places when getting close to the end (5 cards left)
+  useEffect(() => {
+    if (loading || loadingMore || !onLoadMore) return
+
+    const remainingCards = places.length - currentIndex
+    if (remainingCards <= 5 && remainingCards > 0) {
+      onLoadMore()
+    }
+  }, [currentIndex, places.length, loading, loadingMore, onLoadMore])
 
   const handleSwipe = (action) => {
     const place = places[currentIndex]
@@ -150,11 +184,32 @@ export default function CardStack({
   const isSwipedThrough = places.length > 0 && currentIndex >= places.length
   const hasNoPlaces = places.length === 0
 
+  // Show loading state when fetching more cards
+  if (loadingMore && isSwipedThrough) {
+    return (
+      <div className="card-stack">
+        <div className="card-stack-loading">
+          <motion.div
+            className="card-stack-loading-icon"
+            animate={{ rotate: [0, 45, -30, 15, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <CompassIcon />
+          </motion.div>
+          <div className="card-stack-loading-text">
+            <h4>Finding more places</h4>
+            <p>Discovering new adventures...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (hasNoPlaces || isSwipedThrough) {
     const emptyConfig = isSwipedThrough ? {
       icon: '🎉',
       title: 'All caught up!',
-      subtitle: "You've explored all nearby adventures. Refresh to discover more or expand your travel radius.",
+      subtitle: "You've explored all nearby places. Try expanding your travel radius or adjusting filters.",
       primaryAction: onRefresh ? { label: 'Discover More', icon: <RefreshIcon />, action: onRefresh } : null,
       secondaryAction: onOpenSettings ? { label: 'Adjust Settings', icon: <SettingsIcon />, action: onOpenSettings } : null
     } : emptyReason === 'error' ? {

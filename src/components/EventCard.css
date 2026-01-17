@@ -1,0 +1,259 @@
+/* ═══════════════════════════════════════════════════════
+   EVENT CARD
+   Display local events from Eventbrite
+   ═══════════════════════════════════════════════════════ */
+
+.event-card {
+  background: var(--roam-cream);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+}
+
+.event-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* ═══════════════════════════════════════════════════════
+   COMPACT VARIANT - For horizontal scroll lists
+   ═══════════════════════════════════════════════════════ */
+
+.event-card-compact {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  min-width: 200px;
+  border: 1px solid var(--roam-parchment);
+  position: relative;
+}
+
+.event-card-compact .event-card-image {
+  width: 100%;
+  height: 100px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
+}
+
+.event-card-compact .event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.event-card-compact .event-card-content {
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-card-compact .event-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+.event-card-compact .event-card-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.event-card-compact .event-card-free {
+  font-size: 10px;
+  font-weight: 600;
+  color: #16a34a;
+  background: rgba(34, 197, 94, 0.1);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+.event-card-compact .event-card-title {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.event-card-compact .event-card-venue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-card-compact .event-card-sold-out {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  background: #dc2626;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+/* ═══════════════════════════════════════════════════════
+   FULL VARIANT - For detailed event display
+   ═══════════════════════════════════════════════════════ */
+
+.event-card-full {
+  border: 1px solid var(--roam-parchment);
+}
+
+.event-card-full .event-card-image {
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
+}
+
+.event-card-full .event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.event-card-full .event-card-sold-out-badge {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: white;
+  background: #dc2626;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.event-card-full .event-card-body {
+  padding: var(--space-md);
+}
+
+.event-card-full .event-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.event-card-full .event-card-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--roam-forest);
+  background: var(--roam-paper);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.event-card-full .event-card-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.event-card-full .event-card-price-free {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #16a34a;
+  background: rgba(34, 197, 94, 0.1);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.event-card-full .event-card-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-xs) 0;
+  line-height: 1.3;
+}
+
+.event-card-full .event-card-description {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 var(--space-md) 0;
+}
+
+.event-card-full .event-card-venue-info {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--roam-paper);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+}
+
+.event-card-full .event-card-venue-info svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+}
+
+.event-card-full .event-card-venue-info > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.event-card-full .event-card-venue-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.event-card-full .event-card-venue-address {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.event-card-full .event-card-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--roam-gold);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.event-card-full .event-card-cta:hover:not(:disabled) {
+  background: var(--roam-gold-light);
+}
+
+.event-card-full .event-card-cta:disabled {
+  background: var(--roam-stone);
+  cursor: not-allowed;
+}
