@@ -1,6 +1,7 @@
 /**
  * Skiddle Events API Integration
  *
+ * Uses Vercel serverless proxy to keep API key secure.
  * UK-focused events platform - clubs, festivals, nightlife
  * Free API key: https://www.skiddle.com/api/join.php
  * Docs: https://github.com/Skiddle/web-api
@@ -8,16 +9,14 @@
 
 import {
   validateCoordinates,
-  validateRadius,
   canMakeRequest,
   recordSuccess,
   recordFailure,
   deduplicateRequest,
-  protectedFetch
+  fetchWithTimeout
 } from './apiProtection'
 
 const API_NAME = 'skiddle'
-const SKIDDLE_API = 'https://www.skiddle.com/api/v1'
 const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
 // In-memory cache
@@ -28,27 +27,13 @@ let skiddleCache = {
 }
 
 /**
- * Get Skiddle API key from environment
- */
-function getApiKey() {
-  return import.meta.env.VITE_SKIDDLE_KEY
-}
-
-/**
- * Fetch events from Skiddle API
+ * Fetch events from Skiddle via secure server-side proxy
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @param {number} radiusMiles - Search radius in miles (default 20)
  * @returns {Promise<RoamEvent[]>}
  */
 export async function fetchSkiddleEvents(lat, lng, radiusMiles = 20) {
-  const apiKey = getApiKey()
-
-  if (!apiKey) {
-    console.warn('Skiddle API key not configured. Get free key at https://www.skiddle.com/api/join.php')
-    return []
-  }
-
   // Validate inputs
   const coordCheck = validateCoordinates(lat, lng)
   if (!coordCheck.valid) {
@@ -80,34 +65,21 @@ export async function fetchSkiddleEvents(lat, lng, radiusMiles = 20) {
 
   return deduplicateRequest(requestKey, async () => {
     try {
-      // Format dates for Skiddle (YYYY-MM-DD)
-      const today = new Date().toISOString().slice(0, 10)
-      const fourWeeksLater = getDatePlusWeeks(4).toISOString().slice(0, 10)
-
+      // Call secure server-side proxy (API key handled server-side)
       const params = new URLSearchParams({
-        api_key: apiKey,
-        latitude: lat.toString(),
-        longitude: lng.toString(),
-        radius: clampedRadius.toString(),
-        minDate: today,
-        maxDate: fourWeeksLater,
-        order: 'date',
-        description: '1', // Include descriptions
-        imagefilter: '1', // Only events with images
-        limit: '50',
-        offset: '0'
+        lat: lat.toString(),
+        lng: lng.toString(),
+        radius: clampedRadius.toString()
       })
 
-      const response = await protectedFetch(
-        API_NAME,
-        `${SKIDDLE_API}/events/search/?${params}`
-      )
+      const response = await fetchWithTimeout(`/api/events/skiddle?${params}`)
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          console.error('Skiddle API: Invalid API key')
-        } else if (response.status === 429) {
+        if (response.status === 429) {
           console.warn('Skiddle API: Rate limited')
+        } else if (response.status === 500) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('Skiddle proxy error:', errorData.error || response.status)
         } else {
           console.error('Skiddle API error:', response.status)
         }

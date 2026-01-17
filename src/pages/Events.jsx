@@ -495,14 +495,14 @@ export default function Events({ location }) {
             </motion.div>
             <h3>No Events Found</h3>
             <p>
-              Add API keys in <code>.env.local</code> to enable event discovery,
+              Add API keys to Vercel Environment Variables to enable event discovery,
               or check out these platforms for events in your area:
             </p>
             <div className="events-api-setup">
               <code>
-                VITE_TICKETMASTER_KEY=your_key<br/>
-                VITE_SKIDDLE_KEY=your_key<br/>
-                VITE_EVENTBRITE_TOKEN=your_token
+                TICKETMASTER_KEY<br/>
+                SKIDDLE_KEY<br/>
+                EVENTBRITE_TOKEN
               </code>
             </div>
             <div className="events-alternatives">
