@@ -8,7 +8,10 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "Bash(npm run lint:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate to React + Vite and fix UX audit issues\n\nMajor refactor from vanilla JS to React 19 + Vite:\n- Component-based architecture with pages and reusable components\n- Framer Motion for animations\n- React Router for navigation\n- Toast notification system\n\nUX audit fixes:\n- Plan page now respects travel mode \\(walking/driving/transit\\)\n- Added diversity logic to prevent consecutive restaurants in adventures\n- Capped travel times to reasonable values \\(30-45 min max display\\)\n- Fixed shuffleStop to swap single stop instead of rebuilding adventure\n- Added visual hint for Recent Adventures section\n- Fixed Profile level card contrast for WCAG AA compliance\n- Added CTA button to Wishlist empty state\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ],
     "defaultMode": "acceptEdits"
   }

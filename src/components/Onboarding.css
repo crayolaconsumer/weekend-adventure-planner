@@ -27,6 +27,7 @@
   align-items: center;
   text-align: center;
   min-height: 500px;
+  overflow: hidden;
 }
 
 /* Progress Dots */
@@ -174,7 +175,9 @@
   justify-content: center;
   gap: var(--space-sm);
   margin-top: var(--space-lg);
+  width: 100%;
   max-width: 360px;
+  overflow: hidden;
 }
 
 .interest-chip {
@@ -190,6 +193,7 @@
   color: var(--color-text-primary);
   cursor: pointer;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .interest-chip:hover {

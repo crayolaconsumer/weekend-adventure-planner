@@ -38,7 +38,11 @@ export default function Discover({ location }) {
   const [places, setPlaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [weather, setWeather] = useState(null)
-  const [selectedCategories, setSelectedCategories] = useState([])
+  const [selectedCategories, setSelectedCategories] = useState(() => {
+    // Load saved interests from onboarding
+    const saved = localStorage.getItem('roam_interests')
+    return saved ? JSON.parse(saved) : []
+  })
   const [showBoredomBuster, setShowBoredomBuster] = useState(false)
   const [boredomPlace, setBoredomPlace] = useState(null)
   const [boredomLoading, setBoredomLoading] = useState(false)
