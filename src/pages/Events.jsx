@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import EventCard from '../components/EventCard'
@@ -15,20 +16,33 @@ import EventDetail from '../components/EventDetail'
 import {
   fetchAllEvents,
   getTodayEvents,
+  getTomorrowEvents,
   getWeekendEvents,
+  getThisWeekEvents,
+  getThisMonthEvents,
   getFreeEvents,
   formatEventDate,
   formatPriceRange,
   getSourceInfo
 } from '../utils/eventsApi'
+import {
+  getSavedEvents,
+  saveEvent,
+  unsaveEvent,
+  isEventSaved as checkEventSaved,
+  getUpcomingSavedEvents
+} from '../utils/savedEvents'
 import './Events.css'
 
 // Filter options
 const FILTERS = [
-  { id: 'all', label: 'All Events', icon: '📅' },
-  { id: 'today', label: 'Today', icon: '🌟' },
-  { id: 'weekend', label: 'This Weekend', icon: '🎉' },
-  { id: 'free', label: 'Free', icon: '🆓' }
+  { id: 'all', label: 'All' },
+  { id: 'today', label: 'Today' },
+  { id: 'tomorrow', label: 'Tomorrow' },
+  { id: 'weekend', label: 'Weekend' },
+  { id: 'week', label: 'This Week' },
+  { id: 'month', label: 'This Month' },
+  { id: 'free', label: 'Free' }
 ]
 
 // View modes
@@ -74,6 +88,18 @@ const XIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"/>
     <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
+
+const FilterIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+  </svg>
+)
+
+const ChevronDownIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9"/>
   </svg>
 )
 
@@ -136,6 +162,19 @@ const StackIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="4" y="4" width="16" height="16" rx="2"/>
     <rect x="2" y="6" width="16" height="16" rx="2" opacity="0.5"/>
+  </svg>
+)
+
+const BookmarkIcon = ({ filled }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
   </svg>
 )
 
@@ -323,6 +362,30 @@ function SwipeableEventCard({ event, onSwipe, onTap, style, isTop = false }) {
   )
 }
 
+// Radius options in km
+const RADIUS_OPTIONS = [5, 10, 25, 50, 100]
+
+// Category options
+const CATEGORIES = [
+  { id: 'music', label: 'Music' },
+  { id: 'comedy', label: 'Comedy' },
+  { id: 'theatre', label: 'Theatre' },
+  { id: 'sports', label: 'Sports' },
+  { id: 'nightlife', label: 'Nightlife' },
+  { id: 'food', label: 'Food & Drink' },
+  { id: 'family', label: 'Family' },
+  { id: 'culture', label: 'Culture' },
+  { id: 'entertainment', label: 'Entertainment' }
+]
+
+// Price filter options
+const PRICE_OPTIONS = [
+  { id: 'any', label: 'Any Price', maxPrice: null },
+  { id: 'free', label: 'Free', maxPrice: 0 },
+  { id: 'under20', label: 'Under £20', maxPrice: 20 },
+  { id: 'under50', label: 'Under £50', maxPrice: 50 }
+]
+
 export default function Events({ location }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -330,21 +393,33 @@ export default function Events({ location }) {
   const [viewMode, setViewMode] = useState(VIEW_MODES.SWIPE)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedEvent, setSelectedEvent] = useState(null)
-  const [savedEvents, setSavedEvents] = useState(() => {
-    const saved = localStorage.getItem('roam_saved_events')
-    return saved ? JSON.parse(saved) : []
-  })
+  const [savedCount, setSavedCount] = useState(() => getSavedEvents().length)
   const [apiStatus, setApiStatus] = useState({ hasEvents: false, sources: [] })
+  const [searchRadius, setSearchRadius] = useState(() => {
+    const saved = localStorage.getItem('roam_events_radius')
+    return saved ? parseInt(saved, 10) : 25
+  })
+  const [selectedCategories, setSelectedCategories] = useState([])
+  const [priceFilter, setPriceFilter] = useState('any')
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
-  // Fetch events when location changes
+  // Count active filters (excluding "all" time filter and "any" price)
+  const activeFilterCount = (
+    (searchRadius !== 25 ? 1 : 0) +
+    selectedCategories.length +
+    (priceFilter !== 'any' ? 1 : 0)
+  )
+
+  // Fetch events when location or radius changes
   useEffect(() => {
     loadEvents()
-  }, [location?.lat, location?.lng])
+  }, [location?.lat, location?.lng, searchRadius])
 
-  // Save events to localStorage
+  // Persist radius to localStorage
   useEffect(() => {
-    localStorage.setItem('roam_saved_events', JSON.stringify(savedEvents))
-  }, [savedEvents])
+    localStorage.setItem('roam_events_radius', searchRadius.toString())
+  }, [searchRadius])
+
 
   const loadEvents = async () => {
     if (!location?.lat || !location?.lng) {
@@ -355,7 +430,7 @@ export default function Events({ location }) {
     setLoading(true)
 
     try {
-      const fetchedEvents = await fetchAllEvents(location.lat, location.lng, 30)
+      const fetchedEvents = await fetchAllEvents(location.lat, location.lng, searchRadius)
       setEvents(fetchedEvents)
       setCurrentIndex(0)
 
@@ -373,28 +448,76 @@ export default function Events({ location }) {
     }
   }
 
-  // Filter events based on active filter
+  // Toggle category selection
+  const toggleCategory = useCallback((categoryId) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(categoryId)) {
+        return prev.filter(c => c !== categoryId)
+      }
+      return [...prev, categoryId]
+    })
+    setCurrentIndex(0)
+  }, [])
+
+  // Filter events based on active filter and categories
   const filteredEvents = (() => {
+    let result = events
+
+    // Apply time filter
     switch (activeFilter) {
       case 'today':
-        return getTodayEvents(events)
+        result = getTodayEvents(result)
+        break
+      case 'tomorrow':
+        result = getTomorrowEvents(result)
+        break
       case 'weekend':
-        return getWeekendEvents(events)
+        result = getWeekendEvents(result)
+        break
+      case 'week':
+        result = getThisWeekEvents(result)
+        break
+      case 'month':
+        result = getThisMonthEvents(result)
+        break
       case 'free':
-        return getFreeEvents(events)
-      default:
-        return events
+        result = getFreeEvents(result)
+        break
     }
+
+    // Apply category filter (show events matching ANY selected category)
+    if (selectedCategories.length > 0) {
+      result = result.filter(event =>
+        event.categories?.some(cat =>
+          selectedCategories.includes(cat.toLowerCase())
+        )
+      )
+    }
+
+    // Apply price filter
+    if (priceFilter !== 'any') {
+      const priceOption = PRICE_OPTIONS.find(p => p.id === priceFilter)
+      if (priceOption) {
+        if (priceFilter === 'free') {
+          result = result.filter(event => event.pricing?.isFree)
+        } else if (priceOption.maxPrice) {
+          result = result.filter(event =>
+            event.pricing?.isFree ||
+            (event.pricing?.minPrice !== null && event.pricing.minPrice <= priceOption.maxPrice)
+          )
+        }
+      }
+    }
+
+    return result
   })()
 
   // Handle swipe - matches SwipeCard behavior
   const handleSwipe = useCallback((action, event) => {
     if (action === 'like') {
-      // Save event
-      setSavedEvents(prev => {
-        if (prev.find(e => e.id === event.id)) return prev
-        return [...prev, { ...event, savedAt: Date.now() }]
-      })
+      // Save event using utility
+      saveEvent(event)
+      setSavedCount(getSavedEvents().length)
     } else if (action === 'go' && event.ticketUrl) {
       // Open tickets in new tab
       window.open(event.ticketUrl, '_blank', 'noopener,noreferrer')
@@ -404,19 +527,18 @@ export default function Events({ location }) {
 
   // Toggle save event
   const toggleSaveEvent = useCallback((event) => {
-    setSavedEvents(prev => {
-      const existing = prev.find(e => e.id === event.id)
-      if (existing) {
-        return prev.filter(e => e.id !== event.id)
-      }
-      return [...prev, { ...event, savedAt: Date.now() }]
-    })
+    if (checkEventSaved(event.id)) {
+      unsaveEvent(event.id)
+    } else {
+      saveEvent(event)
+    }
+    setSavedCount(getSavedEvents().length)
   }, [])
 
   // Check if event is saved
   const isEventSaved = useCallback((eventId) => {
-    return savedEvents.some(e => e.id === eventId)
-  }, [savedEvents])
+    return checkEventSaved(eventId)
+  }, [])
 
   // Get visible cards for swipe view
   const visibleCards = filteredEvents.slice(currentIndex, currentIndex + 3)
@@ -438,6 +560,33 @@ export default function Events({ location }) {
           </div>
         </div>
         <div className="events-header-actions">
+          {/* Filters toggle button */}
+          <button
+            className={`events-filters-toggle ${filtersOpen ? 'active' : ''} ${activeFilterCount > 0 ? 'has-filters' : ''}`}
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
+            <FilterIcon />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="events-filters-badge">{activeFilterCount}</span>
+            )}
+            <motion.span
+              className="events-filters-chevron"
+              animate={{ rotate: filtersOpen ? 180 : 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            >
+              <ChevronDownIcon />
+            </motion.span>
+          </button>
+
+          {/* Link to saved events in Wishlist */}
+          <Link to="/wishlist" className="events-saved-link" title="View saved events">
+            <BookmarkIcon filled={false} />
+            {savedCount > 0 && (
+              <span className="events-saved-badge">{savedCount}</span>
+            )}
+          </Link>
+
           <button
             className={`events-view-toggle ${viewMode === VIEW_MODES.SWIPE ? 'active' : ''}`}
             onClick={() => setViewMode(VIEW_MODES.SWIPE)}
@@ -460,22 +609,179 @@ export default function Events({ location }) {
         </div>
       </header>
 
-      {/* Filter tabs */}
-      <div className="events-filters">
+      {/* Quick time filter chips - Always visible */}
+      <div className="events-time-filters">
         {FILTERS.map(filter => (
           <button
             key={filter.id}
-            className={`events-filter ${activeFilter === filter.id ? 'active' : ''}`}
+            className={`events-time-chip ${activeFilter === filter.id ? 'active' : ''}`}
             onClick={() => {
               setActiveFilter(filter.id)
               setCurrentIndex(0)
             }}
           >
-            <span className="events-filter-icon">{filter.icon}</span>
             {filter.label}
           </button>
         ))}
       </div>
+
+      {/* Collapsible Filter Panel */}
+      <AnimatePresence>
+        {filtersOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              className="events-filter-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setFiltersOpen(false)}
+            />
+
+            {/* Panel */}
+            <motion.div
+              className="events-filter-panel"
+              initial={{ opacity: 0, y: -20, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, y: -20, height: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            >
+              <div className="events-filter-panel-inner">
+                {/* Radius Section */}
+                <motion.div
+                  className="events-filter-section"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.05 }}
+                >
+                  <div className="events-filter-section-header">
+                    <span className="events-filter-section-title">Search Radius</span>
+                    <span className="events-filter-section-value">{searchRadius}km</span>
+                  </div>
+                  <div className="events-filter-section-content">
+                    <div className="events-radius-track">
+                      {RADIUS_OPTIONS.map((radius, idx) => (
+                        <button
+                          key={radius}
+                          className={`events-radius-option ${searchRadius === radius ? 'active' : ''} ${searchRadius > radius ? 'passed' : ''}`}
+                          onClick={() => {
+                            setSearchRadius(radius)
+                            setCurrentIndex(0)
+                          }}
+                        >
+                          <span className="events-radius-dot" />
+                          <span className="events-radius-label">{radius}km</span>
+                        </button>
+                      ))}
+                      <div
+                        className="events-radius-progress"
+                        style={{ width: `${(RADIUS_OPTIONS.indexOf(searchRadius) / (RADIUS_OPTIONS.length - 1)) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Categories Section */}
+                <motion.div
+                  className="events-filter-section"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <div className="events-filter-section-header">
+                    <span className="events-filter-section-title">Categories</span>
+                    {selectedCategories.length > 0 && (
+                      <button
+                        className="events-filter-clear"
+                        onClick={() => {
+                          setSelectedCategories([])
+                          setCurrentIndex(0)
+                        }}
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                  <div className="events-filter-section-content">
+                    <div className="events-category-grid">
+                      {CATEGORIES.map((category, idx) => (
+                        <motion.button
+                          key={category.id}
+                          className={`events-category-option ${selectedCategories.includes(category.id) ? 'active' : ''}`}
+                          onClick={() => toggleCategory(category.id)}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.1 + idx * 0.02 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {category.label}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Price Section */}
+                <motion.div
+                  className="events-filter-section"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.15 }}
+                >
+                  <div className="events-filter-section-header">
+                    <span className="events-filter-section-title">Price Range</span>
+                  </div>
+                  <div className="events-filter-section-content">
+                    <div className="events-price-grid">
+                      {PRICE_OPTIONS.map(option => (
+                        <button
+                          key={option.id}
+                          className={`events-price-option ${priceFilter === option.id ? 'active' : ''}`}
+                          onClick={() => {
+                            setPriceFilter(option.id)
+                            setCurrentIndex(0)
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Apply/Close Actions */}
+                <motion.div
+                  className="events-filter-actions"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  {activeFilterCount > 0 && (
+                    <button
+                      className="events-filter-reset"
+                      onClick={() => {
+                        setSearchRadius(25)
+                        setSelectedCategories([])
+                        setPriceFilter('any')
+                        setCurrentIndex(0)
+                      }}
+                    >
+                      Reset all
+                    </button>
+                  )}
+                  <button
+                    className="events-filter-apply"
+                    onClick={() => setFiltersOpen(false)}
+                  >
+                    Show {filteredEvents.length} events
+                  </button>
+                </motion.div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <div className="page-content">
         {loading ? (
@@ -554,17 +860,24 @@ export default function Events({ location }) {
                 </motion.div>
                 <h3>You've seen all events!</h3>
                 <p>
-                  {savedEvents.length > 0
-                    ? `You saved ${savedEvents.length} event${savedEvents.length === 1 ? '' : 's'}`
+                  {savedCount > 0
+                    ? `You saved ${savedCount} event${savedCount === 1 ? '' : 's'}`
                     : 'Check back later for more events'
                   }
                 </p>
-                <button
-                  className="events-restart-btn"
-                  onClick={() => setCurrentIndex(0)}
-                >
-                  Start Over
-                </button>
+                <div className="events-swipe-empty-actions">
+                  <button
+                    className="events-restart-btn"
+                    onClick={() => setCurrentIndex(0)}
+                  >
+                    Start Over
+                  </button>
+                  {savedCount > 0 && (
+                    <Link to="/wishlist" className="events-view-saved-btn">
+                      <BookmarkIcon filled /> View Saved
+                    </Link>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="events-swipe-stack">

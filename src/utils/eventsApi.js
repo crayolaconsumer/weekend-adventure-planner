@@ -141,6 +141,48 @@ export function getFreeEvents(events) {
 }
 
 /**
+ * Get events happening tomorrow
+ */
+export function getTomorrowEvents(events) {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toDateString()
+  return events.filter(e => e.datetime?.start?.toDateString() === tomorrowStr)
+}
+
+/**
+ * Get events happening this week (next 7 days)
+ */
+export function getThisWeekEvents(events) {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+
+  const weekEnd = new Date(now)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+
+  return events.filter(e => {
+    const start = e.datetime?.start
+    return start && start >= now && start < weekEnd
+  })
+}
+
+/**
+ * Get events happening this month (next 30 days)
+ */
+export function getThisMonthEvents(events) {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+
+  const monthEnd = new Date(now)
+  monthEnd.setDate(monthEnd.getDate() + 30)
+
+  return events.filter(e => {
+    const start = e.datetime?.start
+    return start && start >= now && start < monthEnd
+  })
+}
+
+/**
  * Get events by category
  */
 export function getEventsByCategory(events, category) {
@@ -228,7 +270,10 @@ export function getSourceInfo(source) {
 export default {
   fetchAllEvents,
   getTodayEvents,
+  getTomorrowEvents,
   getWeekendEvents,
+  getThisWeekEvents,
+  getThisMonthEvents,
   getFreeEvents,
   getEventsByCategory,
   formatEventDate,
