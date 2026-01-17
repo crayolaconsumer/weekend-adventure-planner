@@ -1,0 +1,223 @@
+/* ═══════════════════════════════════════════════════════
+   PROFILE PAGE
+   Stats, badges, and gamification
+   ═══════════════════════════════════════════════════════ */
+
+.profile-page .page-content {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Level Card */
+.profile-level-card {
+  background: linear-gradient(135deg, #1a3a2f 0%, #2d5a3d 100%);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  margin-bottom: var(--space-xl);
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.profile-level-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.profile-level-badge {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(8px);
+}
+
+.profile-level-number {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+}
+
+.profile-level-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  margin-bottom: var(--space-xs);
+}
+
+.profile-level-subtitle {
+  font-size: var(--text-sm);
+  opacity: 1;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.profile-level-progress {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.profile-level-progress-bar {
+  height: 100%;
+  background: var(--roam-gold);
+  border-radius: var(--radius-full);
+  transition: width 0.5s var(--ease-out-expo);
+}
+
+/* Visual Stats Dashboard */
+.profile-viz-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.profile-stats-extended {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+@media (min-width: 640px) {
+  .profile-viz-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .profile-stats-extended {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Stats Grid */
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.profile-stats .stat-card {
+  padding: var(--space-lg);
+}
+
+.profile-stats .stat-value {
+  font-size: var(--text-3xl);
+}
+
+/* Sections */
+.profile-section {
+  margin-bottom: var(--space-xl);
+}
+
+.profile-section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  margin-bottom: var(--space-md);
+}
+
+.profile-subsection-title {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+/* Badges */
+.profile-badges {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+}
+
+.profile-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-lg);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-badge.locked {
+  opacity: 0.5;
+  background: var(--roam-paper);
+}
+
+.profile-badge-icon {
+  font-size: var(--text-3xl);
+  margin-bottom: var(--space-sm);
+}
+
+.profile-badge-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.profile-badge-desc {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* Highlight */
+.profile-highlight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: linear-gradient(135deg, var(--roam-gold) 0%, var(--roam-gold-light) 100%);
+  border-radius: var(--radius-lg);
+  color: white;
+  margin-bottom: var(--space-xl);
+}
+
+.profile-highlight-icon {
+  font-size: var(--text-3xl);
+}
+
+.profile-highlight-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-highlight-value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+}
+
+.profile-highlight-label {
+  font-size: var(--text-sm);
+  opacity: 0.9;
+}
+
+/* Motivation */
+.profile-motivation {
+  padding: var(--space-lg);
+  background: var(--roam-paper);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.profile-motivation p {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin: 0 auto;
+}
+
+/* Responsive */
+@media (min-width: 640px) {
+  .profile-stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

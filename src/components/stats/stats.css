@@ -1,0 +1,411 @@
+/* Stats Components - Field Journal Aesthetic
+   Refined glassmorphism with warm paper tones */
+
+.stats-card {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 1px 3px rgba(42, 37, 32, 0.04),
+    0 4px 12px rgba(42, 37, 32, 0.06);
+}
+
+.stats-card.empty {
+  text-align: center;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+.stats-card-title {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--roam-ink-muted);
+  margin: 0 0 var(--space-md);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stats-empty {
+  color: var(--roam-ink-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CATEGORY CHART - Donut with Legend
+   ═══════════════════════════════════════════════════════ */
+
+.category-chart-content {
+  display: flex;
+  gap: var(--space-lg);
+  align-items: center;
+}
+
+.donut-container {
+  flex-shrink: 0;
+}
+
+.donut-chart {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow:
+    inset 0 2px 4px rgba(42, 37, 32, 0.1),
+    0 2px 8px rgba(42, 37, 32, 0.08);
+}
+
+.donut-hole {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(180deg, var(--roam-cream) 0%, var(--roam-paper) 100%);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 2px rgba(42, 37, 32, 0.06);
+}
+
+.donut-total {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--roam-ink);
+  line-height: 1;
+}
+
+.donut-label {
+  font-size: 0.625rem;
+  color: var(--roam-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.category-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-sm);
+}
+
+.legend-item.more {
+  color: var(--roam-ink-muted);
+  font-size: var(--text-xs);
+  padding-top: 0.25rem;
+}
+
+.legend-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.legend-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.legend-label {
+  flex: 1;
+  color: var(--roam-ink-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.legend-count {
+  font-weight: 600;
+  color: var(--roam-ink);
+  font-family: var(--font-display);
+}
+
+/* ═══════════════════════════════════════════════════════
+   DISTANCE STATS - Metric Cards
+   ═══════════════════════════════════════════════════════ */
+
+.distance-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.distance-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  background: var(--roam-paper);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--roam-parchment);
+}
+
+.distance-stat-item.primary {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, rgba(26, 58, 47, 0.08) 0%, rgba(45, 82, 70, 0.04) 100%);
+  border-color: rgba(26, 58, 47, 0.15);
+}
+
+.distance-stat-item.primary .distance-stat-icon {
+  background: var(--roam-forest);
+  color: var(--roam-cream);
+}
+
+.distance-stat-item.primary .distance-stat-value {
+  color: var(--roam-forest);
+}
+
+.distance-stat-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--roam-parchment);
+  border-radius: var(--radius-md);
+  color: var(--roam-ink-muted);
+}
+
+.distance-stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.distance-stat-value {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--roam-ink);
+  line-height: 1.1;
+}
+
+.distance-stat-label {
+  font-size: var(--text-xs);
+  color: var(--roam-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MONTHLY TRENDS - Bar Chart
+   ═══════════════════════════════════════════════════════ */
+
+.monthly-chart {
+  padding: 0.5rem 0;
+}
+
+.monthly-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  height: 100px;
+  padding-bottom: 1.75rem;
+  padding-top: 1.5rem;
+}
+
+.monthly-bar-container {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.monthly-bar {
+  width: 100%;
+  max-width: 28px;
+  background: linear-gradient(180deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  min-height: 4px;
+  box-shadow: 0 2px 4px rgba(26, 58, 47, 0.2);
+}
+
+.monthly-bar-count {
+  position: absolute;
+  top: -1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-ink);
+}
+
+.monthly-bar-label {
+  position: absolute;
+  bottom: -1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.6875rem;
+  color: var(--roam-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+}
+
+.monthly-summary {
+  text-align: center;
+  padding-top: var(--space-md);
+  margin-top: var(--space-sm);
+  border-top: 1px solid var(--roam-parchment);
+}
+
+.monthly-total {
+  font-size: var(--text-sm);
+  color: var(--roam-ink-light);
+}
+
+/* ═══════════════════════════════════════════════════════
+   VISITED MAP - Location Dots
+   ═══════════════════════════════════════════════════════ */
+
+.visited-map .map-placeholder {
+  margin-top: var(--space-md);
+  color: var(--roam-stone);
+}
+
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  background:
+    linear-gradient(135deg, var(--roam-paper) 0%, var(--roam-parchment) 100%);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--roam-parchment);
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map-grid-line {
+  position: absolute;
+  background: var(--roam-stone);
+  opacity: 0.3;
+}
+
+.map-grid-line.horizontal {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.map-grid-line.vertical {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.map-dots {
+  position: absolute;
+  inset: 12px;
+}
+
+.map-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 1;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    0 0 0 2px rgba(255, 255, 255, 0.8);
+  transition: transform 0.2s var(--ease-out-back);
+}
+
+.map-dot:hover {
+  z-index: 10;
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+.map-dot-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: pulse 2s ease-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.map-footer {
+  margin-top: var(--space-sm);
+  text-align: center;
+}
+
+.map-count {
+  font-size: var(--text-sm);
+  color: var(--roam-ink-light);
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .category-chart-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .donut-container {
+    display: flex;
+    justify-content: center;
+  }
+
+  .category-legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .legend-item {
+    font-size: var(--text-xs);
+  }
+
+  .legend-label {
+    max-width: 60px;
+  }
+
+  .distance-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .distance-stat-item.primary {
+    grid-column: 1;
+  }
+}

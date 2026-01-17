@@ -1,150 +1,79 @@
-# Roam - Adventure Planning App
+# ROAM
 
-Discover amazing places and plan epic adventures with real-time location data, gamification, and smart route optimization.
+**Discover your next adventure.**
 
-## 🚀 Features
-
-- **AI-Powered Discovery**: Find hidden gems and local attractions
-- **Smart Route Planning**: Optimize multi-stop adventures
-- **Real-Time Weather**: Plan around weather conditions
-- **Location Intelligence**: Human-readable addresses and coordinates
-- **Filter System**: Customize searches with smart chips
-- **PWA Ready**: Install as a mobile app
-- **Offline Support**: Works without internet connection
-
-## 📱 Social Media Optimization
-
-Your app now has comprehensive meta tags for professional link sharing across all platforms:
-
-### ✅ What's Optimized:
-- **Facebook/LinkedIn**: Open Graph tags with rich previews
-- **Twitter**: Twitter Cards with large image support
-- **WhatsApp/Telegram**: Optimized image sharing
-- **Instagram**: Proper image dimensions and descriptions
-- **Search Engines**: Enhanced SEO with structured data
-
-### 🖼️ Generate the OG Image:
-
-1. **Open** `og-image-generator.html` in Chrome/Edge
-2. **Right-click** → "Inspect Element"
-3. **Press** `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
-4. **Type** "Capture full size screenshot"
-5. **Save** as `og-image.png` in your project root
-
-The generated image will be **1200x630px** - perfect for social media sharing!
-
-### 🔗 Test Your Links:
-
-- **Facebook Debugger**: https://developers.facebook.com/tools/debug/
-- **Twitter Card Validator**: https://cards-dev.twitter.com/validator
-- **LinkedIn Post Inspector**: https://www.linkedin.com/post-inspector/
-
-## 🛠️ Installation & Setup
-
-### Prerequisites
-- Modern web browser with geolocation support
-- Internet connection for initial setup
-
-### Quick Start
-1. Clone or download the repository
-2. Open `index.html` in a web browser
-3. Allow location access when prompted
-4. Start discovering amazing places!
-
-### PWA Installation
-- **Mobile**: Tap "Add to Home Screen" in browser menu
-- **Desktop**: Click the install button in the address bar
-
-## 🌟 Key Technologies
-
-- **Vanilla JavaScript**: No frameworks, pure performance
-- **Geolocation API**: Real-time location services
-- **Overpass API**: OpenStreetMap data integration
-- **Nominatim**: Free geocoding and reverse geocoding
-- **Open-Meteo**: Weather data integration
-- **Service Workers**: Offline functionality
-- **Local Storage**: Data persistence
-
-## 🎯 Usage Examples
-
-### Basic Search
-1. Set your location (current or manual)
-2. Choose adventure theme
-3. Select filter categories
-4. Tap "Surprise Me!" or specific search buttons
-
-### Adventure Planning
-1. Find multiple places
-2. Add them to your adventure
-3. Optimize the route
-4. Export to calendar or get directions
-
-### Filter System
-- **Restaurants**: Food types, cuisines, ratings
-- **Attractions**: Museums, parks, landmarks
-- **Activities**: Outdoor, indoor, cultural
-- **Smart Chips**: Multi-category filtering
-
-## 🔧 Customization
-
-### Themes
-- **Light Mode**: Clean, modern interface
-- **Dark Mode**: Easy on the eyes
-- **Auto**: Follows system preference
-
-### Units
-- **Metric**: Kilometers, Celsius
-- **Imperial**: Miles, Fahrenheit
-
-### Search Range
-- **Customizable**: 1km to 50km radius
-- **Smart Defaults**: Based on location density
-
-## 📊 Performance Features
-
-- **Lazy Loading**: Images load on demand
-- **Caching**: Smart data caching for offline use
-- **Optimized APIs**: Efficient data fetching
-- **Responsive Design**: Works on all devices
-- **Touch Optimized**: Mobile-first experience
-
-## 🌐 Browser Support
-
-- **Chrome**: 88+ (Full support)
-- **Firefox**: 85+ (Full support)
-- **Safari**: 14+ (Full support)
-- **Edge**: 88+ (Full support)
-- **Mobile**: iOS Safari 14+, Chrome Mobile 88+
-
-## 📈 Analytics & Privacy
-
-- **No Tracking**: Privacy-first approach
-- **Local Storage**: All data stays on your device
-- **Open Source**: Transparent and auditable
-- **GDPR Compliant**: No personal data collection
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
-
-### Development Setup
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🙏 Acknowledgments
-
-- **OpenStreetMap**: Free map data
-- **Nominatim**: Geocoding services
-- **Open-Meteo**: Weather data
-- **Overpass API**: Geographic data queries
+[go-roam.uk](https://go-roam.uk)
 
 ---
 
-**Made with ❤️ for adventure seekers everywhere!**
+## The Problem
+
+You're bored. You know you *should* get out, explore, do something with your day. But the paralysis of "what should I do?" keeps you stuck. You scroll through review sites, get overwhelmed by options, and end up doing nothing.
+
+Meanwhile, incredible places exist within miles of you that you've never heard of. Local cafes, hidden viewpoints, historic sites, nature trails — all waiting to be discovered. But the friction of finding them is too high.
+
+**ROAM fixes this.**
+
+## What It Does
+
+### One-Tap Boredom Buster
+Hit "I'm Bored" and instantly get a quality place to visit right now. No decisions. No scrolling. Just go.
+
+### Swipe Discovery
+Tinder for adventures. Swipe through curated local places — right to save, left to skip, up to go immediately. Every suggestion is adventure-worthy (no health centers or car parks).
+
+### Adventure Builder
+Have 4 hours? Build a multi-stop adventure with optimized routing. Pick your vibe: food crawl, culture day, nature escape. Let the app plan the perfect day.
+
+### Smart Filtering
+- **Travel mode**: Walking, driving, or public transport
+- **Accessibility**: Wheelchair access, family-friendly options
+- **Budget**: Free attractions highlighted
+- **Time-aware**: Only shows places open right now
+
+### Gamification That Motivates
+Streaks, badges, and stats that actually make you want to get out. Not annoying — empowering.
+
+## The Vision
+
+ROAM isn't just an app. It's a movement to:
+
+- **Combat the boredom epidemic** — Give people reasons to leave the house
+- **Stimulate local economies** — Surface hidden gems, not just chains
+- **Improve mental health** — Movement and exploration are medicine
+- **Promote accessibility** — Everyone deserves to discover, regardless of ability or budget
+- **Build community** — Help people appreciate what's around them
+
+We believe the cure to "I have nothing to do" is just one tap away.
+
+## Tech Stack
+
+- **React + Vite** — Fast, modern frontend
+- **Framer Motion** — Smooth, satisfying animations
+- **OpenStreetMap / Overpass API** — Real place data, no API keys needed
+- **LocalStorage** — Privacy-first, works offline
+
+## Getting Started
+
+```bash
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Contributing
+
+This is an open project. If you believe in the vision of helping people discover the world around them, contributions are welcome.
+
+## License
+
+MIT
+
+---
+
+*Stop scrolling. Start roaming.*

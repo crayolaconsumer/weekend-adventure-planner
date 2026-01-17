@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ROAM OG Image Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500;600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: #1a3a2f;
+    }
+
+    .og-container {
+      width: 1200px;
+      height: 630px;
+      background: linear-gradient(135deg, #1a3a2f 0%, #2d5246 50%, #1a3a2f 100%);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Topographic pattern overlay */
+    .topo-pattern {
+      position: absolute;
+      inset: 0;
+      opacity: 0.08;
+      background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 50 Q25 30 50 50 T100 50' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3Cpath d='M0 60 Q25 40 50 60 T100 60' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3Cpath d='M0 70 Q25 50 50 70 T100 70' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3Cpath d='M0 40 Q25 20 50 40 T100 40' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3Cpath d='M0 30 Q25 10 50 30 T100 30' fill='none' stroke='%23fff' stroke-width='0.5'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+    }
+
+    /* Decorative elements */
+    .deco-circle {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .deco-circle-1 {
+      width: 400px;
+      height: 400px;
+      top: -100px;
+      right: -100px;
+    }
+
+    .deco-circle-2 {
+      width: 300px;
+      height: 300px;
+      bottom: -80px;
+      left: -80px;
+    }
+
+    .deco-circle-3 {
+      width: 200px;
+      height: 200px;
+      top: 50%;
+      left: 10%;
+      transform: translateY(-50%);
+      border-color: rgba(196, 92, 62, 0.2);
+    }
+
+    /* Compass decoration */
+    .compass {
+      position: absolute;
+      top: 40px;
+      right: 60px;
+      width: 80px;
+      height: 80px;
+      opacity: 0.6;
+    }
+
+    .compass svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Content */
+    .content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      color: white;
+      padding: 60px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 24px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: #c45c3e;
+      border-radius: 50%;
+    }
+
+    .wordmark {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 180px;
+      font-weight: 400;
+      letter-spacing: -0.04em;
+      line-height: 0.85;
+      margin-bottom: 24px;
+      text-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .tagline {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 36px;
+      font-weight: 400;
+      font-style: italic;
+      opacity: 0.9;
+      margin-bottom: 48px;
+    }
+
+    .features {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+    }
+
+    .feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 18px;
+      font-weight: 500;
+      opacity: 0.85;
+    }
+
+    .feature-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      font-size: 18px;
+    }
+
+    /* Domain */
+    .domain {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 20px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.6);
+      letter-spacing: 0.1em;
+    }
+
+    /* Accent bar */
+    .accent-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #c45c3e 0%, #d4a855 50%, #87a28e 100%);
+    }
+  </style>
+</head>
+<body>
+  <div class="og-container">
+    <!-- Background pattern -->
+    <div class="topo-pattern"></div>
+
+    <!-- Decorative circles -->
+    <div class="deco-circle deco-circle-1"></div>
+    <div class="deco-circle deco-circle-2"></div>
+    <div class="deco-circle deco-circle-3"></div>
+
+    <!-- Compass icon -->
+    <div class="compass">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.4)"/>
+        <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="rgba(255,255,255,0.6)" stroke="none"/>
+      </svg>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="badge">
+        <span class="badge-dot"></span>
+        The Discovery App
+      </div>
+
+      <h1 class="wordmark">ROAM</h1>
+
+      <p class="tagline">Discover your next adventure</p>
+
+      <div class="features">
+        <div class="feature">
+          <span class="feature-icon">🎲</span>
+          One-tap adventures
+        </div>
+        <div class="feature">
+          <span class="feature-icon">💎</span>
+          Hidden gems
+        </div>
+        <div class="feature">
+          <span class="feature-icon">🗺️</span>
+          Plan epic days
+        </div>
+      </div>
+    </div>
+
+    <!-- Domain -->
+    <div class="domain">go-roam.uk</div>
+
+    <!-- Accent bar -->
+    <div class="accent-bar"></div>
+  </div>
+
+  <script>
+    // Instructions: Open this file in a browser, take a screenshot at 1200x630
+    // Or use a tool like html2canvas or puppeteer to export as PNG
+    console.log('OG Image dimensions: 1200x630px');
+    console.log('Take a screenshot of this page to create your og-image.png');
+  </script>
+</body>
+</html>
