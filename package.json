@@ -2,7 +2,7 @@
   "name": "roam",
   "private": true,
   "version": "1.0.0",
-  "description": "Discover your next adventure. Beat boredom with one tap.",
+  "description": "Stop scrolling. Start roaming.. Beat boredom with one tap.",
   "type": "module",
   "scripts": {
     "dev": "vite",
