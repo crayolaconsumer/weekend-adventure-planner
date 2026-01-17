@@ -69,6 +69,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Small random delay to look less automated (50-200ms)
+    await new Promise(r => setTimeout(r, 50 + Math.random() * 150))
+
     // Convert km to miles for Ticketmaster
     const radiusMiles = Math.round(radiusKm * 0.621371)
 
@@ -90,11 +93,19 @@ export default async function handler(req, res) {
       countryCode: 'GB'
     })
 
+    // Add browser-like headers to avoid bot detection
     const response = await fetch(
       `https://app.ticketmaster.com/discovery/v2/events.json?${params}`,
       {
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-GB,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Origin': 'https://www.go-roam.uk',
+          'Referer': 'https://www.go-roam.uk/',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       }
     )
