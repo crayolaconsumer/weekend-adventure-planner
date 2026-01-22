@@ -925,6 +925,15 @@ export default function Events({ location }) {
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => setSelectedEvent(event)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setSelectedEvent(event)
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for ${event.name}`}
                   style={{ cursor: 'pointer' }}
                 >
                   <EventCard event={event} variant="full" />

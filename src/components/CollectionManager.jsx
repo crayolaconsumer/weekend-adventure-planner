@@ -14,6 +14,7 @@ import {
   getCollectionsForPlace,
   COLLECTION_EMOJIS
 } from '../utils/collections'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import './CollectionManager.css'
 
 // Icons
@@ -44,6 +45,21 @@ export default function CollectionManager({ place, isOpen, onClose }) {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [selectedEmoji, setSelectedEmoji] = useState('📍')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  // Focus trap for accessibility
+  const focusTrapRef = useFocusTrap(isOpen)
+
+  // Handle escape key to close
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [isOpen, onClose])
 
   // Load collections when modal opens
   useEffect(() => {
@@ -99,14 +115,18 @@ export default function CollectionManager({ place, isOpen, onClose }) {
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <motion.div
+          ref={focusTrapRef}
           className="collection-manager"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="collection-manager-title"
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 50, scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
           <div className="collection-manager-header">
-            <h3>Add to Collection</h3>
+            <h3 id="collection-manager-title">Add to Collection</h3>
             <button className="collection-manager-close" onClick={onClose} aria-label="Close collection manager">
               <CloseIcon />
             </button>
