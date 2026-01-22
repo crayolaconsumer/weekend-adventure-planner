@@ -75,21 +75,13 @@ export async function fetchSkiddleEvents(lat, lng, radiusMiles = 20) {
       const response = await fetchWithTimeout(`/api/events/skiddle?${params}`)
 
       if (!response.ok) {
-        if (response.status === 429) {
-          console.warn('Skiddle API: Rate limited')
-        } else if (response.status === 500) {
-          const errorData = await response.json().catch(() => ({}))
-          console.error('Skiddle proxy error:', errorData.error || response.status)
-        } else {
-          console.error('Skiddle API error:', response.status)
-        }
+        // Silently fail and return cached data (API might not be configured)
         return skiddleCache.data || []
       }
 
       const data = await response.json()
 
       if (data.error) {
-        console.error('Skiddle API error:', data.error)
         recordFailure(API_NAME)
         return skiddleCache.data || []
       }
@@ -107,8 +99,7 @@ export async function fetchSkiddleEvents(lat, lng, radiusMiles = 20) {
 
       recordSuccess(API_NAME)
       return events
-    } catch (error) {
-      console.error('Skiddle fetch error:', error.message)
+    } catch {
       recordFailure(API_NAME)
       return skiddleCache.data || []
     }

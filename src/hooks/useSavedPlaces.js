@@ -45,10 +45,8 @@ export function useSavedPlaces() {
         const saved = localStorage.getItem(STORAGE_KEY)
         setPlaces(saved ? JSON.parse(saved) : [])
       }
-    } catch (err) {
-      console.error('Failed to load places:', err)
-      setError(err.message)
-      // Fallback to localStorage on API error
+    } catch {
+      // Silently fall back to localStorage (API might not be configured)
       const saved = localStorage.getItem(STORAGE_KEY)
       setPlaces(saved ? JSON.parse(saved) : [])
     } finally {
@@ -87,11 +85,14 @@ export function useSavedPlaces() {
         if (!response.ok) {
           throw new Error('Failed to save place')
         }
-      } catch (err) {
-        console.error('Failed to save place:', err)
-        // Revert on failure
+      } catch {
+        // Silently revert - fall back to localStorage
         setPlaces(prev => prev.filter(p => p.id !== place.id))
-        throw err
+        // Save to localStorage as fallback
+        const saved = localStorage.getItem(STORAGE_KEY)
+        const current = saved ? JSON.parse(saved) : []
+        const updated = [placeWithTimestamp, ...current.filter(p => p.id !== place.id)]
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
       }
     } else {
       // localStorage update
@@ -104,7 +105,7 @@ export function useSavedPlaces() {
 
   const removePlace = useCallback(async (placeId) => {
     // Store removed place for potential rollback
-    const removed = places.find(p => p.id === placeId)
+    const _removed = places.find(p => p.id === placeId)
 
     // Optimistic update
     setPlaces(prev => prev.filter(p => p.id !== placeId))
@@ -121,13 +122,11 @@ export function useSavedPlaces() {
         if (!response.ok) {
           throw new Error('Failed to remove place')
         }
-      } catch (err) {
-        console.error('Failed to remove place:', err)
-        // Revert on failure
-        if (removed) {
-          setPlaces(prev => [...prev, removed])
-        }
-        throw err
+      } catch {
+        // Silently fall back to localStorage
+        const saved = localStorage.getItem(STORAGE_KEY)
+        const current = saved ? JSON.parse(saved) : []
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(current.filter(p => p.id !== placeId)))
       }
     } else {
       // localStorage update

@@ -91,18 +91,8 @@ export async function fetchEvents(lat, lng, radiusKm = 15) {
       const response = await fetchWithTimeout(`/api/events/eventbrite?${params}`)
 
       if (!response.ok) {
-        if (response.status === 404) {
-          // The search endpoint was deprecated - don't count as failure
-          console.warn('Eventbrite search API deprecated. Events feature requires Destination API access.')
-        } else if (response.status === 429) {
-          console.warn('Eventbrite API: Rate limited')
-          recordFailure(API_NAME)
-        } else if (response.status === 500) {
-          const errorData = await response.json().catch(() => ({}))
-          console.error('Eventbrite proxy error:', errorData.error || response.status)
-          recordFailure(API_NAME)
-        } else {
-          console.error('Eventbrite API error:', response.status)
+        // Silently fail and return cached data (API might not be configured)
+        if (response.status !== 404) {
           recordFailure(API_NAME)
         }
         return eventsCache.data || []
@@ -120,8 +110,7 @@ export async function fetchEvents(lat, lng, radiusKm = 15) {
 
       recordSuccess(API_NAME)
       return events
-    } catch (error) {
-      console.error('Eventbrite fetch error:', error.message)
+    } catch {
       recordFailure(API_NAME)
       return eventsCache.data || []
     }

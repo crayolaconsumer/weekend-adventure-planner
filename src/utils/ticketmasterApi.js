@@ -78,14 +78,7 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30) {
       const response = await fetchWithTimeout(`/api/events/ticketmaster?${params}`)
 
       if (!response.ok) {
-        if (response.status === 429) {
-          console.warn('Ticketmaster API: Rate limited')
-        } else if (response.status === 500) {
-          const errorData = await response.json().catch(() => ({}))
-          console.error('Ticketmaster proxy error:', errorData.error || response.status)
-        } else {
-          console.error('Ticketmaster API error:', response.status)
-        }
+        // Silently fail and return cached data (API might not be configured)
         return tmCache.data || []
       }
 
@@ -103,8 +96,7 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30) {
 
       recordSuccess(API_NAME)
       return events
-    } catch (error) {
-      console.error('Ticketmaster fetch error:', error.message)
+    } catch {
       recordFailure(API_NAME)
       return tmCache.data || []
     }
