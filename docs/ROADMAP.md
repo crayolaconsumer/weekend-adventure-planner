@@ -119,6 +119,8 @@ Track all significant changes here. Most recent first.
 **[2026-01-22]** — Auth Hardening: Google SSO on Vercel
 - Added token fallback (Authorization header) when cookies fail to persist
 - Added configurable auth cookie domain + SameSite via env vars
+- Fixed Google popup flow to avoid browser blocking after One Tap callbacks
+- Bumped service worker cache version + network-first navigations to avoid stale auth code
 
 **[2026-01-22]** — Critical Bug Fix: Missing motion import
 - **Root cause found**: `motion` was not imported in App.jsx but used in LocationBanner

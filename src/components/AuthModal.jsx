@@ -109,7 +109,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
 
   const handleGoogleLogin = useCallback(async (credential) => {
     if (!credential) {
-      // Button clicked - try One Tap first, fall back to popup
+      // Button clicked - use popup flow directly (avoids blocked popups after async callbacks)
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
       if (!clientId) {
         setLocalError('Google Sign-In is not configured')
@@ -120,49 +120,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
         return
       }
 
-      // Try One Tap prompt first
-      if (window.google.accounts.id) {
-        window.google.accounts.id.prompt((notification) => {
-          // If One Tap fails or is dismissed, fall back to popup
-          if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
-            // Fall back to popup flow
-            if (window.google.accounts.oauth2) {
-              const tokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: 'email profile',
-                callback: async (response) => {
-                  if (response.error) {
-                    setLocalError(response.error_description || 'Google sign-in failed')
-                    return
-                  }
-                  try {
-                    const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                      headers: { Authorization: `Bearer ${response.access_token}` }
-                    }).then(r => r.json())
-
-                    setIsSubmitting(true)
-                    const result = await loginWithGoogle({
-                      accessToken: response.access_token,
-                      userInfo
-                    })
-                    setIsSubmitting(false)
-
-                    if (result.success) {
-                      onClose()
-                    } else {
-                      setLocalError(result.error)
-                    }
-                  } catch {
-                    setLocalError('Failed to get Google profile')
-                  }
-                }
-              })
-              tokenClient.requestAccessToken()
-            }
-          }
-        })
-      } else if (window.google.accounts.oauth2) {
-        // No One Tap available, use popup directly
+      if (window.google.accounts.oauth2) {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'email profile',
@@ -194,6 +152,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
           }
         })
         tokenClient.requestAccessToken()
+      } else if (window.google.accounts.id) {
+        // Fallback: try One Tap prompt if popup flow unavailable
+        window.google.accounts.id.prompt()
       }
       return
     }

@@ -10,14 +10,13 @@
  * - Static files: Cache first
  */
 
-const CACHE_NAME = 'roam-v1'
-const STATIC_CACHE = 'roam-static-v1'
-const IMAGE_CACHE = 'roam-images-v1'
+const CACHE_NAME = 'roam-v2'
+const STATIC_CACHE = 'roam-static-v2'
+const IMAGE_CACHE = 'roam-images-v2'
 const IS_LOCALHOST = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
 // Files to cache immediately on install
 const PRECACHE_FILES = [
-  '/',
   '/index.html',
   '/manifest.json'
 ]
@@ -74,6 +73,12 @@ self.addEventListener('fetch', (event) => {
 
   const { request } = event
   const url = new URL(request.url)
+
+  // Always use network-first for navigations to avoid stale app shells.
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirst(request))
+    return
+  }
 
   // Skip non-GET requests
   if (request.method !== 'GET') {
