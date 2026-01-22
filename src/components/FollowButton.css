@@ -92,6 +92,12 @@
   cursor: not-allowed;
 }
 
+/* Focus state for accessibility */
+.follow-button:focus-visible {
+  outline: 2px solid var(--roam-forest, #1a3a2f);
+  outline-offset: 2px;
+}
+
 /* Spinner */
 .follow-button-spinner {
   width: 16px;

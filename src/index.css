@@ -25,14 +25,27 @@
   --roam-gold: #d4a855;
   --roam-gold-light: #e8c677;
 
+  /* Additional accent colors */
+  --roam-rust: #d97652;
+  --roam-rust-dark: #b85a3a;
+  --roam-coral: #f4a895;
+  --roam-emerald: #6ee7b7;
+  --roam-red: #ef4444;
+  --roam-green: #22c55e;
+
   /* Neutrals - Warm Paper Tones */
   --roam-cream: #faf8f5;
   --roam-paper: #f7f3ed;
   --roam-parchment: #ede7dc;
+  --roam-parchment-dark: #d8d0c4;
   --roam-stone: #d8d0c4;
   --roam-ink: #2a2520;
   --roam-ink-light: #4a443d;
   --roam-ink-muted: #8a847c;
+
+  /* Aliased text colors for compatibility */
+  --roam-text: var(--roam-ink);
+  --roam-text-muted: var(--roam-ink-muted);
 
   /* Semantic Colors */
   --color-background: var(--roam-cream);
@@ -41,10 +54,17 @@
   --color-text-primary: var(--roam-ink);
   --color-text-secondary: var(--roam-ink-light);
   --color-text-muted: var(--roam-ink-muted);
+  --color-text-tertiary: var(--roam-ink-muted);
   --color-accent: var(--roam-terracotta);
   --color-accent-secondary: var(--roam-forest);
   --color-success: var(--roam-sage);
   --color-warning: var(--roam-gold);
+  --color-error: var(--roam-red);
+
+  /* Component colors (for compatibility with component-level defaults) */
+  --color-primary: var(--roam-terracotta-light);
+  --color-border: var(--roam-parchment);
+  --color-text: var(--roam-ink);
 
   /* Typography */
   --font-display: 'Newsreader', Georgia, serif;
@@ -78,6 +98,7 @@
   --radius-md: 8px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --radius-2xl: 32px;
   --radius-full: 9999px;
 
   /* Shadows */

@@ -322,6 +322,14 @@ export default function Discover({ location }) {
     localStorage.setItem('roam_stats', JSON.stringify(stats))
   }
 
+  // Helper: fetch with timeout for BoredomBuster
+  const fetchWithTimeout = async (fetchFn, timeoutMs = 15000) => {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
+    )
+    return Promise.race([fetchFn(), timeoutPromise])
+  }
+
   // Boredom Buster - pick a random quality place
   const triggerBoredomBuster = async () => {
     setShowBoredomBuster(true)
@@ -332,11 +340,8 @@ export default function Discover({ location }) {
     const radius = travelMode === 'driving' ? 15000 : travelMode === 'transit' ? 8000 : 3000
 
     try {
-      const rawPlaces = await fetchEnrichedPlaces(
-        location.lat,
-        location.lng,
-        radius,
-        null
+      const rawPlaces = await fetchWithTimeout(() =>
+        fetchEnrichedPlaces(location.lat, location.lng, radius, null)
       )
 
       let enhanced = rawPlaces.map(p => enhancePlace(p, location))
@@ -360,7 +365,11 @@ export default function Discover({ location }) {
       }
     } catch (error) {
       console.error('Boredom buster failed:', error)
-      toast.error("Surprise me failed. Try again!")
+      if (error.message === 'Request timed out') {
+        toast.error("Taking too long. Please try again!")
+      } else {
+        toast.error("Surprise me failed. Try again!")
+      }
     }
 
     setBoredomLoading(false)
@@ -372,11 +381,8 @@ export default function Discover({ location }) {
     const radius = travelMode === 'driving' ? 15000 : travelMode === 'transit' ? 8000 : 3000
 
     try {
-      const rawPlaces = await fetchEnrichedPlaces(
-        location.lat,
-        location.lng,
-        radius,
-        null
+      const rawPlaces = await fetchWithTimeout(() =>
+        fetchEnrichedPlaces(location.lat, location.lng, radius, null)
       )
 
       let enhanced = rawPlaces.map(p => enhancePlace(p, location))
@@ -399,7 +405,11 @@ export default function Discover({ location }) {
       }
     } catch (error) {
       console.error('Refresh failed:', error)
-      toast.error("Couldn't refresh. Try again!")
+      if (error.message === 'Request timed out') {
+        toast.error("Taking too long. Please try again!")
+      } else {
+        toast.error("Couldn't refresh. Try again!")
+      }
     }
 
     setBoredomLoading(false)

@@ -22,18 +22,18 @@ const XIcon = () => (
   </svg>
 )
 
-// Category-specific placeholder images
+// Category-specific placeholder images (high-res for retina displays)
 const CATEGORY_IMAGES = {
-  food: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=800&q=80',
-  nature: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-  culture: 'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800&q=80',
-  historic: 'https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80',
-  entertainment: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&q=80',
-  nightlife: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80',
-  active: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
-  unique: 'https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=800&q=80',
-  shopping: 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80',
-  default: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80'
+  food: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=1600&q=85&auto=format&fit=crop',
+  nature: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=85&auto=format&fit=crop',
+  culture: 'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=1600&q=85&auto=format&fit=crop',
+  historic: 'https://images.unsplash.com/photo-1548013146-72479768bada?w=1600&q=85&auto=format&fit=crop',
+  entertainment: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1600&q=85&auto=format&fit=crop',
+  nightlife: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=1600&q=85&auto=format&fit=crop',
+  active: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1600&q=85&auto=format&fit=crop',
+  unique: 'https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=1600&q=85&auto=format&fit=crop',
+  shopping: 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1600&q=85&auto=format&fit=crop',
+  default: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=1600&q=85&auto=format&fit=crop'
 }
 
 export default function BoredomBuster({
@@ -51,6 +51,17 @@ export default function BoredomBuster({
       document.body.style.overflow = ''
     }
   }, [])
+
+  // Handle keyboard escape to close
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose?.()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const getReasonText = () => {
     if (!weather || !place) return "A perfect spot for right now"
@@ -129,6 +140,9 @@ export default function BoredomBuster({
             <div className="boredom-buster-loading">
               <div className="loading-dice">🎲</div>
               <p>Finding your next adventure<span className="loading-dots"><span></span><span></span><span></span></span></p>
+              <button className="boredom-buster-cancel" onClick={onClose}>
+                Cancel
+              </button>
             </div>
           ) : place ? (
             <>

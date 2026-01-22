@@ -54,8 +54,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: var(--roam-parchment);
   border-radius: var(--radius-md);
@@ -67,6 +67,11 @@
 .profile-logout-btn:hover {
   background: var(--roam-parchment-dark);
   color: var(--color-text);
+}
+
+.profile-logout-btn:focus-visible {
+  outline: 2px solid var(--roam-forest);
+  outline-offset: 2px;
 }
 
 .profile-auth-buttons {

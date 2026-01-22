@@ -44,10 +44,16 @@
   font-weight: 600;
   color: var(--color-text, #333);
   text-decoration: none;
+  border-radius: 4px;
 }
 
 .activity-item-user:hover {
   text-decoration: underline;
+}
+
+.activity-item-user:focus-visible {
+  outline: 2px solid var(--roam-forest, #1a3a2f);
+  outline-offset: 2px;
 }
 
 .activity-item-action {
@@ -132,6 +138,11 @@
   background: var(--color-primary-dark, #c96a52);
 }
 
+.activity-feed-discover-link:focus-visible {
+  outline: 2px solid var(--roam-forest, #1a3a2f);
+  outline-offset: 2px;
+}
+
 /* Error state */
 .activity-feed-error {
   text-align: center;
@@ -153,6 +164,16 @@
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.activity-feed-error button:hover {
+  background: #b71c1c;
+}
+
+.activity-feed-error button:focus-visible {
+  outline: 2px solid var(--roam-forest, #1a3a2f);
+  outline-offset: 2px;
 }
 
 /* Load more */

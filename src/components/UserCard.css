@@ -29,6 +29,14 @@
   text-decoration: none;
   color: inherit;
   min-width: 0;
+  border-radius: 8px;
+  padding: 4px;
+  margin: -4px;
+}
+
+.user-card-link:focus-visible {
+  outline: 2px solid var(--roam-forest, #1a3a2f);
+  outline-offset: 2px;
 }
 
 .user-card--compact .user-card-link {

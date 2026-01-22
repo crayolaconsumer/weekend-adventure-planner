@@ -83,13 +83,13 @@
   line-height: 1.4;
 }
 
-/* Close button */
+/* Close button - min 44px touch target for accessibility */
 .toast-close {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: transparent;
   border-radius: var(--radius-full);
@@ -97,7 +97,7 @@
   color: var(--roam-text-muted);
   transition: all 0.2s ease;
   flex-shrink: 0;
-  margin-left: var(--space-xs);
+  margin: calc(-1 * var(--space-sm)) calc(-1 * var(--space-sm)) calc(-1 * var(--space-sm)) 0;
 }
 
 .toast-close:hover {
@@ -107,6 +107,11 @@
 
 .toast-close:active {
   transform: scale(0.9);
+}
+
+.toast-close:focus-visible {
+  outline: 2px solid var(--roam-forest);
+  outline-offset: 2px;
 }
 
 /* Responsive */

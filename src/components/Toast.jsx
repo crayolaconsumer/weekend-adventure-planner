@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ToastContext } from '../contexts/ToastContext'
 import './Toast.css'
@@ -103,18 +103,21 @@ export function ToastProvider({ children }) {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
 
-  // Make toast callable with convenient methods
-  const value = {
-    toast: Object.assign(
-      (msg, type, duration) => addToast(msg, type, duration),
-      {
-        success: (msg, duration) => addToast(msg, 'success', duration),
-        error: (msg, duration) => addToast(msg, 'error', duration),
-        info: (msg, duration) => addToast(msg, 'info', duration)
-      }
-    ),
+  // Memoize toast methods to prevent unnecessary re-renders
+  const toast = useMemo(() => Object.assign(
+    (msg, type, duration) => addToast(msg, type, duration),
+    {
+      success: (msg, duration) => addToast(msg, 'success', duration),
+      error: (msg, duration) => addToast(msg, 'error', duration),
+      info: (msg, duration) => addToast(msg, 'info', duration)
+    }
+  ), [addToast])
+
+  // Memoize context value to prevent unnecessary re-renders
+  const value = useMemo(() => ({
+    toast,
     dismissToast
-  }
+  }), [toast, dismissToast])
 
   return (
     <ToastContext.Provider value={value}>
