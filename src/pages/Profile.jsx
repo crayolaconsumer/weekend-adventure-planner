@@ -1,11 +1,21 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { getVisitedPlaces } from '../utils/statsUtils'
+import { useAuth } from '../contexts/AuthContext'
 import CategoryChart from '../components/stats/CategoryChart'
 import DistanceStats from '../components/stats/DistanceStats'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
 import VisitedMap from '../components/stats/VisitedMap'
 import './Profile.css'
+
+// Icons
+const LogOutIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+    <polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+)
 
 // Badge definitions
 const BADGES = [
@@ -53,7 +63,10 @@ function loadStatsFromStorage() {
   }
 }
 
-export default function Profile() {
+export default function Profile({ onOpenAuth }) {
+  // Auth state
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth()
+
   // Use lazy initialization to load stats from localStorage
   const [stats] = useState(loadStatsFromStorage)
   const [visitedPlaces] = useState(getVisitedPlaces)
@@ -72,6 +85,47 @@ export default function Profile() {
     <div className="page profile-page">
       <header className="page-header">
         <h1 className="page-title">Your Journey</h1>
+        {/* Auth section in header */}
+        {!authLoading && (
+          <div className="profile-auth-section">
+            {isAuthenticated ? (
+              <div className="profile-user-info">
+                {user.avatarUrl && (
+                  <img
+                    src={user.avatarUrl}
+                    alt=""
+                    className="profile-avatar"
+                  />
+                )}
+                <span className="profile-username">
+                  {user.displayName || user.username || user.email}
+                </span>
+                <button
+                  className="profile-logout-btn"
+                  onClick={logout}
+                  aria-label="Sign out"
+                >
+                  <LogOutIcon />
+                </button>
+              </div>
+            ) : (
+              <div className="profile-auth-buttons">
+                <button
+                  className="profile-login-btn"
+                  onClick={() => onOpenAuth('login')}
+                >
+                  Sign in
+                </button>
+                <button
+                  className="profile-signup-btn"
+                  onClick={() => onOpenAuth('register')}
+                >
+                  Sign up
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       <div className="page-content">

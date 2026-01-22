@@ -3,9 +3,107 @@
    Stats, badges, and gamification
    ═══════════════════════════════════════════════════════ */
 
+.profile-page .page-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+}
+
 .profile-page .page-content {
   max-width: 600px;
   margin: 0 auto;
+}
+
+/* ═══════════════════════════════════════════════════════
+   AUTH SECTION
+   ═══════════════════════════════════════════════════════ */
+
+.profile-auth-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.profile-user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.profile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--roam-parchment);
+}
+
+.profile-username {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--roam-parchment);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-logout-btn:hover {
+  background: var(--roam-parchment-dark);
+  color: var(--color-text);
+}
+
+.profile-auth-buttons {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.profile-login-btn,
+.profile-signup-btn {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-login-btn {
+  background: transparent;
+  border: 1px solid var(--roam-forest);
+  color: var(--roam-forest);
+}
+
+.profile-login-btn:hover {
+  background: var(--roam-forest);
+  color: white;
+}
+
+.profile-signup-btn {
+  background: var(--roam-forest);
+  border: 1px solid var(--roam-forest);
+  color: white;
+}
+
+.profile-signup-btn:hover {
+  background: var(--roam-forest-dark);
+  border-color: var(--roam-forest-dark);
 }
 
 /* Level Card */

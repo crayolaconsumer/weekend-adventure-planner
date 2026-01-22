@@ -13,7 +13,9 @@ const Profile = lazy(() => import('./pages/Profile'))
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoadingState from './components/LoadingState'
+import AuthModal from './components/AuthModal'
 import { ToastProvider } from './components/Toast'
+import { AuthProvider } from './contexts/AuthContext'
 
 // Icons as components
 const CompassIcon = () => (
@@ -91,6 +93,14 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return !localStorage.getItem('roam_onboarded')
   })
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authModalMode, setAuthModalMode] = useState('login')
+
+  // Helper to open auth modal
+  const openAuthModal = (mode = 'login') => {
+    setAuthModalMode(mode)
+    setShowAuthModal(true)
+  }
 
   // Set stable viewport height to prevent mobile resize jank
   useEffect(() => {
@@ -161,66 +171,75 @@ function App() {
   }
 
   return (
-    <ToastProvider>
-      <BrowserRouter>
-        <ErrorBoundary>
-          {/* Skip link for keyboard users */}
-          <a href="#main-content" className="skip-link">Skip to main content</a>
-          <div className="app">
-            {/* Onboarding for first-time users */}
-            <AnimatePresence>
-              {showOnboarding && (
-                <Onboarding onComplete={() => setShowOnboarding(false)} />
-              )}
-            </AnimatePresence>
+    <AuthProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <ErrorBoundary>
+            {/* Skip link for keyboard users */}
+            <a href="#main-content" className="skip-link">Skip to main content</a>
+            <div className="app">
+              {/* Onboarding for first-time users */}
+              <AnimatePresence>
+                {showOnboarding && (
+                  <Onboarding onComplete={() => setShowOnboarding(false)} />
+                )}
+              </AnimatePresence>
 
-            <AnimatePresence>
-              {locationError && !showOnboarding && (
-                <LocationBanner error={locationError} onRetry={retryLocation} />
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {locationError && !showOnboarding && (
+                  <LocationBanner error={locationError} onRetry={retryLocation} />
+                )}
+              </AnimatePresence>
 
-            <main id="main-content">
-              <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>
-                <AnimatePresence mode="wait">
-                  <Routes>
-                    <Route path="/" element={<Discover location={location} />} />
-                    <Route path="/events" element={<Events location={location} />} />
-                    <Route path="/plan" element={<Plan location={location} />} />
-                    <Route path="/wishlist" element={<Wishlist />} />
-                    <Route path="/collections" element={<Collections />} />
-                    <Route path="/profile" element={<Profile />} />
-                  </Routes>
-                </AnimatePresence>
-              </Suspense>
-            </main>
+              {/* Auth Modal */}
+              <AuthModal
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                initialMode={authModalMode}
+              />
 
-            <nav className="nav-bar">
-          <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <CompassIcon />
-            <span>Discover</span>
-          </NavLink>
-          <NavLink to="/events" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <CalendarIcon />
-            <span>Events</span>
-          </NavLink>
-          <NavLink to="/plan" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <MapIcon />
-            <span>Plan</span>
-          </NavLink>
-          <NavLink to="/wishlist" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <HeartIcon />
-            <span>Saved</span>
-          </NavLink>
-          <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <UserIcon />
-            <span>Profile</span>
-          </NavLink>
-          </nav>
-          </div>
-        </ErrorBoundary>
-      </BrowserRouter>
-    </ToastProvider>
+              <main id="main-content">
+                <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>
+                  <AnimatePresence mode="wait">
+                    <Routes>
+                      <Route path="/" element={<Discover location={location} />} />
+                      <Route path="/events" element={<Events location={location} />} />
+                      <Route path="/plan" element={<Plan location={location} />} />
+                      <Route path="/wishlist" element={<Wishlist />} />
+                      <Route path="/collections" element={<Collections />} />
+                      <Route path="/profile" element={<Profile onOpenAuth={openAuthModal} />} />
+                    </Routes>
+                  </AnimatePresence>
+                </Suspense>
+              </main>
+
+              <nav className="nav-bar">
+                <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <CompassIcon />
+                  <span>Discover</span>
+                </NavLink>
+                <NavLink to="/events" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <CalendarIcon />
+                  <span>Events</span>
+                </NavLink>
+                <NavLink to="/plan" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <MapIcon />
+                  <span>Plan</span>
+                </NavLink>
+                <NavLink to="/wishlist" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <HeartIcon />
+                  <span>Saved</span>
+                </NavLink>
+                <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <UserIcon />
+                  <span>Profile</span>
+                </NavLink>
+              </nav>
+            </div>
+          </ErrorBoundary>
+        </BrowserRouter>
+      </ToastProvider>
+    </AuthProvider>
   )
 }
 
