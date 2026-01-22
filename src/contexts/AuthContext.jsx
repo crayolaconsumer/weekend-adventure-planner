@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
   const getStoredToken = useCallback(() => {
     return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY)
-  }, [getStoredToken])
+  }, [])
 
   const storeToken = useCallback((token, remember = true) => {
     if (!token) return
@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem(SESSION_TOKEN_STORAGE_KEY, token)
       localStorage.removeItem(TOKEN_STORAGE_KEY)
     }
-  }, [])
+  }, [getStoredToken])
 
   const clearStoredToken = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY)

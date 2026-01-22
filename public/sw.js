@@ -13,6 +13,7 @@
 const CACHE_NAME = 'roam-v1'
 const STATIC_CACHE = 'roam-static-v1'
 const IMAGE_CACHE = 'roam-images-v1'
+const IS_LOCALHOST = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
 // Files to cache immediately on install
 const PRECACHE_FILES = [
@@ -67,6 +68,10 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache or network
 self.addEventListener('fetch', (event) => {
+  if (IS_LOCALHOST) {
+    return
+  }
+
   const { request } = event
   const url = new URL(request.url)
 
