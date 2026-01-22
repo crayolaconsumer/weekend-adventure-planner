@@ -69,14 +69,14 @@ export function verifyToken(token) {
  * @returns {string|null} Token or null
  */
 export function extractToken(req) {
-  // Check Authorization header
-  const authHeader = req.headers.get('authorization')
+  // Check Authorization header (Node.js style - plain object)
+  const authHeader = req.headers.authorization
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.slice(7)
   }
 
   // Check cookies
-  const cookies = req.headers.get('cookie')
+  const cookies = req.headers.cookie
   if (cookies) {
     const tokenCookie = cookies
       .split(';')
