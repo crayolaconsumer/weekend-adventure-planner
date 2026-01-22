@@ -82,7 +82,8 @@ export function extractToken(req) {
       .split(';')
       .find(c => c.trim().startsWith('roam_token='))
     if (tokenCookie) {
-      return tokenCookie.split('=')[1]
+      // Use substring to handle JWT tokens with = padding (base64)
+      return tokenCookie.trim().substring(tokenCookie.indexOf('=') + 1)
     }
   }
 
@@ -117,7 +118,14 @@ export async function getUserFromRequest(req) {
  */
 export function createAuthCookie(token, remember = false) {
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7 // 30 days or 7 days
-  return `roam_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+
+  // Production: SameSite=None for cross-origin OAuth, requires Secure
+  // Development: SameSite=Lax works for localhost
+  const sameSite = isProduction ? 'None' : 'Lax'
+  const secure = isProduction ? '; Secure' : ''
+
+  return `roam_token=${token}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${maxAge}${secure}`
 }
 
 /**
@@ -125,7 +133,11 @@ export function createAuthCookie(token, remember = false) {
  * @returns {string} Cookie string that clears token
  */
 export function createLogoutCookie() {
-  return 'roam_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
+  const sameSite = isProduction ? 'None' : 'Lax'
+  const secure = isProduction ? '; Secure' : ''
+
+  return `roam_token=; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=0${secure}`
 }
 
 /**
