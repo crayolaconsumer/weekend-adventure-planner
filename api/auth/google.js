@@ -127,10 +127,17 @@ export default async function handler(req, res) {
     const token = generateToken(user)
 
     // Set cookie
-    res.setHeader('Set-Cookie', createAuthCookie(token, true))
+    const cookie = createAuthCookie(token, true)
+    console.log('Setting cookie:', cookie.substring(0, 50) + '...')
+    res.setHeader('Set-Cookie', cookie)
 
-    // Return user data
+    // Return user data (include cookie info for debugging)
     return res.status(200).json({
+      debug: {
+        cookieSet: true,
+        cookieLength: cookie.length,
+        tokenLength: token.length
+      },
       user: {
         id: user.id,
         email: user.email,
