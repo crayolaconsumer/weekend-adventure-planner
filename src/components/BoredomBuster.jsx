@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import './BoredomBuster.css'
 
@@ -43,6 +44,14 @@ export default function BoredomBuster({
   onGo,
   onClose
 }) {
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
+
   const getReasonText = () => {
     if (!weather || !place) return "A perfect spot for right now"
 
