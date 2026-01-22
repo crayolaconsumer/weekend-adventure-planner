@@ -10,6 +10,7 @@ import {
   hasBoringName,
   getCategoryForType
 } from './categories'
+import { getPersonalizationBoost } from './tasteProfile'
 
 // Session storage key for tracking shown places
 const SHOWN_PLACES_KEY = 'roam_shown_places'
@@ -147,6 +148,14 @@ export function scorePlace(place, context = {}) {
     score += boost
   }
 
+  // PERSONALIZATION BOOST (max +15, min -10)
+  // Based on user's demonstrated preferences from ratings, saves, visits
+  const { userProfile = null } = context
+  if (userProfile) {
+    const personalBoost = getPersonalizationBoost(place, userProfile)
+    score += personalBoost
+  }
+
   return Math.max(0, Math.min(100, score))
 }
 
@@ -182,10 +191,11 @@ export function filterPlaces(places, options = {}) {
     maxResults = 50,
     sortBy = 'smart', // 'smart', 'score', 'distance', 'name'
     weather = null,
-    ensureDiversity = true // Mix categories when no filter selected
+    ensureDiversity = true, // Mix categories when no filter selected
+    userProfile = null // Taste profile for personalized scoring
   } = options
 
-  const context = { timeContext: getTimeContext(), weather }
+  const context = { timeContext: getTimeContext(), weather, userProfile }
 
   let filtered = places
     // Remove blacklisted types

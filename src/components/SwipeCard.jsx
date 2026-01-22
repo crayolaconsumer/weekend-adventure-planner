@@ -361,7 +361,7 @@ export default function SwipeCard({
               {place.type.replace(/_/g, ' ')}
             </span>
           )}
-          <SocialProof placeId={place.id} variant="compact" />
+          <SocialProof placeId={place.id} place={place} variant="compact" />
         </div>
 
         {/* Show community tip if available, otherwise show description */}

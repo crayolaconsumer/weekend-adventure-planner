@@ -63,6 +63,18 @@
   color: var(--roam-gold);
 }
 
+/* Taste match variant - "for you" personalization */
+.social-proof-compact.taste-match {
+  background: rgba(196, 92, 62, 0.2);
+  color: var(--roam-coral);
+}
+
+.social-proof-full.taste-match {
+  background: rgba(196, 92, 62, 0.1);
+  border-color: rgba(196, 92, 62, 0.3);
+  color: var(--roam-terracotta);
+}
+
 .social-proof svg {
   flex-shrink: 0;
 }

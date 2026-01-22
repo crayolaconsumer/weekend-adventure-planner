@@ -8,6 +8,7 @@ import FilterModal from '../components/FilterModal'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
+import { useTasteProfile } from '../hooks/useTasteProfile'
 import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { GOOD_CATEGORIES } from '../utils/categories'
@@ -39,6 +40,7 @@ const SettingsIcon = () => (
 export default function Discover({ location }) {
   const toast = useToast()
   const { savePlace } = useSavedPlaces()
+  const { profile: userProfile } = useTasteProfile()
   const [places, setPlaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -130,14 +132,15 @@ export default function Discover({ location }) {
       // Enhance and filter places with context
       let enhanced = rawPlaces.map(p => enhancePlace(p, location, scoringContext))
 
-      // Apply smart filters with diversity
+      // Apply smart filters with diversity and personalization
       let filtered = filterPlaces(enhanced, {
         categories: selectedCategories.length > 0 ? selectedCategories : null,
         minScore: 30,
         maxResults: 50,
         sortBy: 'smart',
         weather: currentWeather,
-        ensureDiversity: selectedCategories.length === 0 // Mix categories when no filter
+        ensureDiversity: selectedCategories.length === 0, // Mix categories when no filter
+        userProfile // Personalize based on user's taste profile
       })
 
       // Filter for free places if enabled
@@ -174,7 +177,7 @@ export default function Discover({ location }) {
       toast.error("Couldn't load places. Try refreshing.")
     }
     setLoading(false)
-  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, toast])
+  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, toast, userProfile])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
@@ -203,7 +206,8 @@ export default function Discover({ location }) {
         maxResults: 100,
         sortBy: 'smart',
         weather,
-        ensureDiversity: selectedCategories.length === 0
+        ensureDiversity: selectedCategories.length === 0,
+        userProfile // Personalize based on user's taste profile
       })
 
       // Apply user filters
@@ -242,7 +246,7 @@ export default function Discover({ location }) {
     }
 
     setLoadingMore(false)
-  }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds])
+  }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile])
 
   // Load places when location or settings change
 
