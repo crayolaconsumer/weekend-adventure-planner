@@ -91,6 +91,13 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — Bug Fix: Onboarding & Location Issues
+- Fixed onboarding interests screen button cut-off on iPhone (small screens)
+- Made onboarding overlay scrollable with safe area insets
+- Fixed blank screen after onboarding when location not yet available
+- Added "Getting your location" pending state with helpful message
+- Added fallback for browsers without geolocation support
+
 **[2026-01-22]** — Session: Foundation Work
 - Created `/docs/ROADMAP.md` (this file)
 - Added PWA support: `manifest.json`, `sw.js`, `icon.svg`
