@@ -4,6 +4,7 @@ import CardStack from '../components/CardStack'
 import BoredomBuster from '../components/BoredomBuster'
 import PlaceDetail from '../components/PlaceDetail'
 import VisitedPrompt from '../components/VisitedPrompt'
+import FilterModal from '../components/FilterModal'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -53,6 +54,7 @@ export default function Discover({ location }) {
   const [boredomPlace, setBoredomPlace] = useState(null)
   const [boredomLoading, setBoredomLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showFilterModal, setShowFilterModal] = useState(false)
 
   // Place detail modal state
   const [selectedPlace, setSelectedPlace] = useState(null)
@@ -595,8 +597,32 @@ export default function Discover({ location }) {
         )}
       </AnimatePresence>
 
-      {/* Category Filters */}
+      {/* Category Filters - Mobile trigger + Desktop scroll */}
       <div className="discover-filters">
+        {/* Mobile: Compact trigger button */}
+        <button
+          className="discover-filters-trigger"
+          onClick={() => setShowFilterModal(true)}
+          aria-label="Open filter options"
+        >
+          <span className="discover-filters-trigger-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+          </span>
+          <span className="discover-filters-trigger-text">
+            {selectedCategories.length > 0
+              ? `${selectedCategories.length} filter${selectedCategories.length !== 1 ? 's' : ''}`
+              : 'All categories'}
+          </span>
+          {(selectedCategories.length > 0 || showFreeOnly || accessibilityMode) && (
+            <span className="discover-filters-trigger-badge">
+              {selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0)}
+            </span>
+          )}
+        </button>
+
+        {/* Desktop: Horizontal scroll (hidden on mobile) */}
         <div className="discover-filters-scroll" role="group" aria-label="Filter by category">
           {Object.entries(GOOD_CATEGORIES).map(([key, category]) => (
             <button
@@ -617,7 +643,7 @@ export default function Discover({ location }) {
         </div>
       </div>
 
-      {/* Active filters indicator */}
+      {/* Active filters indicator (desktop only, mobile shows in trigger) */}
       {(showFreeOnly || accessibilityMode) && (
         <div className="discover-active-filters">
           {showFreeOnly && <span className="active-filter">💸 Free only</span>}
@@ -726,6 +752,18 @@ export default function Discover({ location }) {
           />
         )}
       </AnimatePresence>
+
+      {/* Filter Modal */}
+      <FilterModal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        selectedCategories={selectedCategories}
+        onToggleCategory={toggleCategory}
+        showFreeOnly={showFreeOnly}
+        onToggleFreeOnly={() => setShowFreeOnly(prev => !prev)}
+        accessibilityMode={accessibilityMode}
+        onToggleAccessibility={() => setAccessibilityMode(prev => !prev)}
+      />
     </div>
   )
 }

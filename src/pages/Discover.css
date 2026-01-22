@@ -498,6 +498,81 @@
 }
 
 /* ═══════════════════════════════════════════════════════
+   MOBILE FILTER TRIGGER BUTTON
+   ═══════════════════════════════════════════════════════ */
+
+.discover-filters-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px 16px;
+  background: var(--color-surface-elevated);
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.discover-filters-trigger:hover {
+  background: var(--roam-parchment);
+  border-color: var(--roam-stone);
+}
+
+.discover-filters-trigger:active {
+  transform: scale(0.97);
+}
+
+.discover-filters-trigger-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--roam-forest);
+}
+
+.discover-filters-trigger-text {
+  color: var(--roam-ink);
+}
+
+.discover-filters-trigger-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--roam-terracotta);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+/* Mobile: Show trigger, hide scroll */
+@media (max-width: 767px) {
+  .discover-filters-scroll {
+    display: none;
+  }
+
+  .discover-active-filters {
+    display: none;
+  }
+}
+
+/* Desktop: Hide trigger, show scroll */
+@media (min-width: 768px) {
+  .discover-filters-trigger {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    CARD AREA - Where the magic happens
    ═══════════════════════════════════════════════════════ */
 
