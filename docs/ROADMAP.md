@@ -4,6 +4,134 @@
 
 ---
 
+## 🤖 AI Agent Instructions
+
+**READ THIS FIRST** — This section is for Claude, Cursor, Copilot, and any AI assistants working on this project.
+
+### Your Role
+
+You are a collaborator on ROAM, a local discovery platform. The human developer (James) has a vision but limited time. Your job is to:
+
+1. **Understand the vision** before writing code
+2. **Maintain momentum** across sessions (context may be lost)
+3. **Document everything** you do
+4. **Ask when uncertain** rather than guess
+
+### Before Starting Any Work
+
+1. **Read this roadmap** — Understand where we are and where we're going
+2. **Check the change log** (below) — See recent work and decisions
+3. **Check git history** — `git log --oneline -20` for recent commits
+4. **Identify the current phase** — We work sequentially through phases
+
+### Key Principles
+
+| Principle | Why |
+|-----------|-----|
+| Community over editorial | Users curate, not us — we don't have expertise |
+| Simple over clever | This needs to ship, not be perfect |
+| Mobile-first | Most users will be on phones |
+| UK scope | Start small, expand later |
+| Pseudonymous | @usernames, not real names |
+
+### Code Patterns to Follow
+
+```javascript
+// API calls go through the client
+import { apiClient } from '../utils/apiClient'
+
+// State management is React context + hooks
+import { useAuth } from '../hooks/useAuth'
+
+// Animations use Framer Motion
+import { motion } from 'framer-motion'
+
+// Styling is CSS modules or inline for small things
+import styles from './Component.module.css'
+```
+
+### File Organization
+
+```
+src/
+├── components/    # Reusable UI components
+├── pages/         # Route-level components
+├── hooks/         # Custom React hooks
+├── utils/         # Pure functions, API clients
+├── contexts/      # React contexts (auth, theme, etc.)
+├── data/          # Static data, constants
+└── lib/           # Third-party integrations (Supabase)
+```
+
+### When You Complete Work
+
+1. **Update the change log** (below) with what you did
+2. **Update phase checkboxes** if you completed items
+3. **Commit with clear messages** explaining the "why"
+4. **Note any blockers** or decisions for the next session
+
+### How to Handle Uncertainty
+
+- **Technical decision?** Make a reasonable choice, document it in the change log
+- **Product decision?** Ask the user — don't assume
+- **Missing context?** Read git history and recent files before asking
+
+### Common Pitfalls to Avoid
+
+- Don't over-engineer — we're building an MVP
+- Don't add features not in the roadmap without asking
+- Don't forget mobile — test in responsive mode
+- Don't break existing functionality — the app should always work
+
+---
+
+## 📋 Change Log
+
+Track all significant changes here. Most recent first.
+
+### January 2026
+
+**[2026-01-22]** — Session: Foundation Work
+- Created `/docs/ROADMAP.md` (this file)
+- Added PWA support: `manifest.json`, `sw.js`, `icon.svg`
+- Updated `index.html` with PWA links and service worker registration
+- **Decision**: Community curation over editorial — users tell each other why places matter
+- **Decision**: Supabase for backend (Postgres, auth, realtime)
+- **Decision**: UK-wide scope from start
+- **Decision**: Pseudonymous accounts (@username style)
+- **Next**: Set up Supabase project and auth flow
+
+**[2026-01-21]** — Events & Filtering
+- Added Events page with category filtering
+- Integrated Ticketmaster, Skiddle, Eventbrite APIs
+- Added unified saved content management
+- Fixed security issues with API proxies
+- Note: Skiddle/Eventbrite show 500 errors — need env vars in Vercel
+
+---
+
+## 📊 Current Status
+
+**Phase**: 1 (Foundation) — PWA complete, ready for Phase 2
+
+**What's Working**:
+- ✅ Place discovery with swipe cards
+- ✅ Event aggregation
+- ✅ Category filtering
+- ✅ Weather-aware recommendations
+- ✅ PWA installable on mobile
+- ✅ Offline caching (basic)
+
+**What's Next**:
+- ⏳ Supabase project setup
+- ⏳ Auth flow (sign up, login)
+- ⏳ Migrate localStorage to Supabase
+
+**Blockers**:
+- None currently
+
+---
+
 ## What We Have
 
 A working discovery app with:
@@ -40,24 +168,33 @@ Native Apps (When Proven)
 
 ---
 
-## Phase 1: Foundation (Current)
+## Phase 1: Foundation ✅ COMPLETE
 
 ### PWA Support
 Make it installable on phones without app stores.
 
 - [x] Basic app structure
-- [ ] manifest.json with app metadata
-- [ ] Service worker for offline caching
-- [ ] "Add to Home Screen" support
+- [x] manifest.json with app metadata
+- [x] Service worker for offline caching
+- [x] "Add to Home Screen" support
+- [x] App icon (compass design in brand colors)
 
-### Files
-- `/public/manifest.json` - App manifest
-- `/public/sw.js` - Service worker
-- `/index.html` - Link manifest, register SW
+### Files Created
+- `/public/manifest.json` - App manifest with shortcuts
+- `/public/sw.js` - Service worker with caching strategies
+- `/public/icons/icon.svg` - Compass icon
+- `/index.html` - Updated with PWA links
+
+### Verification
+To verify PWA is working:
+1. Run `npm run build && npm run preview`
+2. Open in Chrome, check DevTools > Application > Manifest
+3. On mobile, verify "Add to Home Screen" appears
+4. Install and verify standalone mode works
 
 ---
 
-## Phase 2: Backend & Auth (Week 1-2)
+## Phase 2: Backend & Auth ⏳ NEXT
 
 ### Supabase Integration
 Replace localStorage with real database.
@@ -68,6 +205,46 @@ Replace localStorage with real database.
 - Row-level security
 - Realtime subscriptions
 - Generous free tier
+
+### Step-by-Step Setup
+
+**Step 1: Create Supabase Project**
+1. Go to [supabase.com](https://supabase.com)
+2. Create new project (name: "roam-app")
+3. Save the Project URL and anon key
+4. Add to `.env.local`:
+   ```
+   VITE_SUPABASE_URL=https://xxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=xxx
+   ```
+
+**Step 2: Install Dependencies**
+```bash
+npm install @supabase/supabase-js
+```
+
+**Step 3: Create Supabase Client**
+Create `/src/lib/supabase.js`:
+```javascript
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+```
+
+**Step 4: Run Database Migrations**
+In Supabase SQL Editor, run the schema below.
+
+**Step 5: Configure Auth**
+In Supabase Dashboard > Authentication:
+- Enable Email provider
+- Enable Google provider (optional)
+- Set redirect URL to your domain
+
+**Step 6: Create Auth Context**
+See "Files to Create" below for implementation.
 
 ### Database Schema
 
@@ -377,3 +554,156 @@ React Native 0.74+ (or Expo)
 ---
 
 *Last updated: January 2026*
+
+---
+
+## 🏗️ Architecture Overview
+
+### Current Data Flow
+
+```
+User Location
+     ↓
+API Client (src/utils/apiClient.js)
+     ↓
+Multiple APIs in parallel:
+├─ Overpass API (OSM places)
+├─ OpenTripMap (attractions)
+├─ Wikipedia (descriptions)
+├─ Ticketmaster/Skiddle/Eventbrite (events)
+     ↓
+Normalize & Deduplicate
+     ↓
+Score & Filter (placeFilter.js)
+     ↓
+Display in SwipeCard/PlaceDetail
+```
+
+### Future Data Flow (with Supabase)
+
+```
+User Location
+     ↓
+API Client
+     ↓
+Place Data from APIs
+     ↓
+Enrich with Community Data:
+├─ Contributions ("Why this place?")
+├─ Vote counts
+├─ Trending status
+     ↓
+Display with community context
+```
+
+### Key Files Quick Reference
+
+| File | Purpose |
+|------|---------|
+| [src/main.jsx](../src/main.jsx) | App entry point, router setup |
+| [src/App.jsx](../src/App.jsx) | Main app shell, navigation |
+| [src/pages/Home.jsx](../src/pages/Home.jsx) | Discovery page with swipe cards |
+| [src/pages/Events.jsx](../src/pages/Events.jsx) | Event listing and filtering |
+| [src/components/SwipeCard.jsx](../src/components/SwipeCard.jsx) | The main card UI |
+| [src/utils/apiClient.js](../src/utils/apiClient.js) | All API calls |
+| [src/utils/placeFilter.js](../src/utils/placeFilter.js) | Scoring and filtering |
+| [src/utils/categories.js](../src/utils/categories.js) | Category definitions |
+
+### Environment Variables
+
+**Local Development** (`.env.local`):
+```
+# Future Supabase keys
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
+
+**Vercel Production**:
+```
+# Event API keys (configure in Vercel dashboard)
+TICKETMASTER_KEY=xxx
+SKIDDLE_KEY=xxx
+EVENTBRITE_TOKEN=xxx
+```
+
+---
+
+## 🔧 Developer Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+### Testing PWA Locally
+
+1. Build: `npm run build`
+2. Preview: `npm run preview`
+3. Open Chrome DevTools > Application > Manifest
+4. Verify service worker registered
+
+### Deploying to Vercel
+
+1. Push to main branch
+2. Vercel auto-deploys
+3. Configure env vars in Vercel dashboard for event APIs
+
+---
+
+## 📝 Notes for Future Sessions
+
+### If You're Picking This Up After a Break
+
+1. Read this roadmap first
+2. Check git log: `git log --oneline -10`
+3. Check for uncommitted changes: `git status`
+4. Read the change log above for recent decisions
+5. Identify which phase we're in
+
+### Decisions Already Made (Don't Revisit)
+
+- **Community over editorial** — We don't have expertise to curate
+- **Supabase for backend** — Good free tier, easy auth
+- **UK-wide scope** — No geographic restrictions initially
+- **Pseudonymous accounts** — @username style, not real names
+- **Free account to contribute** — Low friction for discovery, account for engagement
+
+### Open Questions (Need User Input)
+
+- Moderation strategy for contributions
+- Spam prevention approach
+- Staff picks / editorial layer once content exists
+- International expansion timeline
+
+---
+
+## 🎯 Definition of Done
+
+### For Phase 2 (Backend & Auth)
+
+- [ ] Supabase project created and configured
+- [ ] Auth flow working (sign up, login, logout)
+- [ ] User profiles stored in database
+- [ ] Saved places migrated from localStorage to Supabase
+- [ ] Existing functionality still works for anonymous users
+
+### For Phase 3 (Community Features)
+
+- [ ] "What made it special?" prompt after visit
+- [ ] Contributions stored in database
+- [ ] Top contribution displayed on place cards
+- [ ] Upvote/downvote working
+- [ ] User's own contributions visible in profile
+
+---
+
+*This document is the source of truth for ROAM development. Update it as the project evolves.*
