@@ -45,6 +45,54 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.contribution-badge-trusted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  background: var(--roam-sage);
+  border-radius: var(--radius-full);
+  color: white;
+}
+
+.contribution-badge-trusted .verified-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.contribution-badge-score {
+  color: var(--roam-sage);
+  font-weight: 500;
+}
+
+/* Compact variant for swipe cards */
+.contribution-badge-compact {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.contribution-badge-compact .contribution-badge-quote {
+  font-size: var(--text-lg);
+  margin-top: -2px;
+}
+
+.contribution-badge-compact .contribution-badge-text {
+  font-size: var(--text-xs);
+}
+
+.contribution-badge-compact .contribution-badge-meta {
+  font-size: 10px;
 }
 
 /* ─────────────────────────────────────────────────────

@@ -3,6 +3,8 @@ import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
+import { useTopContribution } from '../hooks/useTopContributions'
+import { ContributionBadge } from './ContributionDisplay'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import './SwipeCard.css'
@@ -122,6 +124,9 @@ export default function SwipeCard({
   const [isDragging, setIsDragging] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
+
+  // Fetch top community tip for this place
+  const { contribution: topTip } = useTopContribution(place?.id)
 
   const x = useMotionValue(0)
   const y = useMotionValue(0)
@@ -359,9 +364,21 @@ export default function SwipeCard({
           <SocialProof placeId={place.id} variant="compact" />
         </div>
 
-        {place.description && (
+        {/* Show community tip if available, otherwise show description */}
+        {topTip ? (
+          <div className="swipe-card-tip">
+            <ContributionBadge
+              contribution={topTip}
+              variant="compact"
+              onClick={(e) => {
+                e.stopPropagation()
+                onExpand?.(place)
+              }}
+            />
+          </div>
+        ) : place.description ? (
           <p className="swipe-card-description">"{place.description}"</p>
-        )}
+        ) : null}
 
         {place.address && (
           <p className="swipe-card-address">{place.address}</p>

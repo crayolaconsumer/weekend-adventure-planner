@@ -323,6 +323,43 @@
   border-radius: 1px;
 }
 
+/* Community tip */
+.swipe-card-tip {
+  margin-top: var(--space-sm);
+}
+
+.swipe-card-tip .contribution-badge {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.swipe-card-tip .contribution-badge:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.swipe-card-tip .contribution-badge-quote {
+  color: var(--roam-gold);
+}
+
+.swipe-card-tip .contribution-badge-text {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.swipe-card-tip .contribution-badge-meta {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.swipe-card-tip .contribution-badge-trusted {
+  background: var(--roam-gold);
+  color: var(--roam-forest);
+}
+
+.swipe-card-tip .contribution-badge-score {
+  color: var(--roam-gold);
+}
+
 /* Address */
 .swipe-card-address {
   margin-top: var(--space-xs);

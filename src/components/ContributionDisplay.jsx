@@ -25,27 +25,46 @@ const DownvoteIcon = ({ filled }) => (
   </svg>
 )
 
+// Verified badge icon for trusted explorers
+const VerifiedIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="verified-icon">
+    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+  </svg>
+)
+
 /**
  * Compact contribution display for cards
+ * @param {Object} contribution - The contribution object
+ * @param {Function} onClick - Click handler
+ * @param {string} variant - 'default' or 'compact' (for swipe cards)
  */
-export function ContributionBadge({ contribution, onClick }) {
+export function ContributionBadge({ contribution, onClick, variant = 'default' }) {
   if (!contribution) return null
+
+  const isTrusted = contribution.user?.isTrusted
+  const maxLength = variant === 'compact' ? 50 : 60
 
   return (
     <motion.button
-      className="contribution-badge"
+      className={`contribution-badge ${variant === 'compact' ? 'contribution-badge-compact' : ''}`}
       onClick={onClick}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
       <span className="contribution-badge-quote">"</span>
       <span className="contribution-badge-text">
-        {contribution.content.length > 60
-          ? contribution.content.slice(0, 57) + '...'
+        {contribution.content.length > maxLength
+          ? contribution.content.slice(0, maxLength - 3) + '...'
           : contribution.content}
       </span>
       <span className="contribution-badge-meta">
-        — @{contribution.user.username || 'user'} · ↑{contribution.score}
+        — @{contribution.user?.username || 'user'}
+        {isTrusted && (
+          <span className="contribution-badge-trusted" title="Trusted Explorer">
+            <VerifiedIcon />
+          </span>
+        )}
+        {contribution.score > 0 && <span className="contribution-badge-score"> · ↑{contribution.score}</span>}
       </span>
     </motion.button>
   )
