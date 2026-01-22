@@ -36,12 +36,14 @@ export function getPool() {
 /**
  * Execute a query with automatic connection handling
  * @param {string} sql - SQL query
- * @param {Array} params - Query parameters (for prepared statements)
+ * @param {Array} params - Query parameters
  * @returns {Promise<Array>} Query results
  */
 export async function query(sql, params = []) {
   const pool = getPool()
-  const [rows] = await pool.execute(sql, params)
+  // Use query() instead of execute() for better type handling
+  // execute() uses prepared statements which have strict type requirements
+  const [rows] = await pool.query(sql, params)
   return rows
 }
 
@@ -64,7 +66,7 @@ export async function queryOne(sql, params = []) {
  */
 export async function insert(sql, params = []) {
   const pool = getPool()
-  const [result] = await pool.execute(sql, params)
+  const [result] = await pool.query(sql, params)
   return result.insertId
 }
 
@@ -76,7 +78,7 @@ export async function insert(sql, params = []) {
  */
 export async function update(sql, params = []) {
   const pool = getPool()
-  const [result] = await pool.execute(sql, params)
+  const [result] = await pool.query(sql, params)
   return result.affectedRows
 }
 

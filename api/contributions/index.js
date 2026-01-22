@@ -64,7 +64,7 @@ async function handleGet(req, res) {
   sql += `
     FROM contributions c
     JOIN users u ON c.user_id = u.id
-    WHERE c.status = 'approved' OR c.status = 'pending'
+    WHERE c.status IN ('approved', 'pending')
   `
 
   const params = currentUser ? [currentUser.id] : []
