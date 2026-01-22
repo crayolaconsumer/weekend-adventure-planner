@@ -91,6 +91,18 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — Phase 2: Backend & Auth (MySQL)
+- **Pivoted from Supabase to MySQL** — User hit Supabase free tier limit
+- Using user's existing MySQL database (AWS RDS)
+- Created database connection utility (`api/lib/db.js`)
+- Created MySQL schema (`database/schema.sql`) with all required tables
+- Built auth API routes: `/api/auth/register`, `/api/auth/login`, `/api/auth/google`, `/api/auth/me`, `/api/auth/logout`
+- Created `AuthContext` with full auth state management
+- Built `AuthModal` component for login/signup UI with Google SSO support
+- Integrated auth into app with AuthProvider wrapper
+- Added auth UI to Profile page (Sign in/Sign up buttons, user info display)
+- Auth supports: email/password + Google SSO, JWT tokens with httpOnly cookies
+
 **[2026-01-22]** — Technical Debt: Error handling, Accessibility, Performance
 - Added ErrorBoundary component for graceful error recovery
 - Created standardized LoadingState component with multiple variants
@@ -103,6 +115,10 @@ Track all significant changes here. Most recent first.
 - Added responsive styles for short viewports (max-height: 700px, 570px)
 - On very small screens, hides description/reason text to fit
 - Clamp-based spacing + stable viewport height to keep actions visible on modern iPhones
+
+**[2026-01-22]** — Auth Hardening: Google SSO on Vercel
+- Added token fallback (Authorization header) when cookies fail to persist
+- Added configurable auth cookie domain + SameSite via env vars
 
 **[2026-01-22]** — Critical Bug Fix: Missing motion import
 - **Root cause found**: `motion` was not imported in App.jsx but used in LocationBanner
@@ -138,7 +154,7 @@ Track all significant changes here. Most recent first.
 
 ## 📊 Current Status
 
-**Phase**: 1 (Foundation) — PWA complete, ready for Phase 2
+**Phase**: 2 (Backend & Auth) — In Progress
 
 **What's Working**:
 - ✅ Place discovery with swipe cards
@@ -147,14 +163,19 @@ Track all significant changes here. Most recent first.
 - ✅ Weather-aware recommendations
 - ✅ PWA installable on mobile
 - ✅ Offline caching (basic)
+- ✅ Auth API routes (register, login, Google SSO)
+- ✅ Auth UI (modal with email/password + Google)
+- ✅ AuthContext for state management
 
 **What's Next**:
-- ⏳ Supabase project setup
-- ⏳ Auth flow (sign up, login)
-- ⏳ Migrate localStorage to Supabase
+- ⏳ Run database schema on MySQL server
+- ⏳ Configure Google OAuth credentials (optional)
+- ⏳ Test auth flow end-to-end
+- ⏳ Migrate localStorage to MySQL
 
 **Blockers**:
-- None currently
+- Need to run `database/schema.sql` on the MySQL server
+- Google OAuth requires setting up Google Cloud Console credentials
 
 ---
 
@@ -220,17 +241,23 @@ To verify PWA is working:
 
 ---
 
-## Phase 2: Backend & Auth ⏳ NEXT
+## Phase 2: Backend & Auth ⏳ IN PROGRESS
 
-### Supabase Integration
+### MySQL Integration (Changed from Supabase)
 Replace localStorage with real database.
 
-**Why Supabase:**
-- Postgres database
-- Built-in auth (email, social, magic link)
-- Row-level security
-- Realtime subscriptions
-- Generous free tier
+**Why MySQL (changed from Supabase):**
+- User hit Supabase free tier limit (2 projects max)
+- Already has MySQL database hosted via AWS RDS
+- Full control over database schema
+- No vendor lock-in
+- Using `mysql2` package for serverless-friendly connections
+
+**Stack:**
+- MySQL 8.x on AWS RDS
+- JWT authentication with httpOnly cookies
+- bcryptjs for password hashing
+- google-auth-library for Google OAuth
 
 ### Step-by-Step Setup
 
@@ -639,9 +666,25 @@ Display with community context
 
 **Local Development** (`.env.local`):
 ```
-# Future Supabase keys
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
+# MySQL Database
+MYSQL_HOST=your-host.rds.amazonaws.com
+MYSQL_PORT=3306
+MYSQL_DATABASE=your_database
+MYSQL_USER=your_user
+MYSQL_PASSWORD=your_password
+
+# Auth
+JWT_SECRET=your-secret-key
+JWT_EXPIRES_IN=7d
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+VITE_GOOGLE_CLIENT_ID=your_google_client_id (client-side)
+
+# Optional cookie config (if using www + apex or cross-subdomain)
+AUTH_COOKIE_DOMAIN=.yourdomain.com
+AUTH_COOKIE_SAMESITE=None
 ```
 
 **Vercel Production**:
@@ -650,6 +693,18 @@ VITE_SUPABASE_ANON_KEY=
 TICKETMASTER_KEY=xxx
 SKIDDLE_KEY=xxx
 EVENTBRITE_TOKEN=xxx
+
+# Database and auth (same as local)
+MYSQL_HOST=xxx
+MYSQL_PORT=3306
+MYSQL_DATABASE=xxx
+MYSQL_USER=xxx
+MYSQL_PASSWORD=xxx
+JWT_SECRET=xxx
+GOOGLE_CLIENT_ID=xxx (optional)
+VITE_GOOGLE_CLIENT_ID=xxx (client-side)
+AUTH_COOKIE_DOMAIN=.yourdomain.com (optional)
+AUTH_COOKIE_SAMESITE=None (optional)
 ```
 
 ---
@@ -698,7 +753,8 @@ npm run preview
 ### Decisions Already Made (Don't Revisit)
 
 - **Community over editorial** — We don't have expertise to curate
-- **Supabase for backend** — Good free tier, easy auth
+- **MySQL for backend** — User's existing AWS RDS database (pivoted from Supabase due to free tier limits)
+- **JWT auth with cookies** — httpOnly cookies for security, supports email/password + Google SSO
 - **UK-wide scope** — No geographic restrictions initially
 - **Pseudonymous accounts** — @username style, not real names
 - **Free account to contribute** — Low friction for discovery, account for engagement
@@ -716,10 +772,15 @@ npm run preview
 
 ### For Phase 2 (Backend & Auth)
 
-- [ ] Supabase project created and configured
-- [ ] Auth flow working (sign up, login, logout)
+- [x] Database connection utility created (`api/lib/db.js`)
+- [x] MySQL schema file ready (`database/schema.sql`)
+- [x] Auth API routes created (register, login, logout, Google, me)
+- [x] AuthContext and useAuth hook implemented
+- [x] Auth UI (AuthModal) with login/signup forms
+- [ ] Run schema on MySQL server
+- [ ] Auth flow tested end-to-end
 - [ ] User profiles stored in database
-- [ ] Saved places migrated from localStorage to Supabase
+- [ ] Saved places migrated from localStorage to MySQL
 - [ ] Existing functionality still works for anonymous users
 
 ### For Phase 3 (Community Features)

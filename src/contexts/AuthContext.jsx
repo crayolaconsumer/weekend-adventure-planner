@@ -6,6 +6,9 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 
+const TOKEN_STORAGE_KEY = 'roam_auth_token'
+const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
+
 const AuthContext = createContext(null)
 
 /**
@@ -15,6 +18,26 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  const getStoredToken = useCallback(() => {
+    return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY)
+  }, [getStoredToken])
+
+  const storeToken = useCallback((token, remember = true) => {
+    if (!token) return
+    if (remember) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token)
+      sessionStorage.removeItem(SESSION_TOKEN_STORAGE_KEY)
+    } else {
+      sessionStorage.setItem(SESSION_TOKEN_STORAGE_KEY, token)
+      localStorage.removeItem(TOKEN_STORAGE_KEY)
+    }
+  }, [])
+
+  const clearStoredToken = useCallback(() => {
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+    sessionStorage.removeItem(SESSION_TOKEN_STORAGE_KEY)
+  }, [])
 
   // Check auth status on mount
   useEffect(() => {
@@ -28,8 +51,11 @@ export function AuthProvider({ children }) {
   const checkAuth = useCallback(async () => {
     try {
       setLoading(true)
+      const storedToken = getStoredToken()
+      const headers = storedToken ? { Authorization: `Bearer ${storedToken}` } : undefined
       const response = await fetch('/api/auth/me', {
-        credentials: 'include'
+        credentials: 'include',
+        headers
       })
 
       if (response.ok) {
@@ -66,12 +92,13 @@ export function AuthProvider({ children }) {
       }
 
       setUser(data.user)
+      storeToken(data.token, true)
       return { success: true, user: data.user }
     } catch (err) {
       setError(err.message)
       return { success: false, error: err.message }
     }
-  }, [])
+  }, [storeToken])
 
   /**
    * Login with email and password
@@ -93,12 +120,13 @@ export function AuthProvider({ children }) {
       }
 
       setUser(data.user)
+      storeToken(data.token, remember)
       return { success: true, user: data.user }
     } catch (err) {
       setError(err.message)
       return { success: false, error: err.message }
     }
-  }, [])
+  }, [storeToken])
 
   /**
    * Login with Google
@@ -126,12 +154,13 @@ export function AuthProvider({ children }) {
       }
 
       setUser(data.user)
+      storeToken(data.token, true)
       return { success: true, user: data.user, isNewUser: data.isNewUser }
     } catch (err) {
       setError(err.message)
       return { success: false, error: err.message }
     }
-  }, [])
+  }, [storeToken])
 
   /**
    * Logout
@@ -145,9 +174,10 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('Logout error:', err)
     } finally {
+      clearStoredToken()
       setUser(null)
     }
-  }, [])
+  }, [clearStoredToken])
 
   /**
    * Clear error
