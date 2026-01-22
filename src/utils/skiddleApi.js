@@ -233,15 +233,6 @@ function truncateText(text, maxLength) {
   return cleanText.slice(0, maxLength).trim() + '...'
 }
 
-/**
- * Get date plus N weeks
- */
-function getDatePlusWeeks(weeks) {
-  const date = new Date()
-  date.setDate(date.getDate() + weeks * 7)
-  return date
-}
-
 export default {
   fetchSkiddleEvents
 }

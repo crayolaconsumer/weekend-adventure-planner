@@ -250,6 +250,7 @@ export default function Plan({ location }) {
     const pool = sameCategoryCandidates.length > 0 ? sameCategoryCandidates : candidates
 
     // Pick a random replacement
+    // eslint-disable-next-line react-hooks/purity -- This is an event handler, not render
     const replacement = pool[Math.floor(Math.random() * pool.length)]
 
     // Create new stops array with replacement

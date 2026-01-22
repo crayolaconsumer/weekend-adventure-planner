@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
 import { getSavedEvents, unsaveEvent } from '../utils/savedEvents'
-import { formatEventDate } from '../utils/eventsApi'
 import './Wishlist.css'
 
 // Icons

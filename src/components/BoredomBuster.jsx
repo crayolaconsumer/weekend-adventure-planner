@@ -114,7 +114,7 @@ export default function BoredomBuster({
         <div className="boredom-buster-overlay" />
 
         {/* Close Button */}
-        <button className="boredom-buster-close" onClick={onClose}>
+        <button className="boredom-buster-close" onClick={onClose} aria-label="Close boredom buster">
           <XIcon />
         </button>
 

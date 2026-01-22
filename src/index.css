@@ -117,6 +117,8 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -710,6 +712,68 @@ p {
 @media (min-width: 640px) {
   .stats-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --space-lg: 1.25rem;
+    --space-xl: 1.5rem;
+    --space-2xl: 2.25rem;
+    --space-3xl: 3rem;
+  }
+
+  .container {
+    padding-inline: var(--space-md);
+  }
+
+  .page {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .page-header {
+    padding: var(--space-lg) var(--space-md) var(--space-sm);
+  }
+
+  .page-content {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .nav-bar {
+    padding: var(--space-xs) var(--space-sm);
+  }
+
+  .nav-item {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: 0.65rem;
+  }
+
+  .nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .card-actions {
+    gap: var(--space-md);
+    padding: var(--space-lg);
+  }
+
+  .card-action-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .card-action-btn.go {
+    width: 64px;
+    height: 64px;
+  }
+
+  .empty-state {
+    padding: var(--space-2xl) var(--space-lg);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

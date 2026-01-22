@@ -146,7 +146,7 @@ export default function SwipeCard({
       // Fetch and cache the image
       const objectUrl = await fetchAndCacheImage(sourceImageUrl, place.id)
       setCachedImageUrl(objectUrl)
-    } catch (error) {
+    } catch {
       // Fall back to direct URL on error
       setCachedImageUrl(sourceImageUrl)
     }
@@ -162,6 +162,7 @@ export default function SwipeCard({
         URL.revokeObjectURL(cachedImageUrl)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cachedImageUrl causes infinite loop
   }, [loadImage])
 
   // Transform values based on drag
@@ -235,7 +236,7 @@ export default function SwipeCard({
   // Get rich opening hours state
   const openingState = useMemo(() => {
     return getOpeningState(place.openingHours || place.opening_hours, place)
-  }, [place.openingHours, place.opening_hours, place.lat, place.lng])
+  }, [place])
 
   const formatDistance = (km) => {
     if (!km) return null

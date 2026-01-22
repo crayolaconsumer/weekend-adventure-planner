@@ -113,28 +113,30 @@ const PoundIcon = () => (
 export default function EventDetail({ event, onClose, onSave, isSaved }) {
   const [imageLoaded, setImageLoaded] = useState(false)
 
-  if (!event) return null
-
-  const sourceInfo = getSourceInfo(event.source)
-  const categoryImage = EVENT_IMAGES[event.categories?.[0]] || EVENT_IMAGES.default
-  const imageUrl = event.imageUrl || categoryImage
-
-  // Handle escape key
+  // Handle escape key - must be before any conditional returns
   useEffect(() => {
+    if (!event) return
     const handleEscape = (e) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [onClose])
+  }, [event, onClose])
 
-  // Prevent body scroll when modal is open
+  // Prevent body scroll when modal is open - must be before any conditional returns
   useEffect(() => {
+    if (!event) return
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = ''
     }
-  }, [])
+  }, [event])
+
+  if (!event) return null
+
+  const sourceInfo = getSourceInfo(event.source)
+  const categoryImage = EVENT_IMAGES[event.categories?.[0]] || EVENT_IMAGES.default
+  const imageUrl = event.imageUrl || categoryImage
 
   // Format full date with day of week
   const formatFullDate = (date) => {
@@ -166,7 +168,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
           text: `Check out ${event.name}`,
           url: event.ticketUrl
         })
-      } catch (err) {
+      } catch {
         // User cancelled or share failed
       }
     } else {

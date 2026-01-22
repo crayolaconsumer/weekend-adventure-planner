@@ -50,7 +50,7 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
       setError('')
 
       onCreated?.()
-    } catch (err) {
+    } catch {
       setError('Failed to create collection')
     }
   }

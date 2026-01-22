@@ -45,9 +45,10 @@ export default function CollectionManager({ place, isOpen, onClose }) {
   const [selectedEmoji, setSelectedEmoji] = useState('📍')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
-  // Load collections on mount
+  // Load collections when modal opens
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Data loading when modal opens
       setCollections(getAllCollections())
       setPlaceCollections(getCollectionsForPlace(place.id).map(c => c.id))
     }

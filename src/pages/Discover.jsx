@@ -40,7 +40,7 @@ export default function Discover({ location }) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [seenPlaceIds, setSeenPlaceIds] = useState(new Set())
-  const [fetchOffset, setFetchOffset] = useState(0)
+  const [, setFetchOffset] = useState(0)
   const [weather, setWeather] = useState(null)
   const [selectedCategories, setSelectedCategories] = useState(() => {
     // Load saved interests from onboarding

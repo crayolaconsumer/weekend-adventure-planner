@@ -29,8 +29,7 @@ import {
   getSavedEvents,
   saveEvent,
   unsaveEvent,
-  isEventSaved as checkEventSaved,
-  getUpcomingSavedEvents
+  isEventSaved as checkEventSaved
 } from '../utils/savedEvents'
 import './Events.css'
 
@@ -410,17 +409,6 @@ export default function Events({ location }) {
     (priceFilter !== 'any' ? 1 : 0)
   )
 
-  // Fetch events when location or radius changes
-  useEffect(() => {
-    loadEvents()
-  }, [location?.lat, location?.lng, searchRadius])
-
-  // Persist radius to localStorage
-  useEffect(() => {
-    localStorage.setItem('roam_events_radius', searchRadius.toString())
-  }, [searchRadius])
-
-
   const loadEvents = async () => {
     if (!location?.lat || !location?.lng) {
       setLoading(false)
@@ -447,6 +435,17 @@ export default function Events({ location }) {
       setLoading(false)
     }
   }
+
+  // Fetch events when location or radius changes
+  useEffect(() => {
+    loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadEvents causes infinite loop if added
+  }, [location?.lat, location?.lng, searchRadius])
+
+  // Persist radius to localStorage
+  useEffect(() => {
+    localStorage.setItem('roam_events_radius', searchRadius.toString())
+  }, [searchRadius])
 
   // Toggle category selection
   const toggleCategory = useCallback((categoryId) => {
@@ -661,7 +660,7 @@ export default function Events({ location }) {
                   </div>
                   <div className="events-filter-section-content">
                     <div className="events-radius-track">
-                      {RADIUS_OPTIONS.map((radius, idx) => (
+                      {RADIUS_OPTIONS.map((radius) => (
                         <button
                           key={radius}
                           className={`events-radius-option ${searchRadius === radius ? 'active' : ''} ${searchRadius > radius ? 'passed' : ''}`}

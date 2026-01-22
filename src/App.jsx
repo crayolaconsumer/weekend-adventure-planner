@@ -109,8 +109,11 @@ function App() {
     }
   }, [])
 
-  // Get user location on mount
+  // Get user location only after onboarding is complete
   useEffect(() => {
+    // Don't request location while onboarding is showing
+    if (showOnboarding) return
+
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -128,10 +131,11 @@ function App() {
       )
     } else {
       // Geolocation not available, use London as fallback
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial state setup, runs once
       setLocationError('Geolocation not supported')
       setLocation({ lat: 51.5074, lng: -0.1278 })
     }
-  }, [])
+  }, [showOnboarding])
 
   // Retry location permission
   const retryLocation = () => {

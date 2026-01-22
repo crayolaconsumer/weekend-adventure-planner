@@ -1,3 +1,4 @@
+/* global process */
 /**
  * Vercel Serverless Function - Ticketmaster API Proxy
  *

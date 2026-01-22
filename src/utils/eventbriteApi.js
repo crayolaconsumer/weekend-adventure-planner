@@ -262,15 +262,6 @@ function truncateText(text, maxLength) {
 }
 
 /**
- * Get date plus N weeks
- */
-function getDatePlusWeeks(weeks) {
-  const date = new Date()
-  date.setDate(date.getDate() + weeks * 7)
-  return date
-}
-
-/**
  * Format event date for display
  * @param {Date} date
  * @param {boolean} includeTime

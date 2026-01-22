@@ -50,15 +50,16 @@ export default function Collections() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
 
-  // Load collections
-  useEffect(() => {
-    loadCollections()
-  }, [])
-
   const loadCollections = () => {
     const allCollections = getAllCollections()
     setCollections(allCollections)
   }
+
+  // Load collections on mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial data load
+    loadCollections()
+  }, [])
 
   const handleCreateCollection = () => {
     loadCollections()
