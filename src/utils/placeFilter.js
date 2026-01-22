@@ -236,11 +236,22 @@ export function filterPlaces(places, options = {}) {
 }
 
 /**
- * Select places ensuring category diversity
- * Creates a balanced mix across different categories
+ * Get geographic zone key for a place
+ * Divides the map into grid cells (~500m x 500m at mid-latitudes)
+ */
+function getGeoZone(place, precision = 0.005) {
+  if (!place.lat || !place.lng) return 'unknown'
+  const latZone = Math.floor(place.lat / precision)
+  const lngZone = Math.floor(place.lng / precision)
+  return `${latZone},${lngZone}`
+}
+
+/**
+ * Select places ensuring both category AND geographic diversity
+ * Creates a balanced mix across categories AND spreads them across the map
  */
 function selectWithDiversity(places, maxResults) {
-  // Group by category
+  // Group by category first
   const byCategory = {}
   for (const place of places) {
     const key = place.category?.key || 'other'
@@ -248,9 +259,45 @@ function selectWithDiversity(places, maxResults) {
     byCategory[key].push(place)
   }
 
-  // Shuffle within each category (weighted by score)
-  for (const key of Object.keys(byCategory)) {
-    byCategory[key] = shuffleWithWeight(byCategory[key])
+  // Within each category, group by geographic zone
+  // Then shuffle zones and places within zones
+  for (const catKey of Object.keys(byCategory)) {
+    const catPlaces = byCategory[catKey]
+    const byZone = {}
+
+    for (const place of catPlaces) {
+      const zoneKey = getGeoZone(place)
+      if (!byZone[zoneKey]) byZone[zoneKey] = []
+      byZone[zoneKey].push(place)
+    }
+
+    // Shuffle within each zone (weighted by score)
+    for (const zoneKey of Object.keys(byZone)) {
+      byZone[zoneKey] = shuffleWithWeight(byZone[zoneKey])
+    }
+
+    // Round-robin from zones to spread geographically
+    const zoneKeys = Object.keys(byZone)
+    shuffleArray(zoneKeys)
+
+    const zoneSorted = []
+    const zoneIndices = {}
+    zoneKeys.forEach(k => zoneIndices[k] = 0)
+
+    let remaining = catPlaces.length
+    while (remaining > 0) {
+      for (const zoneKey of zoneKeys) {
+        const zonePlaces = byZone[zoneKey]
+        const idx = zoneIndices[zoneKey]
+        if (idx < zonePlaces.length) {
+          zoneSorted.push(zonePlaces[idx])
+          zoneIndices[zoneKey]++
+          remaining--
+        }
+      }
+    }
+
+    byCategory[catKey] = zoneSorted
   }
 
   // Round-robin selection from categories

@@ -94,12 +94,13 @@ export default function CardStack({
     }
   }, [currentIndex, places, loading])
 
-  // Load more places when getting close to the end (5 cards left)
+  // Load more places when getting close to the end (10 cards left)
+  // Increased from 5 to reduce perceived loading lag
   useEffect(() => {
     if (loading || loadingMore || !onLoadMore) return
 
     const remainingCards = places.length - currentIndex
-    if (remainingCards <= 5 && remainingCards > 0) {
+    if (remainingCards <= 10 && remainingCards > 0) {
       onLoadMore()
     }
   }, [currentIndex, places.length, loading, loadingMore, onLoadMore])

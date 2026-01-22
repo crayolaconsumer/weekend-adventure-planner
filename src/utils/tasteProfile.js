@@ -17,6 +17,7 @@ import { GOOD_CATEGORIES } from './categories'
 // Default profile for users with no data
 const DEFAULT_PROFILE = {
   categoryAffinities: {},
+  categoryDislikes: {}, // Negative signals from skipped places
   vibePreference: null,
   noisePreference: null,
   valuePreference: null,
@@ -98,6 +99,44 @@ function calculateCategoryAffinities() {
   })
 
   return affinities
+}
+
+/**
+ * Calculate category dislikes from skipped places
+ * Returns normalized scores 0-1 for disliked categories
+ */
+function calculateCategoryDislikes() {
+  const dislikes = {}
+
+  // Initialize all categories at 0
+  Object.keys(GOOD_CATEGORIES).forEach(key => {
+    dislikes[key] = 0
+  })
+
+  try {
+    const notInterested = JSON.parse(localStorage.getItem('roam_not_interested') || '[]')
+
+    // Only consider recent skips (last 7 days)
+    const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+    const recentSkips = notInterested.filter(skip => skip.timestamp > weekAgo)
+
+    // Count skips by category
+    recentSkips.forEach(skip => {
+      if (skip.categoryKey && dislikes[skip.categoryKey] !== undefined) {
+        dislikes[skip.categoryKey] += 1
+      }
+    })
+
+    // Normalize to 0-1 scale
+    const maxDislike = Math.max(...Object.values(dislikes), 1)
+    Object.keys(dislikes).forEach(key => {
+      dislikes[key] = Math.round((dislikes[key] / maxDislike) * 100) / 100
+    })
+  } catch {
+    // Ignore parse errors
+  }
+
+  return dislikes
 }
 
 /**
@@ -264,6 +303,7 @@ function calculateActivityLevel() {
 export function buildTasteProfile() {
   const profile = {
     categoryAffinities: calculateCategoryAffinities(),
+    categoryDislikes: calculateCategoryDislikes(),
     vibePreference: analyzeVibePreference(),
     noisePreference: analyzeNoisePreference(),
     valuePreference: analyzeValuePreference(),
@@ -307,9 +347,44 @@ export function getPersonalizationBoost(place, profile) {
     boost += 3
   }
 
+  // Category dislike penalty (max -5)
+  // Applied when user has repeatedly skipped this category
+  if (categoryKey && profile.categoryDislikes?.[categoryKey] > 0.3) {
+    // Only penalize if dislike score is significant (>30%)
+    boost -= Math.round(profile.categoryDislikes[categoryKey] * 5)
+  }
+
   // Vibe match boost (+2)
   if (profile.vibePreference && place.vibe === profile.vibePreference) {
     boost += 2
+  }
+
+  // Noise preference matching (+2 for match, -2 for mismatch)
+  // Uses place atmosphere or type to infer noise level
+  if (profile.noisePreference) {
+    const placeNoise = inferNoiseLevel(place)
+    if (placeNoise) {
+      if (placeNoise === profile.noisePreference) {
+        boost += 2
+      } else if (
+        (profile.noisePreference === 'quiet' && placeNoise === 'loud') ||
+        (profile.noisePreference === 'loud' && placeNoise === 'quiet')
+      ) {
+        boost -= 2 // Strong mismatch
+      }
+    }
+  }
+
+  // Value preference matching (+2 for budget-friendly when preferred)
+  if (profile.valuePreference) {
+    const placeValue = inferValueLevel(place)
+    if (placeValue) {
+      if (profile.valuePreference === 'great' && placeValue === 'budget') {
+        boost += 2 // User likes value, place is budget-friendly
+      } else if (profile.valuePreference === 'worth-it' && placeValue === 'premium') {
+        boost += 1 // User willing to pay for quality
+      }
+    }
   }
 
   // Distance preference penalty/boost
@@ -329,6 +404,65 @@ export function getPersonalizationBoost(place, profile) {
 
   // Cap the boost to prevent filter bubbles
   return Math.max(-10, Math.min(15, boost))
+}
+
+/**
+ * Infer noise level from place type and attributes
+ */
+function inferNoiseLevel(place) {
+  const quietTypes = [
+    'museum', 'library', 'art_gallery', 'spa', 'garden',
+    'botanical_garden', 'cemetery', 'church', 'temple',
+    'abbey', 'cathedral', 'nature_reserve', 'park'
+  ]
+  const loudTypes = [
+    'nightclub', 'bar', 'pub', 'sports_bar', 'music_venue',
+    'concert_hall', 'stadium', 'arcade', 'bowling_alley'
+  ]
+  const moderateTypes = [
+    'restaurant', 'cafe', 'cinema', 'theatre', 'shopping_mall'
+  ]
+
+  const type = place.type?.toLowerCase() || ''
+
+  if (quietTypes.some(t => type.includes(t))) return 'quiet'
+  if (loudTypes.some(t => type.includes(t))) return 'loud'
+  if (moderateTypes.some(t => type.includes(t))) return 'moderate'
+
+  // Check atmosphere tag if available
+  if (place.atmosphere) {
+    if (['quiet', 'peaceful', 'serene'].includes(place.atmosphere)) return 'quiet'
+    if (['lively', 'bustling', 'loud'].includes(place.atmosphere)) return 'loud'
+  }
+
+  return null
+}
+
+/**
+ * Infer value/price level from place attributes
+ */
+function inferValueLevel(place) {
+  // Check explicit fee info
+  if (place.fee === 'no' || place.isFree) return 'budget'
+
+  // Check price indicators from OSM data
+  const priceLevel = place.priceLevel || place.price_level
+  if (priceLevel) {
+    if (priceLevel <= 1) return 'budget'
+    if (priceLevel >= 3) return 'premium'
+    return 'moderate'
+  }
+
+  // Infer from place type
+  const budgetTypes = ['park', 'beach', 'viewpoint', 'trail', 'picnic_site']
+  const premiumTypes = ['fine_dining', 'spa', 'golf_course', 'casino']
+
+  const type = place.type?.toLowerCase() || ''
+
+  if (budgetTypes.some(t => type.includes(t))) return 'budget'
+  if (premiumTypes.some(t => type.includes(t))) return 'premium'
+
+  return null
 }
 
 /**

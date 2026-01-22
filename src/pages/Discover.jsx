@@ -300,6 +300,27 @@ export default function Discover({ location }) {
       savePlace(place)
     }
 
+    // Track negative signals for "not interested" personalization
+    if (action === 'nope') {
+      const notInterested = JSON.parse(localStorage.getItem('roam_not_interested') || '[]')
+      const categoryKey = place.category?.key || place.categoryKey
+      const placeType = place.type
+
+      // Track the skip with timestamp (keep last 50)
+      notInterested.push({
+        categoryKey,
+        placeType,
+        timestamp: Date.now()
+      })
+
+      // Keep only last 50 to avoid localStorage bloat
+      if (notInterested.length > 50) {
+        notInterested.shift()
+      }
+
+      localStorage.setItem('roam_not_interested', JSON.stringify(notInterested))
+    }
+
     // Track for analytics/stats
     const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
     stats.totalSwipes = (stats.totalSwipes || 0) + 1
