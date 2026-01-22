@@ -4,7 +4,7 @@
  * Get current authenticated user.
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
+import { getUserFromRequest, extractToken, verifyToken } from '../lib/auth.js'
 
 export default async function handler(req, res) {
   // Only allow GET
@@ -13,10 +13,31 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Debug: Log what we're receiving
+    const cookieHeader = req.headers.cookie
+    const token = extractToken(req)
+    const payload = token ? verifyToken(token) : null
+
+    console.log('Auth debug:', {
+      hasCookieHeader: !!cookieHeader,
+      cookieHeaderLength: cookieHeader?.length,
+      hasRoamToken: cookieHeader?.includes('roam_token='),
+      extractedTokenLength: token?.length,
+      tokenValid: !!payload,
+      payloadUserId: payload?.userId
+    })
+
     const user = await getUserFromRequest(req)
 
     if (!user) {
-      return res.status(401).json({ error: 'Not authenticated' })
+      return res.status(401).json({
+        error: 'Not authenticated',
+        debug: {
+          hasCookie: !!cookieHeader,
+          hasToken: !!token,
+          tokenValid: !!payload
+        }
+      })
     }
 
     return res.status(200).json({

@@ -120,12 +120,9 @@ export function createAuthCookie(token, remember = false) {
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7 // 30 days or 7 days
   const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
 
-  // Production: SameSite=None for cross-origin OAuth, requires Secure
-  // Development: SameSite=Lax works for localhost
-  const sameSite = isProduction ? 'None' : 'Lax'
-  const secure = isProduction ? '; Secure' : ''
-
-  return `roam_token=${token}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${maxAge}${secure}`
+  // SameSite=Lax is correct for same-origin (frontend and API on same domain)
+  // Secure flag required for HTTPS in production
+  return `roam_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${isProduction ? '; Secure' : ''}`
 }
 
 /**
@@ -134,10 +131,8 @@ export function createAuthCookie(token, remember = false) {
  */
 export function createLogoutCookie() {
   const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
-  const sameSite = isProduction ? 'None' : 'Lax'
-  const secure = isProduction ? '; Secure' : ''
 
-  return `roam_token=; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=0${secure}`
+  return `roam_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProduction ? '; Secure' : ''}`
 }
 
 /**
