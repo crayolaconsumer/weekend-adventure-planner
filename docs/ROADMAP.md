@@ -91,6 +91,18 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — Events: Source cleanup + relevance scoring
+- Removed Eventbrite integration (deprecated public search API)
+  - Deleted proxy (`api/events/eventbrite.js`) and client (`src/utils/eventbriteApi.js`)
+  - Cleaned empty-state env hints + fallback links
+- Added event relevance scoring + distance enrichment in `src/utils/eventsApi.js`
+  - Filters out past events (with grace window)
+  - Improved deduplication (name + date + location key)
+  - New sort strategies (recommended/soonest/nearest/popular)
+- Added event filters and visibility controls
+  - Sort by + Hide sold out + Hide seen
+  - Reset clears filters and seen list
+
 **[2026-01-22]** — Phase 4: Social Features ✅ COMPLETE
 - Created database schema for social features (`database/phase4-social.sql`)
   - `follows` table for user-to-user follows
@@ -200,10 +212,10 @@ Track all significant changes here. Most recent first.
 
 **[2026-01-21]** — Events & Filtering
 - Added Events page with category filtering
-- Integrated Ticketmaster, Skiddle, Eventbrite APIs
+- Integrated Ticketmaster and Skiddle APIs
 - Added unified saved content management
 - Fixed security issues with API proxies
-- Note: Skiddle/Eventbrite show 500 errors — need env vars in Vercel
+- Note: Skiddle may return 500 errors if env vars are missing in Vercel
 
 ---
 
@@ -247,7 +259,7 @@ Track all significant changes here. Most recent first.
 
 A working discovery app with:
 - Swipe-based place discovery (Tinder for places)
-- Event aggregation (Ticketmaster, Skiddle, Eventbrite)
+- Event aggregation (Ticketmaster, Skiddle)
 - Weather-aware recommendations
 - Category filtering
 - Wishlist and collections
@@ -687,7 +699,7 @@ Multiple APIs in parallel:
 ├─ Overpass API (OSM places)
 ├─ OpenTripMap (attractions)
 ├─ Wikipedia (descriptions)
-├─ Ticketmaster/Skiddle/Eventbrite (events)
+├─ Ticketmaster/Skiddle (events)
      ↓
 Normalize & Deduplicate
      ↓
@@ -756,7 +768,6 @@ AUTH_COOKIE_SAMESITE=None
 # Event API keys (configure in Vercel dashboard)
 TICKETMASTER_KEY=xxx
 SKIDDLE_KEY=xxx
-EVENTBRITE_TOKEN=xxx
 
 # Database and auth (same as local)
 MYSQL_HOST=xxx

@@ -97,35 +97,6 @@ Skiddle doesn't publish specific limits but monitors usage. The app's 30-minute 
 
 ---
 
-## 3. Eventbrite API (Optional)
-
-**Note:** Eventbrite deprecated their public search API in 2023. The existing integration may not return results without Destination API access.
-
-**Best for:** Community events, workshops, networking
-
-### Setup Steps
-
-1. Go to [eventbrite.com/platform](https://www.eventbrite.com/platform/)
-
-2. Sign in or create an Eventbrite account
-
-3. Navigate to **API Keys** in your account settings
-
-4. Create a new API key (private token)
-
-5. Add to `.env.local`:
-   ```
-   VITE_EVENTBRITE_TOKEN=your_private_token_here
-   ```
-
-### Current Limitations
-
-The `/events/search/` endpoint returns 404 for most accounts. Eventbrite now requires:
-- Destination API access (apply through their platform)
-- Or organizing events on Eventbrite yourself
-
----
-
 ## Troubleshooting
 
 ### No events showing
@@ -151,9 +122,9 @@ The app caches events for 30 minutes. Click the refresh button to force a new fe
 
 ## API Coverage by Region
 
-| Region | Ticketmaster | Skiddle | Eventbrite |
-|--------|--------------|---------|------------|
-| UK | Excellent | Excellent | Limited |
+| Region | Ticketmaster | Skiddle |
+|--------|--------------|---------|
+| UK | Excellent | Excellent |
 | Europe | Good | Limited | Limited |
 | North America | Excellent | None | Limited |
 | Australia | Good | None | Limited |
@@ -173,4 +144,3 @@ The app caches events for 30 minutes. Click the refresh button to force a new fe
 
 - Ticketmaster: [developer.ticketmaster.com/support](https://developer.ticketmaster.com/support/)
 - Skiddle: [skiddle.com/api](https://www.skiddle.com/api/)
-- Eventbrite: [eventbrite.com/platform/docs](https://www.eventbrite.com/platform/docs/)

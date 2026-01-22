@@ -32,8 +32,7 @@ const CIRCUIT_BREAKER_CONFIG = {
  */
 const RATE_LIMIT_CONFIG = {
   ticketmaster: { requestsPerSecond: 4, requestsPerMinute: 50 },
-  skiddle: { requestsPerSecond: 2, requestsPerMinute: 30 },
-  eventbrite: { requestsPerSecond: 2, requestsPerMinute: 30 }
+  skiddle: { requestsPerSecond: 2, requestsPerMinute: 30 }
 }
 
 /**

@@ -4,16 +4,15 @@
  * Aggregates events from multiple sources:
  * - Ticketmaster (concerts, sports, theatre)
  * - Skiddle (UK clubs, festivals, nightlife)
- * - Eventbrite (local community events)
  *
  * Each source requires its own API key in .env.local
  */
 
 import { fetchTicketmasterEvents } from './ticketmasterApi'
 import { fetchSkiddleEvents } from './skiddleApi'
-import { fetchEvents as fetchEventbriteEvents } from './eventbriteApi'
 
 const COMBINED_CACHE_TTL = 15 * 60 * 1000 // 15 minutes
+const PAST_EVENT_GRACE_HOURS = 6
 
 let combinedCache = {
   data: null,
@@ -40,28 +39,24 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30) {
   }
 
   // Fetch from all sources in parallel
-  const [ticketmasterEvents, skiddleEvents, eventbriteEvents] = await Promise.allSettled([
+  const [ticketmasterEvents, skiddleEvents] = await Promise.allSettled([
     fetchTicketmasterEvents(lat, lng, radiusKm),
-    fetchSkiddleEvents(lat, lng, Math.round(radiusKm * 0.621371)), // Convert to miles
-    fetchEventbriteEvents(lat, lng, radiusKm)
+    fetchSkiddleEvents(lat, lng, Math.round(radiusKm * 0.621371)) // Convert to miles
   ])
 
   // Combine results, handling rejected promises
   const allEvents = [
     ...(ticketmasterEvents.status === 'fulfilled' ? ticketmasterEvents.value : []),
-    ...(skiddleEvents.status === 'fulfilled' ? skiddleEvents.value : []),
-    ...(eventbriteEvents.status === 'fulfilled' ? eventbriteEvents.value : [])
+    ...(skiddleEvents.status === 'fulfilled' ? skiddleEvents.value : [])
   ]
 
   // Deduplicate by name + date (same event might be on multiple platforms)
   const dedupedEvents = deduplicateEvents(allEvents)
 
-  // Sort by start date
-  const sortedEvents = dedupedEvents.sort((a, b) => {
-    const dateA = a.datetime?.start || new Date(9999, 11, 31)
-    const dateB = b.datetime?.start || new Date(9999, 11, 31)
-    return dateA - dateB
-  })
+  // Remove past events (with grace window), add distance + score, and sort by relevance
+  const upcomingEvents = filterPastEvents(dedupedEvents)
+  const enhancedEvents = enhanceEvents(upcomingEvents, { lat, lng, radiusKm })
+  const sortedEvents = sortEvents(enhancedEvents, 'recommended')
 
   // Update cache
   combinedCache = {
@@ -75,17 +70,14 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30) {
 
 /**
  * Deduplicate events that appear on multiple platforms
- * Prefers Ticketmaster > Skiddle > Eventbrite for data quality
+ * Prefers Ticketmaster > Skiddle for data quality
  */
 function deduplicateEvents(events) {
   const seen = new Map()
-  const sourceRank = { ticketmaster: 1, skiddle: 2, eventbrite: 3 }
+  const sourceRank = { ticketmaster: 1, skiddle: 2 }
 
   for (const event of events) {
-    // Create dedup key from normalized name + date
-    const name = event.name.toLowerCase().replace(/[^a-z0-9]/g, '')
-    const date = event.datetime?.start?.toDateString() || 'nodate'
-    const key = `${name}_${date}`
+    const key = buildEventKey(event)
 
     const existing = seen.get(key)
     if (!existing) {
@@ -101,6 +93,171 @@ function deduplicateEvents(events) {
   }
 
   return Array.from(seen.values())
+}
+
+/**
+ * Build a deduplication key with name + date + location bucket
+ */
+function buildEventKey(event) {
+  const name = normalizeText(event.name)
+  const dateKey = event.datetime?.start?.toDateString() || 'nodate'
+  const locationKey = getLocationKey(event)
+  return `${name}_${dateKey}_${locationKey}`
+}
+
+function normalizeText(value) {
+  if (!value) return ''
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function getLocationKey(event) {
+  const lat = event.venue?.lat
+  const lng = event.venue?.lng
+  if (typeof lat === 'number' && typeof lng === 'number') {
+    return `${lat.toFixed(2)},${lng.toFixed(2)}`
+  }
+  return normalizeText(event.venue?.name || event.venue?.address || '')
+}
+
+/**
+ * Filter out events that already ended (with a grace window)
+ */
+function filterPastEvents(events, now = new Date()) {
+  const cutoff = new Date(now.getTime() - (PAST_EVENT_GRACE_HOURS * 60 * 60 * 1000))
+  return events.filter(event => {
+    const start = event.datetime?.start
+    return !start || start >= cutoff
+  })
+}
+
+/**
+ * Add distance and relevance score to events
+ */
+function enhanceEvents(events, { lat, lng, radiusKm }) {
+  const now = new Date()
+
+  return events.map(event => {
+    const distanceKm = calculateDistanceKm(lat, lng, event.venue?.lat, event.venue?.lng)
+    const scoredEvent = {
+      ...event,
+      distanceKm
+    }
+
+    return {
+      ...scoredEvent,
+      score: scoreEvent(scoredEvent, { now, radiusKm })
+    }
+  })
+}
+
+/**
+ * Sort events by different strategies
+ */
+export function sortEvents(events, sortBy = 'recommended') {
+  const list = [...events]
+
+  switch (sortBy) {
+    case 'soonest':
+      return list.sort((a, b) => compareDates(a.datetime?.start, b.datetime?.start))
+    case 'nearest':
+      return list.sort((a, b) => compareNumbers(a.distanceKm, b.distanceKm))
+    case 'popular':
+      return list.sort((a, b) => {
+        const aScore = getPopularityScore(a)
+        const bScore = getPopularityScore(b)
+        if (bScore !== aScore) return bScore - aScore
+        return compareDates(a.datetime?.start, b.datetime?.start)
+      })
+    case 'recommended':
+    default:
+      return list.sort((a, b) => {
+        const aScore = a.score ?? 0
+        const bScore = b.score ?? 0
+        if (bScore !== aScore) return bScore - aScore
+        return compareDates(a.datetime?.start, b.datetime?.start)
+      })
+  }
+}
+
+function compareDates(a, b) {
+  const dateA = a instanceof Date && !isNaN(a) ? a : new Date(9999, 11, 31)
+  const dateB = b instanceof Date && !isNaN(b) ? b : new Date(9999, 11, 31)
+  return dateA - dateB
+}
+
+function compareNumbers(a, b) {
+  const numA = typeof a === 'number' ? a : Number.POSITIVE_INFINITY
+  const numB = typeof b === 'number' ? b : Number.POSITIVE_INFINITY
+  return numA - numB
+}
+
+function getPopularityScore(event) {
+  const goingCount = event.goingCount || 0
+  const soldOutBoost = event.isSoldOut ? 25 : 0
+  return Math.min(50, Math.log10(goingCount + 1) * 20) + soldOutBoost
+}
+
+/**
+ * Calculate distance between two points in km (Haversine)
+ */
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  if (typeof lat1 !== 'number' || typeof lon1 !== 'number' || typeof lat2 !== 'number' || typeof lon2 !== 'number') {
+    return null
+  }
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+/**
+ * Score an event for relevance
+ */
+function scoreEvent(event, { now, radiusKm }) {
+  let score = 0
+  const start = event.datetime?.start instanceof Date ? event.datetime.start : null
+
+  if (start && !isNaN(start)) {
+    const hoursUntil = (start - now) / (1000 * 60 * 60)
+    if (hoursUntil < -PAST_EVENT_GRACE_HOURS) {
+      return -9999
+    }
+    if (hoursUntil <= 6) score += 26
+    else if (hoursUntil <= 24) score += 22
+    else if (hoursUntil <= 72) score += 18
+    else if (hoursUntil <= 168) score += 12
+    else if (hoursUntil <= 336) score += 6
+    else score += 3
+  } else {
+    score += 4
+  }
+
+  if (typeof event.distanceKm === 'number') {
+    const radius = radiusKm || 50
+    const proximityScore = Math.max(0, 1 - (event.distanceKm / radius))
+    score += proximityScore * 28
+  } else {
+    score += 2
+  }
+
+  if (event.pricing?.isFree) score += 10
+  if (event.isSoldOut) score -= 20
+
+  if (event.imageUrl) score += 6
+  if (event.description) score += Math.min(6, event.description.length / 50)
+
+  if (event.goingCount) {
+    score += Math.min(12, Math.log10(event.goingCount + 1) * 6)
+  }
+
+  if (event.source === 'ticketmaster') score += 4
+  if (event.source === 'skiddle') score += 2
+
+  return Math.round(score * 10) / 10
 }
 
 /**
@@ -261,8 +418,7 @@ export function formatPriceRange(pricing) {
 export function getSourceInfo(source) {
   const sources = {
     ticketmaster: { name: 'Ticketmaster', color: '#026CDF' },
-    skiddle: { name: 'Skiddle', color: '#FF5500' },
-    eventbrite: { name: 'Eventbrite', color: '#F05537' }
+    skiddle: { name: 'Skiddle', color: '#FF5500' }
   }
   return sources[source] || { name: source, color: '#666' }
 }
@@ -278,5 +434,6 @@ export default {
   getEventsByCategory,
   formatEventDate,
   formatPriceRange,
-  getSourceInfo
+  getSourceInfo,
+  sortEvents
 }

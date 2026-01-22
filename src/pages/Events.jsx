@@ -2,7 +2,7 @@
  * Events Page
  *
  * Tinder-style event discovery with multi-source aggregation.
- * Sources: Ticketmaster, Skiddle, Eventbrite
+ * Sources: Ticketmaster, Skiddle
  *
  * Design: Matches Discover page swipe cards for brand consistency
  */
@@ -21,6 +21,7 @@ import {
   getThisWeekEvents,
   getThisMonthEvents,
   getFreeEvents,
+  sortEvents,
   formatEventDate,
   formatPriceRange,
   getSourceInfo
@@ -385,6 +386,13 @@ const PRICE_OPTIONS = [
   { id: 'under50', label: 'Under £50', maxPrice: 50 }
 ]
 
+const SORT_OPTIONS = [
+  { id: 'recommended', label: 'Recommended' },
+  { id: 'soonest', label: 'Soonest' },
+  { id: 'nearest', label: 'Nearest' },
+  { id: 'popular', label: 'Popular' }
+]
+
 export default function Events({ location }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -400,13 +408,34 @@ export default function Events({ location }) {
   })
   const [selectedCategories, setSelectedCategories] = useState([])
   const [priceFilter, setPriceFilter] = useState('any')
+  const [sortBy, setSortBy] = useState(() => {
+    return localStorage.getItem('roam_events_sort') || 'recommended'
+  })
+  const [hideSoldOut, setHideSoldOut] = useState(() => {
+    return localStorage.getItem('roam_events_hide_sold_out') === 'true'
+  })
+  const [hideSeen, setHideSeen] = useState(() => {
+    const saved = localStorage.getItem('roam_events_hide_seen')
+    return saved ? saved === 'true' : true
+  })
+  const [seenEventIds, setSeenEventIds] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('roam_events_seen') || '[]')
+      return new Set(saved)
+    } catch {
+      return new Set()
+    }
+  })
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Count active filters (excluding "all" time filter and "any" price)
   const activeFilterCount = (
     (searchRadius !== 25 ? 1 : 0) +
     selectedCategories.length +
-    (priceFilter !== 'any' ? 1 : 0)
+    (priceFilter !== 'any' ? 1 : 0) +
+    (sortBy !== 'recommended' ? 1 : 0) +
+    (hideSoldOut ? 1 : 0) +
+    (!hideSeen ? 1 : 0)
   )
 
   const loadEvents = async () => {
@@ -446,6 +475,33 @@ export default function Events({ location }) {
   useEffect(() => {
     localStorage.setItem('roam_events_radius', searchRadius.toString())
   }, [searchRadius])
+
+  useEffect(() => {
+    localStorage.setItem('roam_events_sort', sortBy)
+  }, [sortBy])
+
+  useEffect(() => {
+    localStorage.setItem('roam_events_hide_sold_out', hideSoldOut.toString())
+  }, [hideSoldOut])
+
+  useEffect(() => {
+    localStorage.setItem('roam_events_hide_seen', hideSeen.toString())
+  }, [hideSeen])
+
+  const markEventSeen = useCallback((eventId) => {
+    if (!eventId) return
+    setSeenEventIds(prev => {
+      const next = new Set(prev)
+      next.add(eventId)
+      localStorage.setItem('roam_events_seen', JSON.stringify([...next]))
+      return next
+    })
+  }, [])
+
+  const resetSeenEvents = useCallback(() => {
+    setSeenEventIds(new Set())
+    localStorage.setItem('roam_events_seen', '[]')
+  }, [])
 
   // Toggle category selection
   const toggleCategory = useCallback((categoryId) => {
@@ -508,7 +564,15 @@ export default function Events({ location }) {
       }
     }
 
-    return result
+    if (hideSoldOut) {
+      result = result.filter(event => !event.isSoldOut)
+    }
+
+    if (hideSeen && seenEventIds.size > 0) {
+      result = result.filter(event => !seenEventIds.has(event.id))
+    }
+
+    return sortEvents(result, sortBy)
   })()
 
   // Handle swipe - matches SwipeCard behavior
@@ -521,8 +585,11 @@ export default function Events({ location }) {
       // Open tickets in new tab
       window.open(event.ticketUrl, '_blank', 'noopener,noreferrer')
     }
-    setCurrentIndex(prev => prev + 1)
-  }, [])
+    markEventSeen(event?.id)
+    if (!hideSeen) {
+      setCurrentIndex(prev => prev + 1)
+    }
+  }, [markEventSeen, hideSeen])
 
   // Toggle save event
   const toggleSaveEvent = useCallback((event) => {
@@ -750,6 +817,68 @@ export default function Events({ location }) {
                   </div>
                 </motion.div>
 
+                {/* Sort Section */}
+                <motion.div
+                  className="events-filter-section"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.18 }}
+                >
+                  <div className="events-filter-section-header">
+                    <span className="events-filter-section-title">Sort By</span>
+                  </div>
+                  <div className="events-filter-section-content">
+                    <div className="events-sort-grid">
+                      {SORT_OPTIONS.map(option => (
+                        <button
+                        key={option.id}
+                        className={`events-sort-option ${sortBy === option.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSortBy(option.id)
+                          setCurrentIndex(0)
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Visibility Section */}
+                <motion.div
+                  className="events-filter-section"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <div className="events-filter-section-header">
+                    <span className="events-filter-section-title">Visibility</span>
+                  </div>
+                  <div className="events-filter-section-content">
+                    <div className="events-toggle-grid">
+                      <button
+                        className={`events-toggle-option ${hideSoldOut ? 'active' : ''}`}
+                        onClick={() => {
+                          setHideSoldOut(prev => !prev)
+                          setCurrentIndex(0)
+                        }}
+                      >
+                        Hide sold out
+                      </button>
+                      <button
+                        className={`events-toggle-option ${hideSeen ? 'active' : ''}`}
+                        onClick={() => {
+                          setHideSeen(prev => !prev)
+                          setCurrentIndex(0)
+                        }}
+                      >
+                        Hide seen
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+
                 {/* Apply/Close Actions */}
                 <motion.div
                   className="events-filter-actions"
@@ -757,13 +886,17 @@ export default function Events({ location }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
                 >
-                  {activeFilterCount > 0 && (
+                  {(activeFilterCount > 0 || seenEventIds.size > 0) && (
                     <button
                       className="events-filter-reset"
                       onClick={() => {
                         setSearchRadius(25)
                         setSelectedCategories([])
                         setPriceFilter('any')
+                        setSortBy('recommended')
+                        setHideSoldOut(false)
+                        setHideSeen(true)
+                        resetSeenEvents()
                         setCurrentIndex(0)
                       }}
                     >
@@ -807,15 +940,10 @@ export default function Events({ location }) {
             <div className="events-api-setup">
               <code>
                 TICKETMASTER_KEY<br/>
-                SKIDDLE_KEY<br/>
-                EVENTBRITE_TOKEN
+                SKIDDLE_KEY
               </code>
             </div>
             <div className="events-alternatives">
-              <a href="https://www.eventbrite.co.uk/d/united-kingdom/events/" target="_blank" rel="noopener noreferrer" className="events-alt-link">
-                <span>Eventbrite</span>
-                <ExternalLinkIcon />
-              </a>
               <a href="https://www.ticketmaster.co.uk/discover/concerts" target="_blank" rel="noopener noreferrer" className="events-alt-link">
                 <span>Ticketmaster</span>
                 <ExternalLinkIcon />
@@ -868,7 +996,10 @@ export default function Events({ location }) {
                 <div className="events-swipe-empty-actions">
                   <button
                     className="events-restart-btn"
-                    onClick={() => setCurrentIndex(0)}
+                    onClick={() => {
+                      resetSeenEvents()
+                      setCurrentIndex(0)
+                    }}
                   >
                     Start Over
                   </button>

@@ -300,7 +300,7 @@ Integrate local events:
 - Farmers markets (specific days)
 - Festivals
 - Pop-up events
-- Local events API integration (e.g., Eventbrite, local council feeds)
+- Local events API integration (e.g., local council feeds, venue partners)
 
 #### 15. Seasonal Discovery
 - Autumn: *"Best spots for autumn colours"*

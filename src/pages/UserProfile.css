@@ -139,8 +139,10 @@
    ═══════════════════════════════════════════════════════ */
 
 .user-profile-stats {
-  display: flex;
-  justify-content: space-around;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-xs, 8px);
+  text-align: center;
   padding: var(--space-md, 16px) var(--space-lg, 24px);
   background: var(--roam-paper, #f8f6f1);
   border-top: 1px solid var(--roam-parchment, #e8e0d0);
@@ -152,6 +154,8 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  width: 100%;
+  min-width: 0;
   padding: var(--space-sm, 8px) var(--space-md, 16px);
   background: transparent;
   border: none;

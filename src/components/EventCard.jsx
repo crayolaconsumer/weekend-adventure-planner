@@ -5,7 +5,7 @@
  */
 
 import { motion } from 'framer-motion'
-import { formatEventDate, formatPriceRange } from '../utils/eventbriteApi'
+import { formatEventDate, formatPriceRange } from '../utils/eventsApi'
 import './EventCard.css'
 
 // Icons
