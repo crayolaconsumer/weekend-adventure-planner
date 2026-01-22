@@ -126,6 +126,10 @@ function App() {
         },
         { enableHighAccuracy: true, timeout: 10000 }
       )
+    } else {
+      // Geolocation not available, use London as fallback
+      setLocationError('Geolocation not supported')
+      setLocation({ lat: 51.5074, lng: -0.1278 })
     }
   }, [])
 

@@ -411,6 +411,37 @@ export default function Discover({ location }) {
 
   const currentMode = TRAVEL_MODES[travelMode]
 
+  // Show a location-pending state when waiting for geolocation
+  if (!location) {
+    return (
+      <div className="page discover-page">
+        <header className="discover-header">
+          <motion.div
+            className="discover-hero"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <h1 className="discover-wordmark">ROAM</h1>
+            <p className="discover-tagline">Stop scrolling. Start roaming.</p>
+          </motion.div>
+        </header>
+
+        <div className="discover-location-pending">
+          <motion.div
+            className="location-pending-icon"
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            📍
+          </motion.div>
+          <h3>Getting your location...</h3>
+          <p>This helps us find places near you</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="page discover-page">
       {/* Hero / Header */}

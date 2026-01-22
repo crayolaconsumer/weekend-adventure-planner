@@ -14,20 +14,24 @@
   );
   z-index: 2000;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: var(--space-lg);
+  padding-top: max(var(--space-xl), env(safe-area-inset-top, 20px));
+  padding-bottom: max(var(--space-xl), env(safe-area-inset-bottom, 20px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .onboarding-container {
   width: 100%;
   max-width: 400px;
+  min-height: min(500px, 80vh);
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  min-height: 500px;
-  overflow: hidden;
+  padding-bottom: var(--space-lg);
 }
 
 /* Progress Dots */
@@ -56,12 +60,13 @@
 
 /* Slide Content */
 .onboarding-slide {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
+  padding-top: var(--space-lg);
 }
 
 .onboarding-icon {
@@ -177,7 +182,6 @@
   margin-top: var(--space-lg);
   width: 100%;
   max-width: 360px;
-  overflow: hidden;
 }
 
 .interest-chip {
@@ -308,19 +312,30 @@
   color: var(--color-text-secondary);
 }
 
-/* Responsive */
+/* Responsive - small phones */
 @media (max-width: 380px) {
   .onboarding-icon {
-    font-size: 56px;
+    font-size: 48px;
+    margin-bottom: var(--space-md);
   }
 
   .onboarding-title {
-    font-size: var(--text-2xl);
+    font-size: var(--text-xl);
+  }
+
+  .onboarding-subtitle {
+    font-size: var(--text-base);
+    margin-bottom: var(--space-sm);
+  }
+
+  .onboarding-description {
+    font-size: var(--text-sm);
   }
 
   .onboarding-gestures {
     gap: var(--space-md);
     padding: var(--space-md);
+    margin-top: var(--space-md);
   }
 
   .gesture-arrow {
@@ -332,5 +347,45 @@
   .interest-chip {
     padding: 8px 12px;
     font-size: var(--text-xs);
+  }
+
+  .onboarding-progress {
+    margin-bottom: var(--space-lg);
+  }
+
+  .onboarding-nav {
+    margin-top: var(--space-lg);
+  }
+}
+
+/* Extra small phones (iPhone SE, etc) */
+@media (max-height: 600px) {
+  .onboarding-icon {
+    font-size: 40px;
+    margin-bottom: var(--space-sm);
+  }
+
+  .onboarding-title {
+    font-size: var(--text-lg);
+  }
+
+  .onboarding-subtitle {
+    font-size: var(--text-sm);
+  }
+
+  .onboarding-progress {
+    margin-bottom: var(--space-md);
+  }
+
+  .onboarding-interests {
+    margin-top: var(--space-md);
+  }
+
+  .onboarding-skip-hint {
+    margin-top: var(--space-sm);
+  }
+
+  .onboarding-nav {
+    margin-top: var(--space-md);
   }
 }
