@@ -12,7 +12,6 @@
   justify-content: flex-end;
   padding: var(--space-xl);
   padding-bottom: max(var(--space-2xl), calc(env(safe-area-inset-bottom) + var(--space-lg)));
-  overflow: hidden;
 }
 
 /* Background Image with Ken Burns effect */
@@ -105,7 +104,7 @@
    ═══════════════════════════════════════════════════════ */
 
 .boredom-buster-loading {
-  position: absolute;
+  position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -118,6 +117,7 @@
   width: 100%;
   max-width: 400px;
   box-sizing: border-box;
+  z-index: 5;
 }
 
 /* Custom animated dice */
