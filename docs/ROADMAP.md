@@ -91,6 +91,12 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — Critical Bug Fix: Missing motion import
+- **Root cause found**: `motion` was not imported in App.jsx but used in LocationBanner
+- This caused a JavaScript crash when location permission was denied/timed out
+- Explains blank screen on Safari/iPhone SE after "Start Exploring"
+- One-line fix: added `motion` to framer-motion import
+
 **[2026-01-22]** — Bug Fix: Onboarding & Location Issues
 - Fixed onboarding interests screen button cut-off on iPhone (small screens)
 - Made onboarding overlay scrollable with safe area insets
