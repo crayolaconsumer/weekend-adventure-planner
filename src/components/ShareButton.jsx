@@ -138,7 +138,7 @@ export default function ShareButton({ place, variant = 'icon' }) {
             >
               <div className="share-menu-header">
                 <h4>Share {place.name}</h4>
-                <button className="share-menu-close" onClick={() => setShowMenu(false)}>
+                <button className="share-menu-close" onClick={() => setShowMenu(false)} aria-label="Close share menu">
                   <CloseIcon />
                 </button>
               </div>

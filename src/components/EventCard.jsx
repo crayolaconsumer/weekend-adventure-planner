@@ -54,13 +54,24 @@ export default function EventCard({ event, variant = 'compact' }) {
   const priceLabel = formatPriceRange(event.pricing)
   const dateLabel = formatEventDate(event.datetime.start)
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }
+
   if (variant === 'compact') {
     return (
       <motion.div
         className="event-card event-card-compact"
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
+        tabIndex={0}
+        role="button"
+        aria-label={`${event.name} on ${dateLabel}${event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view tickets.`}
       >
         {event.imageUrl && (
           <div className="event-card-image">

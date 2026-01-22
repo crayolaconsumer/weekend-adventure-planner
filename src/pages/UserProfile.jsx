@@ -163,16 +163,24 @@ export default function UserProfile() {
       </motion.section>
 
       {/* Tabs */}
-      <div className="user-profile-tabs">
+      <div className="user-profile-tabs" role="tablist" aria-label="Profile sections">
         <button
           className={`user-profile-tab ${activeTab === 'contributions' ? 'active' : ''}`}
           onClick={() => setActiveTab('contributions')}
+          role="tab"
+          aria-selected={activeTab === 'contributions'}
+          aria-controls="profile-contributions-panel"
+          id="profile-tab-contributions"
         >
           Tips ({stats.contributions})
         </button>
         <button
           className={`user-profile-tab ${activeTab === 'saves' ? 'active' : ''}`}
           onClick={() => setActiveTab('saves')}
+          role="tab"
+          aria-selected={activeTab === 'saves'}
+          aria-controls="profile-saves-panel"
+          id="profile-tab-saves"
         >
           <MapPinIcon />
           Saves ({stats.savedPlaces})
@@ -182,6 +190,9 @@ export default function UserProfile() {
       {/* Tab content */}
       <motion.section
         className="user-profile-content"
+        role="tabpanel"
+        id={activeTab === 'contributions' ? 'profile-contributions-panel' : 'profile-saves-panel'}
+        aria-labelledby={activeTab === 'contributions' ? 'profile-tab-contributions' : 'profile-tab-saves'}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}

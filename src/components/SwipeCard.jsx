@@ -233,6 +233,31 @@ export default function SwipeCard({
     onExpand?.(place)
   }
 
+  // Handle keyboard navigation for accessibility
+  const handleKeyDown = (e) => {
+    if (!isTop) return
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault()
+        handleButtonClick('nope')
+        break
+      case 'ArrowRight':
+        e.preventDefault()
+        handleButtonClick('like')
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        handleButtonClick('go')
+        break
+      case 'Enter':
+      case ' ':
+        e.preventDefault()
+        onExpand?.(place)
+        break
+    }
+  }
+
   // Get rich opening hours state
   const openingState = useMemo(() => {
     return getOpeningState(place.openingHours || place.opening_hours, place)
@@ -255,6 +280,10 @@ export default function SwipeCard({
       }}
       {...(isTop ? bind() : {})}
       onClick={isTop ? handleCardClick : undefined}
+      onKeyDown={isTop ? handleKeyDown : undefined}
+      tabIndex={isTop ? 0 : -1}
+      role="article"
+      aria-label={`${place.name}. Press Enter to view details, Arrow keys to swipe.`}
     >
       {/* Background Image */}
       <div className="swipe-card-image-container">

@@ -107,14 +107,15 @@ export default function CardStack({
   const handleSwipe = (action) => {
     const place = places[currentIndex]
 
-    // Notify parent
-    onSwipe?.(action, place)
-
-    // Open directions for "go" action
+    // Open directions SYNCHRONOUSLY for "go" action to avoid popup blockers
+    // This must happen before any async operations or timeouts
     if (action === 'go' && place) {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-      window.open(url, '_blank')
+      window.open(url, '_blank', 'noopener,noreferrer')
     }
+
+    // Notify parent
+    onSwipe?.(action, place)
 
     // Move to next card
     setTimeout(() => {

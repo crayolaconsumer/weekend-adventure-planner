@@ -25,22 +25,30 @@ export default function Activity() {
       </header>
 
       {/* Tabs */}
-      <div className="activity-tabs">
+      <div className="activity-tabs" role="tablist" aria-label="Activity sections">
         <button
           className={`activity-tab ${activeTab === 'feed' ? 'active' : ''}`}
           onClick={() => setActiveTab('feed')}
+          role="tab"
+          aria-selected={activeTab === 'feed'}
+          aria-controls="activity-feed-panel"
+          id="activity-tab-feed"
         >
           Feed
         </button>
         <button
           className={`activity-tab ${activeTab === 'discover' ? 'active' : ''}`}
           onClick={() => setActiveTab('discover')}
+          role="tab"
+          aria-selected={activeTab === 'discover'}
+          aria-controls="activity-discover-panel"
+          id="activity-tab-discover"
         >
           Discover
         </button>
       </div>
 
-      <div className="activity-content">
+      <div className="activity-content" role="tabpanel" id={activeTab === 'feed' ? 'activity-feed-panel' : 'activity-discover-panel'} aria-labelledby={activeTab === 'feed' ? 'activity-tab-feed' : 'activity-tab-discover'}>
         {activeTab === 'feed' ? (
           isAuthenticated ? (
             <ActivityFeed />

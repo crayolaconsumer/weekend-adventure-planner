@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatEventDate, formatPriceRange, getSourceInfo } from '../utils/eventsApi'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import './EventDetail.css'
 
 // Event category placeholder images
@@ -132,6 +133,9 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
     }
   }, [event])
 
+  // Focus trap for accessibility
+  const focusTrapRef = useFocusTrap(!!event)
+
   if (!event) return null
 
   const sourceInfo = getSourceInfo(event.source)
@@ -198,7 +202,11 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
         onClick={onClose}
       >
         <motion.div
+          ref={focusTrapRef}
           className="event-detail-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="event-detail-title"
           initial={{ opacity: 0, y: '100%', scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{
@@ -235,7 +243,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
             <div className="event-detail-hero-gradient" />
 
             {/* Close button */}
-            <button className="event-detail-close" onClick={onClose}>
+            <button className="event-detail-close" onClick={onClose} aria-label="Close event details">
               <CloseIcon />
             </button>
 
@@ -259,7 +267,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <h1 className="event-detail-name">{event.name}</h1>
+              <h1 id="event-detail-title" className="event-detail-name">{event.name}</h1>
 
               {/* Quick info pills */}
               <div className="event-detail-pills">

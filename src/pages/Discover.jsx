@@ -543,17 +543,19 @@ export default function Discover({ location }) {
             </div>
 
             <div className="settings-section">
-              <h4 className="settings-label">Filters</h4>
-              <div className="settings-toggles">
+              <h4 className="settings-label" id="settings-filters-label">Filters</h4>
+              <div className="settings-toggles" role="group" aria-labelledby="settings-filters-label">
                 <label className="settings-toggle">
                   <input
                     type="checkbox"
+                    role="switch"
+                    aria-checked={showFreeOnly}
                     checked={showFreeOnly}
                     onChange={(e) => setShowFreeOnly(e.target.checked)}
                   />
-                  <span className="settings-toggle-slider"></span>
+                  <span className="settings-toggle-slider" aria-hidden="true"></span>
                   <span className="settings-toggle-label">
-                    <span>💸</span>
+                    <span aria-hidden="true">💸</span>
                     Free places only
                   </span>
                 </label>
@@ -561,12 +563,14 @@ export default function Discover({ location }) {
                 <label className="settings-toggle">
                   <input
                     type="checkbox"
+                    role="switch"
+                    aria-checked={accessibilityMode}
                     checked={accessibilityMode}
                     onChange={(e) => setAccessibilityMode(e.target.checked)}
                   />
-                  <span className="settings-toggle-slider"></span>
+                  <span className="settings-toggle-slider" aria-hidden="true"></span>
                   <span className="settings-toggle-label">
-                    <span>♿</span>
+                    <span aria-hidden="true">♿</span>
                     Accessibility friendly
                   </span>
                 </label>
@@ -574,12 +578,14 @@ export default function Discover({ location }) {
                 <label className="settings-toggle">
                   <input
                     type="checkbox"
+                    role="switch"
+                    aria-checked={showOpenOnly}
                     checked={showOpenOnly}
                     onChange={(e) => setShowOpenOnly(e.target.checked)}
                   />
-                  <span className="settings-toggle-slider"></span>
+                  <span className="settings-toggle-slider" aria-hidden="true"></span>
                   <span className="settings-toggle-label">
-                    <span>🕐</span>
+                    <span aria-hidden="true">🕐</span>
                     Open now only
                   </span>
                 </label>
@@ -591,19 +597,20 @@ export default function Discover({ location }) {
 
       {/* Category Filters */}
       <div className="discover-filters">
-        <div className="discover-filters-scroll">
+        <div className="discover-filters-scroll" role="group" aria-label="Filter by category">
           {Object.entries(GOOD_CATEGORIES).map(([key, category]) => (
             <button
               key={key}
               className={`chip ${selectedCategories.includes(key) ? 'selected' : ''}`}
               onClick={() => toggleCategory(key)}
+              aria-pressed={selectedCategories.includes(key)}
               style={{
                 '--chip-color': category.color,
                 '--chip-color-light': `${category.color}15`,
                 '--chip-color-medium': `${category.color}25`,
               }}
             >
-              <span>{category.icon}</span>
+              <span aria-hidden="true">{category.icon}</span>
               {category.label}
             </button>
           ))}

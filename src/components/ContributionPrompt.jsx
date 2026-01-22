@@ -115,7 +115,9 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
         </p>
 
         <div className="contribution-prompt-input-wrapper">
+          <label htmlFor="contribution-input" className="visually-hidden">Your tip or insight about this place</label>
           <textarea
+            id="contribution-input"
             className={`contribution-prompt-input ${isOverLimit ? 'error' : ''}`}
             placeholder="Share a tip, favorite dish, best time to visit, or what surprised you..."
             value={content}
@@ -123,9 +125,10 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
             maxLength={MAX_CHARS + 50} // Allow typing over to show error
             rows={4}
             autoFocus
+            aria-describedby="contribution-char-count"
           />
-          <span className={`contribution-char-count ${isOverLimit ? 'error' : charsLeft < 50 ? 'warning' : ''}`}>
-            {charsLeft}
+          <span id="contribution-char-count" className={`contribution-char-count ${isOverLimit ? 'error' : charsLeft < 50 ? 'warning' : ''}`} aria-live="polite">
+            {charsLeft} characters remaining
           </span>
         </div>
 

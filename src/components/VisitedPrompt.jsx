@@ -394,15 +394,18 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                 <p className="visited-subtitle">Optional - what made it memorable?</p>
 
                 <div className="review-input-wrapper">
+                  <label htmlFor="review-textarea" className="visually-hidden">Share your thoughts about this place</label>
                   <textarea
+                    id="review-textarea"
                     className="review-textarea"
                     placeholder="E.g., Great atmosphere, loved the outdoor seating..."
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value.slice(0, 500))}
                     maxLength={500}
                     rows={4}
+                    aria-describedby="review-char-count"
                   />
-                  <span className="review-char-count">{reviewText.length}/500</span>
+                  <span id="review-char-count" className="review-char-count" aria-live="polite">{reviewText.length}/500 characters</span>
                 </div>
 
                 <div className="feedback-actions">
@@ -442,15 +445,18 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                 <p className="visited-subtitle">Help others discover what makes this place special</p>
 
                 <div className="review-input-wrapper">
+                  <label htmlFor="tip-textarea" className="visually-hidden">Share a tip about this place</label>
                   <textarea
+                    id="tip-textarea"
                     className="review-textarea"
                     placeholder="E.g., Try the house special, best seats are by the window..."
                     value={tipText}
                     onChange={(e) => setTipText(e.target.value.slice(0, 280))}
                     maxLength={280}
                     rows={3}
+                    aria-describedby="tip-char-count"
                   />
-                  <span className="review-char-count">{280 - tipText.length}</span>
+                  <span id="tip-char-count" className="review-char-count" aria-live="polite">{280 - tipText.length} characters remaining</span>
                 </div>
 
                 {tipError && (

@@ -1,0 +1,69 @@
+/* Place Page Styles */
+
+.place-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--roam-cream);
+}
+
+.place-page-error {
+  text-align: center;
+  max-width: 400px;
+  padding: var(--space-xl);
+  background: var(--color-surface, white);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.place-page-error-icon {
+  display: block;
+  font-size: 64px;
+  margin-bottom: var(--space-md);
+}
+
+.place-page-error h2 {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--roam-forest);
+}
+
+.place-page-error p {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--text-sm);
+  color: var(--roam-text-muted);
+  line-height: 1.5;
+}
+
+.place-page-error-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--roam-terracotta);
+  color: white;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.place-page-error-btn:hover {
+  background: var(--roam-terracotta-dark);
+}
+
+.place-page-error-btn:active {
+  transform: scale(0.98);
+}
+
+.place-page-error-btn:focus-visible {
+  outline: 2px solid var(--roam-forest);
+  outline-offset: 2px;
+}

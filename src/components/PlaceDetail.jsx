@@ -8,6 +8,7 @@ import ShareButton from './ShareButton'
 import CollectionManager from './CollectionManager'
 import { ContributionList } from './ContributionDisplay'
 import { useContributions } from '../hooks/useContributions'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import './PlaceDetail.css'
 
 // Icons
@@ -175,6 +176,9 @@ export default function PlaceDetail({ place, onClose, onGo }) {
     }
   }
 
+  // Focus trap for accessibility
+  const focusTrapRef = useFocusTrap(true)
+
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -186,7 +190,11 @@ export default function PlaceDetail({ place, onClose, onGo }) {
         onClick={onClose}
       >
         <motion.div
+          ref={focusTrapRef}
           className="place-detail-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="place-detail-title"
           initial={{ opacity: 0, y: '100%', scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{
@@ -251,7 +259,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <h1 className="place-detail-name">{enrichedPlace.name}</h1>
+              <h1 id="place-detail-title" className="place-detail-name">{enrichedPlace.name}</h1>
 
               {/* Quick info pills */}
               <div className="place-detail-pills">

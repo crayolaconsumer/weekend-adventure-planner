@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import './AuthModal.css'
 
 // Icons
@@ -208,6 +209,21 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
 
   const displayError = localError || authError
 
+  // Focus trap for accessibility
+  const focusTrapRef = useFocusTrap(isOpen)
+
+  // Handle escape key to close
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
@@ -220,7 +236,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <motion.div
+          ref={focusTrapRef}
           className="auth-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="auth-modal-title"
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 50, scale: 0.95 }}
@@ -235,7 +255,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
           </button>
 
           <div className="auth-modal-header">
-            <h2>{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
+            <h2 id="auth-modal-title">{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
             <p>
               {mode === 'login'
                 ? 'Sign in to save your discoveries'

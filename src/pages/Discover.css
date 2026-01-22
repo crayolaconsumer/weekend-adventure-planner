@@ -340,8 +340,23 @@
   background: rgba(26, 58, 47, 0.04);
 }
 
+/* Visually hidden but accessible to screen readers and keyboard */
 .settings-toggle input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus state for accessibility */
+.settings-toggle input:focus-visible + .settings-toggle-slider {
+  outline: 2px solid var(--roam-forest);
+  outline-offset: 2px;
 }
 
 .settings-toggle-slider {

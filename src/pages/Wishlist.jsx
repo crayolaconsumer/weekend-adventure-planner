@@ -261,6 +261,7 @@ export default function Wishlist() {
                           <button
                             className="wishlist-card-btn remove"
                             onClick={() => removeFromWishlist(place.id)}
+                            aria-label={`Remove ${place.name} from wishlist`}
                           >
                             <TrashIcon />
                           </button>

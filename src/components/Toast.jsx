@@ -56,7 +56,7 @@ function ToastItem({ id, type, message, onDismiss }) {
         <Icon />
       </div>
       <span className="toast-message">{message}</span>
-      <button className="toast-close" onClick={() => onDismiss(id)}>
+      <button className="toast-close" onClick={() => onDismiss(id)} aria-label="Dismiss notification">
         <CloseIcon />
       </button>
     </motion.div>
@@ -66,7 +66,7 @@ function ToastItem({ id, type, message, onDismiss }) {
 // Toast Container (renders all toasts)
 function ToastContainer({ toasts, onDismiss }) {
   return (
-    <div className="toast-container">
+    <div className="toast-container" role="status" aria-live="polite" aria-atomic="false">
       <AnimatePresence mode="popLayout">
         {toasts.map(toast => (
           <ToastItem

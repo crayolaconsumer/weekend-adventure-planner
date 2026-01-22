@@ -11,6 +11,7 @@ const Collections = lazy(() => import('./pages/Collections'))
 const Profile = lazy(() => import('./pages/Profile'))
 const UserProfile = lazy(() => import('./pages/UserProfile'))
 const Activity = lazy(() => import('./pages/Activity'))
+const Place = lazy(() => import('./pages/Place'))
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -82,7 +83,7 @@ function LocationBanner({ error, onRetry }) {
       <button onClick={onRetry} className="location-banner-btn">
         Allow Location
       </button>
-      <button onClick={() => setDismissed(true)} className="location-banner-close">
+      <button onClick={() => setDismissed(true)} className="location-banner-close" aria-label="Dismiss location banner">
         &times;
       </button>
     </motion.div>
@@ -103,6 +104,17 @@ function App() {
     setAuthModalMode(mode)
     setShowAuthModal(true)
   }
+
+  // Listen for global openAuthModal events (from ContributionPrompt, ContributionDisplay, etc.)
+  useEffect(() => {
+    const handleOpenAuthModal = (event) => {
+      const mode = event.detail?.mode || 'register'
+      openAuthModal(mode)
+    }
+
+    window.addEventListener('openAuthModal', handleOpenAuthModal)
+    return () => window.removeEventListener('openAuthModal', handleOpenAuthModal)
+  }, [])
 
   // Set stable viewport height to prevent mobile resize jank
   useEffect(() => {
@@ -212,6 +224,7 @@ function App() {
                       <Route path="/profile" element={<Profile onOpenAuth={openAuthModal} />} />
                       <Route path="/user/:username" element={<UserProfile />} />
                       <Route path="/activity" element={<Activity />} />
+                      <Route path="/place/:id" element={<Place />} />
                     </Routes>
                   </AnimatePresence>
                 </Suspense>

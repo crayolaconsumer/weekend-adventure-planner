@@ -870,3 +870,61 @@ export async function enrichPlace(place) {
 
   return enriched
 }
+
+/**
+ * Fetch a single place by ID
+ * Tries OSM/Overpass API to get place details
+ *
+ * @param {string|number} placeId - Place ID (OSM node/way ID or prefixed ID)
+ * @returns {Promise<Object|null>} Place data or null if not found
+ */
+export async function fetchPlaceById(placeId) {
+  // Handle prefixed IDs from different sources
+  if (typeof placeId === 'string') {
+    if (placeId.startsWith('otm_')) {
+      const xid = placeId.replace('otm_', '')
+      const details = await fetchOpenTripMapDetails(xid)
+      if (details) {
+        return {
+          id: placeId,
+          xid,
+          ...details,
+          source: 'opentripmap'
+        }
+      }
+      return null
+    }
+
+    if (placeId.startsWith('wiki_')) {
+      // Wikipedia places need enrichment via Wikipedia summary
+      // We don't have a direct API for fetching by Wikipedia page ID, return null
+      return null
+    }
+  }
+
+  // Standard OSM ID - fetch via Overpass
+  const numericId = parseInt(placeId, 10)
+  if (isNaN(numericId)) return null
+
+  try {
+    const query = `
+      [out:json][timeout:10];
+      (
+        node(${numericId});
+        way(${numericId});
+      );
+      out body center;
+    `
+
+    const data = await fetchFromOverpass(query)
+    const places = parseOverpassResponse(data)
+
+    if (places.length > 0) {
+      return { ...places[0], source: 'osm' }
+    }
+  } catch (error) {
+    console.warn('Failed to fetch place by ID:', error)
+  }
+
+  return null
+}

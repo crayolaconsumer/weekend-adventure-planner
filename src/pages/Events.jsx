@@ -609,7 +609,7 @@ export default function Events({ location }) {
       </header>
 
       {/* Quick time filter chips - Always visible */}
-      <div className="events-time-filters">
+      <div className="events-time-filters" role="group" aria-label="Filter events by time">
         {FILTERS.map(filter => (
           <button
             key={filter.id}
@@ -618,6 +618,7 @@ export default function Events({ location }) {
               setActiveFilter(filter.id)
               setCurrentIndex(0)
             }}
+            aria-pressed={activeFilter === filter.id}
           >
             {filter.label}
           </button>
