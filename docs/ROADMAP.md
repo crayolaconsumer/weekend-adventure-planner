@@ -91,10 +91,18 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — Technical Debt: Error handling, Accessibility, Performance
+- Added ErrorBoundary component for graceful error recovery
+- Created standardized LoadingState component with multiple variants
+- Fixed accessibility issues: alt text, aria-labels, skip link, semantic HTML
+- Implemented code splitting with React.lazy for all page components
+- Fixed 21 lint errors across the codebase
+
 **[2026-01-22]** — UI Fix: BoredomBuster small screen layout
 - Fixed "I'm Bored" result screen overflowing on iPhone SE
 - Added responsive styles for short viewports (max-height: 700px, 570px)
 - On very small screens, hides description/reason text to fit
+- Clamp-based spacing + stable viewport height to keep actions visible on modern iPhones
 
 **[2026-01-22]** — Critical Bug Fix: Missing motion import
 - **Root cause found**: `motion` was not imported in App.jsx but used in LocationBanner
@@ -562,11 +570,11 @@ React Native 0.74+ (or Expo)
 
 ## Technical Debt to Address
 
-- [ ] Proper PWA support
-- [ ] Error boundaries
-- [ ] Loading states consistency
-- [ ] Accessibility audit
-- [ ] Performance optimization (code splitting)
+- [x] Proper PWA support
+- [x] Error boundaries
+- [x] Loading states consistency (LoadingState component created)
+- [x] Accessibility audit (alt text, aria-labels, skip link)
+- [x] Performance optimization (code splitting with React.lazy)
 - [ ] E2E tests
 
 ---
