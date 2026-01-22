@@ -1,0 +1,173 @@
+/* UserCard Component Styles */
+
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--color-surface, white);
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #eee);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.user-card:hover {
+  border-color: var(--color-primary, #E07A5F);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.user-card--compact {
+  padding: 8px;
+  gap: 10px;
+}
+
+.user-card-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.user-card--compact .user-card-link {
+  gap: 10px;
+}
+
+.user-card-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.user-card--compact .user-card-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.user-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-card-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-text, #333);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-card--compact .user-card-name {
+  font-size: 14px;
+}
+
+.user-card-username {
+  font-size: 13px;
+  color: var(--color-text-secondary, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-card--compact .user-card-username {
+  font-size: 12px;
+}
+
+.user-card-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary, #666);
+}
+
+.user-card-stats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-card-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-primary, #E07A5F);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-card-reason::before {
+  content: '✨';
+  font-size: 10px;
+}
+
+.user-card-action {
+  flex-shrink: 0;
+}
+
+/* Skeleton loading */
+.user-card--skeleton {
+  pointer-events: none;
+}
+
+.user-card--skeleton .skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+.user-card--skeleton .user-card-avatar.skeleton {
+  border-radius: 50%;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* User card list */
+.user-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-card-list--horizontal {
+  flex-direction: row;
+  overflow-x: auto;
+  gap: 12px;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.user-card-list--horizontal .user-card {
+  flex-shrink: 0;
+  width: 200px;
+}
+
+/* Empty state */
+.user-card-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-text-secondary, #666);
+}
+
+.user-card-empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.user-card-empty-text {
+  font-size: 14px;
+}

@@ -6,6 +6,8 @@ import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import ShareButton from './ShareButton'
 import CollectionManager from './CollectionManager'
+import { ContributionList } from './ContributionDisplay'
+import { useContributions } from '../hooks/useContributions'
 import './PlaceDetail.css'
 
 // Icons
@@ -97,6 +99,14 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [loading, setLoading] = useState(true)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
+  const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
+
+  // Fetch contributions on mount
+  useEffect(() => {
+    if (place?.id) {
+      refreshContributions()
+    }
+  }, [place?.id, refreshContributions])
 
   // Fetch enriched data when modal opens
   useEffect(() => {
@@ -365,6 +375,26 @@ export default function PlaceDetail({ place, onClose, onGo }) {
 
             {/* User Review */}
             <PlaceReviews placeId={place.id} />
+
+            {/* Community Tips */}
+            {(contributions.length > 0 || contributionsLoading) && (
+              <motion.div
+                className="place-detail-section"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45 }}
+              >
+                <h3 className="place-detail-section-title">
+                  <span style={{ marginRight: '4px' }}>💡</span>
+                  Community Tips
+                </h3>
+                <ContributionList
+                  contributions={contributions}
+                  loading={contributionsLoading}
+                  emptyMessage="No tips yet"
+                />
+              </motion.div>
+            )}
 
             {/* Go Button */}
             <motion.button

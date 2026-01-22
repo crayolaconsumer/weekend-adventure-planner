@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { saveVisitedPlace } from '../utils/statsUtils'
 import { saveRating, VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
+import { useAuth } from '../contexts/AuthContext'
+import { useCreateContribution } from '../hooks/useContributions'
 import './VisitedPrompt.css'
 
 // Pre-generated confetti particles (random values computed once at module load)
@@ -61,9 +63,15 @@ const ThumbsDownIcon = () => (
 )
 
 export default function VisitedPrompt({ place, userLocation, onConfirm, onDismiss }) {
-  // Steps: 'confirm' | 'recommend' | 'feedback' | 'review' | 'success'
+  // Steps: 'confirm' | 'recommend' | 'feedback' | 'review' | 'share' | 'success'
   const [step, setStep] = useState('confirm')
   const [showConfetti, setShowConfetti] = useState(false)
+
+  // Auth & contribution
+  const { isAuthenticated } = useAuth()
+  const { createContribution, loading: contributionLoading } = useCreateContribution()
+  const [tipText, setTipText] = useState('')
+  const [tipError, setTipError] = useState(null)
 
   // Rating state
   const [recommended, setRecommended] = useState(null)
@@ -90,10 +98,44 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   }
 
   const handleReviewSubmit = () => {
-    finishRating()
+    // Go to share step if authenticated
+    if (isAuthenticated) {
+      setStep('share')
+    } else {
+      finishRating()
+    }
   }
 
   const handleReviewSkip = () => {
+    // Go to share step if authenticated
+    if (isAuthenticated) {
+      setStep('share')
+    } else {
+      finishRating()
+    }
+  }
+
+  const handleShareTip = async () => {
+    if (!tipText.trim()) {
+      setTipError('Please write a tip to share')
+      return
+    }
+
+    setTipError(null)
+    const result = await createContribution({
+      placeId: place.id,
+      type: 'tip',
+      content: tipText.trim()
+    })
+
+    if (result.success) {
+      finishRating()
+    } else {
+      setTipError(result.error)
+    }
+  }
+
+  const handleShareSkip = () => {
     finishRating()
   }
 
@@ -370,9 +412,62 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    Submit
+                    {isAuthenticated ? 'Continue' : 'Submit'}
                   </motion.button>
                   <button className="visited-skip" onClick={handleReviewSkip}>
+                    Skip
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 'share' && (
+              <motion.div
+                key="share"
+                className="visited-content"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <motion.div
+                  className="visited-icon-success"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                >
+                  💡
+                </motion.div>
+
+                <h3 className="visited-title">Share a tip</h3>
+                <p className="visited-subtitle">Help others discover what makes this place special</p>
+
+                <div className="review-input-wrapper">
+                  <textarea
+                    className="review-textarea"
+                    placeholder="E.g., Try the house special, best seats are by the window..."
+                    value={tipText}
+                    onChange={(e) => setTipText(e.target.value.slice(0, 280))}
+                    maxLength={280}
+                    rows={3}
+                  />
+                  <span className="review-char-count">{280 - tipText.length}</span>
+                </div>
+
+                {tipError && (
+                  <p className="visited-error">{tipError}</p>
+                )}
+
+                <div className="feedback-actions">
+                  <motion.button
+                    className="visited-btn primary"
+                    onClick={handleShareTip}
+                    disabled={contributionLoading}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {contributionLoading ? 'Sharing...' : 'Share Tip'}
+                  </motion.button>
+                  <button className="visited-skip" onClick={handleShareSkip}>
                     Skip
                   </button>
                 </div>

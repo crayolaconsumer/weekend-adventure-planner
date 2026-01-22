@@ -1,0 +1,135 @@
+/* FollowButton Component Styles */
+
+.follow-button-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.follow-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Sizes */
+.follow-button--small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.follow-button--medium {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.follow-button--large {
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+/* Primary variant (not following) */
+.follow-button--primary {
+  background: var(--color-primary, #E07A5F);
+  color: white;
+}
+
+.follow-button--primary:hover:not(:disabled) {
+  background: var(--color-primary-dark, #c96a52);
+}
+
+/* Following state */
+.follow-button.following {
+  background: var(--color-surface, #f5f5f5);
+  color: var(--color-text, #333);
+  border: 1px solid var(--color-border, #ddd);
+}
+
+.follow-button.following:hover:not(:disabled) {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #ef9a9a;
+}
+
+.follow-button.following:hover span:last-child {
+  display: none;
+}
+
+.follow-button.following:hover::after {
+  content: 'Unfollow';
+}
+
+/* Outline variant */
+.follow-button--outline {
+  background: transparent;
+  color: var(--color-primary, #E07A5F);
+  border: 2px solid var(--color-primary, #E07A5F);
+}
+
+.follow-button--outline:hover:not(:disabled) {
+  background: var(--color-primary, #E07A5F);
+  color: white;
+}
+
+.follow-button--outline.following {
+  background: var(--color-primary, #E07A5F);
+  color: white;
+  border-color: var(--color-primary, #E07A5F);
+}
+
+.follow-button--outline.following:hover:not(:disabled) {
+  background: #c62828;
+  border-color: #c62828;
+}
+
+/* Disabled state */
+.follow-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Spinner */
+.follow-button-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: follow-spin 0.6s linear infinite;
+}
+
+@keyframes follow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Auth prompt tooltip */
+.follow-auth-prompt {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--color-text, #333);
+  color: white;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 100;
+}
+
+.follow-auth-prompt::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: var(--color-text, #333);
+}

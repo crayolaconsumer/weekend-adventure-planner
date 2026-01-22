@@ -9,6 +9,8 @@ const Events = lazy(() => import('./pages/Events'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
 const Collections = lazy(() => import('./pages/Collections'))
 const Profile = lazy(() => import('./pages/Profile'))
+const UserProfile = lazy(() => import('./pages/UserProfile'))
+const Activity = lazy(() => import('./pages/Activity'))
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -208,6 +210,8 @@ function App() {
                       <Route path="/wishlist" element={<Wishlist />} />
                       <Route path="/collections" element={<Collections />} />
                       <Route path="/profile" element={<Profile onOpenAuth={openAuthModal} />} />
+                      <Route path="/user/:username" element={<UserProfile />} />
+                      <Route path="/activity" element={<Activity />} />
                     </Routes>
                   </AnimatePresence>
                 </Suspense>

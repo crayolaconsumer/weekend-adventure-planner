@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { getVisitedPlaces } from '../utils/statsUtils'
 import { useAuth } from '../contexts/AuthContext'
+import { useUserContributions } from '../hooks/useContributions'
+import { useFollowers, useFollowing } from '../hooks/useSocial'
+import { ContributionCard } from '../components/ContributionDisplay'
 import CategoryChart from '../components/stats/CategoryChart'
 import DistanceStats from '../components/stats/DistanceStats'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
@@ -67,9 +71,23 @@ export default function Profile({ onOpenAuth }) {
   // Auth state
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth()
 
+  // User contributions
+  const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useUserContributions(user?.id)
+
+  // Social stats
+  const { total: followerCount } = useFollowers(user?.id)
+  const { total: followingCount } = useFollowing(user?.id)
+
   // Use lazy initialization to load stats from localStorage
   const [stats] = useState(loadStatsFromStorage)
   const [visitedPlaces] = useState(getVisitedPlaces)
+
+  // Fetch contributions when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      refreshContributions()
+    }
+  }, [user?.id, refreshContributions])
 
   // Get earned badges
   const earnedBadges = BADGES.filter(badge => badge.requirement(stats))
@@ -97,9 +115,16 @@ export default function Profile({ onOpenAuth }) {
                     className="profile-avatar"
                   />
                 )}
-                <span className="profile-username">
-                  {user.displayName || user.username || user.email}
-                </span>
+                <div className="profile-user-details">
+                  <span className="profile-username">
+                    {user.displayName || user.username || user.email}
+                  </span>
+                  {user.username && (
+                    <Link to={`/user/${user.username}`} className="profile-view-public">
+                      @{user.username}
+                    </Link>
+                  )}
+                </div>
                 <button
                   className="profile-logout-btn"
                   onClick={logout}
@@ -186,6 +211,35 @@ export default function Profile({ onOpenAuth }) {
           </div>
         </div>
 
+        {/* Social Stats - only for authenticated users */}
+        {isAuthenticated && (
+          <motion.div
+            className="profile-social"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <h3 className="profile-section-title">Community</h3>
+            <div className="profile-social-stats">
+              <Link to="/activity" className="profile-social-stat">
+                <span className="profile-social-value">{followerCount || 0}</span>
+                <span className="profile-social-label">Followers</span>
+              </Link>
+              <Link to="/activity" className="profile-social-stat">
+                <span className="profile-social-value">{followingCount || 0}</span>
+                <span className="profile-social-label">Following</span>
+              </Link>
+              <Link to="/activity" className="profile-social-stat">
+                <span className="profile-social-value">{contributions.length}</span>
+                <span className="profile-social-label">Tips</span>
+              </Link>
+            </div>
+            <Link to="/activity" className="profile-activity-link">
+              View Activity Feed →
+            </Link>
+          </motion.div>
+        )}
+
         {/* Badges */}
         <div className="profile-section">
           <h3 className="profile-section-title">Badges</h3>
@@ -232,6 +286,45 @@ export default function Profile({ onOpenAuth }) {
               <span className="profile-highlight-value">{stats.bestStreak} days</span>
               <span className="profile-highlight-label">Best Streak</span>
             </div>
+          </div>
+        )}
+
+        {/* Your Contributions */}
+        {isAuthenticated && (
+          <div className="profile-section">
+            <h3 className="profile-section-title">Your Tips</h3>
+
+            {contributionsLoading ? (
+              <div className="profile-contributions-loading">
+                <div className="profile-loading-spinner" />
+                <span>Loading your tips...</span>
+              </div>
+            ) : contributions.length > 0 ? (
+              <div className="profile-contributions">
+                {contributions.slice(0, 5).map((contribution) => (
+                  <motion.div
+                    key={contribution.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <ContributionCard contribution={contribution} />
+                  </motion.div>
+                ))}
+                {contributions.length > 5 && (
+                  <p className="profile-contributions-more">
+                    + {contributions.length - 5} more tips
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="profile-contributions-empty">
+                <span className="profile-contributions-empty-icon">💡</span>
+                <p>You haven't shared any tips yet.</p>
+                <p className="profile-contributions-empty-hint">
+                  Visit a place and share what made it special!
+                </p>
+              </div>
+            )}
           </div>
         )}
 

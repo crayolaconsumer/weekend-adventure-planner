@@ -91,6 +91,59 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — Phase 4: Social Features ✅ COMPLETE
+- Created database schema for social features (`database/phase4-social.sql`)
+  - `follows` table for user-to-user follows
+  - `activity_log` table for tracking activity
+- Created social API (`api/social/index.js`)
+  - GET: followers, following, activity feed, user discovery
+  - POST: follow/unfollow users
+- Created public user profile API (`api/users/[username].js`)
+  - Returns profile data, stats, contributions
+  - Includes follow status for authenticated users
+- Created `useSocial` hooks (`src/hooks/useSocial.js`)
+  - `useFollow()`: Follow/unfollow users
+  - `useUserProfile(username)`: Fetch public profile
+  - `useFollowers(userId)`: Fetch user's followers
+  - `useFollowing(userId)`: Fetch who user follows
+  - `useActivityFeed()`: Activity from followed users
+  - `useDiscoverUsers()`: "People Like You" recommendations
+- Built FollowButton component with optimistic updates
+- Built UserCard component for user lists
+- Built ActivityFeed component
+- Created UserProfile page (`src/pages/UserProfile.jsx`)
+- Created Activity page (`src/pages/Activity.jsx`) with feed and discover tabs
+- Updated Profile page with social stats (followers, following, tips count)
+- Added routes: `/user/:username`, `/activity`
+
+**[2026-01-22]** — Phase 3: Community Features ✅ COMPLETE
+- Created contributions API (`api/contributions/index.js`)
+  - GET: Fetch contributions for a place or user, includes vote status
+  - POST: Create contribution (tip/story/photo/correction)
+  - POST with action='vote': Upvote/downvote contributions
+- Created `useContributions` hooks (`src/hooks/useContributions.js`)
+  - `useContributions(placeId)`: Fetch contributions for a place
+  - `useUserContributions(userId)`: Fetch user's contributions
+  - `useCreateContribution()`: Create new contribution
+  - `useVote()`: Vote on contributions
+- Built `ContributionPrompt` component for sharing tips after visits
+- Built `ContributionDisplay` components (ContributionBadge, ContributionCard, ContributionList)
+- Integrated "Share a tip" step into VisitedPrompt flow
+- Added community tips section to PlaceDetail view
+- Added "Your Tips" section to Profile page
+- Consolidated API routes to stay under Vercel Hobby 12-function limit:
+  - Merged vote.js into contributions/index.js
+  - Merged all auth endpoints into auth/index.js (login, register, google, logout, me)
+- Added sign-in step to onboarding flow
+
+**[2026-01-22]** — Phase 2: Saved Places Migration ✅ COMPLETE
+- Created saved places API (`api/places/saved.js`) - GET/POST/DELETE
+- Created migration endpoint (`api/places/saved/migrate.js`)
+- Built `useSavedPlaces` hook for unified localStorage/API abstraction
+- Updated Discover.jsx and Wishlist.jsx to use new hook
+- Migration triggers automatically on first login
+- Anonymous users continue using localStorage (zero friction)
+
 **[2026-01-22]** — Phase 2: Backend & Auth (MySQL)
 - **Pivoted from Supabase to MySQL** — User hit Supabase free tier limit
 - Using user's existing MySQL database (AWS RDS)
@@ -156,7 +209,7 @@ Track all significant changes here. Most recent first.
 
 ## 📊 Current Status
 
-**Phase**: 2 (Backend & Auth) — In Progress
+**Phase**: 4 (Social Features) — ✅ COMPLETE
 
 **What's Working**:
 - ✅ Place discovery with swipe cards
@@ -168,16 +221,25 @@ Track all significant changes here. Most recent first.
 - ✅ Auth API routes (register, login, Google SSO)
 - ✅ Auth UI (modal with email/password + Google)
 - ✅ AuthContext for state management
+- ✅ Saved places synced to database for logged-in users
+- ✅ "Share a tip" prompt after marking place as visited
+- ✅ Community tips displayed on PlaceDetail
+- ✅ Upvote/downvote on contributions
+- ✅ User's contributions shown on Profile page
+- ✅ Sign-in option in onboarding flow
+- ✅ Public user profiles (`/user/:username`)
+- ✅ Follow/unfollow other users
+- ✅ Activity feed from followed users
+- ✅ "People Like You" recommendations
+- ✅ Social stats on Profile page
 
-**What's Next**:
-- ⏳ Run database schema on MySQL server
-- ⏳ Configure Google OAuth credentials (optional)
-- ⏳ Test auth flow end-to-end
-- ⏳ Migrate localStorage to MySQL
+**What's Next** (Phase 5: Growth Features):
+- ⏳ Trending & Popular places
+- ⏳ Social sharing
+- ⏳ PWA enhancements (push notifications, offline maps)
 
 **Blockers**:
-- Need to run `database/schema.sql` on the MySQL server
-- Google OAuth requires setting up Google Cloud Console credentials
+- None currently
 
 ---
 
@@ -243,7 +305,7 @@ To verify PWA is working:
 
 ---
 
-## Phase 2: Backend & Auth ⏳ IN PROGRESS
+## Phase 2: Backend & Auth ✅ COMPLETE
 
 ### MySQL Integration (Changed from Supabase)
 Replace localStorage with real database.
@@ -381,7 +443,7 @@ CREATE TABLE saved_events (
 
 ---
 
-## Phase 3: Community Features (Week 2-4)
+## Phase 3: Community Features ✅ COMPLETE
 
 ### "Why This Place?" Flow
 
@@ -432,7 +494,7 @@ After marking a place as visited:
 
 ---
 
-## Phase 4: Social (Week 4-6)
+## Phase 4: Social ✅ COMPLETE
 
 ### User Profiles
 
@@ -772,26 +834,44 @@ npm run preview
 
 ## 🎯 Definition of Done
 
-### For Phase 2 (Backend & Auth)
+### For Phase 2 (Backend & Auth) ✅ COMPLETE
 
 - [x] Database connection utility created (`api/lib/db.js`)
 - [x] MySQL schema file ready (`database/schema.sql`)
 - [x] Auth API routes created (register, login, logout, Google, me)
 - [x] AuthContext and useAuth hook implemented
 - [x] Auth UI (AuthModal) with login/signup forms
-- [ ] Run schema on MySQL server
-- [ ] Auth flow tested end-to-end
-- [ ] User profiles stored in database
-- [ ] Saved places migrated from localStorage to MySQL
-- [ ] Existing functionality still works for anonymous users
+- [x] Run schema on MySQL server
+- [x] Auth flow tested end-to-end
+- [x] User profiles stored in database
+- [x] Saved places migrated from localStorage to MySQL
+- [x] Existing functionality still works for anonymous users
 
-### For Phase 3 (Community Features)
+### For Phase 3 (Community Features) ✅ COMPLETE
 
-- [ ] "What made it special?" prompt after visit
-- [ ] Contributions stored in database
-- [ ] Top contribution displayed on place cards
-- [ ] Upvote/downvote working
-- [ ] User's own contributions visible in profile
+- [x] "What made it special?" prompt after visit
+- [x] Contributions stored in database
+- [x] Contributions displayed on PlaceDetail page
+- [x] Upvote/downvote working
+- [x] User's own contributions visible in profile
+- [x] Sign-in option added to onboarding flow
+
+### For Phase 4 (Social) ✅ COMPLETE
+
+- [x] Public user profile pages (`/user/:username`)
+- [x] Follow other users with FollowButton component
+- [x] Activity feed of followed users' contributions
+- [x] "People Like You" recommendations based on similar tastes
+- [x] Social stats on Profile page (followers, following, tips)
+- [x] Activity page with feed and discover tabs
+
+### For Phase 5 (Growth Features)
+
+- [ ] Trending & Popular places section
+- [ ] Social sharing (share cards to social media)
+- [ ] Deep links to places/profiles
+- [ ] Push notifications (new followers, upvotes)
+- [ ] Offline maps
 
 ---
 

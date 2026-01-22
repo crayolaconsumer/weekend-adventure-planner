@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
 import { getSavedEvents, unsaveEvent } from '../utils/savedEvents'
+import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import './Wishlist.css'
 
 // Icons
@@ -74,12 +75,6 @@ function getPlaceholderImage(id) {
   return IMAGES[index]
 }
 
-// Helper to load wishlist from localStorage (lazy initialization)
-function loadWishlistFromStorage() {
-  const saved = localStorage.getItem('roam_wishlist')
-  return saved ? JSON.parse(saved) : []
-}
-
 // Tab options
 const TABS = {
   PLACES: 'places',
@@ -88,16 +83,13 @@ const TABS = {
 
 export default function Wishlist() {
   const navigate = useNavigate()
-  // Use lazy initialization to load wishlist from localStorage
-  const [wishlist, setWishlist] = useState(loadWishlistFromStorage)
+  const { places: wishlist, removePlace, loading: placesLoading } = useSavedPlaces()
   const [savedEvents, setSavedEvents] = useState(getSavedEvents)
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
 
   const removeFromWishlist = (placeId) => {
-    const newWishlist = wishlist.filter(p => p.id !== placeId)
-    setWishlist(newWishlist)
-    localStorage.setItem('roam_wishlist', JSON.stringify(newWishlist))
+    removePlace(placeId)
   }
 
   const removeEvent = (eventId) => {
@@ -177,7 +169,12 @@ export default function Wishlist() {
       <div className="page-content">
         {/* PLACES TAB */}
         {activeTab === TABS.PLACES && (
-          wishlist.length > 0 ? (
+          placesLoading ? (
+            <div className="wishlist-loading">
+              <div className="wishlist-loading-spinner" />
+              <p>Loading saved places...</p>
+            </div>
+          ) : wishlist.length > 0 ? (
             <>
               {/* Category Filters */}
               {categories.length > 1 && (

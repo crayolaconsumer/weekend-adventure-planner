@@ -8,6 +8,8 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
+const MIGRATION_KEY = 'roam_places_migrated'
+const WISHLIST_KEY = 'roam_wishlist'
 
 const AuthContext = createContext(null)
 
@@ -32,11 +34,53 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem(SESSION_TOKEN_STORAGE_KEY, token)
       localStorage.removeItem(TOKEN_STORAGE_KEY)
     }
-  }, [getStoredToken])
+  }, [])
 
   const clearStoredToken = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY)
     sessionStorage.removeItem(SESSION_TOKEN_STORAGE_KEY)
+  }, [])
+
+  /**
+   * Migrate localStorage data to database on first login
+   */
+  const migrateLocalData = useCallback(async (token) => {
+    // Skip if already migrated
+    if (localStorage.getItem(MIGRATION_KEY)) return
+
+    const savedPlaces = localStorage.getItem(WISHLIST_KEY)
+    if (!savedPlaces) {
+      localStorage.setItem(MIGRATION_KEY, 'true')
+      return
+    }
+
+    try {
+      const places = JSON.parse(savedPlaces)
+      if (places.length === 0) {
+        localStorage.setItem(MIGRATION_KEY, 'true')
+        return
+      }
+
+      const response = await fetch('/api/places/saved/migrate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({ places })
+      })
+
+      if (response.ok) {
+        // Clear localStorage after successful migration
+        localStorage.removeItem(WISHLIST_KEY)
+        localStorage.setItem(MIGRATION_KEY, 'true')
+        console.log('Migrated saved places to database')
+      }
+    } catch (err) {
+      console.error('Migration failed:', err)
+      // Don't block login on migration failure - will retry next time
+    }
   }, [])
 
   // Check auth status on mount
@@ -53,7 +97,7 @@ export function AuthProvider({ children }) {
       setLoading(true)
       const storedToken = getStoredToken()
       const headers = storedToken ? { Authorization: `Bearer ${storedToken}` } : undefined
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch('/api/auth', {
         credentials: 'include',
         headers
       })
@@ -70,7 +114,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [getStoredToken])
 
   /**
    * Register with email and password
@@ -78,11 +122,11 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (email, password, displayName) => {
     setError(null)
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, password, displayName })
+        body: JSON.stringify({ action: 'register', email, password, displayName })
       })
 
       const data = await response.json()
@@ -93,12 +137,14 @@ export function AuthProvider({ children }) {
 
       setUser(data.user)
       storeToken(data.token, true)
+      // Migrate localStorage data to database
+      migrateLocalData(data.token)
       return { success: true, user: data.user }
     } catch (err) {
       setError(err.message)
       return { success: false, error: err.message }
     }
-  }, [storeToken])
+  }, [storeToken, migrateLocalData])
 
   /**
    * Login with email and password
@@ -106,11 +152,11 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password, remember = false) => {
     setError(null)
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, password, remember })
+        body: JSON.stringify({ action: 'login', email, password, remember })
       })
 
       const data = await response.json()
@@ -121,12 +167,14 @@ export function AuthProvider({ children }) {
 
       setUser(data.user)
       storeToken(data.token, remember)
+      // Migrate localStorage data to database
+      migrateLocalData(data.token)
       return { success: true, user: data.user }
     } catch (err) {
       setError(err.message)
       return { success: false, error: err.message }
     }
-  }, [storeToken])
+  }, [storeToken, migrateLocalData])
 
   /**
    * Login with Google
@@ -140,11 +188,11 @@ export function AuthProvider({ children }) {
         ? { credential }
         : { accessToken: credential.accessToken, userInfo: credential.userInfo }
 
-      const response = await fetch('/api/auth/google', {
+      const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(body)
+        body: JSON.stringify({ action: 'google', ...body })
       })
 
       const data = await response.json()
@@ -155,21 +203,25 @@ export function AuthProvider({ children }) {
 
       setUser(data.user)
       storeToken(data.token, true)
+      // Migrate localStorage data to database
+      migrateLocalData(data.token)
       return { success: true, user: data.user, isNewUser: data.isNewUser }
     } catch (err) {
       setError(err.message)
       return { success: false, error: err.message }
     }
-  }, [storeToken])
+  }, [storeToken, migrateLocalData])
 
   /**
    * Logout
    */
   const logout = useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', {
+      await fetch('/api/auth', {
         method: 'POST',
-        credentials: 'include'
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'logout' })
       })
     } catch (err) {
       console.error('Logout error:', err)

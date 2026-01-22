@@ -6,6 +6,7 @@ import PlaceDetail from '../components/PlaceDetail'
 import VisitedPrompt from '../components/VisitedPrompt'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
+import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { GOOD_CATEGORIES } from '../utils/categories'
@@ -36,6 +37,7 @@ const SettingsIcon = () => (
 
 export default function Discover({ location }) {
   const toast = useToast()
+  const { savePlace } = useSavedPlaces()
   const [places, setPlaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -51,10 +53,6 @@ export default function Discover({ location }) {
   const [boredomPlace, setBoredomPlace] = useState(null)
   const [boredomLoading, setBoredomLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [wishlist, setWishlist] = useState(() => {
-    const saved = localStorage.getItem('roam_wishlist')
-    return saved ? JSON.parse(saved) : []
-  })
 
   // Place detail modal state
   const [selectedPlace, setSelectedPlace] = useState(null)
@@ -292,10 +290,8 @@ export default function Discover({ location }) {
   // Handle swipe actions
   const handleSwipe = (action, place) => {
     if (action === 'like') {
-      // Save to wishlist
-      const newWishlist = [...wishlist, { ...place, savedAt: Date.now() }]
-      setWishlist(newWishlist)
-      localStorage.setItem('roam_wishlist', JSON.stringify(newWishlist))
+      // Save to wishlist (hook handles localStorage vs API)
+      savePlace(place)
     }
 
     // Track for analytics/stats
