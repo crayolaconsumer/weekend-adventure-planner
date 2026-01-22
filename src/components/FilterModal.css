@@ -19,6 +19,12 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  /* Prevent touch scrolling on backdrop */
+  touch-action: none;
+  overscroll-behavior: contain;
+  /* GPU acceleration for smooth animation */
+  will-change: opacity;
+  transform: translateZ(0);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -40,6 +46,11 @@
   display: flex;
   flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom, 0);
+  /* GPU acceleration for smooth slide animation */
+  will-change: transform;
+  transform: translateZ(0);
+  /* Contain scroll within sheet */
+  overscroll-behavior: contain;
 }
 
 /* Handle bar for drag affordance */

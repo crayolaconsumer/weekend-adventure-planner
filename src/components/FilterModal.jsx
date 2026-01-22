@@ -100,10 +100,28 @@ export function FilterModal({
   useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown)
+
+      // Prevent body scroll without layout shift
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
       document.body.style.overflow = 'hidden'
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+
+      // Prevent iOS bounce/rubber-band effect
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${window.scrollY}px`
+      document.body.style.width = '100%'
+
       return () => {
         document.removeEventListener('keydown', handleKeyDown)
+
+        // Restore scroll position
+        const scrollY = document.body.style.top
         document.body.style.overflow = ''
+        document.body.style.paddingRight = ''
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        window.scrollTo(0, parseInt(scrollY || '0') * -1)
       }
     }
   }, [isOpen, handleKeyDown])

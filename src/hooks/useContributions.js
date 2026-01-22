@@ -41,9 +41,9 @@ export function useContributions(placeId) {
 
       const data = await response.json()
       setContributions(data.contributions || [])
-    } catch (err) {
-      console.error('Failed to fetch contributions:', err)
-      setError(err.message)
+    } catch {
+      // Silently fail - API might not be configured in development
+      setError('Contributions unavailable')
     } finally {
       setLoading(false)
     }
@@ -83,9 +83,9 @@ export function useUserContributions(userId) {
 
       const data = await response.json()
       setContributions(data.contributions || [])
-    } catch (err) {
-      console.error('Failed to fetch contributions:', err)
-      setError(err.message)
+    } catch {
+      // Silently fail - API might not be configured in development
+      setError('Contributions unavailable')
     } finally {
       setLoading(false)
     }

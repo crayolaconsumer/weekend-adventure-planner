@@ -557,7 +557,11 @@
 /* Mobile: Show trigger, hide scroll */
 @media (max-width: 767px) {
   .discover-filters-scroll {
-    display: none;
+    display: none !important;
+  }
+
+  .discover-filters-trigger {
+    display: flex !important;
   }
 
   .discover-active-filters {
@@ -568,7 +572,11 @@
 /* Desktop: Hide trigger, show scroll */
 @media (min-width: 768px) {
   .discover-filters-trigger {
-    display: none;
+    display: none !important;
+  }
+
+  .discover-filters-scroll {
+    display: flex !important;
   }
 }
 

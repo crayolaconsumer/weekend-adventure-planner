@@ -39,7 +39,11 @@ async function fetchBatchContributions(placeIds) {
     const response = await fetch(`/api/contributions/batch?placeIds=${uncachedIds.join(',')}`)
 
     if (!response.ok) {
-      console.warn('Failed to fetch batch contributions:', response.status)
+      // Silently fail - API might not be configured in development
+      // Cache empty results to avoid repeated failed requests
+      for (const id of uncachedIds) {
+        contributionCache.set(id, { data: null, timestamp: now })
+      }
       return {}
     }
 
@@ -60,8 +64,12 @@ async function fetchBatchContributions(placeIds) {
       result[id] = cached?.data || null
     }
     return result
-  } catch (error) {
-    console.error('Error fetching batch contributions:', error)
+  } catch {
+    // Silently fail - API might not be configured in development
+    // Cache empty results to avoid repeated failed requests
+    for (const id of uncachedIds) {
+      contributionCache.set(id, { data: null, timestamp: now })
+    }
     return {}
   }
 }
