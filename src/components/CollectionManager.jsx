@@ -107,7 +107,7 @@ export default function CollectionManager({ place, isOpen, onClose }) {
         >
           <div className="collection-manager-header">
             <h3>Add to Collection</h3>
-            <button className="collection-manager-close" onClick={onClose}>
+            <button className="collection-manager-close" onClick={onClose} aria-label="Close collection manager">
               <CloseIcon />
             </button>
           </div>
@@ -166,6 +166,7 @@ export default function CollectionManager({ place, isOpen, onClose }) {
                     onKeyDown={(e) => e.key === 'Enter' && handleCreateCollection()}
                     autoFocus
                     maxLength={40}
+                    aria-label="Collection name"
                   />
                 </div>
 

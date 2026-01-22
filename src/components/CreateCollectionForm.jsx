@@ -84,7 +84,7 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
         >
           <div className="create-collection-header">
             <h2>Create Collection</h2>
-            <button className="create-collection-close" onClick={handleClose}>
+            <button className="create-collection-close" onClick={handleClose} aria-label="Close form">
               <CloseIcon />
             </button>
           </div>

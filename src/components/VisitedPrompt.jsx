@@ -180,7 +180,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
         >
           {/* Close button */}
           {step !== 'success' && (
-            <button className="visited-close" onClick={onDismiss}>
+            <button className="visited-close" onClick={onDismiss} aria-label="Close">
               <XIcon />
             </button>
           )}

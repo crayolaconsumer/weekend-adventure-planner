@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
-import Discover from './pages/Discover'
-import Plan from './pages/Plan'
-import Events from './pages/Events'
-import Wishlist from './pages/Wishlist'
-import Collections from './pages/Collections'
-import Profile from './pages/Profile'
+// Lazy load page components for code splitting
+const Discover = lazy(() => import('./pages/Discover'))
+const Plan = lazy(() => import('./pages/Plan'))
+const Events = lazy(() => import('./pages/Events'))
+const Wishlist = lazy(() => import('./pages/Wishlist'))
+const Collections = lazy(() => import('./pages/Collections'))
+const Profile = lazy(() => import('./pages/Profile'))
+
 import Onboarding from './components/Onboarding'
+import ErrorBoundary from './components/ErrorBoundary'
+import LoadingState from './components/LoadingState'
 import { ToastProvider } from './components/Toast'
 
 // Icons as components
@@ -159,32 +163,39 @@ function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <div className="app">
-          {/* Onboarding for first-time users */}
-          <AnimatePresence>
-            {showOnboarding && (
-              <Onboarding onComplete={() => setShowOnboarding(false)} />
-            )}
-          </AnimatePresence>
+        <ErrorBoundary>
+          {/* Skip link for keyboard users */}
+          <a href="#main-content" className="skip-link">Skip to main content</a>
+          <div className="app">
+            {/* Onboarding for first-time users */}
+            <AnimatePresence>
+              {showOnboarding && (
+                <Onboarding onComplete={() => setShowOnboarding(false)} />
+              )}
+            </AnimatePresence>
 
-          <AnimatePresence>
-            {locationError && !showOnboarding && (
-              <LocationBanner error={locationError} onRetry={retryLocation} />
-            )}
-          </AnimatePresence>
+            <AnimatePresence>
+              {locationError && !showOnboarding && (
+                <LocationBanner error={locationError} onRetry={retryLocation} />
+              )}
+            </AnimatePresence>
 
-          <AnimatePresence mode="wait">
-            <Routes>
-            <Route path="/" element={<Discover location={location} />} />
-            <Route path="/events" element={<Events location={location} />} />
-            <Route path="/plan" element={<Plan location={location} />} />
-            <Route path="/wishlist" element={<Wishlist />} />
-            <Route path="/collections" element={<Collections />} />
-            <Route path="/profile" element={<Profile />} />
-          </Routes>
-        </AnimatePresence>
+            <main id="main-content">
+              <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>
+                <AnimatePresence mode="wait">
+                  <Routes>
+                    <Route path="/" element={<Discover location={location} />} />
+                    <Route path="/events" element={<Events location={location} />} />
+                    <Route path="/plan" element={<Plan location={location} />} />
+                    <Route path="/wishlist" element={<Wishlist />} />
+                    <Route path="/collections" element={<Collections />} />
+                    <Route path="/profile" element={<Profile />} />
+                  </Routes>
+                </AnimatePresence>
+              </Suspense>
+            </main>
 
-        <nav className="nav-bar">
+            <nav className="nav-bar">
           <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <CompassIcon />
             <span>Discover</span>
@@ -205,8 +216,9 @@ function App() {
             <UserIcon />
             <span>Profile</span>
           </NavLink>
-        </nav>
-        </div>
+          </nav>
+          </div>
+        </ErrorBoundary>
       </BrowserRouter>
     </ToastProvider>
   )

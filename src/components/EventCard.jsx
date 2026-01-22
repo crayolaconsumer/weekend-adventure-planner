@@ -64,7 +64,7 @@ export default function EventCard({ event, variant = 'compact' }) {
       >
         {event.imageUrl && (
           <div className="event-card-image">
-            <img src={event.imageUrl} alt="" loading="lazy" />
+            <img src={event.imageUrl} alt={event.name} loading="lazy" />
           </div>
         )}
 
@@ -103,7 +103,7 @@ export default function EventCard({ event, variant = 'compact' }) {
     >
       {event.imageUrl && (
         <div className="event-card-image">
-          <img src={event.imageUrl} alt="" loading="lazy" />
+          <img src={event.imageUrl} alt={event.name} loading="lazy" />
           {event.isSoldOut && (
             <div className="event-card-sold-out-badge">Sold Out</div>
           )}

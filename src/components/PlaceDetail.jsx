@@ -215,7 +215,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
             {/* Header buttons */}
             <div className="place-detail-header-buttons">
               <ShareButton place={enrichedPlace} variant="icon" />
-              <button className="place-detail-close" onClick={onClose}>
+              <button className="place-detail-close" onClick={onClose} aria-label="Close place details">
                 <CloseIcon />
               </button>
             </div>

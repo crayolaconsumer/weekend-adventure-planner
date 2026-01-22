@@ -168,6 +168,25 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--roam-forest);
+  color: white;
+  padding: var(--space-sm) var(--space-md);
+  z-index: 9999;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: 0 0 var(--radius-md) 0;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
 /* Reduce motion for accessibility */
 @media (prefers-reduced-motion: reduce) {
   *,
