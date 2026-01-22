@@ -91,6 +91,11 @@ Track all significant changes here. Most recent first.
 
 ### January 2026
 
+**[2026-01-22]** — UI Fix: BoredomBuster small screen layout
+- Fixed "I'm Bored" result screen overflowing on iPhone SE
+- Added responsive styles for short viewports (max-height: 700px, 570px)
+- On very small screens, hides description/reason text to fit
+
 **[2026-01-22]** — Critical Bug Fix: Missing motion import
 - **Root cause found**: `motion` was not imported in App.jsx but used in LocationBanner
 - This caused a JavaScript crash when location permission was denied/timed out
