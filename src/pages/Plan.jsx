@@ -168,11 +168,20 @@ export default function Plan({ location }) {
 
     try {
       const raw = await fetchEnrichedPlaces(location.lat, location.lng, 10000, null)
+      console.log('[Plan] Raw places:', raw.length)
+
       const enhanced = raw.map(p => enhancePlace(p, location))
-      const filtered = filterPlaces(enhanced, { categories: vibe.categories, minScore: 45, maxResults: 50 })
+      console.log('[Plan] Enhanced:', enhanced.length)
+
+      // Lower minScore threshold to be more inclusive
+      const filtered = filterPlaces(enhanced, { categories: vibe.categories, minScore: 30, maxResults: 50 })
+      console.log('[Plan] Filtered:', filtered.length)
       setAvailablePlaces(filtered)
 
-      const stops = getRandomQualityPlaces(filtered, duration.stops, { minScore: 45 })
+      // Remove redundant minScore filter - places already passed filtering
+      const stops = getRandomQualityPlaces(filtered, duration.stops, { minScore: 0 })
+      console.log('[Plan] Stops:', stops.length)
+
       const optimized = optimizeRoute(stops, location)
 
       const startTime = new Date()
@@ -190,9 +199,15 @@ export default function Plan({ location }) {
       })
 
       setItinerary(withTimes)
-      toast.success(`${duration.stops} stops added!`)
+
+      // Show actual count, not expected count
+      if (withTimes.length > 0) {
+        toast.success(`${withTimes.length} stops added!`)
+      } else {
+        toast.info('No places found nearby. Try a different location.')
+      }
     } catch (e) {
-      console.error(e)
+      console.error('[Plan] Generate error:', e)
       toast.error('Failed to generate')
     }
   }
