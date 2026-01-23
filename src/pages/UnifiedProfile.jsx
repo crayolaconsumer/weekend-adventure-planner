@@ -578,18 +578,23 @@ function SettingsTab({ user, onLogout }) {
           </Link>
         </div>
       ) : (
-        <div className="unified-profile-settings-section">
-          <h3 className="unified-profile-settings-title">Subscription</h3>
-          <button
-            className="unified-profile-settings-item clickable"
-            onClick={manageSubscription}
-            disabled={loading}
-          >
-            <span className="unified-profile-settings-label">ROAM+ Premium</span>
-            <span className="unified-profile-settings-value">
-              {loading ? 'Loading...' : 'Manage →'}
-            </span>
-          </button>
+        <div className="unified-profile-settings-section premium-active-section">
+          <div className="premium-status-card">
+            <div className="premium-status-header">
+              <span className="premium-status-badge">
+                <span className="premium-crown">👑</span>
+                ROAM+ Member
+              </span>
+            </div>
+            <p className="premium-status-perks">Unlimited swipes, hidden gems, and more</p>
+            <button
+              className="premium-manage-btn"
+              onClick={manageSubscription}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'Manage Subscription'}
+            </button>
+          </div>
         </div>
       )}
 

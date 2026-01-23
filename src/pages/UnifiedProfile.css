@@ -628,6 +628,71 @@
   letter-spacing: 0.03em;
 }
 
+/* Premium Active Status */
+.premium-active-section {
+  background: linear-gradient(135deg, rgba(26, 58, 47, 0.03) 0%, rgba(212, 168, 85, 0.06) 100%);
+  border: 1px solid rgba(212, 168, 85, 0.2);
+}
+
+.premium-status-card {
+  text-align: center;
+  padding: var(--space-sm, 8px) 0;
+}
+
+.premium-status-header {
+  margin-bottom: var(--space-md, 12px);
+}
+
+.premium-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs, 6px);
+  padding: var(--space-xs, 6px) var(--space-md, 16px);
+  background: linear-gradient(135deg, var(--roam-forest, #1a3a2f) 0%, var(--roam-forest-light, #2d5a3d) 100%);
+  color: white;
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-full, 24px);
+  box-shadow: 0 2px 8px rgba(26, 58, 47, 0.2);
+}
+
+.premium-crown {
+  font-size: 16px;
+}
+
+.premium-status-perks {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  margin: 0 0 var(--space-md, 16px);
+}
+
+.premium-manage-btn {
+  width: 100%;
+  padding: var(--space-sm, 12px) var(--space-lg, 20px);
+  background: transparent;
+  border: 1.5px solid var(--roam-forest, #1a3a2f);
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  color: var(--roam-forest, #1a3a2f);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.premium-manage-btn:hover:not(:disabled) {
+  background: var(--roam-forest, #1a3a2f);
+  color: white;
+}
+
+.premium-manage-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .unified-profile-settings-item.clickable {
   cursor: pointer;
   transition: background 0.2s ease;
