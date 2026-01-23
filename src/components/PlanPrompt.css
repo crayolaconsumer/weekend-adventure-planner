@@ -1,19 +1,87 @@
 /**
  * PlanPrompt Styles
  *
- * Compact, elegant prompt that appears after saving a place
+ * A celebratory moment when saving a place to wishlist.
+ * Warm, organic, adventurous - like finding treasure on a map.
  */
 
+/* Keyframe animations */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(212, 168, 85, 0.4),
+      0 4px 20px rgba(44, 62, 45, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 0 12px rgba(212, 168, 85, 0),
+      0 4px 20px rgba(44, 62, 45, 0.3);
+  }
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
+
+@keyframes drift-1 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translate(-30px, -60px) rotate(45deg); opacity: 0; }
+}
+
+@keyframes drift-2 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.5; }
+  100% { transform: translate(40px, -70px) rotate(-30deg); opacity: 0; }
+}
+
+@keyframes drift-3 {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.7; }
+  100% { transform: translate(-20px, -80px) rotate(60deg); opacity: 0; }
+}
+
+@keyframes check-draw {
+  0% { stroke-dashoffset: 24; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* Overlay */
 .plan-prompt-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
+  background: linear-gradient(
+    180deg,
+    rgba(26, 58, 47, 0.3) 0%,
+    rgba(42, 37, 32, 0.5) 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 24px;
-  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  padding: 20px;
+  padding-bottom: calc(90px + env(safe-area-inset-bottom));
   z-index: 1000;
 }
 
@@ -24,113 +92,303 @@
   }
 }
 
+/* Main prompt card */
 .plan-prompt {
   position: relative;
-  background: var(--roam-cream);
-  border-radius: 24px;
-  padding: 24px;
+  background:
+    linear-gradient(145deg, rgba(250, 248, 245, 0.97) 0%, rgba(247, 243, 237, 0.98) 100%);
+  border-radius: 28px;
+  padding: 32px 28px 28px;
   width: 100%;
-  max-width: 340px;
+  max-width: 360px;
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(255, 255, 255, 0.1);
+    0 25px 80px rgba(26, 58, 47, 0.25),
+    0 10px 30px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
   text-align: center;
+  overflow: hidden;
 }
 
+/* Decorative corner accents */
+.plan-prompt::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--roam-terracotta) 0%,
+    var(--roam-gold) 50%,
+    var(--roam-sage) 100%
+  );
+  border-radius: 28px 28px 0 0;
+}
+
+/* Floating particles container */
+.plan-prompt-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100px;
+  height: 100px;
+  pointer-events: none;
+}
+
+.plan-prompt-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  top: 50%;
+  left: 50%;
+}
+
+.plan-prompt-particle:nth-child(1) {
+  background: var(--roam-gold);
+  animation: drift-1 2s ease-out forwards;
+  animation-delay: 0.2s;
+}
+
+.plan-prompt-particle:nth-child(2) {
+  background: var(--roam-terracotta-light);
+  animation: drift-2 2.2s ease-out forwards;
+  animation-delay: 0.3s;
+}
+
+.plan-prompt-particle:nth-child(3) {
+  background: var(--roam-sage);
+  animation: drift-3 1.8s ease-out forwards;
+  animation-delay: 0.1s;
+}
+
+.plan-prompt-particle:nth-child(4) {
+  background: var(--roam-gold-light);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: drift-2 2s ease-out forwards;
+  animation-delay: 0.4s;
+}
+
+.plan-prompt-particle:nth-child(5) {
+  background: var(--roam-coral);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  animation: drift-1 2.4s ease-out forwards;
+  animation-delay: 0.2s;
+}
+
+/* Close button */
 .plan-prompt-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: transparent;
+  background: var(--roam-parchment);
   border: none;
   color: var(--roam-ink-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
 }
 
 .plan-prompt-close:hover {
-  background: var(--roam-parchment);
+  background: var(--roam-parchment-dark);
   color: var(--roam-ink);
+  transform: rotate(90deg);
 }
 
+.plan-prompt-close:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+/* Icon container with animation */
 .plan-prompt-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
-  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-olive) 100%);
-  border-radius: 16px;
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.plan-prompt-icon-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(145deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
+  border-radius: 20px;
+  transform: rotate(-6deg);
+  box-shadow:
+    0 8px 24px rgba(26, 58, 47, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.plan-prompt-icon-inner {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  box-shadow: 0 4px 12px rgba(44, 62, 45, 0.3);
+  z-index: 1;
 }
 
+.plan-prompt-icon-inner svg {
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* Checkmark overlay for success state */
+.plan-prompt-check {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 28px;
+  height: 28px;
+  background: var(--roam-gold);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 3px 8px rgba(212, 168, 85, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.plan-prompt-check svg {
+  width: 14px;
+  height: 14px;
+  color: white;
+  stroke-width: 3;
+  stroke-dasharray: 24;
+  animation: check-draw 0.4s ease-out 0.3s forwards;
+  stroke-dashoffset: 24;
+}
+
+/* Content area */
 .plan-prompt-content {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .plan-prompt-title {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--roam-forest);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  letter-spacing: -0.02em;
 }
 
 .plan-prompt-text {
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 15px;
   color: var(--roam-ink-muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .plan-prompt-text strong {
   color: var(--roam-ink);
   font-weight: 600;
+  background: linear-gradient(
+    180deg,
+    transparent 60%,
+    rgba(212, 168, 85, 0.25) 60%
+  );
+  padding: 0 2px;
 }
 
+/* Action buttons */
 .plan-prompt-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .plan-prompt-btn {
+  position: relative;
   width: 100%;
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-size: 15px;
+  padding: 16px 24px;
+  border-radius: 16px;
+  font-family: var(--font-body);
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
+  overflow: hidden;
 }
 
 .plan-prompt-btn.primary {
-  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-olive) 100%);
+  background:
+    linear-gradient(145deg, var(--roam-terracotta) 0%, var(--roam-terracotta-dark) 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(44, 62, 45, 0.25);
+  box-shadow:
+    0 6px 20px rgba(196, 92, 62, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Shimmer effect on primary button */
+.plan-prompt-btn.primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  animation-delay: 1s;
 }
 
 .plan-prompt-btn.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(44, 62, 45, 0.3);
+  transform: translateY(-2px);
+  box-shadow:
+    0 10px 28px rgba(196, 92, 62, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
 
 .plan-prompt-btn.primary:active {
   transform: translateY(0);
+  box-shadow:
+    0 4px 12px rgba(196, 92, 62, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
 
+/* Icon in button */
+.plan-prompt-btn-icon {
+  display: inline-flex;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.plan-prompt-btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Ghost/secondary button */
 .plan-prompt-btn.ghost {
   background: transparent;
   color: var(--roam-ink-muted);
+  padding: 14px 24px;
 }
 
 .plan-prompt-btn.ghost:hover {
@@ -138,18 +396,74 @@
   color: var(--roam-ink);
 }
 
+.plan-prompt-btn.ghost:active {
+  background: var(--roam-parchment-dark);
+}
+
 /* Tablet+ layout */
 @media (min-width: 768px) {
   .plan-prompt {
-    padding: 28px;
+    padding: 36px 32px 32px;
+    max-width: 400px;
+  }
+
+  .plan-prompt-icon {
+    width: 80px;
+    height: 80px;
+  }
+
+  .plan-prompt-icon-bg {
+    border-radius: 22px;
+  }
+
+  .plan-prompt-icon-inner svg {
+    width: 36px;
+    height: 36px;
+  }
+
+  .plan-prompt-title {
+    font-size: 24px;
+  }
+
+  .plan-prompt-text {
+    font-size: 16px;
   }
 
   .plan-prompt-actions {
     flex-direction: row;
-    gap: 12px;
+    gap: 14px;
   }
 
   .plan-prompt-btn {
     flex: 1;
+  }
+
+  .plan-prompt-btn.ghost {
+    flex: 0.8;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .plan-prompt-icon {
+    animation: none;
+  }
+
+  .plan-prompt-particle {
+    display: none;
+  }
+
+  .plan-prompt-btn.primary::before {
+    animation: none;
+  }
+
+  .plan-prompt-check {
+    animation: none;
+  }
+
+  .plan-prompt-check svg {
+    stroke-dasharray: none;
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }
