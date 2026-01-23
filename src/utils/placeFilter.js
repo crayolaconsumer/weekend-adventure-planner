@@ -156,6 +156,16 @@ export function scorePlace(place, context = {}) {
     score += personalBoost
   }
 
+  // VIBE BOOST (max +20)
+  // User's selected vibe as preference, not hard filter
+  // Places matching the vibe rank higher, but others still appear
+  const { vibeCategories = null } = context
+  if (vibeCategories && vibeCategories.length > 0 && category) {
+    if (vibeCategories.includes(category.key)) {
+      score += 20
+    }
+  }
+
   return Math.max(0, Math.min(100, score))
 }
 
@@ -195,20 +205,17 @@ export function filterPlaces(places, options = {}) {
     userProfile = null // Taste profile for personalized scoring
   } = options
 
-  const context = { timeContext: getTimeContext(), weather, userProfile }
+  // Pass categories as vibeCategories for soft boost scoring (not hard filter)
+  const context = { timeContext: getTimeContext(), weather, userProfile, vibeCategories: categories }
 
   let filtered = places
     // Remove blacklisted types
     .filter(place => !isBlacklisted(place.type || ''))
     // Remove boring names
     .filter(place => !hasBoringName(place.name))
-    // Filter by categories if specified
-    .filter(place => {
-      if (!categories || categories.length === 0) return true
-      const placeCategory = getCategoryForType(place.type)
-      return placeCategory && categories.includes(placeCategory.key)
-    })
-    // Add scores with context
+    // NOTE: Categories now applied as BOOST in scorePlace(), not hard filter
+    // This ensures vibe-matching places rank higher while maintaining diversity
+    // Add scores with context (including vibe boost)
     .map(place => ({
       ...place,
       score: scorePlace(place, context),
@@ -217,8 +224,8 @@ export function filterPlaces(places, options = {}) {
     // Filter by minimum score
     .filter(place => place.score >= minScore)
 
-  // SMART SELECTION: Ensure category diversity when no specific category selected
-  if (sortBy === 'smart' && (!categories || categories.length === 0) && ensureDiversity) {
+  // SMART SELECTION: Always ensure category diversity for varied itineraries
+  if (sortBy === 'smart' && ensureDiversity) {
     return selectWithDiversity(filtered, maxResults)
   }
 

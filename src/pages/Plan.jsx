@@ -173,9 +173,16 @@ export default function Plan({ location }) {
       const enhanced = raw.map(p => enhancePlace(p, location))
       console.log('[Plan] Enhanced:', enhanced.length)
 
-      // Lower minScore threshold to be more inclusive
-      const filtered = filterPlaces(enhanced, { categories: vibe.categories, minScore: 30, maxResults: 50 })
+      // Filter places - vibe categories applied as BOOST (not hard filter)
+      // Places matching vibe rank higher, but variety is preserved
+      const filtered = filterPlaces(enhanced, {
+        categories: vibe.categories,
+        minScore: 20,
+        maxResults: 50,
+        ensureDiversity: true
+      })
       console.log('[Plan] Filtered:', filtered.length)
+
       setAvailablePlaces(filtered)
 
       // Remove redundant minScore filter - places already passed filtering
