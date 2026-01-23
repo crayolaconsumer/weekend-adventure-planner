@@ -60,21 +60,28 @@ function MapController({ center, onBoundsChange, onReady }) {
   }, [center, map])
 
   useEffect(() => {
-    const invalidate = () => map.invalidateSize()
+    const invalidate = () => {
+      map.invalidateSize({ animate: false, pan: false })
+      // Also trigger window resize as fallback
+      window.dispatchEvent(new Event('resize'))
+    }
 
     // Multiple attempts to catch layout settling
-    invalidate()
-    const t1 = setTimeout(invalidate, 100)
-    const t2 = setTimeout(invalidate, 300)
-    const t3 = setTimeout(() => {
+    const t0 = setTimeout(invalidate, 0)
+    const t1 = setTimeout(invalidate, 50)
+    const t2 = setTimeout(invalidate, 150)
+    const t3 = setTimeout(invalidate, 300)
+    const t4 = setTimeout(() => {
       invalidate()
       onReady?.(map)
     }, 500)
 
     return () => {
+      clearTimeout(t0)
       clearTimeout(t1)
       clearTimeout(t2)
       clearTimeout(t3)
+      clearTimeout(t4)
     }
   }, [map, onReady])
 

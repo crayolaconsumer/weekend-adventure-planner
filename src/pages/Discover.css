@@ -8,6 +8,8 @@
   flex-direction: column;
   min-height: 100vh;
   min-height: var(--stable-vh, 100dvh);
+  height: 100vh;
+  height: var(--stable-vh, 100dvh);
   background: linear-gradient(
     180deg,
     var(--roam-cream) 0%,
@@ -16,6 +18,7 @@
   );
   /* contain: style removed - was breaking Leaflet tile rendering */
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -491,7 +494,7 @@
   /* Map view takes full available height */
   .discover-content.view-map {
     flex: 1;
-    min-height: 0;
+    min-height: 500px;
     position: relative;
   }
 
@@ -499,11 +502,15 @@
   .discover-content.view-map > * {
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100%;
   }
 
   .discover-content.view-map .discover-map-container {
-    position: absolute;
+    position: absolute !important;
     inset: 0;
+    width: 100% !important;
+    height: 100% !important;
     min-height: 500px;
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-lg);
