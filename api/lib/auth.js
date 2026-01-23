@@ -103,7 +103,7 @@ export async function getUserFromRequest(req) {
   if (!payload) return null
 
   const user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at FROM users WHERE id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, stripe_customer_id, subscription_id, subscription_expires_at, subscription_cancelled_at FROM users WHERE id = ?',
     [payload.userId]
   )
 

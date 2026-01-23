@@ -1,9 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import SwipeCard from './SwipeCard'
+import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { useTopContributions } from '../hooks/useTopContributions'
 import './CardStack.css'
+
+// Interval for inserting sponsored cards (every N regular cards)
+const SPONSORED_INTERVAL = 8
 
 // Rotating loading messages for variety
 const LOADING_MESSAGES = [
@@ -45,6 +49,8 @@ const SettingsIcon = () => (
 
 export default function CardStack({
   places,
+  sponsoredPlaces = [], // Array of { sponsored_id, place } objects
+  userLocation = null, // For ad tracking
   onSwipe,
   onExpand,
   onEmpty,
@@ -57,6 +63,33 @@ export default function CardStack({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
+
+  // Merge regular places with sponsored places at intervals
+  const mergedPlaces = useMemo(() => {
+    if (!sponsoredPlaces || sponsoredPlaces.length === 0) {
+      return places.map(p => ({ place: p, isSponsored: false }))
+    }
+
+    const result = []
+    let sponsoredIndex = 0
+
+    for (let i = 0; i < places.length; i++) {
+      result.push({ place: places[i], isSponsored: false })
+
+      // Insert sponsored card after every SPONSORED_INTERVAL regular cards
+      if ((i + 1) % SPONSORED_INTERVAL === 0 && sponsoredIndex < sponsoredPlaces.length) {
+        const sponsored = sponsoredPlaces[sponsoredIndex]
+        result.push({
+          place: sponsored.place,
+          isSponsored: true,
+          sponsoredData: sponsored
+        })
+        sponsoredIndex++
+      }
+    }
+
+    return result
+  }, [places, sponsoredPlaces])
 
   // Reset index when places change - legitimate pattern for syncing state to props
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -76,15 +109,16 @@ export default function CardStack({
 
   // Preload images for upcoming cards (next 3 after visible ones)
   useEffect(() => {
-    if (loading || places.length === 0) return
+    if (loading || mergedPlaces.length === 0) return
 
     // Visible cards are currentIndex to currentIndex + 2
     // Preload currentIndex + 3 to currentIndex + 5
     const preloadStart = currentIndex + 3
-    const preloadEnd = Math.min(preloadStart + 3, places.length)
+    const preloadEnd = Math.min(preloadStart + 3, mergedPlaces.length)
 
     for (let i = preloadStart; i < preloadEnd; i++) {
-      const place = places[i]
+      const item = mergedPlaces[i]
+      const place = item?.place
       const imageUrl = place?.photo || place?.image
       if (imageUrl) {
         // Fire and forget - just cache the image for later
@@ -93,21 +127,22 @@ export default function CardStack({
         })
       }
     }
-  }, [currentIndex, places, loading])
+  }, [currentIndex, mergedPlaces, loading])
 
   // Load more places when getting close to the end (10 cards left)
   // Increased from 5 to reduce perceived loading lag
   useEffect(() => {
     if (loading || loadingMore || !onLoadMore) return
 
-    const remainingCards = places.length - currentIndex
+    const remainingCards = mergedPlaces.length - currentIndex
     if (remainingCards <= 10 && remainingCards > 0) {
       onLoadMore()
     }
-  }, [currentIndex, places.length, loading, loadingMore, onLoadMore])
+  }, [currentIndex, mergedPlaces.length, loading, loadingMore, onLoadMore])
 
   const handleSwipe = (action) => {
-    const place = places[currentIndex]
+    const currentItem = mergedPlaces[currentIndex]
+    const place = currentItem?.place
 
     // Open directions SYNCHRONOUSLY for "go" action to avoid popup blockers
     // This must happen before any async operations or timeouts
@@ -116,14 +151,17 @@ export default function CardStack({
       window.open(url, '_blank', 'noopener,noreferrer')
     }
 
-    // Notify parent
-    onSwipe?.(action, place)
+    // Notify parent (pass the place, not the wrapper object)
+    // Don't track sponsored cards in the main save flow (handled by SponsoredCard)
+    if (!currentItem?.isSponsored) {
+      onSwipe?.(action, place)
+    }
 
     // Move to next card
     setTimeout(() => {
       setCurrentIndex(prev => {
         const next = prev + 1
-        if (next >= places.length) {
+        if (next >= mergedPlaces.length) {
           onEmpty?.()
         }
         return next
@@ -132,9 +170,9 @@ export default function CardStack({
   }
 
   // Get visible cards (current + 2 behind)
-  const visibleCards = places.slice(currentIndex, currentIndex + 3)
-  const prefetchCards = places.slice(currentIndex, currentIndex + 12)
-  const prefetchPlaceIds = prefetchCards.map(place => place.id)
+  const visibleCards = mergedPlaces.slice(currentIndex, currentIndex + 3)
+  const prefetchCards = mergedPlaces.slice(currentIndex, currentIndex + 12)
+  const prefetchPlaceIds = prefetchCards.map(item => item.place?.id).filter(Boolean)
   const { contributions: topContributions } = useTopContributions(prefetchPlaceIds)
 
   const currentMessage = LOADING_MESSAGES[loadingMessageIndex]
@@ -187,8 +225,8 @@ export default function CardStack({
   }
 
   // Determine empty state type
-  const isSwipedThrough = places.length > 0 && currentIndex >= places.length
-  const hasNoPlaces = places.length === 0
+  const isSwipedThrough = mergedPlaces.length > 0 && currentIndex >= mergedPlaces.length
+  const hasNoPlaces = mergedPlaces.length === 0
 
   // Show loading state when fetching more cards
   if (loadingMore && isSwipedThrough) {
@@ -283,14 +321,20 @@ export default function CardStack({
     <div className="card-stack">
       <div className="card-stack-wrapper">
         <AnimatePresence>
-          {visibleCards.map((place, index) => {
+          {visibleCards.map((item, index) => {
+            const { place, isSponsored, sponsoredData } = item
             const isTop = index === 0
             const scale = 1 - (index * 0.04)
             const yOffset = index * 8
 
+            // Create unique key for sponsored vs regular cards
+            const cardKey = isSponsored
+              ? `sponsored-${sponsoredData?.sponsored_id || place.id}`
+              : place.id
+
             return (
               <motion.div
-                key={place.id}
+                key={cardKey}
                 className="card-stack-item"
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{
@@ -313,13 +357,25 @@ export default function CardStack({
                   width: '100%'
                 }}
               >
-                <SwipeCard
-                  place={place}
-                  onSwipe={isTop ? handleSwipe : undefined}
-                  onExpand={isTop ? onExpand : undefined}
-                  isTop={isTop}
-                  topContribution={topContributions?.[place.id] || null}
-                />
+                {isSponsored ? (
+                  <SponsoredCard
+                    sponsoredPlace={sponsoredData}
+                    place={place}
+                    onSwipe={isTop ? handleSwipe : undefined}
+                    onExpand={isTop ? onExpand : undefined}
+                    isTop={isTop}
+                    userLocation={userLocation}
+                    topContribution={topContributions?.[place.id] || null}
+                  />
+                ) : (
+                  <SwipeCard
+                    place={place}
+                    onSwipe={isTop ? handleSwipe : undefined}
+                    onExpand={isTop ? onExpand : undefined}
+                    isTop={isTop}
+                    topContribution={topContributions?.[place.id] || null}
+                  />
+                )}
               </motion.div>
             )
           })}
@@ -332,12 +388,12 @@ export default function CardStack({
           <motion.div
             className="card-stack-progress-fill"
             initial={{ width: 0 }}
-            animate={{ width: `${((currentIndex + 1) / places.length) * 100}%` }}
+            animate={{ width: `${((currentIndex + 1) / mergedPlaces.length) * 100}%` }}
             transition={{ duration: 0.3, ease: "easeOut" }}
           />
         </div>
         <span className="card-stack-count">
-          {currentIndex + 1} of {places.length}
+          {currentIndex + 1} of {mergedPlaces.length}
         </span>
       </div>
     </div>

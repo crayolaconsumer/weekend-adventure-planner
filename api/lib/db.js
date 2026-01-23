@@ -83,6 +83,28 @@ export async function update(sql, params = []) {
 }
 
 /**
+ * Execute multiple queries in a transaction
+ * @param {Function} callback - Async function receiving connection
+ * @returns {Promise<any>} Result of callback
+ */
+export async function transaction(callback) {
+  const pool = getPool()
+  const connection = await pool.getConnection()
+
+  try {
+    await connection.beginTransaction()
+    const result = await callback(connection)
+    await connection.commit()
+    return result
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
+  }
+}
+
+/**
  * Test database connection
  * @returns {Promise<boolean>} True if connected successfully
  */
@@ -96,4 +118,4 @@ export async function testConnection() {
   }
 }
 
-export default { getPool, query, queryOne, insert, update, testConnection }
+export default { getPool, query, queryOne, insert, update, transaction, testConnection }

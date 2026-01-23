@@ -10,6 +10,7 @@ import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pe
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
+import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
@@ -73,6 +74,7 @@ export default function Discover({ location }) {
   const toast = useToast()
   const { savePlace } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
+  const { sponsoredPlaces } = useSponsoredPlaces(location)
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
   const [loading, setLoading] = useState(true)
@@ -747,6 +749,8 @@ export default function Discover({ location }) {
         {(viewMode === 'swipe' || !isDesktop) && (
           <CardStack
             places={places}
+            sponsoredPlaces={sponsoredPlaces}
+            userLocation={location}
             onSwipe={handleSwipe}
             onExpand={(place) => setSelectedPlace(place)}
             onEmpty={() => {}}
