@@ -564,7 +564,7 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
  * Settings Tab - Account Management
  */
 function SettingsTab({ user, onLogout }) {
-  const { isPremium, manageSubscription, loading } = useSubscription()
+  const { isPremium, manageSubscription, loading, error, expiresAt, isCancelled } = useSubscription()
 
   return (
     <div className="unified-profile-settings">
@@ -587,6 +587,17 @@ function SettingsTab({ user, onLogout }) {
               </span>
             </div>
             <p className="premium-status-perks">Unlimited swipes, hidden gems, and more</p>
+            {expiresAt && (
+              <p className="premium-status-expiry">
+                {isCancelled
+                  ? `Access until ${new Date(expiresAt).toLocaleDateString()}`
+                  : `Renews ${new Date(expiresAt).toLocaleDateString()}`
+                }
+              </p>
+            )}
+            {isCancelled && (
+              <p className="premium-status-cancelled">Your subscription won't renew</p>
+            )}
             <button
               className="premium-manage-btn"
               onClick={manageSubscription}
@@ -594,6 +605,9 @@ function SettingsTab({ user, onLogout }) {
             >
               {loading ? 'Loading...' : 'Manage Subscription'}
             </button>
+            {error && (
+              <p className="premium-manage-error">{error}</p>
+            )}
           </div>
         </div>
       )}

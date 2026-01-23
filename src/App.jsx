@@ -191,13 +191,16 @@ function App() {
   const [authModalMode, setAuthModalMode] = useState('login')
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false)
 
-  // Check for subscription success URL param on mount
+  // Check for subscription success/cancelled URL param on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('subscription') === 'success') {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial state setup from URL, runs once on mount
       setShowSubscriptionSuccess(true)
       // Clean up URL without triggering navigation
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (params.get('subscription') === 'cancelled') {
+      // Clean up URL - user already knows they cancelled
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])

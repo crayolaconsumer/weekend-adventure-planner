@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
+import { PRICING } from '../constants/pricing'
 import './UpgradePrompt.css'
 
 // Sparkle icon
@@ -65,7 +66,7 @@ export default function UpgradePrompt({
   onUpgrade
 }) {
   const { user } = useAuth()
-  const { startCheckout, loading } = useSubscription()
+  const { startCheckout, loading, error } = useSubscription()
 
   const config = PROMPT_CONFIGS[type] || PROMPT_CONFIGS.saves
 
@@ -80,8 +81,12 @@ export default function UpgradePrompt({
       return
     }
 
-    await startCheckout('premium_monthly')
-    onUpgrade?.()
+    const url = await startCheckout('premium_monthly')
+    // Only call onUpgrade if checkout succeeded (URL returned means redirect happening)
+    if (url) {
+      onUpgrade?.()
+    }
+    // If no URL returned, error state is set - modal stays open showing error
   }
 
   const handleClose = () => {
@@ -145,8 +150,8 @@ export default function UpgradePrompt({
                   className="upgrade-prompt-cta"
                   onClick={handleUpgrade}
                   disabled={loading}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={loading ? {} : { scale: 1.02 }}
+                  whileTap={loading ? {} : { scale: 0.98 }}
                 >
                   {loading ? 'Loading...' : config.cta}
                 </motion.button>
@@ -158,8 +163,13 @@ export default function UpgradePrompt({
 
                 {/* Price note */}
                 <p className="upgrade-prompt-price">
-                  Just £4.99/month after free trial
+                  Just {PRICING.currency}{PRICING.monthly}/month after free trial
                 </p>
+
+                {/* Error display */}
+                {error && (
+                  <p className="upgrade-prompt-error">{error}</p>
+                )}
               </div>
             </motion.div>
           </motion.div>

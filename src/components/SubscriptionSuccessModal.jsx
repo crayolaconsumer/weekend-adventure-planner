@@ -5,8 +5,9 @@
  * Displays a list of unlocked features with satisfying animations.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '../contexts/AuthContext'
 import './SubscriptionSuccessModal.css'
 
 // Brand colors for confetti
@@ -75,6 +76,15 @@ const FEATURES = [
 ]
 
 export default function SubscriptionSuccessModal({ isOpen, onClose }) {
+  const { checkAuth } = useAuth()
+
+  // Handle close with auth refresh
+  const handleClose = useCallback(() => {
+    onClose()
+    // Refresh user data to activate premium features immediately
+    checkAuth()
+  }, [onClose, checkAuth])
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -89,12 +99,12 @@ export default function SubscriptionSuccessModal({ isOpen, onClose }) {
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose()
+        handleClose()
       }
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [isOpen, onClose])
+  }, [isOpen, handleClose])
 
   return (
     <AnimatePresence>
@@ -105,7 +115,7 @@ export default function SubscriptionSuccessModal({ isOpen, onClose }) {
           initial="hidden"
           animate="visible"
           exit="hidden"
-          onClick={onClose}
+          onClick={handleClose}
         >
           <motion.div
             className="success-modal"
@@ -157,7 +167,7 @@ export default function SubscriptionSuccessModal({ isOpen, onClose }) {
 
             <motion.button
               className="success-btn"
-              onClick={onClose}
+              onClick={handleClose}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >

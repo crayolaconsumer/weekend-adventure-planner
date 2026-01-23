@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
+import { PRICING } from '../constants/pricing'
 import './Pricing.css'
 
 // Check icon
@@ -44,8 +45,8 @@ export default function Pricing() {
   const { isPremium, startCheckout, loading, error } = useSubscription()
   const [billingPeriod, setBillingPeriod] = useState('annual') // 'monthly' | 'annual'
 
-  const monthlyPrice = 4.99
-  const annualPrice = 39.99
+  const monthlyPrice = PRICING.monthly
+  const annualPrice = PRICING.annual
   const annualMonthly = (annualPrice / 12).toFixed(2)
   const savingsPercent = Math.round((1 - annualPrice / (monthlyPrice * 12)) * 100)
 

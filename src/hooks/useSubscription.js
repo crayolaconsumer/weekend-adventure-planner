@@ -11,6 +11,11 @@ export function useSubscription() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  // Get stored auth token (same logic as AuthContext)
+  const getStoredToken = () => {
+    return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+  }
+
   // Determine if user has premium access
   const isPremium = useMemo(() => {
     if (!user) return false
@@ -61,9 +66,13 @@ export function useSubscription() {
     setError(null)
 
     try {
+      const token = getStoredToken()
       const response = await fetch('/api/payments/create-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         credentials: 'include',
         body: JSON.stringify({ plan })
       })
@@ -100,9 +109,13 @@ export function useSubscription() {
     setError(null)
 
     try {
+      const token = getStoredToken()
       const response = await fetch('/api/payments/create-portal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         credentials: 'include'
       })
 

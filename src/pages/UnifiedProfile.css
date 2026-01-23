@@ -693,6 +693,35 @@
   cursor: not-allowed;
 }
 
+/* Premium status expiry info */
+.premium-status-expiry {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-xs, 12px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  margin: 0 0 var(--space-xs, 4px);
+}
+
+/* Cancelled subscription warning */
+.premium-status-cancelled {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-xs, 12px);
+  color: var(--roam-terracotta, #c45c3e);
+  font-weight: 500;
+  margin: 0 0 var(--space-md, 12px);
+}
+
+/* Error message for manage subscription */
+.premium-manage-error {
+  margin-top: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  background: rgba(220, 38, 38, 0.1);
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  color: #dc2626;
+  text-align: center;
+}
+
 .unified-profile-settings-item.clickable {
   cursor: pointer;
   transition: background 0.2s ease;
