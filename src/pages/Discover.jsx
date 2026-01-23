@@ -150,7 +150,7 @@ export default function Discover({ location }) {
       maxResults: 50,
       sortBy: 'smart',
       weather: currentWeather,
-      ensureDiversity: selectedCategories.length === 0,
+      ensureDiversity: true,  // Always ensure category mix
       userProfile
     })
 
@@ -306,7 +306,7 @@ export default function Discover({ location }) {
         maxResults: 100,
         sortBy: 'smart',
         weather,
-        ensureDiversity: selectedCategories.length === 0,
+        ensureDiversity: true,  // Always ensure category mix
         userProfile // Personalize based on user's taste profile
       })
 

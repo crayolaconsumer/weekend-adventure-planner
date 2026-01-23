@@ -44,8 +44,8 @@ const TIME_BOOSTS = {
  * Categories better for certain weather
  */
 const WEATHER_BOOSTS = {
-  good: { nature: 15, active: 10, unique: 5 },      // Outdoor activities
-  bad: { culture: 15, entertainment: 15, food: 10, shopping: 10 }  // Indoor activities
+  good: { nature: 8, active: 8, unique: 8, entertainment: 5 },  // Balanced outdoor boost
+  bad: { culture: 12, entertainment: 12, food: 10, shopping: 8 }  // Indoor activities
 }
 
 /**
@@ -115,12 +115,17 @@ export function scorePlace(place, context = {}) {
     score -= 50
   }
 
-  // Premium types bonus
+  // Premium types bonus (rebalanced: more culture/entertainment, less nature)
   const premiumTypes = [
-    'museum', 'castle', 'viewpoint', 'beach', 'botanical_garden', 'national_park',
-    'abbey', 'cathedral', 'stately_home', 'manor', 'priory', 'country_park',
-    'nature_reserve', 'lido', 'standing_stone', 'hill_fort', 'folly', 'lighthouse',
-    'windmill', 'canal_lock', 'walled_garden', 'maze'
+    // Culture & Historic
+    'museum', 'castle', 'abbey', 'cathedral', 'stately_home', 'manor', 'priory',
+    'theatre', 'gallery', 'concert_hall', 'opera_house',
+    // Entertainment
+    'zoo', 'aquarium', 'theme_park', 'escape_game',
+    // Unique
+    'viewpoint', 'lighthouse', 'windmill', 'folly', 'maze',
+    // Nature (reduced)
+    'beach', 'botanical_garden', 'national_park', 'country_park', 'nature_reserve'
   ]
   if (premiumTypes.includes(place.type)) {
     score += 12

@@ -14,8 +14,7 @@
     var(--roam-paper) 30%,
     var(--roam-parchment) 100%
   );
-  /* Contain style recalcs without trapping fixed-position overlays */
-  contain: style;
+  /* contain: style removed - was breaking Leaflet tile rendering */
   overflow-x: hidden;
 }
 
@@ -489,6 +488,8 @@
   /* Map view takes full available height */
   .discover-content.view-map {
     flex: 1;
+    display: flex;
+    flex-direction: column;
   }
 
   .discover-content.view-map .discover-map-container {
