@@ -52,7 +52,6 @@ function createUserIcon() {
 // Map controls component to handle map interactions
 function MapController({ center, onBoundsChange, onReady }) {
   const map = useMap()
-  const didInvalidateRef = useRef(false)
 
   useEffect(() => {
     if (center) {
@@ -61,20 +60,21 @@ function MapController({ center, onBoundsChange, onReady }) {
   }, [center, map])
 
   useEffect(() => {
-    if (didInvalidateRef.current) return
-    didInvalidateRef.current = true
+    const invalidate = () => map.invalidateSize()
 
-    const invalidate = () => {
-      map.invalidateSize()
+    // Multiple attempts to catch layout settling
+    invalidate()
+    const t1 = setTimeout(invalidate, 100)
+    const t2 = setTimeout(invalidate, 300)
+    const t3 = setTimeout(() => {
+      invalidate()
       onReady?.(map)
-    }
-
-    const frame = requestAnimationFrame(invalidate)
-    const timeout = setTimeout(invalidate, 250)
+    }, 500)
 
     return () => {
-      cancelAnimationFrame(frame)
-      clearTimeout(timeout)
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
     }
   }, [map, onReady])
 
