@@ -28,3 +28,8 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Local folders (screenshots, database schemas, docs)
+database/
+docs/
+**/screenshots/

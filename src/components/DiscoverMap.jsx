@@ -5,7 +5,7 @@
  * Uses Leaflet for mapping with custom styled markers.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { motion } from 'framer-motion'
@@ -134,6 +134,11 @@ export default function DiscoverMap({
   const mapRef = useRef(null)
   const markersRef = useRef({})
   const mapInstanceRef = useRef(null)
+  const [tileUrl, setTileUrl] = useState(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+  )
+  const [tileAttribution, setTileAttribution] = useState('&copy; <a href="https://carto.com/">CARTO</a>')
+  const tileErrorCountRef = useRef(0)
 
   // Calculate map center
   const center = userLocation || (places[0] ? { lat: places[0].lat, lng: places[0].lng } : { lat: 51.5074, lng: -0.1278 })
@@ -163,6 +168,14 @@ export default function DiscoverMap({
     return () => clearTimeout(timeout)
   }, [places.length])
 
+  const handleTileError = useCallback(() => {
+    tileErrorCountRef.current += 1
+    if (tileErrorCountRef.current === 3) {
+      setTileUrl('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+      setTileAttribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
+    }
+  }, [])
+
   return (
     <motion.div
       className="discover-map-container"
@@ -179,10 +192,13 @@ export default function DiscoverMap({
       >
         {/* Dark/stylized map tiles */}
         <TileLayer
-          attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution={tileAttribution}
+          url={tileUrl}
           detectRetina
           crossOrigin="anonymous"
+          eventHandlers={{
+            tileerror: handleTileError
+          }}
         />
 
         <MapController

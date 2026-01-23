@@ -99,68 +99,69 @@ export default function UpgradePrompt({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            className="upgrade-prompt"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           >
-            {/* Close button */}
-            <button className="upgrade-prompt-close" onClick={handleClose}>
-              <CloseIcon />
-            </button>
-
-            {/* Content */}
-            <div className="upgrade-prompt-content">
-              <div className="upgrade-prompt-icon">
-                <span className="upgrade-prompt-emoji">{config.icon}</span>
-                <span className="upgrade-prompt-sparkle"><SparkleIcon /></span>
-              </div>
-
-              <h2 className="upgrade-prompt-title">{config.title}</h2>
-              <p className="upgrade-prompt-description">{config.description}</p>
-
-              {/* Benefits */}
-              <div className="upgrade-prompt-benefits">
-                <div className="upgrade-prompt-benefit">
-                  <span className="benefit-check">✓</span>
-                  {config.benefit}
-                </div>
-                <div className="upgrade-prompt-benefit">
-                  <span className="benefit-check">✓</span>
-                  Ad-free experience
-                </div>
-                <div className="upgrade-prompt-benefit">
-                  <span className="benefit-check">✓</span>
-                  7-day free trial
-                </div>
-              </div>
-
-              {/* CTA */}
-              <motion.button
-                className="upgrade-prompt-cta"
-                onClick={handleUpgrade}
-                disabled={loading}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {loading ? 'Loading...' : config.cta}
-              </motion.button>
-
-              {/* Secondary action */}
-              <button className="upgrade-prompt-secondary" onClick={handleClose}>
-                Maybe later
+            {/* Modal */}
+            <motion.div
+              className="upgrade-prompt"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={event => event.stopPropagation()}
+            >
+              {/* Close button */}
+              <button className="upgrade-prompt-close" onClick={handleClose}>
+                <CloseIcon />
               </button>
 
-              {/* Price note */}
-              <p className="upgrade-prompt-price">
-                Just £4.99/month after free trial
-              </p>
-            </div>
+              {/* Content */}
+              <div className="upgrade-prompt-content">
+                <div className="upgrade-prompt-icon">
+                  <span className="upgrade-prompt-emoji">{config.icon}</span>
+                  <span className="upgrade-prompt-sparkle"><SparkleIcon /></span>
+                </div>
+
+                <h2 className="upgrade-prompt-title">{config.title}</h2>
+                <p className="upgrade-prompt-description">{config.description}</p>
+
+                {/* Benefits */}
+                <div className="upgrade-prompt-benefits">
+                  <div className="upgrade-prompt-benefit">
+                    <span className="benefit-check">✓</span>
+                    {config.benefit}
+                  </div>
+                  <div className="upgrade-prompt-benefit">
+                    <span className="benefit-check">✓</span>
+                    Ad-free experience
+                  </div>
+                  <div className="upgrade-prompt-benefit">
+                    <span className="benefit-check">✓</span>
+                    7-day free trial
+                  </div>
+                </div>
+
+                {/* CTA */}
+                <motion.button
+                  className="upgrade-prompt-cta"
+                  onClick={handleUpgrade}
+                  disabled={loading}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {loading ? 'Loading...' : config.cta}
+                </motion.button>
+
+                {/* Secondary action */}
+                <button className="upgrade-prompt-secondary" onClick={handleClose}>
+                  Maybe later
+                </button>
+
+                {/* Price note */}
+                <p className="upgrade-prompt-price">
+                  Just £4.99/month after free trial
+                </p>
+              </div>
+            </motion.div>
           </motion.div>
         </>
       )}

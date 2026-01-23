@@ -33,7 +33,10 @@
       "Bash(do printf '%s' 'K_snMC0ppam?13uk')",
       "Bash(do printf '%s' '3306')",
       "Bash(do printf '%s' '2hSDnSMovXDxHM/br5eWqh+jS0jEukDnOTY5GHubXRk=')",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "mcp__mysql-roam__mysql_describe_table",
+      "mcp__mysql-roam__mysql_query",
+      "mcp__mysql-roam__mysql_connect"
     ],
     "defaultMode": "acceptEdits"
   }

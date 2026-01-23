@@ -226,9 +226,12 @@ async function cacheMapTile(request) {
   }
 
   try {
-    const networkResponse = await fetch(request)
+    const safeRequest = request.cache === 'only-if-cached' && request.mode !== 'same-origin'
+      ? new Request(request.url, { mode: 'no-cors', cache: 'reload' })
+      : request
+    const networkResponse = await fetch(safeRequest)
 
-    if (networkResponse.ok) {
+    if (networkResponse.ok || networkResponse.type === 'opaque') {
       // Clone response before caching
       const responseToCache = networkResponse.clone()
 
@@ -240,6 +243,16 @@ async function cacheMapTile(request) {
 
     return networkResponse
   } catch (error) {
+    // Retry with a simplified request before falling back
+    try {
+      const retryResponse = await fetch(new Request(request.url, { mode: 'no-cors', cache: 'reload' }))
+      if (retryResponse) {
+        return retryResponse
+      }
+    } catch {
+      // Ignore retry errors
+    }
+
     // Return a placeholder tile for offline (transparent 256x256 PNG)
     console.log('Service Worker: Map tile unavailable offline:', request.url)
     return new Response(
