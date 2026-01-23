@@ -656,19 +656,21 @@ export default function Events({ location }) {
           <button
             className={`events-view-toggle ${viewMode === VIEW_MODES.SWIPE ? 'active' : ''}`}
             onClick={() => setViewMode(VIEW_MODES.SWIPE)}
-            title="Swipe view"
+            aria-label="Swipe view"
+            aria-pressed={viewMode === VIEW_MODES.SWIPE}
           >
             <StackIcon />
           </button>
           <button
             className={`events-view-toggle ${viewMode === VIEW_MODES.GRID ? 'active' : ''}`}
             onClick={() => setViewMode(VIEW_MODES.GRID)}
-            title="Grid view"
+            aria-label="Grid view"
+            aria-pressed={viewMode === VIEW_MODES.GRID}
           >
             <GridIcon />
           </button>
           {events.length > 0 && (
-            <button className="events-refresh-btn" onClick={loadEvents} disabled={loading}>
+            <button className="events-refresh-btn" onClick={loadEvents} disabled={loading} aria-label="Refresh events">
               <RefreshIcon />
             </button>
           )}

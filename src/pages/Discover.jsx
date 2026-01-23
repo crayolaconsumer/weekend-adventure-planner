@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import CardStack from '../components/CardStack'
 import BoredomBuster from '../components/BoredomBuster'
 import PlaceDetail from '../components/PlaceDetail'
 import VisitedPrompt from '../components/VisitedPrompt'
+import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
@@ -11,7 +12,6 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
-import { GOOD_CATEGORIES } from '../utils/categories'
 import { isPlaceOpen } from '../utils/openingHours'
 import './Discover.css'
 
@@ -55,14 +55,19 @@ export default function Discover({ location }) {
   const [showBoredomBuster, setShowBoredomBuster] = useState(false)
   const [boredomPlace, setBoredomPlace] = useState(null)
   const [boredomLoading, setBoredomLoading] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
   const [showFilterModal, setShowFilterModal] = useState(false)
+  const latestLoadRequestRef = useRef(0)
+  const latestFilterKeyRef = useRef('')
 
   // Place detail modal state
   const [selectedPlace, setSelectedPlace] = useState(null)
 
   // Visited prompt state
   const [visitedPromptPlace, setVisitedPromptPlace] = useState(null)
+
+  // Plan prompt state (show after saving, with frequency limit)
+  const [planPromptPlace, setPlanPromptPlace] = useState(null)
+  const lastPlanPromptRef = useRef(0)
 
   // Settings state
   const [travelMode, setTravelMode] = useState(() => {
@@ -77,6 +82,15 @@ export default function Discover({ location }) {
   const [showOpenOnly, setShowOpenOnly] = useState(() => {
     return localStorage.getItem('roam_open_only') === 'true'
   })
+
+  const buildFilterKey = useCallback(() => {
+    const categoriesKey = [...selectedCategories].sort().join('|')
+    return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${categoriesKey}`
+  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, selectedCategories])
+
+  useEffect(() => {
+    latestFilterKeyRef.current = buildFilterKey()
+  }, [buildFilterKey])
 
   // Save settings to localStorage
   useEffect(() => {
@@ -113,6 +127,10 @@ export default function Discover({ location }) {
   // Note: weather is intentionally NOT a dependency to prevent cascading reloads
   const loadPlaces = useCallback(async (currentWeather = null) => {
     if (!location) return
+
+    const requestId = ++latestLoadRequestRef.current
+    const requestKey = buildFilterKey()
+    latestFilterKeyRef.current = requestKey
 
     setLoading(true)
     const mode = TRAVEL_MODES[travelMode]
@@ -166,23 +184,32 @@ export default function Discover({ location }) {
         })
       }
 
+      if (requestId !== latestLoadRequestRef.current || requestKey !== latestFilterKeyRef.current) {
+        return
+      }
+
       // Reset seen IDs and offset on fresh load
       const newSeenIds = new Set(filtered.map(p => p.id))
       setSeenPlaceIds(newSeenIds)
       setFetchOffset(filtered.length)
       setPlaces(filtered)
     } catch (error) {
-      console.error('Failed to load places:', error)
-      setPlaces([])
-      toast.error("Couldn't load places. Try refreshing.")
+      if (requestId === latestLoadRequestRef.current) {
+        console.error('Failed to load places:', error)
+        setPlaces([])
+        toast.error("Couldn't load places. Try refreshing.")
+      }
     }
-    setLoading(false)
-  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, toast, userProfile])
+    if (requestId === latestLoadRequestRef.current) {
+      setLoading(false)
+    }
+  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, toast, userProfile, buildFilterKey])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
     if (!location || loadingMore) return
 
+    const filterKeyAtStart = latestFilterKeyRef.current
     setLoadingMore(true)
     const mode = TRAVEL_MODES[travelMode]
 
@@ -228,6 +255,10 @@ export default function Discover({ location }) {
         })
       }
 
+      if (filterKeyAtStart !== latestFilterKeyRef.current) {
+        return
+      }
+
       // Filter out places we've already shown
       const newPlaces = filtered.filter(p => !seenPlaceIds.has(p.id))
 
@@ -243,9 +274,9 @@ export default function Discover({ location }) {
       }
     } catch (error) {
       console.error('Failed to load more places:', error)
+    } finally {
+      setLoadingMore(false)
     }
-
-    setLoadingMore(false)
   }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile])
 
   // Load places when location or settings change
@@ -293,11 +324,31 @@ export default function Discover({ location }) {
     })
   }
 
+  const clearAllFilters = () => {
+    setSelectedCategories([])
+    setShowFreeOnly(false)
+    setAccessibilityMode(false)
+    setShowOpenOnly(false)
+  }
+
   // Handle swipe actions
   const handleSwipe = (action, place) => {
     if (action === 'like') {
       // Save to wishlist (hook handles localStorage vs API)
       savePlace(place)
+
+      // Show plan prompt occasionally (not every save - every 3rd or after 30s)
+      const now = Date.now()
+      const timeSinceLastPrompt = now - lastPlanPromptRef.current
+      const saveCount = parseInt(localStorage.getItem('roam_save_count') || '0', 10) + 1
+      localStorage.setItem('roam_save_count', String(saveCount))
+
+      // Show prompt every 3rd save OR if more than 30 seconds since last prompt
+      if (saveCount % 3 === 0 || timeSinceLastPrompt > 30000) {
+        lastPlanPromptRef.current = now
+        // Small delay so user sees the swipe complete
+        setTimeout(() => setPlanPromptPlace(place), 400)
+      }
     }
 
     // Track negative signals for "not interested" personalization
@@ -489,11 +540,11 @@ export default function Discover({ location }) {
           <p className="discover-tagline">Stop scrolling. Start roaming.</p>
         </motion.div>
 
-        {/* Settings Button */}
+        {/* Filter Button */}
         <button
           className="discover-settings-btn"
-          onClick={() => setShowSettings(!showSettings)}
-          aria-label="Settings"
+          onClick={() => setShowFilterModal(true)}
+          aria-label="Open filters"
         >
           <SettingsIcon />
         </button>
@@ -538,141 +589,31 @@ export default function Discover({ location }) {
             <span>{currentMode.icon}</span>
             <span>{currentMode.label}</span>
           </div>
+          <button
+            className="discover-filters-trigger"
+            onClick={() => setShowFilterModal(true)}
+            aria-label="Open filter options"
+          >
+            <span className="discover-filters-trigger-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+            </span>
+            <span className="discover-filters-trigger-text">
+              {selectedCategories.length > 0
+                ? `${selectedCategories.length} filter${selectedCategories.length !== 1 ? 's' : ''}`
+                : 'All categories'}
+            </span>
+          </button>
         </div>
       </header>
 
-      {/* Settings Panel */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div
-            className="discover-settings-panel"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-          >
-            <div className="settings-section">
-              <h4 className="settings-label">Travel Mode</h4>
-              <div className="settings-options">
-                {Object.entries(TRAVEL_MODES).map(([key, mode]) => (
-                  <button
-                    key={key}
-                    className={`settings-option ${travelMode === key ? 'active' : ''}`}
-                    onClick={() => setTravelMode(key)}
-                  >
-                    <span className="settings-option-icon">{mode.icon}</span>
-                    <span>{mode.label}</span>
-                    <span className="settings-option-detail">
-                      Up to {mode.maxRadius / 1000}km
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="settings-section">
-              <h4 className="settings-label" id="settings-filters-label">Filters</h4>
-              <div className="settings-toggles" role="group" aria-labelledby="settings-filters-label">
-                <label className="settings-toggle">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-checked={showFreeOnly}
-                    checked={showFreeOnly}
-                    onChange={(e) => setShowFreeOnly(e.target.checked)}
-                  />
-                  <span className="settings-toggle-slider" aria-hidden="true"></span>
-                  <span className="settings-toggle-label">
-                    <span aria-hidden="true">💸</span>
-                    Free places only
-                  </span>
-                </label>
-
-                <label className="settings-toggle">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-checked={accessibilityMode}
-                    checked={accessibilityMode}
-                    onChange={(e) => setAccessibilityMode(e.target.checked)}
-                  />
-                  <span className="settings-toggle-slider" aria-hidden="true"></span>
-                  <span className="settings-toggle-label">
-                    <span aria-hidden="true">♿</span>
-                    Accessibility friendly
-                  </span>
-                </label>
-
-                <label className="settings-toggle">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    aria-checked={showOpenOnly}
-                    checked={showOpenOnly}
-                    onChange={(e) => setShowOpenOnly(e.target.checked)}
-                  />
-                  <span className="settings-toggle-slider" aria-hidden="true"></span>
-                  <span className="settings-toggle-label">
-                    <span aria-hidden="true">🕐</span>
-                    Open now only
-                  </span>
-                </label>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Category Filters - Mobile trigger + Desktop scroll */}
-      <div className="discover-filters">
-        {/* Mobile: Compact trigger button */}
-        <button
-          className="discover-filters-trigger"
-          onClick={() => setShowFilterModal(true)}
-          aria-label="Open filter options"
-        >
-          <span className="discover-filters-trigger-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
-          </span>
-          <span className="discover-filters-trigger-text">
-            {selectedCategories.length > 0
-              ? `${selectedCategories.length} filter${selectedCategories.length !== 1 ? 's' : ''}`
-              : 'All categories'}
-          </span>
-          {(selectedCategories.length > 0 || showFreeOnly || accessibilityMode) && (
-            <span className="discover-filters-trigger-badge">
-              {selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0)}
-            </span>
-          )}
-        </button>
-
-        {/* Desktop: Horizontal scroll (hidden on mobile) */}
-        <div className="discover-filters-scroll" role="group" aria-label="Filter by category">
-          {Object.entries(GOOD_CATEGORIES).map(([key, category]) => (
-            <button
-              key={key}
-              className={`chip ${selectedCategories.includes(key) ? 'selected' : ''}`}
-              onClick={() => toggleCategory(key)}
-              aria-pressed={selectedCategories.includes(key)}
-              style={{
-                '--chip-color': category.color,
-                '--chip-color-light': `${category.color}15`,
-                '--chip-color-medium': `${category.color}25`,
-              }}
-            >
-              <span aria-hidden="true">{category.icon}</span>
-              {category.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Active filters indicator (desktop only, mobile shows in trigger) */}
-      {(showFreeOnly || accessibilityMode) && (
+      {(showFreeOnly || accessibilityMode || showOpenOnly) && (
         <div className="discover-active-filters">
           {showFreeOnly && <span className="active-filter">💸 Free only</span>}
           {accessibilityMode && <span className="active-filter">♿ Accessible</span>}
+          {showOpenOnly && <span className="active-filter">🕐 Open now</span>}
         </div>
       )}
 
@@ -683,7 +624,7 @@ export default function Discover({ location }) {
         onExpand={(place) => setSelectedPlace(place)}
         onEmpty={() => {}}
         onRefresh={() => loadPlaces()}
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenSettings={() => setShowFilterModal(true)}
         onLoadMore={loadMorePlaces}
         loading={loading}
         loadingMore={loadingMore}
@@ -778,16 +719,33 @@ export default function Discover({ location }) {
         )}
       </AnimatePresence>
 
+      {/* Plan Prompt - shown after saving a place */}
+      <AnimatePresence>
+        {planPromptPlace && (
+          <PlanPrompt
+            place={planPromptPlace}
+            onClose={() => setPlanPromptPlace(null)}
+            onAddToPlan={() => setPlanPromptPlace(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Filter Modal */}
       <FilterModal
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
+        travelMode={travelMode}
+        travelModes={TRAVEL_MODES}
+        onTravelModeChange={setTravelMode}
         selectedCategories={selectedCategories}
         onToggleCategory={toggleCategory}
         showFreeOnly={showFreeOnly}
         onToggleFreeOnly={() => setShowFreeOnly(prev => !prev)}
         accessibilityMode={accessibilityMode}
         onToggleAccessibility={() => setAccessibilityMode(prev => !prev)}
+        showOpenOnly={showOpenOnly}
+        onToggleOpenOnly={() => setShowOpenOnly(prev => !prev)}
+        onClearAll={clearAllFilters}
       />
     </div>
   )

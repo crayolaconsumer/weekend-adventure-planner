@@ -11,8 +11,8 @@
  * - Progress indication (active count badge)
  */
 
-import { useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useRef, useCallback, useState } from 'react'
+import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import './FilterModal.css'
 
@@ -73,15 +73,31 @@ const itemVariants = {
 export function FilterModal({
   isOpen,
   onClose,
+  travelMode,
+  travelModes,
+  onTravelModeChange,
   selectedCategories = [],
   onToggleCategory,
-  showFreeOnly,
-  onToggleFreeOnly,
-  accessibilityMode,
-  onToggleAccessibility
+  showFreeOnly = false,
+  onToggleFreeOnly = () => {},
+  accessibilityMode = false,
+  onToggleAccessibility = () => {},
+  showOpenOnly = false,
+  onToggleOpenOnly = () => {},
+  onClearAll = null
 }) {
   const sheetRef = useRef(null)
   const firstFocusableRef = useRef(null)
+  const dragControls = useDragControls()
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Reset expanded state when modal opens - intentional state sync
+  useEffect(() => {
+    if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset on modal open
+      setIsExpanded(false)
+    }
+  }, [isOpen])
 
   // Focus trap
   useEffect(() => {
@@ -133,8 +149,45 @@ export function FilterModal({
     }
   }
 
-  const activeCount = selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0)
+  const activeCount = selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showOpenOnly ? 1 : 0)
   const categories = Object.entries(GOOD_CATEGORIES)
+
+  const handleDragStart = (event) => {
+    dragControls.start(event)
+  }
+
+  const handleDragEnd = (_, info) => {
+    const offsetY = info.offset.y
+    const expandThreshold = 80
+    const closeThreshold = 160
+
+    if (offsetY < -expandThreshold) {
+      setIsExpanded(true)
+      return
+    }
+
+    if (offsetY > closeThreshold) {
+      onClose()
+      return
+    }
+
+    if (isExpanded && offsetY > expandThreshold) {
+      setIsExpanded(false)
+    }
+  }
+
+  const handleClearAll = () => {
+    if (onClearAll) {
+      onClearAll()
+      return
+    }
+
+    // Fallback: toggle everything off
+    selectedCategories.forEach(cat => onToggleCategory(cat))
+    if (showFreeOnly) onToggleFreeOnly()
+    if (accessibilityMode) onToggleAccessibility()
+    if (showOpenOnly) onToggleOpenOnly()
+  }
 
   return (
     <AnimatePresence>
@@ -152,14 +205,32 @@ export function FilterModal({
         >
           <motion.div
             ref={sheetRef}
-            className="filter-modal-sheet"
+            className={`filter-modal-sheet ${isExpanded ? 'expanded' : ''}`}
             variants={sheetVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
+            drag="y"
+            dragControls={dragControls}
+            dragListener={false}
+            dragConstraints={{ top: -120, bottom: 200 }}
+            dragElastic={0.2}
+            onDragEnd={handleDragEnd}
           >
             {/* Handle bar */}
-            <div className="filter-modal-handle" />
+            <div
+              className="filter-modal-handle"
+              role="button"
+              tabIndex={0}
+              aria-label="Drag to resize"
+              onPointerDown={handleDragStart}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setIsExpanded(prev => !prev)
+                }
+              }}
+            />
 
             {/* Header */}
             <div className="filter-modal-header">
@@ -179,92 +250,136 @@ export function FilterModal({
               <p className="filter-modal-subtitle">Select categories to explore</p>
             </div>
 
-            {/* Category Grid */}
-            <motion.div
-              className="filter-modal-grid"
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              {categories.map(([key, category]) => {
-                const isSelected = selectedCategories.includes(key)
-                return (
-                  <motion.button
-                    key={key}
-                    variants={itemVariants}
-                    className={`filter-category-item ${isSelected ? 'selected' : ''}`}
-                    onClick={() => onToggleCategory(key)}
-                    aria-pressed={isSelected}
-                    whileTap={{ scale: 0.92 }}
-                    style={{
-                      '--category-color': category.color,
-                      '--category-color-glow': `${category.color}40`,
-                    }}
-                    ref={key === 'food' ? firstFocusableRef : null}
-                  >
-                    <span className="filter-category-icon" aria-hidden="true">
-                      {category.icon}
-                    </span>
-                    <span className="filter-category-label">{category.label}</span>
+            <div className="filter-modal-body">
+              {travelModes && onTravelModeChange && (
+                <div className="filter-modal-section">
+                  <div className="filter-modal-section-header">
+                    <span className="filter-modal-section-title">Travel mode</span>
+                  </div>
+                  <div className="filter-modal-mode-grid">
+                    {Object.entries(travelModes).map(([key, mode]) => (
+                      <button
+                        key={key}
+                        className={`filter-modal-mode-item ${travelMode === key ? 'active' : ''}`}
+                        onClick={() => onTravelModeChange(key)}
+                      >
+                        <span className="filter-modal-mode-icon">{mode.icon}</span>
+                        <span className="filter-modal-mode-label">{mode.label}</span>
+                        <span className="filter-modal-mode-detail">
+                          Up to {mode.maxRadius / 1000}km
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                    {/* Selection indicator */}
-                    <AnimatePresence>
-                      {isSelected && (
-                        <motion.span
-                          className="filter-category-check"
-                          initial={{ scale: 0, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0, opacity: 0 }}
-                          transition={{ type: 'spring', damping: 15, stiffness: 400 }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </motion.button>
-                )
-              })}
-            </motion.div>
+              {travelModes && onTravelModeChange && (
+                <div className="filter-modal-divider" aria-hidden="true" />
+              )}
 
-            {/* Additional Filters */}
-            <div className="filter-modal-extras">
-              <button
-                className={`filter-extra-item ${showFreeOnly ? 'selected' : ''}`}
-                onClick={onToggleFreeOnly}
-                aria-pressed={showFreeOnly}
+              {/* Category Grid */}
+              <motion.div
+                className="filter-modal-grid"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
               >
-                <span className="filter-extra-icon" aria-hidden="true">💸</span>
-                <span className="filter-extra-label">Free only</span>
-                <span className={`filter-extra-toggle ${showFreeOnly ? 'on' : ''}`}>
-                  <span className="filter-extra-toggle-knob" />
-                </span>
-              </button>
+                {categories.map(([key, category]) => {
+                  const isSelected = selectedCategories.includes(key)
+                  return (
+                    <motion.button
+                      key={key}
+                      variants={itemVariants}
+                      className={`filter-category-item ${isSelected ? 'selected' : ''}`}
+                      onClick={() => onToggleCategory(key)}
+                      aria-pressed={isSelected}
+                      whileTap={{ scale: 0.92 }}
+                      style={{
+                        '--category-color': category.color,
+                        '--category-color-glow': `${category.color}40`,
+                      }}
+                      ref={key === 'food' ? firstFocusableRef : null}
+                    >
+                      <span className="filter-category-icon" aria-hidden="true">
+                        {category.icon}
+                      </span>
+                      <span className="filter-category-label">{category.label}</span>
 
-              <button
-                className={`filter-extra-item ${accessibilityMode ? 'selected' : ''}`}
-                onClick={onToggleAccessibility}
-                aria-pressed={accessibilityMode}
-              >
-                <span className="filter-extra-icon" aria-hidden="true">♿</span>
-                <span className="filter-extra-label">Accessible places</span>
-                <span className={`filter-extra-toggle ${accessibilityMode ? 'on' : ''}`}>
-                  <span className="filter-extra-toggle-knob" />
-                </span>
-              </button>
+                      {/* Selection indicator */}
+                      <AnimatePresence>
+                        {isSelected && (
+                          <motion.span
+                            className="filter-category-check"
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0, opacity: 0 }}
+                            transition={{ type: 'spring', damping: 15, stiffness: 400 }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
+                  )
+                })}
+              </motion.div>
+
+              {/* Additional Filters */}
+              <div className="filter-modal-extras">
+                <button
+                  className={`filter-extra-item ${showFreeOnly ? 'selected' : ''}`}
+                  onClick={onToggleFreeOnly}
+                  aria-pressed={showFreeOnly}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">💸</span>
+                  <span className="filter-extra-label">Free only</span>
+                  <span className={`filter-extra-toggle ${showFreeOnly ? 'on' : ''}`}>
+                    <span className="filter-extra-toggle-knob" />
+                  </span>
+                </button>
+
+                <button
+                  className={`filter-extra-item ${accessibilityMode ? 'selected' : ''}`}
+                  onClick={onToggleAccessibility}
+                  aria-pressed={accessibilityMode}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">♿</span>
+                  <span className="filter-extra-label">Accessible places</span>
+                  <span className={`filter-extra-toggle ${accessibilityMode ? 'on' : ''}`}>
+                    <span className="filter-extra-toggle-knob" />
+                  </span>
+                </button>
+
+                <button
+                  className={`filter-extra-item ${showOpenOnly ? 'selected' : ''}`}
+                  onClick={onToggleOpenOnly}
+                  aria-pressed={showOpenOnly}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">🕐</span>
+                  <span className="filter-extra-label">Open now</span>
+                  <span className={`filter-extra-toggle ${showOpenOnly ? 'on' : ''}`}>
+                    <span className="filter-extra-toggle-knob" />
+                  </span>
+                </button>
+              </div>
             </div>
+
+            <span className="filter-modal-scroll-hint" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14" />
+                <path d="M7 14l5 5 5-5" />
+              </svg>
+              Scroll for more
+            </span>
 
             {/* Footer */}
             <div className="filter-modal-footer">
               <button
                 className="filter-modal-clear"
-                onClick={() => {
-                  // Clear all selections
-                  selectedCategories.forEach(cat => onToggleCategory(cat))
-                  if (showFreeOnly) onToggleFreeOnly()
-                  if (accessibilityMode) onToggleAccessibility()
-                }}
+                onClick={handleClearAll}
                 disabled={activeCount === 0}
               >
                 Clear all
