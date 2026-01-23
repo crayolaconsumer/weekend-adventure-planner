@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
 // Lazy load page components for code splitting
@@ -8,17 +8,17 @@ const Plan = lazy(() => import('./pages/Plan'))
 const Events = lazy(() => import('./pages/Events'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
 const Collections = lazy(() => import('./pages/Collections'))
-const Profile = lazy(() => import('./pages/Profile'))
-const UserProfile = lazy(() => import('./pages/UserProfile'))
+const UnifiedProfile = lazy(() => import('./pages/UnifiedProfile'))
 const Activity = lazy(() => import('./pages/Activity'))
 const Place = lazy(() => import('./pages/Place'))
+const SharedPlan = lazy(() => import('./pages/SharedPlan'))
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
 import { ToastProvider } from './components/Toast'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 
 // Icons as components
 const CompassIcon = () => (
@@ -87,6 +87,95 @@ function LocationBanner({ error, onRetry }) {
         &times;
       </button>
     </motion.div>
+  )
+}
+
+// Profile redirect - sends authenticated users to their profile
+function ProfileRedirect({ onOpenAuth }) {
+  const { user, isAuthenticated, loading } = useAuth()
+
+  if (loading) {
+    return <LoadingState variant="spinner" message="Loading..." size="large" />
+  }
+
+  // If authenticated and has username, redirect to unified profile
+  if (isAuthenticated && user?.username) {
+    return <Navigate to={`/user/${user.username}`} replace />
+  }
+
+  // If not authenticated, show sign-in prompt
+  return (
+    <div className="page" style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '64px 24px',
+      textAlign: 'center',
+      minHeight: '60vh'
+    }}>
+      <div style={{
+        width: '100px',
+        height: '100px',
+        borderRadius: '50%',
+        background: 'var(--roam-parchment)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '48px',
+        marginBottom: '24px'
+      }}>
+        👤
+      </div>
+      <h2 style={{
+        fontFamily: 'var(--font-display)',
+        fontSize: '24px',
+        color: 'var(--roam-forest)',
+        margin: '0 0 8px'
+      }}>
+        Your Profile
+      </h2>
+      <p style={{
+        fontSize: '14px',
+        color: 'var(--roam-ink-muted)',
+        margin: '0 0 24px',
+        maxWidth: '280px'
+      }}>
+        Sign in to track your journey, earn badges, and connect with other explorers.
+      </p>
+      <div style={{ display: 'flex', gap: '12px' }}>
+        <button
+          onClick={() => onOpenAuth('login')}
+          style={{
+            padding: '12px 24px',
+            background: 'var(--roam-forest)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '24px',
+            fontWeight: '600',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          Sign In
+        </button>
+        <button
+          onClick={() => onOpenAuth('register')}
+          style={{
+            padding: '12px 24px',
+            background: 'transparent',
+            color: 'var(--roam-forest)',
+            border: '2px solid var(--roam-forest)',
+            borderRadius: '24px',
+            fontWeight: '600',
+            fontSize: '14px',
+            cursor: 'pointer'
+          }}
+        >
+          Sign Up
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -221,10 +310,11 @@ function App() {
                       <Route path="/plan" element={<Plan location={location} />} />
                       <Route path="/wishlist" element={<Wishlist />} />
                       <Route path="/collections" element={<Collections />} />
-                      <Route path="/profile" element={<Profile onOpenAuth={openAuthModal} />} />
-                      <Route path="/user/:username" element={<UserProfile />} />
+                      <Route path="/profile" element={<ProfileRedirect onOpenAuth={openAuthModal} />} />
+                      <Route path="/user/:username" element={<UnifiedProfile />} />
                       <Route path="/activity" element={<Activity />} />
                       <Route path="/place/:id" element={<Place />} />
+                      <Route path="/plan/share/:code" element={<SharedPlan />} />
                     </Routes>
                   </AnimatePresence>
                 </Suspense>

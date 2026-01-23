@@ -1,0 +1,155 @@
+/**
+ * PlanPrompt Styles
+ *
+ * Compact, elegant prompt that appears after saving a place
+ */
+
+.plan-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 24px;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  z-index: 1000;
+}
+
+@media (min-width: 768px) {
+  .plan-prompt-overlay {
+    align-items: center;
+    padding-bottom: 24px;
+  }
+}
+
+.plan-prompt {
+  position: relative;
+  background: var(--roam-cream);
+  border-radius: 24px;
+  padding: 24px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.plan-prompt-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--roam-ink-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.plan-prompt-close:hover {
+  background: var(--roam-parchment);
+  color: var(--roam-ink);
+}
+
+.plan-prompt-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-olive) 100%);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 12px rgba(44, 62, 45, 0.3);
+}
+
+.plan-prompt-content {
+  margin-bottom: 20px;
+}
+
+.plan-prompt-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  margin: 0 0 8px;
+}
+
+.plan-prompt-text {
+  font-size: 14px;
+  color: var(--roam-ink-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.plan-prompt-text strong {
+  color: var(--roam-ink);
+  font-weight: 600;
+}
+
+.plan-prompt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plan-prompt-btn {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.plan-prompt-btn.primary {
+  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-olive) 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(44, 62, 45, 0.25);
+}
+
+.plan-prompt-btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(44, 62, 45, 0.3);
+}
+
+.plan-prompt-btn.primary:active {
+  transform: translateY(0);
+}
+
+.plan-prompt-btn.ghost {
+  background: transparent;
+  color: var(--roam-ink-muted);
+}
+
+.plan-prompt-btn.ghost:hover {
+  background: var(--roam-parchment);
+  color: var(--roam-ink);
+}
+
+/* Tablet+ layout */
+@media (min-width: 768px) {
+  .plan-prompt {
+    padding: 28px;
+  }
+
+  .plan-prompt-actions {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .plan-prompt-btn {
+    flex: 1;
+  }
+}

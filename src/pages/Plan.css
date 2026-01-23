@@ -1,436 +1,592 @@
-/* ═══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    PLAN PAGE
-   Adventure builder with visual timeline
-   ═══════════════════════════════════════════════════════ */
 
-.plan-page .page-content {
-  max-width: 600px;
-  margin: 0 auto;
+   Matches ROAM's field-journal aesthetic.
+   Warm, tactile, inviting. Not a form. An adventure taking shape.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-page {
+  min-height: calc(var(--stable-vh, 100vh) - 70px);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    180deg,
+    var(--roam-cream) 0%,
+    var(--roam-paper) 40%,
+    var(--roam-parchment) 100%
+  );
 }
 
-/* Section Headers */
-.plan-section {
-  margin-bottom: var(--space-xl);
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEADER - Simple, elegant, like Discover
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-header {
+  padding: var(--space-xl) var(--space-lg) var(--space-md);
+  text-align: center;
 }
 
-.plan-section-title {
+.plan-title {
   font-family: var(--font-display);
-  font-size: var(--text-lg);
-  margin-bottom: var(--space-md);
-  color: var(--color-text-primary);
-}
-
-/* Vibe Selection */
-.plan-vibes {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-sm);
-}
-
-.plan-vibe {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-lg);
-  background: var(--color-surface-elevated);
-  border: 2px solid var(--roam-parchment);
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.plan-vibe:hover {
-  border-color: var(--roam-stone);
-  background: var(--roam-paper);
-}
-
-.plan-vibe.selected {
-  border-color: var(--roam-forest);
-  background: rgba(26, 58, 47, 0.05);
-}
-
-.plan-vibe-icon {
   font-size: var(--text-2xl);
-}
-
-.plan-vibe-label {
-  font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--color-text-secondary);
-}
-
-.plan-vibe.selected .plan-vibe-label {
   color: var(--roam-forest);
+  margin: 0;
+  letter-spacing: -0.02em;
 }
 
-/* Duration Selection */
-.plan-durations {
-  display: flex;
-  gap: var(--space-sm);
-  overflow-x: auto;
-  padding-bottom: var(--space-xs);
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   BODY
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.plan-duration {
+.plan-body {
   flex: 1;
-  min-width: 80px;
+  padding: 0 var(--space-lg) var(--space-lg);
+  padding-bottom: calc(var(--space-2xl) + 80px);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: var(--space-md);
-  background: var(--color-surface-elevated);
-  border: 2px solid var(--roam-parchment);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: var(--space-xl);
+  max-width: 540px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.plan-duration:hover {
-  border-color: var(--roam-stone);
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTOR ROWS (Vibe, Duration)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.plan-duration.selected {
-  border-color: var(--roam-forest);
-  background: rgba(26, 58, 47, 0.05);
-}
-
-.plan-duration-label {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-.plan-duration-stops {
+.plan-label {
+  font-family: var(--font-body);
   font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
-/* Build Button */
-.plan-build-btn {
-  width: 100%;
+.plan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  background: var(--roam-paper);
+  border: 1.5px solid var(--roam-parchment);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.plan-chip:hover {
+  background: var(--roam-parchment);
+  border-color: var(--roam-stone);
+}
+
+.plan-chip:active {
+  transform: scale(0.97);
+}
+
+.plan-chip.active {
+  background: var(--roam-forest);
+  border-color: var(--roam-forest);
+  color: white;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENERATE BUTTON - The Boredom Buster's sibling
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-generate {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
-  padding: var(--space-lg);
-  margin-top: var(--space-xl);
-  background: var(--roam-forest);
+  width: 100%;
+  padding: 16px 28px;
+  margin-top: var(--space-sm);
+  background: linear-gradient(
+    135deg,
+    var(--roam-terracotta-light) 0%,
+    var(--roam-terracotta) 100%
+  );
   color: white;
   border: none;
   border-radius: var(--radius-full);
   font-family: var(--font-display);
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   font-weight: 500;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  transition: box-shadow 0.3s var(--ease-out-expo);
+  box-shadow:
+    0 2px 8px rgba(196, 92, 62, 0.3),
+    0 4px 20px rgba(196, 92, 62, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.plan-generate:hover:not(:disabled) {
+  box-shadow:
+    0 4px 16px rgba(196, 92, 62, 0.35),
+    0 8px 32px rgba(196, 92, 62, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.plan-generate:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.plan-generate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTIONS (Wishlist, Itinerary)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.plan-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--roam-parchment);
+}
+
+.plan-section-title {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.plan-section-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-terracotta);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.plan-section-link:hover {
+  text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WISHLIST ITEMS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-wishlist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.plan-wishlist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 14px 16px;
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+
+.plan-wishlist-item:hover {
   box-shadow: var(--shadow-md);
-  transition: all 0.2s;
 }
 
-.plan-build-btn:hover:not(:disabled) {
+.plan-wishlist-item:active {
+  transform: scale(0.98);
+}
+
+.plan-wishlist-name {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-wishlist-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--roam-parchment);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+
+.plan-wishlist-item:hover .plan-wishlist-add {
+  background: var(--roam-forest);
+  color: white;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ITINERARY SECTION
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-itinerary-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.plan-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-elevated);
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-action:hover {
+  background: var(--roam-parchment);
+  border-color: var(--roam-stone);
+}
+
+.plan-action.primary {
+  background: var(--roam-forest);
+  border-color: var(--roam-forest);
+  color: white;
+}
+
+.plan-action.primary:hover {
   background: var(--roam-forest-light);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
 }
 
-.plan-build-btn:disabled {
+.plan-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.plan-saved-hint {
-  text-align: center;
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIMELINE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-timeline-list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Individual Stop */
+.plan-stop {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-sm) 0;
+}
+
+.plan-stop-time {
+  width: 48px;
+  flex-shrink: 0;
+  padding-top: var(--space-md);
+  font-family: var(--font-body);
   font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  margin-top: var(--space-md);
-  cursor: default;
-}
-
-.plan-build-btn .loading-spinner.small {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-  border-color: rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-}
-
-/* Adventure Result */
-.adventure-header {
-  text-align: center;
-  margin-bottom: var(--space-xl);
-}
-
-.adventure-vibe {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: 6px 14px;
-  background: var(--roam-paper);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-md);
-}
-
-.adventure-title {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  color: var(--roam-forest);
-}
-
-/* Timeline */
-.adventure-timeline {
-  position: relative;
-  padding-left: var(--space-xl);
-  margin-bottom: var(--space-xl);
-}
-
-.adventure-timeline::before {
-  content: '';
-  position: absolute;
-  left: 7px;
-  top: 4px;
-  bottom: 20px;
-  width: 2px;
-  background: var(--roam-parchment);
-}
-
-.timeline-item {
-  position: relative;
-  padding-bottom: var(--space-lg);
-}
-
-.timeline-marker {
-  position: absolute;
-  left: calc(-1 * var(--space-xl) + 3px);
-  top: 4px;
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--roam-forest);
-  border: 2px solid var(--color-background);
-  z-index: 1;
-}
-
-.timeline-time {
-  font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin-bottom: var(--space-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--roam-forest);
+  text-align: right;
 }
 
-.timeline-card {
-  position: relative;
-  padding: var(--space-md);
-  background: var(--color-surface-elevated);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+.plan-stop-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  flex-shrink: 0;
+  padding-top: var(--space-md);
 }
 
-.timeline-card-header {
+.plan-stop-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--roam-forest);
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.plan-stop-line {
+  width: 2px;
+  flex: 1;
+  background: var(--roam-parchment);
+  margin-top: var(--space-xs);
+}
+
+/* Stop Card */
+.plan-stop-card {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-bottom: var(--space-xs);
+  padding: var(--space-md);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  transition: all var(--duration-fast);
 }
 
-.timeline-category {
-  font-size: var(--text-base);
+.plan-stop-card:hover {
+  box-shadow: var(--shadow-md);
 }
 
-.timeline-place-name {
-  font-family: var(--font-display);
-  font-size: var(--text-base);
-  font-weight: 500;
+.plan-stop-card:active {
+  cursor: grabbing;
+}
+
+.plan-stop-drag {
+  color: var(--roam-stone);
+  opacity: 0.4;
+  transition: opacity var(--duration-fast);
+}
+
+.plan-stop-card:hover .plan-stop-drag {
+  opacity: 1;
+}
+
+.plan-stop-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-stop-name {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
   color: var(--color-text-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.timeline-place-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
+.plan-stop-meta {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
-}
-
-.timeline-place-meta span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.timeline-type {
   text-transform: capitalize;
 }
 
-.timeline-shuffle {
-  position: absolute;
-  top: var(--space-sm);
-  right: var(--space-sm);
-  width: 32px;
-  height: 32px;
+.plan-stop-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.plan-stop-actions button {
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--roam-paper);
+  background: transparent;
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--duration-fast);
 }
 
-.timeline-shuffle:hover {
+.plan-stop-actions button:hover {
   background: var(--roam-parchment);
   color: var(--roam-forest);
 }
 
-.timeline-travel {
+.plan-stop-actions button:first-child:hover {
+  color: var(--roam-terracotta);
+}
+
+/* Travel Time */
+.plan-travel {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-sm) 0;
+  padding: var(--space-xs) 0 var(--space-xs) calc(48px + 20px + var(--space-md) * 2);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
-/* Adventure Actions */
-.adventure-actions {
-  display: flex;
-  gap: var(--space-md);
+.plan-travel-arrow {
+  color: var(--roam-stone);
 }
 
-.adventure-actions .btn {
-  flex: 1;
-}
-
-/* Recent Adventures */
-.plan-recent {
-  margin-top: var(--space-2xl);
-  padding-top: var(--space-xl);
-  border-top: 1px solid var(--roam-parchment);
-}
-
-.plan-recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.plan-recent-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md);
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--roam-parchment);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-}
-
-.plan-recent-item:hover {
-  border-color: var(--roam-stone);
-  background: var(--roam-paper);
-}
-
-.plan-recent-icon {
-  font-size: var(--text-xl);
-}
-
-.plan-recent-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.plan-recent-title {
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-.plan-recent-meta {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-/* ═══════════════════════════════════════════════════════
-   LOADING STATE
-   ═══════════════════════════════════════════════════════ */
-
-.plan-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-md) 0;
-}
-
-.plan-loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: plan-spin 0.8s linear infinite;
-}
-
-@keyframes plan-spin {
-  to { transform: rotate(360deg); }
-}
-
-.plan-loading-text {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  text-align: center;
-}
-
-.plan-loading-title {
-  font-size: var(--text-base);
-  font-weight: 500;
-}
-
-.plan-loading-subtitle {
-  font-size: var(--text-sm);
-  opacity: 0.8;
-  font-style: italic;
-}
-
-/* ═══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    EMPTY STATE
-   ═══════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.plan-empty-state {
+.plan-empty {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: var(--space-xl);
-  background: var(--roam-paper);
+  justify-content: center;
+  padding: var(--space-2xl) var(--space-lg);
+  text-align: center;
+  border: 1.5px dashed var(--roam-parchment);
   border-radius: var(--radius-lg);
-  border: 1px dashed var(--roam-stone);
+  background: var(--roam-paper);
 }
 
-.plan-empty-icon {
-  font-size: 48px;
-  margin-bottom: var(--space-md);
-  opacity: 0.7;
-}
-
-.plan-empty-text {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  color: var(--color-text-primary);
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.plan-empty-hint {
+.plan-empty p {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADD STOP BUTTON
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-add-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-left: calc(48px + 20px + var(--space-md) * 2);
+  padding: var(--space-md);
+  background: transparent;
+  border: 1.5px dashed var(--roam-stone);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-add-stop:hover {
+  background: var(--roam-paper);
+  border-color: var(--roam-forest);
+  color: var(--roam-forest);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .plan-header {
+    padding: var(--space-lg) var(--space-md) var(--space-sm);
+  }
+
+  .plan-title {
+    font-size: var(--text-xl);
+  }
+
+  .plan-body {
+    padding: 0 var(--space-md) var(--space-md);
+    padding-bottom: calc(var(--space-xl) + 70px);
+    gap: var(--space-lg);
+  }
+
+  .plan-chip {
+    padding: 10px 16px;
+    gap: 6px;
+  }
+
+  .plan-generate {
+    padding: 12px 24px;
+    font-size: var(--text-sm);
+  }
+
+  .plan-stop-time {
+    width: 40px;
+    font-size: var(--text-xs);
+  }
+
+  .plan-stop-card {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .plan-stop-name {
+    font-size: var(--text-xs);
+  }
+
+  .plan-travel {
+    padding-left: calc(40px + 20px + var(--space-md) * 2);
+  }
+
+  .plan-add-stop {
+    margin-left: calc(40px + 20px + var(--space-md) * 2);
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--text-xs);
+  }
+}
+
+@media (min-width: 768px) {
+  .plan-header {
+    padding-top: var(--space-2xl);
+  }
+
+  .plan-title {
+    font-size: var(--text-3xl);
+  }
+
+  .plan-row {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .plan-label {
+    min-width: 80px;
+  }
+
+  .plan-wishlist {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

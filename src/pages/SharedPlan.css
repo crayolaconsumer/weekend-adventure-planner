@@ -1,0 +1,330 @@
+/**
+ * SharedPlan Styles
+ *
+ * Public view of shared adventure plans
+ */
+
+.shared-plan-page {
+  min-height: calc(var(--stable-vh, 100vh) - 70px);
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(212, 175, 55, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(181, 101, 67, 0.04) 0%, transparent 50%),
+    var(--roam-cream);
+}
+
+/* Header */
+.shared-plan-header {
+  padding: var(--space-xl) var(--space-lg);
+  background: linear-gradient(
+    to bottom,
+    var(--roam-forest) 0%,
+    var(--roam-forest-light) 100%
+  );
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.shared-plan-header::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -20%;
+  width: 60%;
+  height: 160%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(212, 175, 55, 0.12) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.shared-plan-vibe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  text-transform: capitalize;
+  margin-bottom: var(--space-sm);
+}
+
+.shared-plan-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 600;
+  color: white;
+  margin: 0 0 var(--space-sm);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1;
+}
+
+.shared-plan-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Content */
+.shared-plan-content {
+  flex: 1;
+  padding: var(--space-lg);
+  padding-bottom: calc(var(--space-2xl) + 80px);
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Actions */
+.shared-plan-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xl);
+}
+
+.shared-plan-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  padding: 14px 20px;
+  background: white;
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shared-plan-action:hover {
+  border-color: var(--roam-forest);
+  background: var(--roam-paper);
+  transform: translateY(-1px);
+}
+
+/* Timeline */
+.shared-plan-timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.shared-plan-stop {
+  display: grid;
+  grid-template-columns: 50px 24px 1fr;
+  gap: 0 var(--space-sm);
+}
+
+.shared-plan-stop-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--roam-forest);
+  padding-top: 16px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.shared-plan-stop-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px;
+}
+
+.shared-plan-stop-dot {
+  width: 12px;
+  height: 12px;
+  background: var(--roam-forest);
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 0 2px var(--roam-forest);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.shared-plan-stop-line {
+  width: 2px;
+  flex: 1;
+  background: linear-gradient(
+    to bottom,
+    var(--roam-forest) 0%,
+    var(--roam-parchment) 100%
+  );
+  margin-top: 4px;
+  min-height: 30px;
+}
+
+.shared-plan-stop-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 14px 16px;
+  background: white;
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-bottom: var(--space-md);
+  transition: all 0.2s;
+}
+
+.shared-plan-stop-card:hover {
+  border-color: var(--roam-stone);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.shared-plan-stop-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.shared-plan-stop-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.shared-plan-stop-details {
+  min-width: 0;
+}
+
+.shared-plan-stop-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--roam-ink);
+  margin: 0 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-plan-stop-meta {
+  font-size: 12px;
+  color: var(--roam-ink-muted);
+  margin: 0;
+  text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-plan-stop-directions {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--roam-paper);
+  border: none;
+  border-radius: 10px;
+  color: var(--roam-forest);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.shared-plan-stop-directions:hover {
+  background: var(--roam-forest);
+  color: white;
+}
+
+/* Footer CTA */
+.shared-plan-footer {
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--roam-parchment);
+  text-align: center;
+}
+
+.shared-plan-footer p {
+  font-size: 14px;
+  color: var(--roam-ink-muted);
+  margin: 0 0 var(--space-md);
+}
+
+.shared-plan-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, var(--roam-gold) 0%, var(--roam-terracotta) 100%);
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: white;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(181, 101, 67, 0.3);
+  transition: all 0.2s;
+}
+
+.shared-plan-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(181, 101, 67, 0.4);
+}
+
+/* Error State */
+.shared-plan-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  text-align: center;
+}
+
+.shared-plan-error-icon {
+  font-size: 64px;
+  margin-bottom: var(--space-lg);
+  opacity: 0.5;
+}
+
+.shared-plan-error h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-sm);
+}
+
+.shared-plan-error p {
+  font-size: 14px;
+  color: var(--roam-ink-muted);
+  margin: 0 0 var(--space-xl);
+}
+
+/* Responsive */
+@media (min-width: 768px) {
+  .shared-plan-header {
+    padding: var(--space-2xl) var(--space-xl);
+  }
+
+  .shared-plan-stop {
+    grid-template-columns: 60px 28px 1fr;
+  }
+
+  .shared-plan-stop-time {
+    font-size: 14px;
+  }
+
+  .shared-plan-stop-card {
+    padding: 16px 20px;
+  }
+
+  .shared-plan-stop-name {
+    font-size: 16px;
+  }
+}

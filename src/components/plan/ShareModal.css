@@ -1,0 +1,195 @@
+/**
+ * ShareModal Styles
+ *
+ * Premium share/export modal matching ROAM aesthetic
+ */
+
+.share-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 1100;
+}
+
+@media (min-width: 768px) {
+  .share-modal-overlay {
+    align-items: center;
+  }
+}
+
+.share-modal {
+  background: var(--roam-cream);
+  border-radius: 24px 24px 24px 24px;
+  width: 100%;
+  max-width: 400px;
+  max-height: calc(var(--stable-vh, 100vh) - 100px);
+  overflow: hidden;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+@media (min-width: 768px) {
+  .share-modal {
+    border-radius: 24px;
+  }
+}
+
+/* Header */
+.share-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--roam-parchment);
+}
+
+.share-modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  margin: 0;
+}
+
+.share-modal-close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--roam-parchment);
+  border: none;
+  border-radius: 50%;
+  color: var(--roam-ink-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.share-modal-close:hover {
+  background: var(--roam-stone);
+  color: var(--roam-ink);
+}
+
+/* Body */
+.share-modal-body {
+  padding: 20px;
+}
+
+.share-modal-subtitle {
+  font-size: 14px;
+  color: var(--roam-ink-muted);
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+/* Options */
+.share-modal-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  background: white;
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.share-option:hover {
+  border-color: var(--roam-forest);
+  background: var(--roam-paper);
+}
+
+.share-option:active {
+  transform: scale(0.98);
+}
+
+.share-option-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--roam-parchment);
+  border-radius: 12px;
+  color: var(--roam-forest);
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.share-option:hover .share-option-icon {
+  background: var(--roam-forest);
+  color: white;
+}
+
+.share-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.share-option-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--roam-ink);
+}
+
+.share-option-desc {
+  font-size: 12px;
+  color: var(--roam-ink-muted);
+}
+
+/* Divider */
+.share-modal-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.share-modal-divider::before,
+.share-modal-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--roam-parchment);
+}
+
+.share-modal-divider span {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--roam-ink-muted);
+}
+
+/* Animation for check icon */
+.share-option-icon svg[viewBox="0 0 24 24"] polyline {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: checkmark 0.3s ease-in-out;
+}
+
+@keyframes checkmark {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
