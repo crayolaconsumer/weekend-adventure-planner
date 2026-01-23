@@ -79,7 +79,7 @@ export default async function handler(req, res) {
     const response = await fetch(url, {
       headers: {
         'Authorization': ORS_API_KEY,
-        'Accept': 'application/json',
+        'Accept': 'application/geo+json',
       },
     })
 
