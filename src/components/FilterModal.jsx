@@ -379,8 +379,8 @@ export function FilterModal({
                   onClick={() => isPremium ? null : onShowUpgrade()}
                   disabled={isPremium}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">💎</span>
-                  <span className="filter-extra-label">Hidden gems</span>
+                  <span className="filter-extra-icon" aria-hidden="true">📍</span>
+                  <span className="filter-extra-label">Locals' picks</span>
                   {!isPremium && <span className="filter-premium-badge">ROAM+</span>}
                 </button>
                 <button
@@ -388,8 +388,8 @@ export function FilterModal({
                   onClick={() => isPremium ? null : onShowUpgrade()}
                   disabled={isPremium}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">⭐</span>
-                  <span className="filter-extra-label">Highly rated</span>
+                  <span className="filter-extra-icon" aria-hidden="true">⏰</span>
+                  <span className="filter-extra-label">Off-peak times</span>
                   {!isPremium && <span className="filter-premium-badge">ROAM+</span>}
                 </button>
               </div>

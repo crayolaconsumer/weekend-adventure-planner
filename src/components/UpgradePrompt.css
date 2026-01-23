@@ -10,13 +10,15 @@
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   z-index: 1000;
+  /* Use flexbox for centering to avoid transform conflicts with Framer Motion */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
 .upgrade-prompt {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  width: 100%;
   max-height: 90vh;
   background: white;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
@@ -25,14 +27,14 @@
 }
 
 @media (min-width: 600px) {
+  .upgrade-prompt-backdrop {
+    align-items: center;
+    padding: var(--space-lg);
+  }
+
   .upgrade-prompt {
-    bottom: auto;
-    top: 50%;
-    left: 50%;
-    right: auto;
-    transform: translate(-50%, -50%);
     max-width: 420px;
-    width: calc(100% - 48px);
+    width: 100%;
     border-radius: var(--radius-xl);
   }
 }
