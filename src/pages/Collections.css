@@ -55,12 +55,58 @@
 }
 
 .collections-title {
-  flex: 1;
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 500;
   color: var(--roam-forest);
   margin: 0;
+}
+
+.collections-title-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.collections-limit {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 5px 12px;
+  background: rgba(135, 162, 142, 0.15);
+  border: 1px solid rgba(135, 162, 142, 0.3);
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  color: var(--roam-forest);
+  transition: all 0.2s ease;
+}
+
+.collections-limit:hover {
+  background: var(--roam-gold);
+  border-color: var(--roam-gold);
+  color: white;
+}
+
+.collections-limit.full {
+  background: rgba(196, 92, 62, 0.1);
+  border-color: rgba(196, 92, 62, 0.4);
+  color: var(--roam-terracotta);
+  animation: pulse-limit 2s ease-in-out infinite;
+}
+
+.collections-limit.full:hover {
+  background: var(--roam-terracotta);
+  border-color: var(--roam-terracotta);
+  color: white;
+  animation: none;
+}
+
+@keyframes pulse-limit {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .collections-add-btn,

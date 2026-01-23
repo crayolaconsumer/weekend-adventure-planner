@@ -12,11 +12,13 @@ const UnifiedProfile = lazy(() => import('./pages/UnifiedProfile'))
 const Activity = lazy(() => import('./pages/Activity'))
 const Place = lazy(() => import('./pages/Place'))
 const SharedPlan = lazy(() => import('./pages/SharedPlan'))
+const Pricing = lazy(() => import('./pages/Pricing'))
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
+import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 
@@ -187,6 +189,18 @@ function App() {
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState('login')
+  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(false)
+
+  // Check for subscription success URL param on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('subscription') === 'success') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial state setup from URL, runs once on mount
+      setShowSubscriptionSuccess(true)
+      // Clean up URL without triggering navigation
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   // Helper to open auth modal
   const openAuthModal = (mode = 'login') => {
@@ -301,6 +315,12 @@ function App() {
                 initialMode={authModalMode}
               />
 
+              {/* Subscription Success Modal */}
+              <SubscriptionSuccessModal
+                isOpen={showSubscriptionSuccess}
+                onClose={() => setShowSubscriptionSuccess(false)}
+              />
+
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>
                   <AnimatePresence mode="wait">
@@ -315,6 +335,7 @@ function App() {
                       <Route path="/activity" element={<Activity />} />
                       <Route path="/place/:id" element={<Place />} />
                       <Route path="/plan/share/:code" element={<SharedPlan />} />
+                      <Route path="/pricing" element={<Pricing />} />
                     </Routes>
                   </AnimatePresence>
                 </Suspense>

@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { useTopContributions } from '../hooks/useTopContributions'
+import { useSubscription } from '../hooks/useSubscription'
 import './CardStack.css'
 
 // Interval for inserting sponsored cards (every N regular cards)
@@ -63,6 +65,8 @@ export default function CardStack({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
+  const [sponsoredCount, setSponsoredCount] = useState(0)
+  const { isPremium } = useSubscription()
 
   // Merge regular places with sponsored places at intervals
   const mergedPlaces = useMemo(() => {
@@ -143,6 +147,11 @@ export default function CardStack({
   const handleSwipe = (action) => {
     const currentItem = mergedPlaces[currentIndex]
     const place = currentItem?.place
+
+    // Track sponsored card views for premium hint
+    if (currentItem?.isSponsored) {
+      setSponsoredCount(prev => prev + 1)
+    }
 
     // Open directions SYNCHRONOUSLY for "go" action to avoid popup blockers
     // This must happen before any async operations or timeouts
@@ -396,6 +405,18 @@ export default function CardStack({
           {currentIndex + 1} of {mergedPlaces.length}
         </span>
       </div>
+
+      {/* Premium hint after sponsored cards */}
+      {!isPremium && sponsoredCount > 0 && sponsoredCount % 3 === 0 && (
+        <motion.div
+          className="card-stack-premium-hint"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Link to="/pricing">Go ad-free with ROAM+ →</Link>
+        </motion.div>
+      )}
     </div>
   )
 }

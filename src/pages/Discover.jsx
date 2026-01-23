@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import CardStack from '../components/CardStack'
 import BoredomBuster from '../components/BoredomBuster'
 import PlaceDetail from '../components/PlaceDetail'
 import VisitedPrompt from '../components/VisitedPrompt'
 import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
+import UpgradePrompt from '../components/UpgradePrompt'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
+import { useSubscription } from '../hooks/useSubscription'
 import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
@@ -71,10 +74,13 @@ const ListIcon = () => (
 )
 
 export default function Discover({ location }) {
+  const navigate = useNavigate()
   const toast = useToast()
-  const { savePlace } = useSavedPlaces()
+  const { savePlace, places: savedPlaces } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
   const { sponsoredPlaces } = useSponsoredPlaces(location)
+  const { isPremium } = useSubscription()
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
   const [loading, setLoading] = useState(true)
@@ -430,8 +436,39 @@ export default function Discover({ location }) {
   // Handle swipe actions
   const handleSwipe = (action, place) => {
     if (action === 'like') {
+      // CHECK SAVE LIMIT FOR FREE USERS
+      const currentSaveCount = savedPlaces?.length || 0
+      if (!isPremium && currentSaveCount >= 10) {
+        setShowUpgradePrompt(true)
+        return // Don't save - show upgrade prompt instead
+      }
+
       // Save to wishlist (hook handles localStorage vs API)
       savePlace(place)
+
+      // SOFT PROMPT AT 5TH SAVE (success moment)
+      const newSaveCount = currentSaveCount + 1
+      if (newSaveCount === 5 && !isPremium) {
+        toast.success(
+          <span>
+            5 places saved!{' '}
+            <button
+              onClick={() => navigate('/pricing')}
+              style={{
+                textDecoration: 'underline',
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                padding: 0,
+                font: 'inherit'
+              }}
+            >
+              Upgrade for unlimited →
+            </button>
+          </span>
+        )
+      }
 
       // Show plan prompt occasionally (not every save - every 3rd or after 30s)
       const now = Date.now()
@@ -909,6 +946,18 @@ export default function Discover({ location }) {
         showOpenOnly={showOpenOnly}
         onToggleOpenOnly={() => setShowOpenOnly(prev => !prev)}
         onClearAll={clearAllFilters}
+        isPremium={isPremium}
+        onShowUpgrade={() => {
+          setShowFilterModal(false)
+          setShowUpgradePrompt(true)
+        }}
+      />
+
+      {/* Upgrade Prompt for save limit */}
+      <UpgradePrompt
+        type="saves"
+        isOpen={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
       />
     </div>
   )

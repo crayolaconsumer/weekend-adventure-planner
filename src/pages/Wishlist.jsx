@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
 import { getSavedEvents, unsaveEvent } from '../utils/savedEvents'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
+import { useSubscription } from '../hooks/useSubscription'
 import './Wishlist.css'
 
 // Icons
@@ -87,6 +88,7 @@ export default function Wishlist() {
   const [savedEvents, setSavedEvents] = useState(getSavedEvents)
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
+  const { isPremium } = useSubscription()
 
   const removeFromWishlist = (placeId) => {
     removePlace(placeId)
@@ -130,9 +132,20 @@ export default function Wishlist() {
       <header className="page-header wishlist-header">
         <div>
           <h1 className="page-title">Saved</h1>
-          <p className="wishlist-subtitle">
-            {totalSaved} {totalSaved === 1 ? 'item' : 'items'} saved
-          </p>
+          <div className="wishlist-subtitle-row">
+            <p className="wishlist-subtitle">
+              {totalSaved} {totalSaved === 1 ? 'item' : 'items'} saved
+            </p>
+            {!isPremium && (
+              <Link
+                to="/pricing"
+                className={`wishlist-limit ${wishlist.length >= 8 ? 'warning' : ''} ${wishlist.length >= 10 ? 'full' : ''}`}
+              >
+                {wishlist.length}/10
+                {wishlist.length >= 8 && <span className="limit-upgrade-hint">Upgrade</span>}
+              </Link>
+            )}
+          </div>
         </div>
         <Link to="/collections" className="wishlist-collections-link">
           <FolderIcon />

@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { useSubscription } from '../hooks/useSubscription'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import { getVisitedPlaces } from '../utils/statsUtils'
@@ -563,8 +564,35 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
  * Settings Tab - Account Management
  */
 function SettingsTab({ user, onLogout }) {
+  const { isPremium, manageSubscription, loading } = useSubscription()
+
   return (
     <div className="unified-profile-settings">
+      {/* Premium Section */}
+      {!isPremium ? (
+        <div className="unified-profile-settings-section premium-upgrade-section">
+          <Link to="/pricing" className="profile-upgrade-btn">
+            <span className="upgrade-sparkle">✨</span>
+            <span className="upgrade-text">Upgrade to ROAM+</span>
+            <span className="upgrade-badge">7 days free</span>
+          </Link>
+        </div>
+      ) : (
+        <div className="unified-profile-settings-section">
+          <h3 className="unified-profile-settings-title">Subscription</h3>
+          <button
+            className="unified-profile-settings-item clickable"
+            onClick={manageSubscription}
+            disabled={loading}
+          >
+            <span className="unified-profile-settings-label">ROAM+ Premium</span>
+            <span className="unified-profile-settings-value">
+              {loading ? 'Loading...' : 'Manage →'}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Account Info */}
       <div className="unified-profile-settings-section">
         <h3 className="unified-profile-settings-title">Account</h3>

@@ -84,7 +84,9 @@ export function FilterModal({
   onToggleAccessibility = () => {},
   showOpenOnly = false,
   onToggleOpenOnly = () => {},
-  onClearAll = null
+  onClearAll = null,
+  isPremium = false,
+  onShowUpgrade = () => {}
 }) {
   const sheetRef = useRef(null)
   const firstFocusableRef = useRef(null)
@@ -363,6 +365,32 @@ export function FilterModal({
                   <span className={`filter-extra-toggle ${showOpenOnly ? 'on' : ''}`}>
                     <span className="filter-extra-toggle-knob" />
                   </span>
+                </button>
+              </div>
+
+              {/* Premium Filters */}
+              <div className="filter-modal-premium">
+                <div className="filter-premium-header">
+                  <span className="filter-premium-sparkle">✨</span>
+                  <span>Premium Filters</span>
+                </div>
+                <button
+                  className={`filter-extra-item ${!isPremium ? 'locked' : ''}`}
+                  onClick={() => isPremium ? null : onShowUpgrade()}
+                  disabled={isPremium}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">💎</span>
+                  <span className="filter-extra-label">Hidden gems</span>
+                  {!isPremium && <span className="filter-premium-badge">ROAM+</span>}
+                </button>
+                <button
+                  className={`filter-extra-item ${!isPremium ? 'locked' : ''}`}
+                  onClick={() => isPremium ? null : onShowUpgrade()}
+                  disabled={isPremium}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">⭐</span>
+                  <span className="filter-extra-label">Highly rated</span>
+                  {!isPremium && <span className="filter-premium-badge">ROAM+</span>}
                 </button>
               </div>
             </div>

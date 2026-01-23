@@ -295,6 +295,29 @@
   transition: width 0.3s var(--ease-out-expo);
 }
 
+/* Premium hint after sponsored cards */
+.card-stack-premium-hint {
+  margin-top: var(--space-md);
+  text-align: center;
+}
+
+.card-stack-premium-hint a {
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--roam-terracotta);
+  text-decoration: none;
+  background: rgba(224, 122, 95, 0.08);
+  border-radius: var(--radius-full);
+  transition: all 0.2s ease;
+}
+
+.card-stack-premium-hint a:hover {
+  background: rgba(224, 122, 95, 0.15);
+  color: #c45c3e;
+}
+
 /* ═══════════════════════════════════════════════════════
    SWIPE HINTS
    ═══════════════════════════════════════════════════════ */

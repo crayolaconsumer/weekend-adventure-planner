@@ -14,6 +14,8 @@ import {
   COLLECTION_EMOJIS
 } from '../utils/collections'
 import CreateCollectionForm from '../components/CreateCollectionForm'
+import { useSubscription } from '../hooks/useSubscription'
+import UpgradePrompt from '../components/UpgradePrompt'
 import './Collections.css'
 
 // Icons
@@ -49,6 +51,8 @@ export default function Collections() {
   const [selectedCollection, setSelectedCollection] = useState(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const { isPremium } = useSubscription()
 
   const loadCollections = () => {
     const allCollections = getAllCollections()
@@ -198,10 +202,26 @@ export default function Collections() {
         <button className="collections-back-btn" onClick={() => navigate('/wishlist')}>
           <BackIcon />
         </button>
-        <h1 className="collections-title">My Collections</h1>
+        <div className="collections-title-row">
+          <h1 className="collections-title">My Collections</h1>
+          {!isPremium && (
+            <Link
+              to="/pricing"
+              className={`collections-limit ${collections.length >= 3 ? 'full' : ''}`}
+            >
+              {collections.length}/3
+            </Link>
+          )}
+        </div>
         <button
           className="collections-add-btn"
-          onClick={() => setShowCreateForm(true)}
+          onClick={() => {
+            if (!isPremium && collections.length >= 3) {
+              setShowUpgradePrompt(true)
+              return
+            }
+            setShowCreateForm(true)
+          }}
         >
           <PlusIcon />
         </button>
@@ -214,7 +234,13 @@ export default function Collections() {
           <p>Create a collection to organize your favorite places</p>
           <button
             className="collections-create-btn"
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => {
+              if (!isPremium && collections.length >= 3) {
+                setShowUpgradePrompt(true)
+                return
+              }
+              setShowCreateForm(true)
+            }}
           >
             <PlusIcon />
             Create Collection
@@ -250,7 +276,13 @@ export default function Collections() {
           {/* Add new collection button */}
           <motion.button
             className="collections-card collections-card-add"
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => {
+              if (!isPremium && collections.length >= 3) {
+                setShowUpgradePrompt(true)
+                return
+              }
+              setShowCreateForm(true)
+            }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: collections.length * 0.05 }}
@@ -268,6 +300,13 @@ export default function Collections() {
         isOpen={showCreateForm}
         onClose={() => setShowCreateForm(false)}
         onCreated={handleCreateCollection}
+      />
+
+      {/* Upgrade prompt for collection limit */}
+      <UpgradePrompt
+        type="collections"
+        isOpen={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
       />
     </div>
   )
