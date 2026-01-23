@@ -50,14 +50,33 @@ function createUserIcon() {
 }
 
 // Map controls component to handle map interactions
-function MapController({ center, onBoundsChange }) {
+function MapController({ center, onBoundsChange, onReady }) {
   const map = useMap()
+  const didInvalidateRef = useRef(false)
 
   useEffect(() => {
     if (center) {
       map.setView([center.lat, center.lng], map.getZoom())
     }
   }, [center, map])
+
+  useEffect(() => {
+    if (didInvalidateRef.current) return
+    didInvalidateRef.current = true
+
+    const invalidate = () => {
+      map.invalidateSize()
+      onReady?.(map)
+    }
+
+    const frame = requestAnimationFrame(invalidate)
+    const timeout = setTimeout(invalidate, 250)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timeout)
+    }
+  }, [map, onReady])
 
   useMapEvents({
     moveend: () => {
@@ -114,6 +133,7 @@ export default function DiscoverMap({
 }) {
   const mapRef = useRef(null)
   const markersRef = useRef({})
+  const mapInstanceRef = useRef(null)
 
   // Calculate map center
   const center = userLocation || (places[0] ? { lat: places[0].lat, lng: places[0].lng } : { lat: 51.5074, lng: -0.1278 })
@@ -133,6 +153,16 @@ export default function DiscoverMap({
     }
   }, [selectedPlace])
 
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map) return
+    const timeout = setTimeout(() => {
+      map.invalidateSize()
+    }, 200)
+
+    return () => clearTimeout(timeout)
+  }, [places.length])
+
   return (
     <motion.div
       className="discover-map-container"
@@ -151,9 +181,17 @@ export default function DiscoverMap({
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          detectRetina
+          crossOrigin="anonymous"
         />
 
-        <MapController center={center} onBoundsChange={onBoundsChange} />
+        <MapController
+          center={center}
+          onBoundsChange={onBoundsChange}
+          onReady={(map) => {
+            mapInstanceRef.current = map
+          }}
+        />
 
         {/* User location marker */}
         {userLocation && (
