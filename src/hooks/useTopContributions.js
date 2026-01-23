@@ -85,38 +85,45 @@ export function useTopContributions(placeIds) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Track which IDs we've already fetched to avoid duplicate requests
-  const fetchedIdsRef = useRef(new Set())
+  const pendingIdsRef = useRef(new Set())
+  const debounceRef = useRef(null)
 
   const fetchContributions = useCallback(async () => {
     if (!placeIds || placeIds.length === 0) return
 
-    // Filter to IDs we haven't fetched yet
-    const newIds = placeIds.filter(id => !fetchedIdsRef.current.has(id))
-    if (newIds.length === 0) return
+    // Queue IDs for a short window to batch rapid updates
+    placeIds.forEach(id => pendingIdsRef.current.add(id))
+    if (debounceRef.current) return
 
-    setLoading(true)
-    setError(null)
+    debounceRef.current = setTimeout(async () => {
+      const idsToFetch = Array.from(pendingIdsRef.current)
+      pendingIdsRef.current.clear()
+      debounceRef.current = null
 
-    try {
-      const result = await fetchBatchContributions(newIds)
+      if (idsToFetch.length === 0) return
 
-      // Mark these IDs as fetched
-      for (const id of newIds) {
-        fetchedIdsRef.current.add(id)
+      setLoading(true)
+      setError(null)
+
+      try {
+        const result = await fetchBatchContributions(idsToFetch)
+        setContributions(prev => ({ ...prev, ...result }))
+      } catch {
+        setError('Failed to load community tips')
+      } finally {
+        setLoading(false)
       }
-
-      // Merge with existing contributions
-      setContributions(prev => ({ ...prev, ...result }))
-    } catch {
-      setError('Failed to load community tips')
-    } finally {
-      setLoading(false)
-    }
+    }, 200)
   }, [placeIds])
 
   useEffect(() => {
     fetchContributions()
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+    }
   }, [fetchContributions])
 
   return { contributions, loading, error }

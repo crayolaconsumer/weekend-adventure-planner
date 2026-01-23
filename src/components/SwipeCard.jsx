@@ -3,7 +3,6 @@ import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
-import { useTopContribution } from '../hooks/useTopContributions'
 import { ContributionBadge } from './ContributionDisplay'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
@@ -118,15 +117,15 @@ export default function SwipeCard({
   onSwipe,
   onExpand,
   isTop = false,
-  style = {}
+  style = {},
+  topContribution = null
 }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
 
-  // Fetch top community tip for this place
-  const { contribution: topTip } = useTopContribution(place?.id)
+  const topTip = topContribution
 
   const x = useMotionValue(0)
   const y = useMotionValue(0)

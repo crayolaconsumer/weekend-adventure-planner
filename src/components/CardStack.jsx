@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import SwipeCard from './SwipeCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
+import { useTopContributions } from '../hooks/useTopContributions'
 import './CardStack.css'
 
 // Rotating loading messages for variety
@@ -132,6 +133,9 @@ export default function CardStack({
 
   // Get visible cards (current + 2 behind)
   const visibleCards = places.slice(currentIndex, currentIndex + 3)
+  const prefetchCards = places.slice(currentIndex, currentIndex + 12)
+  const prefetchPlaceIds = prefetchCards.map(place => place.id)
+  const { contributions: topContributions } = useTopContributions(prefetchPlaceIds)
 
   const currentMessage = LOADING_MESSAGES[loadingMessageIndex]
 
@@ -314,6 +318,7 @@ export default function CardStack({
                   onSwipe={isTop ? handleSwipe : undefined}
                   onExpand={isTop ? onExpand : undefined}
                   isTop={isTop}
+                  topContribution={topContributions?.[place.id] || null}
                 />
               </motion.div>
             )

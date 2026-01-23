@@ -325,17 +325,24 @@
   margin: 0;
 }
 
-/* Individual Stop */
+/* Stop Wrapper (for reorder) */
+.plan-stop-wrapper {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Individual Stop Row */
 .plan-stop {
   display: flex;
+  align-items: center;
   gap: var(--space-md);
-  padding: var(--space-sm) 0;
+  padding: var(--space-xs) 0;
 }
 
 .plan-stop-time {
   width: 48px;
   flex-shrink: 0;
-  padding-top: var(--space-md);
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -344,42 +351,18 @@
   text-align: right;
 }
 
-.plan-stop-connector {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 20px;
-  flex-shrink: 0;
-  padding-top: var(--space-md);
-}
-
-.plan-stop-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--roam-forest);
-  border-radius: var(--radius-full);
-  flex-shrink: 0;
-}
-
-.plan-stop-line {
-  width: 2px;
-  flex: 1;
-  background: var(--roam-parchment);
-  margin-top: var(--space-xs);
-}
-
 /* Stop Card */
 .plan-stop-card {
   flex: 1;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: var(--space-md);
+  padding: 14px 16px;
   background: var(--color-surface-elevated);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   cursor: grab;
-  transition: all var(--duration-fast);
+  transition: box-shadow var(--duration-fast), transform var(--duration-fast);
 }
 
 .plan-stop-card:hover {
@@ -394,10 +377,11 @@
   color: var(--roam-stone);
   opacity: 0.4;
   transition: opacity var(--duration-fast);
+  flex-shrink: 0;
 }
 
 .plan-stop-card:hover .plan-stop-drag {
-  opacity: 1;
+  opacity: 0.8;
 }
 
 .plan-stop-info {
@@ -406,7 +390,6 @@
 }
 
 .plan-stop-name {
-  font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-text-primary);
@@ -420,6 +403,7 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   text-transform: capitalize;
+  margin-top: 2px;
 }
 
 .plan-stop-actions {
@@ -429,8 +413,8 @@
 }
 
 .plan-stop-actions button {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -451,18 +435,90 @@
   color: var(--roam-terracotta);
 }
 
-/* Travel Time */
+/* Travel Time Between Stops */
 .plan-travel {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) 0 var(--space-xs) calc(48px + 20px + var(--space-md) * 2);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  margin-left: calc(48px + var(--space-md));
+  padding: var(--space-xs) 0;
+  position: relative;
 }
 
-.plan-travel-arrow {
-  color: var(--roam-stone);
+.plan-travel-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--roam-parchment);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-travel-btn:hover {
+  background: var(--roam-paper);
+  border-color: var(--roam-stone);
+  color: var(--color-text-secondary);
+}
+
+.plan-travel-btn:active {
+  transform: scale(0.97);
+}
+
+.plan-travel-icon {
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.plan-travel-duration {
+  font-weight: 500;
+}
+
+/* Mode Picker Dropdown */
+.plan-travel-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+}
+
+.plan-travel-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-travel-option:hover {
+  background: var(--roam-parchment);
+}
+
+.plan-travel-option.active {
+  background: var(--roam-forest);
+  border-color: var(--roam-forest);
+  color: white;
+}
+
+.plan-travel-option span:first-child {
+  font-size: var(--text-base);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -495,7 +551,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
-  margin-left: calc(48px + 20px + var(--space-md) * 2);
+  margin-left: calc(48px + var(--space-md));
+  margin-top: var(--space-sm);
   padding: var(--space-md);
   background: transparent;
   border: 1.5px dashed var(--roam-stone);
@@ -543,7 +600,7 @@
   }
 
   .plan-stop-time {
-    width: 40px;
+    width: 44px;
     font-size: var(--text-xs);
   }
 
@@ -555,12 +612,17 @@
     font-size: var(--text-xs);
   }
 
+  .plan-stop-actions button {
+    width: 28px;
+    height: 28px;
+  }
+
   .plan-travel {
-    padding-left: calc(40px + 20px + var(--space-md) * 2);
+    margin-left: calc(44px + var(--space-md));
   }
 
   .plan-add-stop {
-    margin-left: calc(40px + 20px + var(--space-md) * 2);
+    margin-left: calc(44px + var(--space-md));
     padding: var(--space-sm) var(--space-md);
     font-size: var(--text-xs);
   }

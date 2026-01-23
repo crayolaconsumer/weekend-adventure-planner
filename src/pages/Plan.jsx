@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchEnrichedPlaces } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
+import { useRouting } from '../hooks/useRouting'
 import ShareModal from '../components/plan/ShareModal'
 import './Plan.css'
 
@@ -31,6 +32,13 @@ const DURATIONS = [
   { hours: 4, label: 'Half Day', stops: 3 },
   { hours: 6, label: 'Full Day', stops: 4 },
   { hours: 8, label: 'Epic', stops: 5 },
+]
+
+// Transport modes with average speeds (km/h) accounting for urban conditions
+const TRANSPORT_MODES = [
+  { key: 'walk', label: 'Walking', speed: 5, icon: '🚶' },
+  { key: 'transit', label: 'Transit', speed: 25, icon: '🚇' },
+  { key: 'drive', label: 'Driving', speed: 35, icon: '🚗' },
 ]
 
 // Icons
@@ -85,11 +93,15 @@ const ChevronIcon = () => (
 export default function Plan({ location }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const { getTravelTime: fetchTravelTime } = useRouting()
 
   // State
   const [selectedVibe, setSelectedVibe] = useState('mixed')
   const [selectedDuration, setSelectedDuration] = useState(4)
+  const [selectedTransport, setSelectedTransport] = useState('walk')
   const [itinerary, setItinerary] = useState([])
+  const [travelTimes, setTravelTimes] = useState({}) // Cache of travel times: { "stopId-nextStopId": { duration, mode } }
+  const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
   const [wishlist, setWishlist] = useState([])
   const [availablePlaces, setAvailablePlaces] = useState([])
   const [showShareModal, setShowShareModal] = useState(false)
@@ -242,7 +254,6 @@ export default function Plan({ location }) {
       duration: s.duration,
       distance: location ? calcDist(location.lat, location.lng, replacement.lat, replacement.lng) : null
     } : s))
-    toast.success('Swapped!')
   }, [itinerary, availablePlaces, location, calcDist, toast])
 
   // Reorder
@@ -268,21 +279,30 @@ export default function Plan({ location }) {
         title: `${vibeName} Adventure`,
         vibe: selectedVibe,
         durationHours: selectedDuration,
+        defaultTransport: selectedTransport,
         isPublic: true,
-        stops: itinerary.map(stop => ({
-          placeId: stop.id,
-          placeData: {
-            id: stop.id,
-            name: stop.name,
-            type: stop.type,
-            lat: stop.lat,
-            lng: stop.lng,
-            address: stop.address,
-            category: stop.category
-          },
-          scheduledTime: stop.scheduledTime,
-          durationMinutes: stop.duration || 60
-        }))
+        stops: itinerary.map((stop, idx) => {
+          const nextStop = itinerary[idx + 1]
+          const legKey = nextStop ? getLegKey(stop, nextStop) : null
+          const travelInfo = legKey ? travelTimes[legKey] : null
+
+          return {
+            placeId: stop.id,
+            placeData: {
+              id: stop.id,
+              name: stop.name,
+              type: stop.type,
+              lat: stop.lat,
+              lng: stop.lng,
+              address: stop.address,
+              category: stop.category
+            },
+            scheduledTime: stop.scheduledTime,
+            durationMinutes: stop.duration || 60,
+            transportToNext: stop.transportToNext || selectedTransport,
+            travelTimeToNext: travelInfo?.duration || null
+          }
+        })
       }
 
       const res = await fetch('/api/plans', {
@@ -318,7 +338,7 @@ export default function Plan({ location }) {
     } finally {
       setIsSaving(false)
     }
-  }, [itinerary, selectedVibe, selectedDuration, toast, isSaving])
+  }, [itinerary, selectedVibe, selectedDuration, selectedTransport, travelTimes, toast, isSaving])
 
   // Share - opens modal
   const openShare = useCallback(() => {
@@ -329,12 +349,93 @@ export default function Plan({ location }) {
   // Format time
   const formatTime = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-  // Travel time
-  const getTravelTime = (from, to) => {
-    if (!from || !to) return null
-    const dist = calcDist(from.lat, from.lng, to.lat, to.lng)
-    return Math.round((dist / 5) * 60) // walking speed 5km/h
-  }
+  // Get leg key for travel time cache
+  const getLegKey = (fromStop, toStop) => `${fromStop.id}-${toStop.id}`
+
+  // Get transport mode for a specific leg
+  const getLegMode = useCallback((fromStop) => {
+    return fromStop.transportToNext || selectedTransport
+  }, [selectedTransport])
+
+  // Get cached or calculate travel time for a leg
+  const getTravelTimeForLeg = useCallback((fromStop, toStop) => {
+    if (!fromStop || !toStop) return null
+
+    const legKey = getLegKey(fromStop, toStop)
+    const mode = getLegMode(fromStop)
+
+    // Check cache first
+    const cached = travelTimes[legKey]
+    if (cached && cached.mode === mode) {
+      return cached
+    }
+
+    // Calculate fallback while waiting for API
+    const dist = calcDist(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng)
+    const speed = TRANSPORT_MODES.find(m => m.key === mode)?.speed || 5
+    return {
+      duration: Math.round((dist / speed) * 60),
+      mode,
+      source: 'fallback'
+    }
+  }, [travelTimes, getLegMode, calcDist])
+
+  // Fetch travel time from API and cache it
+  const updateTravelTime = useCallback(async (fromStop, toStop, mode) => {
+    if (!fromStop || !toStop) return
+
+    const legKey = getLegKey(fromStop, toStop)
+
+    try {
+      const result = await fetchTravelTime(
+        { lat: fromStop.lat, lng: fromStop.lng },
+        { lat: toStop.lat, lng: toStop.lng },
+        mode
+      )
+
+      setTravelTimes(prev => ({
+        ...prev,
+        [legKey]: { ...result, mode }
+      }))
+
+      return result
+    } catch (err) {
+      console.warn('Failed to fetch travel time:', err)
+    }
+  }, [fetchTravelTime])
+
+  // Change transport mode for a specific leg
+  const changeLegMode = useCallback(async (legIndex, newMode) => {
+    const fromStop = itinerary[legIndex]
+    const toStop = itinerary[legIndex + 1]
+
+    if (!fromStop || !toStop) return
+
+    // Update the stop's transportToNext field
+    setItinerary(prev => prev.map((s, i) =>
+      i === legIndex ? { ...s, transportToNext: newMode } : s
+    ))
+
+    // Fetch new travel time
+    await updateTravelTime(fromStop, toStop, newMode)
+
+    // Close the mode picker
+    setEditingLegIndex(null)
+  }, [itinerary, updateTravelTime])
+
+  // Fetch travel times when itinerary changes
+  useEffect(() => {
+    if (itinerary.length < 2) return
+
+    // Fetch travel times for all legs
+    itinerary.forEach((stop, idx) => {
+      if (idx < itinerary.length - 1) {
+        const nextStop = itinerary[idx + 1]
+        const mode = getLegMode(stop)
+        updateTravelTime(stop, nextStop, mode)
+      }
+    })
+  }, [itinerary, getLegMode, updateTravelTime])
 
   // Available wishlist items
   const availableWishlist = useMemo(() => {
@@ -395,6 +496,23 @@ export default function Plan({ location }) {
           </div>
         </div>
 
+        {/* TRANSPORT: [chips] - inline */}
+        <div className="plan-row">
+          <span className="plan-label">TRAVEL BY:</span>
+          <div className="plan-chips">
+            {TRANSPORT_MODES.map(t => (
+              <button
+                key={t.key}
+                className={`plan-chip ${selectedTransport === t.key ? 'active' : ''}`}
+                onClick={() => setSelectedTransport(t.key)}
+                aria-pressed={selectedTransport === t.key}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Generate button */}
         <button className="plan-generate" onClick={generate} disabled={!location}>
           Generate Itinerary
@@ -438,34 +556,35 @@ export default function Plan({ location }) {
 
           {/* Timeline */}
           <div className="plan-timeline">
-            <AnimatePresence mode="popLayout">
-              {itinerary.length > 0 ? (
-                <Reorder.Group
-                  axis="y"
-                  values={itinerary}
-                  onReorder={handleReorder}
-                  className="plan-timeline-list"
-                >
-                  {itinerary.map((stop, idx) => (
-                    <Reorder.Item
-                      key={stop.id}
-                      value={stop}
-                      className="plan-stop"
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 10 }}
-                    >
-                      {/* Time */}
-                      <div className="plan-stop-time">{formatTime(stop.scheduledTime)}</div>
-
-                      {/* Connector */}
-                      <div className="plan-stop-connector">
-                        <div className="plan-stop-dot" />
-                        {idx < itinerary.length - 1 && <div className="plan-stop-line" />}
-                      </div>
-
-                      {/* Card */}
-                      <div className="plan-stop-card">
+            {itinerary.length > 0 ? (
+              <Reorder.Group
+                axis="y"
+                values={itinerary}
+                onReorder={handleReorder}
+                className="plan-timeline-list"
+              >
+                {itinerary.map((stop, idx) => (
+                  <Reorder.Item
+                    key={stop.id}
+                    value={stop}
+                    className="plan-stop-wrapper"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="plan-stop">
+                      <span className="plan-stop-time">{formatTime(stop.scheduledTime)}</span>
+                      <motion.div
+                        className="plan-stop-card"
+                        key={stop.id}
+                        initial={{ opacity: 0, scale: 0.95, x: 10 }}
+                        animate={{ opacity: 1, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, x: -10 }}
+                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                        whileTap={{ scale: 0.98 }}
+                        layout
+                      >
                         <div className="plan-stop-drag"><DragIcon /></div>
                         <div className="plan-stop-info">
                           <div className="plan-stop-name">{stop.name}</div>
@@ -478,26 +597,63 @@ export default function Plan({ location }) {
                           <button onClick={() => removeStop(idx)} aria-label="Remove"><CloseIcon /></button>
                           <button onClick={() => shuffleStop(idx)} aria-label="Shuffle"><ShuffleIcon /></button>
                         </div>
+                      </motion.div>
+                    </div>
+                    {idx < itinerary.length - 1 && (
+                      <div className="plan-travel">
+                        <button
+                          className="plan-travel-btn"
+                          onClick={() => setEditingLegIndex(editingLegIndex === idx ? null : idx)}
+                          aria-label={`Change transport mode for leg ${idx + 1}`}
+                        >
+                          {(() => {
+                            const travelInfo = getTravelTimeForLeg(stop, itinerary[idx + 1])
+                            const mode = getLegMode(stop)
+                            const modeData = TRANSPORT_MODES.find(m => m.key === mode)
+                            const prefix = travelInfo?.source === 'fallback' ? '~' : ''
+                            return (
+                              <>
+                                <span className="plan-travel-icon">{modeData?.icon || '🚶'}</span>
+                                <span className="plan-travel-duration">
+                                  {prefix}{travelInfo?.duration || '?'} min
+                                </span>
+                              </>
+                            )
+                          })()}
+                        </button>
+                        <AnimatePresence>
+                          {editingLegIndex === idx && (
+                            <motion.div
+                              className="plan-travel-picker"
+                              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                              transition={{ duration: 0.15 }}
+                            >
+                              {TRANSPORT_MODES.map(mode => (
+                                <button
+                                  key={mode.key}
+                                  className={`plan-travel-option ${getLegMode(stop) === mode.key ? 'active' : ''}`}
+                                  onClick={() => changeLegMode(idx, mode.key)}
+                                >
+                                  <span>{mode.icon}</span>
+                                  <span>{mode.label}</span>
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
+                    )}
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            ) : (
+              <div className="plan-empty">
+                <p>Generate an itinerary or add from your wishlist</p>
+              </div>
+            )}
 
-                      {/* Travel time */}
-                      {idx < itinerary.length - 1 && (
-                        <div className="plan-travel">
-                          <span className="plan-travel-arrow">↓</span>
-                          <span>{getTravelTime(stop, itinerary[idx + 1])} min walk</span>
-                        </div>
-                      )}
-                    </Reorder.Item>
-                  ))}
-                </Reorder.Group>
-              ) : (
-                <div className="plan-empty">
-                  <p>Generate an itinerary or add from your wishlist</p>
-                </div>
-              )}
-            </AnimatePresence>
-
-            {/* Add Stop */}
             {itinerary.length > 0 && availableWishlist.length > 0 && (
               <button className="plan-add-stop" onClick={() => addStop(availableWishlist[0])}>
                 <PlusIcon /> Add Stop

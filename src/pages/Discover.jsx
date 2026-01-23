@@ -42,6 +42,7 @@ export default function Discover({ location }) {
   const { savePlace } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
   const [places, setPlaces] = useState([])
+  const [basePlaces, setBasePlaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [seenPlaceIds, setSeenPlaceIds] = useState(new Set())
@@ -58,6 +59,8 @@ export default function Discover({ location }) {
   const [showFilterModal, setShowFilterModal] = useState(false)
   const latestLoadRequestRef = useRef(0)
   const latestFilterKeyRef = useRef('')
+  const basePlacesRef = useRef([])
+  const weatherKeyRef = useRef('')
 
   // Place detail modal state
   const [selectedPlace, setSelectedPlace] = useState(null)
@@ -91,6 +94,45 @@ export default function Discover({ location }) {
   useEffect(() => {
     latestFilterKeyRef.current = buildFilterKey()
   }, [buildFilterKey])
+
+  useEffect(() => {
+    basePlacesRef.current = basePlaces
+  }, [basePlaces])
+
+  const applyFilters = useCallback((list, currentWeather = weather) => {
+    if (!list || list.length === 0) return []
+
+    let filtered = filterPlaces(list, {
+      categories: selectedCategories.length > 0 ? selectedCategories : null,
+      minScore: 30,
+      maxResults: 50,
+      sortBy: 'smart',
+      weather: currentWeather,
+      ensureDiversity: selectedCategories.length === 0,
+      userProfile
+    })
+
+    if (showFreeOnly) {
+      filtered = filtered.filter(p =>
+        !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
+      )
+    }
+
+    if (accessibilityMode) {
+      filtered = filtered.filter(p =>
+        p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
+      )
+    }
+
+    if (showOpenOnly) {
+      filtered = filtered.filter(p => {
+        const openStatus = isPlaceOpen(p)
+        return openStatus === true || openStatus === null
+      })
+    }
+
+    return filtered
+  }, [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, userProfile, weather])
 
   // Save settings to localStorage
   useEffect(() => {
@@ -136,6 +178,8 @@ export default function Discover({ location }) {
     const mode = TRAVEL_MODES[travelMode]
 
     try {
+      const resolvedWeather = currentWeather ?? weather
+
       // Fetch from multiple sources (OSM + OpenTripMap)
       const rawPlaces = await fetchEnrichedPlaces(
         location.lat,
@@ -145,44 +189,14 @@ export default function Discover({ location }) {
       )
 
       // Context for smart scoring (time of day, weather)
-      const scoringContext = { weather: currentWeather }
+      const scoringContext = { weather: resolvedWeather }
 
-      // Enhance and filter places with context
-      let enhanced = rawPlaces.map(p => enhancePlace(p, location, scoringContext))
+      // Enhance places with context
+      const enhanced = rawPlaces.map(p => enhancePlace(p, location, scoringContext))
+      setBasePlaces(enhanced)
 
-      // Apply smart filters with diversity and personalization
-      let filtered = filterPlaces(enhanced, {
-        categories: selectedCategories.length > 0 ? selectedCategories : null,
-        minScore: 30,
-        maxResults: 50,
-        sortBy: 'smart',
-        weather: currentWeather,
-        ensureDiversity: selectedCategories.length === 0, // Mix categories when no filter
-        userProfile // Personalize based on user's taste profile
-      })
-
-      // Filter for free places if enabled
-      if (showFreeOnly) {
-        filtered = filtered.filter(p =>
-          !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
-        )
-      }
-
-      // Filter for accessibility if enabled
-      if (accessibilityMode) {
-        filtered = filtered.filter(p =>
-          p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-        )
-      }
-
-      // Filter for open places only if enabled
-      if (showOpenOnly) {
-        filtered = filtered.filter(p => {
-          const openStatus = isPlaceOpen(p)
-          // Include if open, or if status is unknown (null)
-          return openStatus === true || openStatus === null
-        })
-      }
+      // Apply filters without refetching external APIs
+      const filtered = applyFilters(enhanced, resolvedWeather)
 
       if (requestId !== latestLoadRequestRef.current || requestKey !== latestFilterKeyRef.current) {
         return
@@ -203,7 +217,7 @@ export default function Discover({ location }) {
     if (requestId === latestLoadRequestRef.current) {
       setLoading(false)
     }
-  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, toast, userProfile, buildFilterKey])
+  }, [location, travelMode, selectedCategories, toast, buildFilterKey, applyFilters, weather])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
@@ -225,7 +239,7 @@ export default function Discover({ location }) {
       )
 
       // Enhance and filter
-      let enhanced = rawPlaces.map(p => enhancePlace(p, location, { weather }))
+      const enhanced = rawPlaces.map(p => enhancePlace(p, location, { weather }))
 
       let filtered = filterPlaces(enhanced, {
         categories: selectedCategories.length > 0 ? selectedCategories : null,
@@ -259,6 +273,18 @@ export default function Discover({ location }) {
         return
       }
 
+      setBasePlaces(prev => {
+        const existing = new Set(prev.map(p => p.id))
+        const merged = [...prev]
+        for (const place of enhanced) {
+          if (!existing.has(place.id)) {
+            existing.add(place.id)
+            merged.push(place)
+          }
+        }
+        return merged
+      })
+
       // Filter out places we've already shown
       const newPlaces = filtered.filter(p => !seenPlaceIds.has(p.id))
 
@@ -279,6 +305,18 @@ export default function Discover({ location }) {
     }
   }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile])
 
+  // Re-apply local filters without refetching external APIs
+  useEffect(() => {
+    const list = basePlacesRef.current
+    if (!list || list.length === 0) return
+
+    const filtered = applyFilters(list, weather)
+    const newSeenIds = new Set(filtered.map(p => p.id))
+    setSeenPlaceIds(newSeenIds)
+    setFetchOffset(filtered.length)
+    setPlaces(filtered)
+  }, [applyFilters, weather])
+
   // Load places when location or settings change
 
   useEffect(() => {
@@ -289,15 +327,19 @@ export default function Discover({ location }) {
     let isCancelled = false
 
     const load = async () => {
-      // Fetch weather first (quick)
-      let currentWeather = null
-      try {
-        currentWeather = await fetchWeather(location.lat, location.lng)
-        if (!isCancelled) {
-          setWeather(currentWeather)
+      const weatherKey = `${location.lat.toFixed(2)},${location.lng.toFixed(2)}`
+      let currentWeather = weather
+
+      if (weatherKeyRef.current !== weatherKey) {
+        try {
+          currentWeather = await fetchWeather(location.lat, location.lng)
+          if (!isCancelled) {
+            setWeather(currentWeather)
+            weatherKeyRef.current = weatherKey
+          }
+        } catch (error) {
+          console.error('Failed to load weather:', error)
         }
-      } catch (error) {
-        console.error('Failed to load weather:', error)
       }
 
       // Then load places with the weather context
@@ -311,7 +353,8 @@ export default function Discover({ location }) {
     return () => {
       isCancelled = true
     }
-  }, [location, travelMode, selectedCategories, showFreeOnly, accessibilityMode, loadPlaces])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid refetch on local filter toggles
+  }, [location?.lat, location?.lng, travelMode, selectedCategories])
 
 
   // Handle category filter changes
@@ -623,7 +666,7 @@ export default function Discover({ location }) {
         onSwipe={handleSwipe}
         onExpand={(place) => setSelectedPlace(place)}
         onEmpty={() => {}}
-        onRefresh={() => loadPlaces()}
+        onRefresh={() => loadPlaces(weather)}
         onOpenSettings={() => setShowFilterModal(true)}
         onLoadMore={loadMorePlaces}
         loading={loading}

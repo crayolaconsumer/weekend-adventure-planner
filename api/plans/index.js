@@ -55,6 +55,7 @@ async function handleGet(req, res) {
       p.title,
       p.vibe,
       p.duration_hours,
+      p.default_transport,
       p.is_public,
       p.created_at,
       COUNT(ps.id) as stop_count
@@ -73,6 +74,7 @@ async function handleGet(req, res) {
     title: p.title,
     vibe: p.vibe,
     durationHours: p.duration_hours,
+    defaultTransport: p.default_transport || 'walk',
     isPublic: Boolean(p.is_public),
     stopCount: p.stop_count,
     createdAt: new Date(p.created_at).toISOString()
@@ -83,7 +85,10 @@ async function handleGet(req, res) {
 
 /**
  * POST - Create a new plan
- * Body: { title, vibe, durationHours, stops: [{ placeId, placeData, scheduledTime, durationMinutes }] }
+ * Body: {
+ *   title, vibe, durationHours, defaultTransport,
+ *   stops: [{ placeId, placeData, scheduledTime, durationMinutes, transportToNext, travelTimeToNext }]
+ * }
  */
 async function handlePost(req, res) {
   const user = await getUserFromRequest(req)
@@ -91,7 +96,7 @@ async function handlePost(req, res) {
     return res.status(401).json({ error: 'Authentication required' })
   }
 
-  const { title, vibe, durationHours, stops, isPublic = false } = req.body
+  const { title, vibe, durationHours, defaultTransport = 'walk', stops, isPublic = false } = req.body
 
   // Validate required fields
   if (!title || !vibe || !durationHours) {
@@ -100,6 +105,12 @@ async function handlePost(req, res) {
 
   if (!stops || !Array.isArray(stops) || stops.length === 0) {
     return res.status(400).json({ error: 'At least one stop is required' })
+  }
+
+  // Validate transport mode
+  const validModes = ['walk', 'transit', 'drive']
+  if (!validModes.includes(defaultTransport)) {
+    return res.status(400).json({ error: 'defaultTransport must be walk, transit, or drive' })
   }
 
   // Generate unique share code
@@ -114,24 +125,27 @@ async function handlePost(req, res) {
 
   // Create plan
   const planId = await insert(
-    `INSERT INTO plans (user_id, share_code, title, vibe, duration_hours, is_public)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [user.id, shareCode, title, vibe, durationHours, isPublic ? 1 : 0]
+    `INSERT INTO plans (user_id, share_code, title, vibe, duration_hours, default_transport, is_public)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [user.id, shareCode, title, vibe, durationHours, defaultTransport, isPublic ? 1 : 0]
   )
 
   // Insert stops
   for (let i = 0; i < stops.length; i++) {
     const stop = stops[i]
+    const transportToNext = validModes.includes(stop.transportToNext) ? stop.transportToNext : defaultTransport
     await insert(
-      `INSERT INTO plan_stops (plan_id, place_id, place_data, sort_order, scheduled_time, duration_minutes)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO plan_stops (plan_id, place_id, place_data, sort_order, scheduled_time, duration_minutes, transport_to_next, travel_time_to_next)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         planId,
         stop.placeId || stop.id,
         JSON.stringify(stop.placeData || stop),
         i + 1,
         stop.scheduledTime || null,
-        stop.durationMinutes || stop.duration || 60
+        stop.durationMinutes || stop.duration || 60,
+        transportToNext,
+        stop.travelTimeToNext || null
       ]
     )
   }
@@ -144,6 +158,7 @@ async function handlePost(req, res) {
       title,
       vibe,
       durationHours,
+      defaultTransport,
       isPublic,
       stopCount: stops.length,
       createdAt: new Date().toISOString()

@@ -98,7 +98,8 @@ const CATEGORY_IMAGES = {
 export default function PlaceDetail({ place, onClose, onGo }) {
   const [enrichedPlace, setEnrichedPlace] = useState(place)
   const [loading, setLoading] = useState(true)
-  const [imageLoaded, setImageLoaded] = useState(false)
+  const [loadedSrc, setLoadedSrc] = useState(null)
+  const [failedSrc, setFailedSrc] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
 
@@ -143,7 +144,36 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   }, [])
 
   const category = enrichedPlace.category
-  const imageUrl = enrichedPlace.photo || enrichedPlace.image || CATEGORY_IMAGES[category?.key] || CATEGORY_IMAGES.default
+
+  const extractImageUrl = (value) => {
+    if (!value) return null
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const url = extractImageUrl(item)
+        if (url) return url
+      }
+      return null
+    }
+    if (typeof value === 'object') {
+      return extractImageUrl(value.url || value.source || value.src)
+    }
+    return null
+  }
+
+  const getPlaceholderImage = () => CATEGORY_IMAGES[category?.key] || CATEGORY_IMAGES.default
+
+  const resolvedImageUrl =
+    extractImageUrl(enrichedPlace.photo) ||
+    extractImageUrl(enrichedPlace.image) ||
+    getPlaceholderImage()
+
+  const imageError = failedSrc === resolvedImageUrl
+  const imageUrl = imageError ? getPlaceholderImage() : resolvedImageUrl
+  const imageLoaded = loadedSrc === imageUrl
 
   const formatDistance = (km) => {
     if (!km) return null
@@ -223,7 +253,12 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               src={imageUrl}
               alt={enrichedPlace.name}
               className={`place-detail-image ${imageLoaded ? 'loaded' : ''}`}
-              onLoad={() => setImageLoaded(true)}
+              onLoad={() => setLoadedSrc(imageUrl)}
+              onError={() => {
+                if (imageUrl === resolvedImageUrl) {
+                  setFailedSrc(resolvedImageUrl)
+                }
+              }}
               initial={{ scale: 1.1 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.6, ease: 'easeOut' }}

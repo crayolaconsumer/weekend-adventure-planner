@@ -7,6 +7,31 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
 
+const parsePlaceData = (raw, placeId) => {
+  if (!raw) return {}
+
+  if (typeof raw === 'object') {
+    // Already parsed (JSON column or driver behavior)
+    return raw
+  }
+
+  let text = raw
+  if (raw && raw.constructor?.name === 'Buffer') {
+    text = raw.toString('utf8')
+  }
+
+  if (typeof text !== 'string') {
+    return {}
+  }
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    console.warn('Invalid place_data JSON for saved place', placeId)
+    return {}
+  }
+}
+
 export default async function handler(req, res) {
   // Get authenticated user
   const user = await getUserFromRequest(req)
@@ -48,7 +73,7 @@ async function handleGet(req, res, user) {
 
   // Parse place_data JSON and merge with metadata
   const formattedPlaces = places.map(row => ({
-    ...JSON.parse(row.place_data),
+    ...parsePlaceData(row.place_data, row.place_id),
     id: row.place_id,
     savedAt: new Date(row.saved_at).getTime(),
     visited: row.visited === 1,
