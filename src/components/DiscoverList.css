@@ -1,0 +1,271 @@
+/**
+ * DiscoverList Styles
+ *
+ * Compact list view for desktop discover experience
+ * Uses ROAM design system variables
+ */
+
+.discover-list-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--roam-cream);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.discover-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--roam-parchment);
+  background: var(--roam-paper);
+}
+
+.discover-list-count {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--roam-forest);
+}
+
+.discover-list-hint {
+  font-size: var(--text-xs);
+  color: var(--roam-ink-muted);
+}
+
+.discover-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Custom scrollbar */
+.discover-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.discover-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.discover-list::-webkit-scrollbar-thumb {
+  background: var(--roam-parchment);
+  border-radius: 3px;
+}
+
+.discover-list::-webkit-scrollbar-thumb:hover {
+  background: var(--roam-stone);
+}
+
+/* List item */
+.discover-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.discover-list-item:hover {
+  background: var(--roam-paper);
+  transform: translateX(2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.discover-list-item:focus {
+  outline: none;
+  border-color: var(--roam-gold);
+}
+
+.discover-list-item.selected {
+  background: linear-gradient(135deg,
+    rgba(212, 168, 85, 0.1) 0%,
+    rgba(196, 92, 62, 0.08) 100%
+  );
+  border-color: var(--roam-gold);
+}
+
+/* Thumbnail */
+.list-item-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--roam-parchment);
+}
+
+.list-item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.list-item-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: linear-gradient(135deg, var(--roam-paper) 0%, var(--roam-parchment) 100%);
+}
+
+/* Content */
+.list-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.list-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.list-item-category {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--cat-color, var(--roam-forest));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.list-item-status {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--roam-parchment);
+}
+
+.list-item-status.hours-open {
+  color: var(--roam-green);
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.list-item-status.hours-closing_soon {
+  color: var(--roam-gold);
+  background: rgba(212, 168, 85, 0.15);
+}
+
+.list-item-status.hours-closed {
+  color: var(--roam-red);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.list-item-name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--roam-ink);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--roam-ink-muted);
+}
+
+.list-item-distance {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.list-item-distance svg {
+  color: var(--roam-terracotta);
+}
+
+.list-item-type {
+  text-transform: capitalize;
+}
+
+/* Quick actions */
+.list-item-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.discover-list-item:hover .list-item-actions,
+.discover-list-item:focus .list-item-actions,
+.discover-list-item.selected .list-item-actions {
+  opacity: 1;
+}
+
+.list-item-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.list-item-btn.save {
+  background: var(--roam-parchment);
+  color: var(--roam-ink-muted);
+}
+
+.list-item-btn.save:hover {
+  background: var(--roam-terracotta);
+  color: white;
+}
+
+.list-item-btn.go {
+  background: var(--roam-forest);
+  color: white;
+}
+
+.list-item-btn.go:hover {
+  background: var(--roam-forest-dark);
+  transform: translateY(-1px);
+}
+
+/* Loading state */
+.discover-list-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  color: var(--roam-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.discover-list-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--roam-parchment);
+  border-top-color: var(--roam-gold);
+  border-radius: 50%;
+  animation: listSpin 0.8s linear infinite;
+}
+
+@keyframes listSpin {
+  to { transform: rotate(360deg); }
+}

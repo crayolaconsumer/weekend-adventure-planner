@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import CardStack from '../components/CardStack'
 import BoredomBuster from '../components/BoredomBuster'
@@ -14,6 +14,10 @@ import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
 import './Discover.css'
+
+// Lazy load desktop-only components to keep mobile bundle small
+const DiscoverMap = lazy(() => import('../components/DiscoverMap'))
+const DiscoverList = lazy(() => import('../components/DiscoverList'))
 
 // Travel mode configurations
 const TRAVEL_MODES = {
@@ -37,6 +41,34 @@ const SettingsIcon = () => (
   </svg>
 )
 
+// View mode icons (desktop only)
+const StackIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="16" rx="2" />
+    <path d="M4 10h16" />
+    <path d="M4 16h16" />
+  </svg>
+)
+
+const MapIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+    <line x1="8" y1="2" x2="8" y2="18" />
+    <line x1="16" y1="6" x2="16" y2="22" />
+  </svg>
+)
+
+const ListIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+)
+
 export default function Discover({ location }) {
   const toast = useToast()
   const { savePlace } = useSavedPlaces()
@@ -57,6 +89,8 @@ export default function Discover({ location }) {
   const [boredomPlace, setBoredomPlace] = useState(null)
   const [boredomLoading, setBoredomLoading] = useState(false)
   const [showFilterModal, setShowFilterModal] = useState(false)
+  const [viewMode, setViewMode] = useState('swipe') // 'swipe' | 'map' | 'list'
+  const [isDesktop, setIsDesktop] = useState(false)
   const latestLoadRequestRef = useRef(0)
   const latestFilterKeyRef = useRef('')
   const basePlacesRef = useRef([])
@@ -141,6 +175,23 @@ export default function Discover({ location }) {
     localStorage.setItem('roam_accessibility', accessibilityMode.toString())
     localStorage.setItem('roam_open_only', showOpenOnly.toString())
   }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly])
+
+  // Detect desktop viewport for view mode toggle
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024)
+    }
+    checkDesktop()
+    window.addEventListener('resize', checkDesktop)
+    return () => window.removeEventListener('resize', checkDesktop)
+  }, [])
+
+  // Reset to swipe mode when switching to mobile
+  useEffect(() => {
+    if (!isDesktop && viewMode !== 'swipe') {
+      setViewMode('swipe')
+    }
+  }, [isDesktop, viewMode])
 
   // Check for pending visit prompt on mount and when page becomes visible
   useEffect(() => {
@@ -660,18 +711,83 @@ export default function Discover({ location }) {
         </div>
       )}
 
-      {/* Card Stack */}
-      <CardStack
-        places={places}
-        onSwipe={handleSwipe}
-        onExpand={(place) => setSelectedPlace(place)}
-        onEmpty={() => {}}
-        onRefresh={() => loadPlaces(weather)}
-        onOpenSettings={() => setShowFilterModal(true)}
-        onLoadMore={loadMorePlaces}
-        loading={loading}
-        loadingMore={loadingMore}
-      />
+      {/* View Mode Toggle (desktop only) */}
+      {isDesktop && (
+        <div className="discover-view-toggle" role="group" aria-label="View mode">
+          <button
+            className={`view-toggle-btn ${viewMode === 'swipe' ? 'active' : ''}`}
+            onClick={() => setViewMode('swipe')}
+            aria-pressed={viewMode === 'swipe'}
+            aria-label="Card stack view"
+          >
+            <StackIcon />
+          </button>
+          <button
+            className={`view-toggle-btn ${viewMode === 'map' ? 'active' : ''}`}
+            onClick={() => setViewMode('map')}
+            aria-pressed={viewMode === 'map'}
+            aria-label="Map view"
+          >
+            <MapIcon />
+          </button>
+          <button
+            className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+            onClick={() => setViewMode('list')}
+            aria-pressed={viewMode === 'list'}
+            aria-label="List view"
+          >
+            <ListIcon />
+          </button>
+        </div>
+      )}
+
+      {/* Main Content Area - conditionally render based on view mode */}
+      <div className={`discover-content ${isDesktop ? `view-${viewMode}` : ''}`}>
+        {/* Card Stack (always on mobile, conditional on desktop) */}
+        {(viewMode === 'swipe' || !isDesktop) && (
+          <CardStack
+            places={places}
+            onSwipe={handleSwipe}
+            onExpand={(place) => setSelectedPlace(place)}
+            onEmpty={() => {}}
+            onRefresh={() => loadPlaces(weather)}
+            onOpenSettings={() => setShowFilterModal(true)}
+            onLoadMore={loadMorePlaces}
+            loading={loading}
+            loadingMore={loadingMore}
+          />
+        )}
+
+        {/* Map View (desktop only) */}
+        {isDesktop && viewMode === 'map' && (
+          <Suspense fallback={<div className="discover-view-loading">Loading map...</div>}>
+            <DiscoverMap
+              places={places}
+              userLocation={location}
+              selectedPlace={selectedPlace}
+              onSelectPlace={setSelectedPlace}
+            />
+          </Suspense>
+        )}
+
+        {/* List View (desktop only) */}
+        {isDesktop && viewMode === 'list' && (
+          <Suspense fallback={<div className="discover-view-loading">Loading list...</div>}>
+            <DiscoverList
+              places={places}
+              selectedPlace={selectedPlace}
+              onSelectPlace={setSelectedPlace}
+              onSavePlace={savePlace}
+              onGoPlace={(place) => {
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
+                window.open(url, '_blank', 'noopener,noreferrer')
+              }}
+              onLoadMore={loadMorePlaces}
+              loading={loadingMore}
+            />
+          </Suspense>
+        )}
+      </div>
 
       {/* Boredom Buster Overlay */}
       {showBoredomBuster && (

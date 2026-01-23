@@ -1,3 +1,5 @@
+/* global clients */
+/* eslint-disable no-unused-vars */
 /**
  * ROAM Service Worker
  *
@@ -13,7 +15,24 @@
 const CACHE_NAME = 'roam-v2'
 const STATIC_CACHE = 'roam-static-v2'
 const IMAGE_CACHE = 'roam-images-v2'
+const MAP_TILE_CACHE = 'roam-map-tiles-v1'
 const IS_LOCALHOST = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
+
+// Map tile providers to cache for offline use
+const MAP_TILE_HOSTS = [
+  'tile.openstreetmap.org',
+  'a.tile.openstreetmap.org',
+  'b.tile.openstreetmap.org',
+  'c.tile.openstreetmap.org',
+  'basemaps.cartocdn.com',
+  'a.basemaps.cartocdn.com',
+  'b.basemaps.cartocdn.com',
+  'c.basemaps.cartocdn.com',
+  'd.basemaps.cartocdn.com'
+]
+
+// Maximum number of tiles to cache (prevents storage bloat)
+const MAX_MAP_TILES = 500
 
 // Files to cache immediately on install
 const PRECACHE_FILES = [
@@ -51,7 +70,8 @@ self.addEventListener('activate', (event) => {
             if (cacheName.startsWith('roam-') &&
                 cacheName !== CACHE_NAME &&
                 cacheName !== STATIC_CACHE &&
-                cacheName !== IMAGE_CACHE) {
+                cacheName !== IMAGE_CACHE &&
+                cacheName !== MAP_TILE_CACHE) {
               console.log('Service Worker: Deleting old cache:', cacheName)
               return caches.delete(cacheName)
             }
@@ -91,7 +111,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Handle different request types
-  if (isApiRequest(url)) {
+  if (isMapTileRequest(url)) {
+    // Map tiles: Cache first with LRU eviction
+    event.respondWith(cacheMapTile(request))
+  } else if (isApiRequest(url)) {
     // API requests: Network first, cache fallback
     event.respondWith(networkFirst(request))
   } else if (isImageRequest(url, request)) {
@@ -131,6 +154,12 @@ function isImageRequest(url, request) {
 function isStaticAsset(url) {
   return /\.(js|css|woff|woff2|ttf|eot)$/i.test(url.pathname) ||
          url.pathname.startsWith('/assets/')
+}
+
+// Check if request is for a map tile
+function isMapTileRequest(url) {
+  return MAP_TILE_HOSTS.some(host => url.hostname.includes(host)) ||
+         /\/\d+\/\d+\/\d+\.png$/i.test(url.pathname)
 }
 
 // Network first strategy
@@ -187,9 +216,185 @@ async function cacheFirst(request, cacheName) {
   }
 }
 
+// Map tile caching with LRU eviction
+async function cacheMapTile(request) {
+  const cache = await caches.open(MAP_TILE_CACHE)
+  const cachedResponse = await cache.match(request)
+
+  if (cachedResponse) {
+    return cachedResponse
+  }
+
+  try {
+    const networkResponse = await fetch(request)
+
+    if (networkResponse.ok) {
+      // Clone response before caching
+      const responseToCache = networkResponse.clone()
+
+      // Cache the tile and manage cache size
+      cache.put(request, responseToCache).then(() => {
+        trimMapTileCache()
+      })
+    }
+
+    return networkResponse
+  } catch (error) {
+    // Return a placeholder tile for offline (transparent 256x256 PNG)
+    console.log('Service Worker: Map tile unavailable offline:', request.url)
+    return new Response(
+      // Minimal transparent PNG (1x1, will be stretched)
+      Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), c => c.charCodeAt(0)),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' }
+      }
+    )
+  }
+}
+
+// Trim map tile cache to prevent storage bloat
+async function trimMapTileCache() {
+  const cache = await caches.open(MAP_TILE_CACHE)
+  const keys = await cache.keys()
+
+  if (keys.length > MAX_MAP_TILES) {
+    // Delete oldest tiles (first in cache = oldest)
+    const deleteCount = keys.length - MAX_MAP_TILES
+    console.log(`Service Worker: Trimming ${deleteCount} old map tiles`)
+
+    for (let i = 0; i < deleteCount; i++) {
+      await cache.delete(keys[i])
+    }
+  }
+}
+
 // Handle messages from the main thread
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting()
   }
+
+  // Prefetch map tiles for offline use
+  if (event.data && event.data.type === 'PREFETCH_MAP_TILES') {
+    const { tileUrls } = event.data
+    if (tileUrls && Array.isArray(tileUrls)) {
+      prefetchMapTiles(tileUrls)
+    }
+  }
+
+  // Clear map tile cache
+  if (event.data && event.data.type === 'CLEAR_MAP_CACHE') {
+    caches.delete(MAP_TILE_CACHE).then(() => {
+      console.log('Service Worker: Map tile cache cleared')
+    })
+  }
+})
+
+// Prefetch map tiles in background
+async function prefetchMapTiles(tileUrls) {
+  console.log(`Service Worker: Prefetching ${tileUrls.length} map tiles`)
+  const cache = await caches.open(MAP_TILE_CACHE)
+
+  for (const url of tileUrls) {
+    try {
+      const cached = await cache.match(url)
+      if (!cached) {
+        const response = await fetch(url)
+        if (response.ok) {
+          await cache.put(url, response)
+        }
+      }
+    } catch {
+      // Ignore individual tile failures
+    }
+  }
+
+  // Trim after prefetch
+  await trimMapTileCache()
+  console.log('Service Worker: Map tile prefetch complete')
+}
+
+// ═══════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ═══════════════════════════════════════════════════════
+
+// Handle push notifications
+self.addEventListener('push', (event) => {
+  console.log('Service Worker: Push received')
+
+  let data = {
+    title: 'ROAM',
+    body: 'You have a new notification',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/badge-72x72.png',
+    tag: 'roam-notification',
+    data: {}
+  }
+
+  if (event.data) {
+    try {
+      const payload = event.data.json()
+      data = { ...data, ...payload }
+    } catch {
+      data.body = event.data.text()
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
+    tag: data.tag,
+    data: data.data,
+    vibrate: [100, 50, 100],
+    actions: data.actions || [
+      { action: 'open', title: 'Open ROAM' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ],
+    requireInteraction: data.requireInteraction || false
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  )
+})
+
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  console.log('Service Worker: Notification clicked', event.action)
+
+  event.notification.close()
+
+  if (event.action === 'dismiss') {
+    return
+  }
+
+  // Get the URL to open
+  const urlToOpen = event.notification.data?.url || '/'
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        // Check if there's already a window open
+        for (const client of windowClients) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.focus()
+            if (urlToOpen !== '/') {
+              client.navigate(urlToOpen)
+            }
+            return
+          }
+        }
+        // Open new window if none exists
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen)
+        }
+      })
+  )
+})
+
+// Handle notification close
+self.addEventListener('notificationclose', (event) => {
+  console.log('Service Worker: Notification closed')
 })

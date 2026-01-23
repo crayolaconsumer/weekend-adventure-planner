@@ -71,6 +71,42 @@ export default function SharedPlan() {
     fetchPlan()
   }, [code])
 
+  // Update document meta tags for social sharing
+  useEffect(() => {
+    if (!plan) return
+
+    const originalTitle = document.title
+    const stopCount = plan.stops?.length || 0
+    const description = `${plan.title} - ${stopCount} stop adventure by @${plan.user?.username || 'explorer'}. Check out this ROAM adventure plan!`
+    const ogImageUrl = `${window.location.origin}/api/og/plan?code=${code}`
+
+    // Update title
+    document.title = `${plan.title} | ROAM Adventure`
+
+    // Update or create meta tags
+    const setMeta = (property, content) => {
+      let meta = document.querySelector(`meta[property="${property}"]`)
+      if (!meta) {
+        meta = document.createElement('meta')
+        meta.setAttribute('property', property)
+        document.head.appendChild(meta)
+      }
+      meta.setAttribute('content', content)
+    }
+
+    setMeta('og:title', plan.title)
+    setMeta('og:description', description)
+    setMeta('og:image', ogImageUrl)
+    setMeta('og:url', window.location.href)
+    setMeta('twitter:title', plan.title)
+    setMeta('twitter:description', description)
+    setMeta('twitter:image', ogImageUrl)
+
+    return () => {
+      document.title = originalTitle
+    }
+  }, [plan, code])
+
   const formatTime = (timeStr) => {
     if (!timeStr) return ''
     // Handle both TIME format (HH:MM:SS) and ISO string

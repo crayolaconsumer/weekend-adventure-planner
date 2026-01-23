@@ -398,3 +398,120 @@
     padding-top: var(--space-3xl);
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   DESKTOP VIEW MODE TOGGLE
+   Only visible on desktop (≥1024px)
+   ═══════════════════════════════════════════════════════ */
+
+.discover-view-toggle {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .discover-view-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--color-surface-elevated);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin: 0 auto var(--space-lg);
+    width: fit-content;
+  }
+
+  .view-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 36px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .view-toggle-btn:hover {
+    color: var(--color-text-secondary);
+    background: var(--color-surface-hover);
+  }
+
+  .view-toggle-btn.active {
+    background: var(--roam-forest);
+    color: white;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .view-toggle-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   DISCOVER CONTENT AREA
+   Wrapper for the main content (card stack, map, or list)
+   ═══════════════════════════════════════════════════════ */
+
+.discover-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Loading state for lazy-loaded views */
+.discover-view-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-base);
+}
+
+/* ═══════════════════════════════════════════════════════
+   DESKTOP LAYOUT MODES
+   ═══════════════════════════════════════════════════════ */
+
+@media (min-width: 1024px) {
+  .discover-content {
+    padding: 0 var(--space-xl);
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* Map view takes full available height */
+  .discover-content.view-map {
+    flex: 1;
+  }
+
+  .discover-content.view-map .discover-map-container {
+    flex: 1;
+    min-height: 500px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* List view with constrained width */
+  .discover-content.view-list {
+    flex: 1;
+  }
+
+  .discover-content.view-list .discover-list-container {
+    flex: 1;
+    max-width: 800px;
+    margin: 0 auto;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Swipe view - center the card stack */
+  .discover-content.view-swipe {
+    max-width: 500px;
+  }
+}

@@ -210,15 +210,16 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const focusTrapRef = useFocusTrap(true)
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        className="place-detail-overlay"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.25, ease: 'easeOut' }}
-        onClick={onClose}
-      >
+    <>
+      <AnimatePresence mode="wait">
+        <motion.div
+          className="place-detail-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          onClick={onClose}
+        >
         <motion.div
           ref={focusTrapRef}
           className="place-detail-modal"
@@ -455,6 +456,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
           </div>
         </motion.div>
       </motion.div>
+      </AnimatePresence>
 
       {/* Collection Manager Modal */}
       <CollectionManager
@@ -462,6 +464,6 @@ export default function PlaceDetail({ place, onClose, onGo }) {
         onClose={() => setShowCollectionManager(false)}
         place={enrichedPlace}
       />
-    </AnimatePresence>
+    </>
   )
 }
