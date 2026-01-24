@@ -462,17 +462,18 @@ function sampleLargeRadius(lat, lng, radius) {
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
- * Fetch places with sampling for large radii
- * Uses 5 sample points max to avoid rate limits
+ * Fetch places with progressive loading for large radii
+ * Returns CENTER results immediately, loads outer tiles in background
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @param {number} radius - Search radius in meters
  * @param {string|null} category - Category key or null for all
  * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
- * @returns {Promise<Array>} Deduplicated array of places
+ * @param {Function} [onProgress] - Callback with new places as they load
+ * @returns {Promise<Array>} Initial places (center tile)
  */
-export async function fetchWithTiling(lat, lng, radius, category = null, signal = null) {
+export async function fetchWithTiling(lat, lng, radius, category = null, signal = null, onProgress = null) {
   const tiles = sampleLargeRadius(lat, lng, radius)
 
   // Single tile = use normal fetch
@@ -480,40 +481,65 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
     return fetchNearbyPlaces(lat, lng, radius, category, signal)
   }
 
-  console.log(`[API] Sampling large radius (${radius}m) with ${tiles.length} points`)
+  console.log(`[API] Progressive load: ${tiles.length} samples, center first`)
 
-  const results = []
   const seen = new Set()
-
-  // Fetch tiles SEQUENTIALLY with delays to avoid rate limits
-  for (let i = 0; i < tiles.length; i++) {
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError')
-    }
-
-    // Add delay between requests (not before first)
-    if (i > 0) {
-      await delay(BATCH_DELAY_MS)
-    }
-
-    const tile = tiles[i]
-    try {
-      const places = await fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal)
-      for (const place of places) {
-        if (!seen.has(place.id)) {
-          seen.add(place.id)
-          results.push(place)
-        }
+  const addUnique = (places) => {
+    const newPlaces = []
+    for (const place of places) {
+      if (!seen.has(place.id)) {
+        seen.add(place.id)
+        newPlaces.push(place)
       }
-      console.log(`[API] Sample ${i + 1}/${tiles.length}: ${places.length} places`)
-    } catch (err) {
-      if (err.name === 'AbortError') throw err
-      console.warn(`Sample ${i + 1} failed:`, err)
     }
+    return newPlaces
   }
 
-  console.log(`[API] Sampling complete: ${results.length} unique places`)
-  return results
+  // STEP 1: Fetch CENTER tile immediately and return it
+  const centerTile = tiles[0]
+  let centerPlaces = []
+  try {
+    centerPlaces = await fetchNearbyPlaces(centerTile.lat, centerTile.lng, centerTile.radius, category, signal)
+    centerPlaces = addUnique(centerPlaces)
+    console.log(`[API] Center tile: ${centerPlaces.length} places (returning immediately)`)
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+    console.warn('Center tile failed:', err)
+  }
+
+  // STEP 2: Fetch outer tiles in BACKGROUND (don't await)
+  if (tiles.length > 1 && !signal?.aborted) {
+    const outerTiles = tiles.slice(1)
+
+    // Fire and forget - load outer tiles with delays
+    ;(async () => {
+      for (let i = 0; i < outerTiles.length; i++) {
+        if (signal?.aborted) break
+
+        await delay(BATCH_DELAY_MS)
+        if (signal?.aborted) break
+
+        const tile = outerTiles[i]
+        try {
+          const places = await fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal)
+          const newPlaces = addUnique(places)
+          console.log(`[API] Outer tile ${i + 1}/${outerTiles.length}: +${newPlaces.length} places`)
+
+          // Notify caller of new places
+          if (newPlaces.length > 0 && onProgress) {
+            onProgress(newPlaces)
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') break
+          console.warn(`Outer tile ${i + 1} failed:`, err)
+        }
+      }
+      console.log(`[API] Progressive load complete: ${seen.size} total places`)
+    })()
+  }
+
+  // Return center places immediately - outer tiles load in background
+  return centerPlaces
 }
 
 /**
@@ -1017,16 +1043,17 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  * - OpenTripMap (curated tourist spots)
  * - Wikipedia Geosearch (notable/famous places, max 10km)
  *
- * For large radii (driving mode), we make multiple Wikipedia calls
- * to sample different areas within the search radius.
+ * For large radii, uses progressive loading - returns center immediately,
+ * loads outer areas in background and calls onProgress with new places.
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @param {number} radius - Search radius in meters
  * @param {string|null} category - Category key or null for all
+ * @param {Function} [onProgress] - Callback for progressive loading (new places array)
  * @returns {Promise<Array>} Merged array of places
  */
-export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null) {
+export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null, onProgress = null) {
   const isLargeRadius = radius > 15000
 
   // For large radii, fetch Wikipedia from multiple sample points
@@ -1050,11 +1077,11 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     )
   }
 
-  // Use tiling for very large radii (>40km) to prevent timeouts
+  // Use progressive loading for very large radii (>40km)
   const usesTiling = radius > 40000
   const osmFetcher = usesTiling
-    ? fetchWithTiling(lat, lng, radius, category).catch(err => {
-        console.warn('OSM tiled fetch failed:', err)
+    ? fetchWithTiling(lat, lng, radius, category, null, onProgress).catch(err => {
+        console.warn('OSM progressive fetch failed:', err)
         return []
       })
     : fetchNearbyPlaces(lat, lng, radius, category).catch(err => {
@@ -1198,12 +1225,12 @@ function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
  * @param {Function} onRefresh - Callback when fresh data is available
  * @returns {Promise<{data: Array, fresh: boolean, stale: boolean}>}
  */
-export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null) {
+export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null, onProgress = null) {
   const cacheKey = makeCacheKey(lat, lng, radius, category)
 
   return getWithSWR(
     cacheKey,
-    () => fetchEnrichedPlaces(lat, lng, radius, category),
+    () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress),
     {
       ttl: 10 * 60 * 1000, // 10 minute freshness
       onBackgroundRefresh: onRefresh

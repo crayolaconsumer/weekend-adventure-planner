@@ -320,16 +320,31 @@ export default function Discover({ location }) {
 
     try {
       // Use SWR pattern - returns cached data immediately if available
+      // For large radii, onProgress streams places as outer tiles load
       const { data: rawPlaces, stale } = await fetchPlacesWithSWR(
         location.lat,
         location.lng,
         mode.maxRadius,
         selectedCategories.length === 1 ? selectedCategories[0] : null,
-        // Background refresh callback - just update basePlaces, memoization handles filtering
+        // Background refresh callback - full refresh from cache
         (freshPlaces) => {
           if (requestId === latestLoadRequestRef.current) {
             const enhanced = freshPlaces.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
             setBasePlaces(enhanced)
+          }
+        },
+        // Progressive loading callback - append new places as outer tiles complete
+        (newPlaces) => {
+          if (requestId === latestLoadRequestRef.current && newPlaces.length > 0) {
+            const enhanced = newPlaces.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
+            setBasePlaces(prev => {
+              // Dedupe by ID
+              const existingIds = new Set(prev.map(p => p.id))
+              const unique = enhanced.filter(p => !existingIds.has(p.id))
+              if (unique.length === 0) return prev
+              console.log(`[Discover] +${unique.length} places from outer tiles`)
+              return [...prev, ...unique]
+            })
           }
         }
       )
