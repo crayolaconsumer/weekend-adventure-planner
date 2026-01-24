@@ -370,6 +370,25 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               </motion.div>
             )}
 
+            {/* Mini Map Preview */}
+            {enrichedPlace.lat && enrichedPlace.lng && (
+              <motion.div
+                className="place-detail-section"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.27 }}
+              >
+                <div className="place-detail-map">
+                  <iframe
+                    title={`Map showing ${enrichedPlace.name}`}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${enrichedPlace.lng - 0.008},${enrichedPlace.lat - 0.006},${enrichedPlace.lng + 0.008},${enrichedPlace.lat + 0.006}&layer=mapnik&marker=${enrichedPlace.lat},${enrichedPlace.lng}`}
+                    className="place-detail-map-iframe"
+                    loading="lazy"
+                  />
+                </div>
+              </motion.div>
+            )}
+
             {/* Opening Hours */}
             {enrichedPlace.openingHours && (
               <motion.div

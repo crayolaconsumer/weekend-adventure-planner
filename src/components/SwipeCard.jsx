@@ -405,7 +405,10 @@ export default function SwipeCard({
           </button>
           <button
             className="swipe-card-btn map"
-            onClick={() => onShowMap?.(place)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onShowMap?.(place)
+            }}
             aria-label="Show on map"
           >
             <MapIcon />
