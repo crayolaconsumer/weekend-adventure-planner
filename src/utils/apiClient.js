@@ -55,6 +55,23 @@ function escapeOverpassRegex(value) {
   return value.replace(/[\\.^$|?*+()[\]{}]/g, '\\$&')
 }
 
+/**
+ * Convert lat/lng + radius to bounding box
+ * bbox is MUCH faster than around for Overpass queries
+ */
+function radiusToBbox(lat, lng, radius) {
+  // Rough conversion: 1 degree lat ≈ 111km, lng varies by latitude
+  const latDelta = radius / 111320
+  const lngDelta = radius / (111320 * Math.cos(lat * Math.PI / 180))
+
+  return {
+    south: lat - latDelta,
+    north: lat + latDelta,
+    west: lng - lngDelta,
+    east: lng + lngDelta
+  }
+}
+
 function buildOverpassQuery(lat, lng, radius, types) {
   // Scale timeout with radius
   let timeout = 30
@@ -62,37 +79,39 @@ function buildOverpassQuery(lat, lng, radius, types) {
   else if (radius > 10000) timeout = 60
 
   // Only filter by name for VERY large radii (>50km) - Explorer mode
-  // For driving mode (30km), don't filter - the query handles it
   const isVeryLargeRadius = radius > 50000
   const nameFilter = isVeryLargeRadius ? '["name"]' : ''
 
   const uniqueTypes = Array.from(new Set(types)).filter(Boolean)
   if (uniqueTypes.length === 0) {
     return {
-      query: `[out:json][timeout:${timeout}];();out tags center;`,
+      query: `[out:json][timeout:${timeout}];();out center;`,
       clauseCount: 0,
       querySize: 0
     }
   }
 
-  // Group types by their OSM keys - MAJOR OPTIMIZATION
-  // Instead of querying all 8 keys for every type, only query relevant keys
+  // Use bbox instead of around - SIGNIFICANTLY faster per Overpass docs
+  const bbox = radiusToBbox(lat, lng, radius)
+  const bboxStr = `(${bbox.south},${bbox.west},${bbox.north},${bbox.east})`
+
+  // Group types by their OSM keys - reduces clauses by ~70%
   const grouped = groupTypesByKey(uniqueTypes)
 
-  // Build query clauses - only for keys that actually have matching types
+  // Build query clauses with bbox (faster) instead of around
   const typeFilters = Object.entries(grouped)
     .map(([key, keyTypes]) => {
       const regex = keyTypes.map(escapeOverpassRegex).join('|')
-      return `node["${key}"~"^(${regex})$"]${nameFilter}(around:${radius},${lat},${lng});
-     way["${key}"~"^(${regex})$"]${nameFilter}(around:${radius},${lat},${lng});`
+      return `nw["${key}"~"^(${regex})$"]${nameFilter}${bboxStr};`
     })
     .join('\n      ')
 
-  const query = `[out:json][timeout:${timeout}];
+  // Use global bbox limit + compact output
+  const query = `[out:json][timeout:${timeout}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
     (
       ${typeFilters}
     );
-    out tags center;`
+    out center;`
 
   return {
     query,
@@ -1031,12 +1050,21 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     )
   }
 
+  // Use tiling for very large radii (>40km) to prevent timeouts
+  const usesTiling = radius > 40000
+  const osmFetcher = usesTiling
+    ? fetchWithTiling(lat, lng, radius, category).catch(err => {
+        console.warn('OSM tiled fetch failed:', err)
+        return []
+      })
+    : fetchNearbyPlaces(lat, lng, radius, category).catch(err => {
+        console.warn('OSM fetch failed:', err)
+        return []
+      })
+
   // Fetch from ALL sources in parallel with individual failure handling
   const [osmPlaces, otmPlaces, ...wikiResults] = await Promise.all([
-    fetchNearbyPlaces(lat, lng, radius, category).catch(err => {
-      console.warn('OSM fetch failed:', err)
-      return []
-    }),
+    osmFetcher,
     fetchOpenTripMapPlaces(lat, lng, radius).catch(err => {
       console.warn('OpenTripMap fetch failed:', err)
       return []
