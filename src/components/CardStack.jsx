@@ -6,6 +6,7 @@ import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
+import { openDirections } from '../utils/navigation'
 import './CardStack.css'
 
 // Interval for inserting sponsored cards (every N regular cards)
@@ -156,8 +157,7 @@ export default function CardStack({
     // Open directions SYNCHRONOUSLY for "go" action to avoid popup blockers
     // This must happen before any async operations or timeouts
     if (action === 'go' && place) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-      window.open(url, '_blank', 'noopener,noreferrer')
+      openDirections(place.lat, place.lng, place.name)
     }
 
     // Notify parent (pass the place, not the wrapper object)

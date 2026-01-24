@@ -428,3 +428,35 @@
 .collections-confirm-delete:hover {
   background: #b91c1c;
 }
+
+/* ═══════════════════════════════════════════════════════
+   LOAD MORE BUTTON
+   ═══════════════════════════════════════════════════════ */
+
+.collections-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(100% - var(--space-lg) * 2);
+  margin: var(--space-md) var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+  background: transparent;
+  border: 1.5px dashed var(--roam-stone);
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-stone);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collections-load-more:hover {
+  background: rgba(26, 58, 47, 0.05);
+  border-color: var(--roam-forest);
+  color: var(--roam-forest);
+}
+
+.collections-load-more:active {
+  transform: scale(0.98);
+}

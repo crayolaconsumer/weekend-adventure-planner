@@ -74,7 +74,8 @@ function ListItem({ place, isSelected, onSelect, onSave, onGo, index }) {
           <img src={place.photo} alt="" loading="lazy" />
         ) : (
           <div className="list-item-thumb-placeholder">
-            <span>{category?.icon || '📍'}</span>
+            {/* Use generic icon to avoid duplicate when category badge shows icon */}
+            <span>📍</span>
           </div>
         )}
       </div>

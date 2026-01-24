@@ -16,6 +16,7 @@ import { fetchEnrichedPlaces } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
 import { useRouting } from '../hooks/useRouting'
+import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import ShareModal from '../components/plan/ShareModal'
 import './Plan.css'
 
@@ -94,6 +95,7 @@ export default function Plan({ location }) {
   const toast = useToast()
   const navigate = useNavigate()
   const { getTravelTime: fetchTravelTime } = useRouting()
+  const { places: wishlist } = useSavedPlaces()
 
   // State
   const [selectedVibe, setSelectedVibe] = useState('mixed')
@@ -102,22 +104,11 @@ export default function Plan({ location }) {
   const [itinerary, setItinerary] = useState([])
   const [travelTimes, setTravelTimes] = useState({}) // Cache of travel times: { "stopId-nextStopId": { duration, mode } }
   const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
-  const [wishlist, setWishlist] = useState([])
   const [availablePlaces, setAvailablePlaces] = useState([])
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareCode, setShareCode] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
-
-  // Load wishlist
-  useEffect(() => {
-    const load = () => {
-      const saved = localStorage.getItem('roam_wishlist')
-      if (saved) setWishlist(JSON.parse(saved))
-    }
-    load()
-    window.addEventListener('storage', load)
-    return () => window.removeEventListener('storage', load)
-  }, [])
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // Check for pending places from Discover
   useEffect(() => {
@@ -159,16 +150,64 @@ export default function Plan({ location }) {
     return result
   }, [calcDist])
 
-  // Generate itinerary
-  const generate = async () => {
+  // Generate itinerary with timeout handling and retry
+  const generate = async (retryCount = 0) => {
     if (!location) { toast.error('Need location'); return }
+    if (isGenerating && retryCount === 0) return
 
+    setIsGenerating(true)
     const vibe = VIBES.find(v => v.key === selectedVibe)
     const duration = DURATIONS.find(d => d.hours === selectedDuration)
 
+    // Create a timeout promise - 45 seconds for first try, 60 for retry
+    const timeoutMs = retryCount > 0 ? 60000 : 45000
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), timeoutMs)
+    )
+
     try {
-      const raw = await fetchEnrichedPlaces(location.lat, location.lng, 10000, null)
+      // Show progress
+      if (retryCount === 0) {
+        toast.info('Finding places near you...')
+      } else {
+        toast.info('Retrying with extended search...')
+      }
+
+      // Fetch with timeout
+      const raw = await Promise.race([
+        fetchEnrichedPlaces(location.lat, location.lng, 10000, null),
+        timeoutPromise
+      ])
       console.log('[Plan] Raw places:', raw.length)
+
+      // If no API places found, fallback to wishlist
+      if (raw.length === 0 && wishlist.length > 0) {
+        toast.info('Using your saved places instead')
+        const wishlistStops = wishlist
+          .filter(w => w.lat && w.lng)
+          .slice(0, duration.stops)
+          .map((place, i) => {
+            const startTime = new Date()
+            startTime.setHours(10, 0, 0, 0)
+            const time = new Date(startTime)
+            time.setMinutes(time.getMinutes() + i * 90)
+            return {
+              ...place,
+              scheduledTime: time.toISOString(),
+              duration: 60,
+              distance: calcDist(location.lat, location.lng, place.lat, place.lng)
+            }
+          })
+
+        if (wishlistStops.length > 0) {
+          setItinerary(wishlistStops)
+          toast.success(`${wishlistStops.length} stops from your wishlist!`)
+        } else {
+          toast.info('No places found. Try saving some places first!')
+        }
+        setIsGenerating(false)
+        return
+      }
 
       const enhanced = raw.map(p => enhancePlace(p, location))
       console.log('[Plan] Enhanced:', enhanced.length)
@@ -215,7 +254,44 @@ export default function Plan({ location }) {
       }
     } catch (e) {
       console.error('[Plan] Generate error:', e)
-      toast.error('Failed to generate')
+      if (e.message === 'timeout') {
+        // Retry once on timeout
+        if (retryCount < 1) {
+          toast.info('Still searching...')
+          return generate(retryCount + 1)
+        }
+        // If still timing out, use wishlist as fallback
+        if (wishlist.length > 0) {
+          toast.info('Using your saved places instead')
+          const wishlistStops = wishlist
+            .filter(w => w.lat && w.lng)
+            .slice(0, duration.stops)
+            .map((place, i) => {
+              const startTime = new Date()
+              startTime.setHours(10, 0, 0, 0)
+              const time = new Date(startTime)
+              time.setMinutes(time.getMinutes() + i * 90)
+              return {
+                ...place,
+                scheduledTime: time.toISOString(),
+                duration: 60,
+                distance: calcDist(location.lat, location.lng, place.lat, place.lng)
+              }
+            })
+          if (wishlistStops.length > 0) {
+            setItinerary(wishlistStops)
+            toast.success(`${wishlistStops.length} stops from your wishlist!`)
+          } else {
+            toast.error('Search timed out. Try adding places manually.')
+          }
+        } else {
+          toast.error('Search timed out. Try adding places manually.')
+        }
+      } else {
+        toast.error('Failed to generate. Please try again.')
+      }
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -536,29 +612,65 @@ export default function Plan({ location }) {
         </div>
 
         {/* Generate button */}
-        <button className="plan-generate" onClick={generate} disabled={!location}>
-          Generate Itinerary
+        <button className="plan-generate" onClick={() => generate(0)} disabled={!location || isGenerating}>
+          {isGenerating ? (
+            <>
+              <span className="plan-generate-spinner" />
+              Finding places...
+            </>
+          ) : (
+            'Generate Itinerary'
+          )}
         </button>
 
-        {/* FROM YOUR WISHLIST */}
-        {availableWishlist.length > 0 && (
-          <section className="plan-section">
-            <div className="plan-section-header">
-              <span className="plan-section-title">FROM YOUR WISHLIST</span>
+        {/* FROM YOUR WISHLIST - Always show */}
+        <section className="plan-section plan-wishlist-section">
+          <div className="plan-section-header">
+            <span className="plan-section-title">
+              <span className="plan-section-icon">💾</span>
+              FROM YOUR WISHLIST
+            </span>
+            {wishlist.length > 0 && (
               <button className="plan-section-link" onClick={() => navigate('/wishlist')}>
-                View All <ChevronIcon />
+                View All ({wishlist.length}) <ChevronIcon />
               </button>
-            </div>
+            )}
+          </div>
+          {availableWishlist.length > 0 ? (
             <div className="plan-wishlist">
-              {availableWishlist.slice(0, 4).map(item => (
-                <button key={item.id} className="plan-wishlist-item" onClick={() => addStop(item)}>
+              {availableWishlist.slice(0, 6).map(item => (
+                <button
+                  key={item.id}
+                  className="plan-wishlist-item"
+                  onClick={() => addStop(item)}
+                  disabled={!item.lat || !item.lng}
+                  title={!item.lat || !item.lng ? 'Missing location data' : `Add ${item.name} to itinerary`}
+                >
                   <span className="plan-wishlist-name">{item.name}</span>
+                  <span className="plan-wishlist-type">{item.type?.replace(/_/g, ' ')}</span>
                   <span className="plan-wishlist-add"><PlusIcon /></span>
                 </button>
               ))}
+              {availableWishlist.length > 6 && (
+                <button className="plan-wishlist-more" onClick={() => navigate('/wishlist')}>
+                  +{availableWishlist.length - 6} more
+                </button>
+              )}
             </div>
-          </section>
-        )}
+          ) : wishlist.length > 0 ? (
+            <div className="plan-wishlist-empty">
+              <span className="plan-wishlist-empty-icon">✅</span>
+              <p>All your saved places are in the itinerary!</p>
+            </div>
+          ) : (
+            <div className="plan-wishlist-empty">
+              <span className="plan-wishlist-empty-icon">📍</span>
+              <p>Save places while exploring to add them here</p>
+              <button className="plan-wishlist-cta" onClick={() => navigate('/')}>
+                Discover Places
+              </button>
+            </div>
+          )}</section>
 
         {/* YOUR ITINERARY */}
         <section className="plan-section plan-itinerary-section">

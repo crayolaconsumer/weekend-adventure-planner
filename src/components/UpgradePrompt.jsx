@@ -56,6 +56,13 @@ const PROMPT_CONFIGS = {
     description: 'Get access to all filtering options to find exactly what you want.',
     cta: 'Unlock All Filters',
     benefit: 'Find your perfect spot'
+  },
+  radius: {
+    icon: '🗺️',
+    title: 'Explore further with ROAM+',
+    description: 'Unlock Day Trip (75km) and Explorer (150km) modes for grand tours and weekend adventures.',
+    cta: 'Unlock Extended Range',
+    benefit: 'Discover places worth the drive'
   }
 }
 

@@ -84,6 +84,11 @@ export function FilterModal({
   onToggleAccessibility = () => {},
   showOpenOnly = false,
   onToggleOpenOnly = () => {},
+  // Premium filters
+  showLocalsPicks = false,
+  onToggleLocalsPicks = () => {},
+  showOffPeak = false,
+  onToggleOffPeak = () => {},
   onClearAll = null,
   isPremium = false,
   onShowUpgrade = () => {}
@@ -151,7 +156,7 @@ export function FilterModal({
     }
   }
 
-  const activeCount = selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showOpenOnly ? 1 : 0)
+  const activeCount = selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showOpenOnly ? 1 : 0) + (showLocalsPicks ? 1 : 0) + (showOffPeak ? 1 : 0)
   const categories = Object.entries(GOOD_CATEGORIES)
 
   const handleDragStart = (event) => {
@@ -189,6 +194,8 @@ export function FilterModal({
     if (showFreeOnly) onToggleFreeOnly()
     if (accessibilityMode) onToggleAccessibility()
     if (showOpenOnly) onToggleOpenOnly()
+    if (showLocalsPicks) onToggleLocalsPicks()
+    if (showOffPeak) onToggleOffPeak()
   }
 
   return (
@@ -259,19 +266,33 @@ export function FilterModal({
                     <span className="filter-modal-section-title">Travel mode</span>
                   </div>
                   <div className="filter-modal-mode-grid">
-                    {Object.entries(travelModes).map(([key, mode]) => (
-                      <button
-                        key={key}
-                        className={`filter-modal-mode-item ${travelMode === key ? 'active' : ''}`}
-                        onClick={() => onTravelModeChange(key)}
-                      >
-                        <span className="filter-modal-mode-icon">{mode.icon}</span>
-                        <span className="filter-modal-mode-label">{mode.label}</span>
-                        <span className="filter-modal-mode-detail">
-                          Up to {mode.maxRadius / 1000}km
-                        </span>
-                      </button>
-                    ))}
+                    {Object.entries(travelModes).map(([key, mode]) => {
+                      const isLocked = mode.premium && !isPremium
+                      const isActive = travelMode === key
+
+                      return (
+                        <button
+                          key={key}
+                          className={`filter-modal-mode-item ${isActive ? 'active' : ''} ${isLocked ? 'locked' : ''} ${mode.premium ? 'premium-mode' : ''}`}
+                          onClick={() => {
+                            if (isLocked) {
+                              onShowUpgrade('radius')
+                            } else {
+                              onTravelModeChange(key)
+                            }
+                          }}
+                        >
+                          <span className="filter-modal-mode-icon">{mode.icon}</span>
+                          <span className="filter-modal-mode-label">{mode.label}</span>
+                          <span className="filter-modal-mode-detail">
+                            Up to {mode.maxRadius / 1000}km
+                          </span>
+                          {isLocked && (
+                            <span className="filter-modal-mode-badge">ROAM+</span>
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -375,22 +396,46 @@ export function FilterModal({
                   <span>Premium Filters</span>
                 </div>
                 <button
-                  className={`filter-extra-item ${!isPremium ? 'locked' : ''}`}
-                  onClick={() => isPremium ? null : onShowUpgrade()}
-                  disabled={isPremium}
+                  className={`filter-extra-item ${showLocalsPicks ? 'selected' : ''} ${!isPremium ? 'locked' : ''}`}
+                  onClick={() => {
+                    if (isPremium) {
+                      onToggleLocalsPicks()
+                    } else {
+                      onShowUpgrade()
+                    }
+                  }}
+                  aria-pressed={showLocalsPicks}
                 >
                   <span className="filter-extra-icon" aria-hidden="true">📍</span>
                   <span className="filter-extra-label">Locals' picks</span>
-                  {!isPremium && <span className="filter-premium-badge">ROAM+</span>}
+                  {isPremium ? (
+                    <span className={`filter-extra-toggle ${showLocalsPicks ? 'on' : ''}`}>
+                      <span className="filter-extra-toggle-knob" />
+                    </span>
+                  ) : (
+                    <span className="filter-premium-badge">ROAM+</span>
+                  )}
                 </button>
                 <button
-                  className={`filter-extra-item ${!isPremium ? 'locked' : ''}`}
-                  onClick={() => isPremium ? null : onShowUpgrade()}
-                  disabled={isPremium}
+                  className={`filter-extra-item ${showOffPeak ? 'selected' : ''} ${!isPremium ? 'locked' : ''}`}
+                  onClick={() => {
+                    if (isPremium) {
+                      onToggleOffPeak()
+                    } else {
+                      onShowUpgrade()
+                    }
+                  }}
+                  aria-pressed={showOffPeak}
                 >
                   <span className="filter-extra-icon" aria-hidden="true">⏰</span>
                   <span className="filter-extra-label">Off-peak times</span>
-                  {!isPremium && <span className="filter-premium-badge">ROAM+</span>}
+                  {isPremium ? (
+                    <span className={`filter-extra-toggle ${showOffPeak ? 'on' : ''}`}>
+                      <span className="filter-extra-toggle-knob" />
+                    </span>
+                  ) : (
+                    <span className="filter-premium-badge">ROAM+</span>
+                  )}
                 </button>
               </div>
             </div>

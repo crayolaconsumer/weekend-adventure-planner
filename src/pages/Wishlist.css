@@ -248,6 +248,20 @@
   background: rgba(196, 92, 62, 0.05);
 }
 
+.wishlist-card-btn.collection {
+  width: 36px;
+  padding: var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--roam-parchment);
+  color: var(--color-text-muted);
+}
+
+.wishlist-card-btn.collection:hover {
+  border-color: var(--roam-gold);
+  color: var(--roam-gold);
+  background: rgba(212, 168, 85, 0.05);
+}
+
 /* Empty State */
 .wishlist-empty {
   display: flex;
@@ -477,4 +491,63 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOAD MORE BUTTON
+   ═══════════════════════════════════════════════════════ */
+
+.wishlist-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: var(--space-lg);
+  padding: var(--space-md) var(--space-xl);
+  background: transparent;
+  border: 1.5px dashed var(--roam-stone);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-stone);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wishlist-load-more:hover {
+  background: rgba(26, 58, 47, 0.05);
+  border-color: var(--roam-forest);
+  color: var(--roam-forest);
+}
+
+.wishlist-load-more:active {
+  transform: scale(0.98);
+}
+
+/* Error state */
+.wishlist-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  gap: var(--space-md);
+  text-align: center;
+  color: var(--roam-terracotta);
+}
+
+.wishlist-error button {
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--roam-forest);
+  color: white;
+  border: none;
+  border-radius: var(--radius-full);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.wishlist-error button:hover {
+  background: var(--roam-forest-light);
 }

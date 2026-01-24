@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import CardStack from '../components/CardStack'
@@ -14,9 +14,10 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { useSubscription } from '../hooks/useSubscription'
-import { fetchEnrichedPlaces, fetchWeather } from '../utils/apiClient'
+import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
+import { openDirections } from '../utils/navigation'
 import './Discover.css'
 
 // Lazy load desktop-only components to keep mobile bundle small
@@ -25,9 +26,13 @@ const DiscoverList = lazy(() => import('../components/DiscoverList'))
 
 // Travel mode configurations
 const TRAVEL_MODES = {
+  // Standard modes (all users)
   walking: { label: 'Walking', icon: '🚶', maxRadius: 5000, speed: 5 },
   driving: { label: 'Driving', icon: '🚗', maxRadius: 30000, speed: 40 },
-  transit: { label: 'Transit', icon: '🚌', maxRadius: 15000, speed: 20 }
+  transit: { label: 'Transit', icon: '🚌', maxRadius: 15000, speed: 20 },
+  // Premium modes (ROAM+ only)
+  dayTrip: { label: 'Day Trip', icon: '🗺️', maxRadius: 75000, speed: 60, premium: true },
+  explorer: { label: 'Explorer', icon: '🧭', maxRadius: 150000, speed: 80, premium: true }
 }
 
 // Settings icon
@@ -81,6 +86,7 @@ export default function Discover({ location }) {
   const { sponsoredPlaces } = useSponsoredPlaces(location)
   const { isPremium } = useSubscription()
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const [upgradePromptType, setUpgradePromptType] = useState('saves')
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
   const [loading, setLoading] = useState(true)
@@ -128,10 +134,27 @@ export default function Discover({ location }) {
     return localStorage.getItem('roam_open_only') === 'true'
   })
 
+  // Premium filters (only available to ROAM+ users)
+  const [showLocalsPicks, setShowLocalsPicks] = useState(() => {
+    return localStorage.getItem('roam_locals_picks') === 'true'
+  })
+  const [showOffPeak, setShowOffPeak] = useState(() => {
+    return localStorage.getItem('roam_off_peak') === 'true'
+  })
+
+  // Persist premium filter settings
+  useEffect(() => {
+    localStorage.setItem('roam_locals_picks', showLocalsPicks.toString())
+  }, [showLocalsPicks])
+
+  useEffect(() => {
+    localStorage.setItem('roam_off_peak', showOffPeak.toString())
+  }, [showOffPeak])
+
   const buildFilterKey = useCallback(() => {
     const categoriesKey = [...selectedCategories].sort().join('|')
-    return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${categoriesKey}`
-  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, selectedCategories])
+    return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
+  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories])
 
   useEffect(() => {
     latestFilterKeyRef.current = buildFilterKey()
@@ -141,8 +164,13 @@ export default function Discover({ location }) {
     basePlacesRef.current = basePlaces
   }, [basePlaces])
 
+  // Memoized filter function - only recreated when absolutely necessary
   const applyFilters = useCallback((list, currentWeather = weather) => {
     if (!list || list.length === 0) return []
+
+    // Early return if no filters active - just use filterPlaces
+    const hasActiveFilters = showFreeOnly || accessibilityMode || showOpenOnly ||
+      (showLocalsPicks && isPremium) || (showOffPeak && isPremium)
 
     let filtered = filterPlaces(list, {
       categories: selectedCategories.length > 0 ? selectedCategories : null,
@@ -150,31 +178,81 @@ export default function Discover({ location }) {
       maxResults: 50,
       sortBy: 'smart',
       weather: currentWeather,
-      ensureDiversity: true,  // Always ensure category mix
+      ensureDiversity: true,
       userProfile
     })
 
-    if (showFreeOnly) {
-      filtered = filtered.filter(p =>
-        !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
-      )
-    }
+    // Skip additional filtering if no filters active
+    if (!hasActiveFilters) return filtered
 
-    if (accessibilityMode) {
-      filtered = filtered.filter(p =>
-        p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-      )
-    }
+    // Apply filters in single pass for better performance
+    filtered = filtered.filter(p => {
+      // Free only filter
+      if (showFreeOnly) {
+        const isFree = !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
+        if (!isFree) return false
+      }
 
-    if (showOpenOnly) {
-      filtered = filtered.filter(p => {
+      // Accessibility filter
+      if (accessibilityMode) {
+        const isAccessible = p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
+        if (!isAccessible) return false
+      }
+
+      // Open now filter
+      if (showOpenOnly) {
         const openStatus = isPlaceOpen(p)
-        return openStatus === true || openStatus === null
-      })
+        if (openStatus === false) return false
+      }
+
+      // Premium: Locals' picks - filter out tourist traps and chains
+      if (showLocalsPicks && isPremium) {
+        // Check for tourist trap types
+        const isTouristTrap = p.tourism === 'attraction' || p.tourism === 'theme_park'
+        if (isTouristTrap) return false
+
+        // Check for known chains
+        const isChain = p.brand || p.name?.match(/^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Subway|KFC|Burger King|Pizza Hut|Domino|Nando)/i)
+        if (isChain) return false
+
+        // Quality score filter - only if score exists and is below threshold
+        if (typeof p.qualityScore === 'number' && p.qualityScore < 30) return false
+      }
+
+      // Premium: Off-peak times
+      if (showOffPeak && isPremium) {
+        const now = new Date()
+        const hour = now.getHours()
+        const isWeekend = now.getDay() === 0 || now.getDay() === 6
+        const type = p.type || ''
+
+        if (type.includes('restaurant') || type.includes('cafe')) {
+          if ((hour >= 12 && hour <= 14) || (hour >= 18 && hour <= 20)) return false
+        } else if (type.includes('park') || type.includes('nature') || type.includes('viewpoint')) {
+          if (isWeekend && hour >= 10 && hour <= 16) return false
+        } else if (type.includes('museum') || type.includes('attraction') || type.includes('castle')) {
+          if (isWeekend && hour >= 11 && hour <= 15) return false
+        } else if (type.includes('pub') || type.includes('bar')) {
+          if (hour >= 17 && hour <= 21) return false
+        }
+      }
+
+      return true
+    })
+
+    // Sort by quality score if locals picks is active
+    if (showLocalsPicks && isPremium) {
+      filtered.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))
     }
 
     return filtered
-  }, [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, userProfile, weather])
+  }, [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather])
+
+  // Memoized filtered places - only recalculates when basePlaces or filter deps change
+  const filteredPlaces = useMemo(() => {
+    if (!basePlaces || basePlaces.length === 0) return []
+    return applyFilters(basePlaces, weather)
+  }, [basePlaces, applyFilters, weather])
 
   // Save settings to localStorage
   useEffect(() => {
@@ -226,6 +304,8 @@ export default function Discover({ location }) {
 
   // Define loadPlaces before the effect that calls it
   // Note: weather is intentionally NOT a dependency to prevent cascading reloads
+  // Uses SWR pattern for faster initial loads
+  // Now works with memoized filtering - only sets basePlaces, useMemo handles the rest
   const loadPlaces = useCallback(async (currentWeather = null) => {
     if (!location) return
 
@@ -235,16 +315,22 @@ export default function Discover({ location }) {
 
     setLoading(true)
     const mode = TRAVEL_MODES[travelMode]
+    const resolvedWeather = currentWeather ?? weather
 
     try {
-      const resolvedWeather = currentWeather ?? weather
-
-      // Fetch from multiple sources (OSM + OpenTripMap)
-      const rawPlaces = await fetchEnrichedPlaces(
+      // Use SWR pattern - returns cached data immediately if available
+      const { data: rawPlaces, stale } = await fetchPlacesWithSWR(
         location.lat,
         location.lng,
         mode.maxRadius,
-        selectedCategories.length === 1 ? selectedCategories[0] : null
+        selectedCategories.length === 1 ? selectedCategories[0] : null,
+        // Background refresh callback - just update basePlaces, memoization handles filtering
+        (freshPlaces) => {
+          if (requestId === latestLoadRequestRef.current) {
+            const enhanced = freshPlaces.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
+            setBasePlaces(enhanced)
+          }
+        }
       )
 
       // Context for smart scoring (time of day, weather)
@@ -252,31 +338,29 @@ export default function Discover({ location }) {
 
       // Enhance places with context
       const enhanced = rawPlaces.map(p => enhancePlace(p, location, scoringContext))
-      setBasePlaces(enhanced)
-
-      // Apply filters without refetching external APIs
-      const filtered = applyFilters(enhanced, resolvedWeather)
 
       if (requestId !== latestLoadRequestRef.current || requestKey !== latestFilterKeyRef.current) {
         return
       }
 
-      // Reset seen IDs and offset on fresh load
-      const newSeenIds = new Set(filtered.map(p => p.id))
-      setSeenPlaceIds(newSeenIds)
-      setFetchOffset(filtered.length)
-      setPlaces(filtered)
+      // Set basePlaces - the memoized filteredPlaces and useEffect will handle the rest
+      setBasePlaces(enhanced)
+
+      // If we served stale data, indicate refresh is happening
+      if (stale) {
+        console.log('[Discover] Served stale cache, refreshing in background...')
+      }
     } catch (error) {
       if (requestId === latestLoadRequestRef.current) {
         console.error('Failed to load places:', error)
-        setPlaces([])
+        setBasePlaces([])
         toast.error("Couldn't load places. Try refreshing.")
       }
     }
     if (requestId === latestLoadRequestRef.current) {
       setLoading(false)
     }
-  }, [location, travelMode, selectedCategories, toast, buildFilterKey, applyFilters, weather])
+  }, [location, travelMode, selectedCategories, toast, buildFilterKey, weather])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
@@ -288,7 +372,9 @@ export default function Discover({ location }) {
 
     try {
       // Expand the radius slightly to find more places
-      const expandedRadius = Math.min(mode.maxRadius * 1.5, 50000)
+      // Premium users can explore up to 200km, free users capped at 50km
+      const maxExpandedRadius = isPremium ? 200000 : 50000
+      const expandedRadius = Math.min(mode.maxRadius * 1.5, maxExpandedRadius)
 
       const rawPlaces = await fetchEnrichedPlaces(
         location.lat,
@@ -362,19 +448,28 @@ export default function Discover({ location }) {
     } finally {
       setLoadingMore(false)
     }
-  }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile])
+  }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile, isPremium])
 
-  // Re-apply local filters without refetching external APIs
+  // Sync places state with memoized filtered results
+  // This is more efficient than the old useEffect because filteredPlaces
+  // only changes when basePlaces or actual filter values change
   useEffect(() => {
-    const list = basePlacesRef.current
-    if (!list || list.length === 0) return
+    if (filteredPlaces.length === 0 && basePlaces.length === 0) return
 
-    const filtered = applyFilters(list, weather)
-    const newSeenIds = new Set(filtered.map(p => p.id))
-    setSeenPlaceIds(newSeenIds)
-    setFetchOffset(filtered.length)
-    setPlaces(filtered)
-  }, [applyFilters, weather])
+    // Only update if filteredPlaces actually changed
+    setPlaces(prevPlaces => {
+      // Check if the filtered results are actually different
+      if (prevPlaces.length === filteredPlaces.length &&
+          prevPlaces[0]?.id === filteredPlaces[0]?.id) {
+        return prevPlaces
+      }
+
+      const newSeenIds = new Set(filteredPlaces.map(p => p.id))
+      setSeenPlaceIds(newSeenIds)
+      setFetchOffset(filteredPlaces.length)
+      return filteredPlaces
+    })
+  }, [filteredPlaces, basePlaces.length])
 
   // Load places when location or settings change
 
@@ -431,6 +526,8 @@ export default function Discover({ location }) {
     setShowFreeOnly(false)
     setAccessibilityMode(false)
     setShowOpenOnly(false)
+    setShowLocalsPicks(false)
+    setShowOffPeak(false)
   }
 
   // Handle swipe actions
@@ -439,6 +536,7 @@ export default function Discover({ location }) {
       // CHECK SAVE LIMIT FOR FREE USERS
       const currentSaveCount = savedPlaces?.length || 0
       if (!isPremium && currentSaveCount >= 10) {
+        setUpgradePromptType('saves')
         setShowUpgradePrompt(true)
         return // Don't save - show upgrade prompt instead
       }
@@ -819,10 +917,7 @@ export default function Discover({ location }) {
               selectedPlace={selectedPlace}
               onSelectPlace={setSelectedPlace}
               onSavePlace={savePlace}
-              onGoPlace={(place) => {
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-                window.open(url, '_blank', 'noopener,noreferrer')
-              }}
+              onGoPlace={(place) => openDirections(place.lat, place.lng, place.name)}
               onLoadMore={loadMorePlaces}
               loading={loadingMore}
             />
@@ -945,17 +1040,22 @@ export default function Discover({ location }) {
         onToggleAccessibility={() => setAccessibilityMode(prev => !prev)}
         showOpenOnly={showOpenOnly}
         onToggleOpenOnly={() => setShowOpenOnly(prev => !prev)}
+        showLocalsPicks={showLocalsPicks}
+        onToggleLocalsPicks={() => setShowLocalsPicks(prev => !prev)}
+        showOffPeak={showOffPeak}
+        onToggleOffPeak={() => setShowOffPeak(prev => !prev)}
         onClearAll={clearAllFilters}
         isPremium={isPremium}
-        onShowUpgrade={() => {
+        onShowUpgrade={(type = 'filters') => {
           setShowFilterModal(false)
+          setUpgradePromptType(type)
           setShowUpgradePrompt(true)
         }}
       />
 
-      {/* Upgrade Prompt for save limit */}
+      {/* Upgrade Prompt for premium features */}
       <UpgradePrompt
-        type="saves"
+        type={upgradePromptType}
         isOpen={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
       />

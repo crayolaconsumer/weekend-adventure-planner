@@ -15,7 +15,7 @@
 
 import { getAllGoodTypes, getTypesForCategory } from './categories'
 import { managedFetch, isCircuitOpen } from './requestManager'
-import { makeCacheKey, makeKey } from './geoCache'
+import { makeCacheKey, makeKey, getWithSWR } from './geoCache'
 import { selectBestImage } from './imageScoring'
 
 const OVERPASS_ENDPOINTS = [
@@ -37,29 +37,46 @@ const OTM_API_KEY = import.meta.env.VITE_OPENTRIPMAP_KEY || null
 /**
  * Build Overpass query for places
  * Expanded to include more UK-relevant OSM tags
+ *
+ * Timeout scales with radius:
+ * - <10km: 30s
+ * - 10-30km: 60s (driving mode)
+ * - >30km: 90s
+ *
+ * Only apply name filter for very large radii (>50km) to avoid empty results
  */
 function buildOverpassQuery(lat, lng, radius, types) {
+  // Scale timeout with radius
+  let timeout = 30
+  if (radius > 30000) timeout = 90
+  else if (radius > 10000) timeout = 60
+
+  // Only filter by name for VERY large radii (>50km) - Explorer mode
+  // For driving mode (30km), don't filter - the query handles it
+  const isVeryLargeRadius = radius > 50000
+  const nameFilter = isVeryLargeRadius ? '["name"]' : ''
+
   const typeFilters = types.map(type =>
-    `node["amenity"="${type}"](around:${radius},${lat},${lng});
-     way["amenity"="${type}"](around:${radius},${lat},${lng});
-     node["tourism"="${type}"](around:${radius},${lat},${lng});
-     way["tourism"="${type}"](around:${radius},${lat},${lng});
-     node["leisure"="${type}"](around:${radius},${lat},${lng});
-     way["leisure"="${type}"](around:${radius},${lat},${lng});
-     node["historic"="${type}"](around:${radius},${lat},${lng});
-     way["historic"="${type}"](around:${radius},${lat},${lng});
-     node["shop"="${type}"](around:${radius},${lat},${lng});
-     way["shop"="${type}"](around:${radius},${lat},${lng});
-     node["natural"="${type}"](around:${radius},${lat},${lng});
-     way["natural"="${type}"](around:${radius},${lat},${lng});
-     node["man_made"="${type}"](around:${radius},${lat},${lng});
-     way["man_made"="${type}"](around:${radius},${lat},${lng});
-     node["landuse"="${type}"](around:${radius},${lat},${lng});
-     way["landuse"="${type}"](around:${radius},${lat},${lng});`
+    `node["amenity"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["amenity"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["tourism"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["tourism"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["leisure"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["leisure"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["historic"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["historic"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["shop"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["shop"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["natural"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["natural"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["man_made"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["man_made"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     node["landuse"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
+     way["landuse"="${type}"]${nameFilter}(around:${radius},${lat},${lng});`
   ).join('\n')
 
   return `
-    [out:json][timeout:30];
+    [out:json][timeout:${timeout}];
     (
       ${typeFilters}
     );
@@ -90,6 +107,51 @@ async function fetchFromOverpass(query) {
 }
 
 /**
+ * Calculate a quality score for a place based on available OSM data
+ * Higher scores = likely better, more interesting, more local places
+ *
+ * @param {Object} tags - OSM tags for the place
+ * @returns {number} Quality score from 0-100
+ */
+function calculatePlaceQuality(tags) {
+  let score = 40 // Base score
+
+  // Has a proper name (not just type)
+  if (tags.name && tags.name.length > 3) score += 5
+
+  // Has contact info (indicates active business)
+  if (tags.phone || tags['contact:phone']) score += 5
+  if (tags.website || tags['contact:website']) score += 5
+
+  // Has opening hours (indicates maintained data)
+  if (tags.opening_hours) score += 5
+
+  // Has description (indicates notable place)
+  if (tags.description) score += 10
+
+  // Wikipedia/Wikidata links (indicates notable)
+  if (tags.wikipedia) score += 15
+  if (tags.wikidata) score += 10
+
+  // Heritage/historical (indicates quality/interesting)
+  if (tags.heritage || tags['listed_status'] || tags['HE_ref']) score += 15
+
+  // Penalties for chain/tourist trap indicators
+  if (tags.brand) score -= 20
+  if (tags.tourism === 'attraction') score -= 10
+  if (tags.tourism === 'theme_park') score -= 15
+
+  // Bonus for local/independent markers
+  if (tags.craft) score += 10
+  if (tags['addr:country'] === 'GB' && !tags.brand) score += 5
+
+  // Bonus for places with cuisine info (indicates local food place)
+  if (tags.cuisine && !tags.brand) score += 5
+
+  return Math.max(0, Math.min(100, score))
+}
+
+/**
  * Parse Overpass response into place objects
  */
 function parseOverpassResponse(data) {
@@ -103,6 +165,9 @@ function parseOverpassResponse(data) {
     // Determine type from various OSM tags (expanded for UK)
     const type = tags.amenity || tags.tourism || tags.leisure || tags.historic ||
                  tags.shop || tags.natural || tags.man_made || tags.landuse || 'place'
+
+    // Calculate a basic quality score based on available data
+    const qualityScore = calculatePlaceQuality(tags)
 
     return {
       id: element.id,
@@ -125,7 +190,12 @@ function parseOverpassResponse(data) {
       // Additional useful tags for UK
       heritage: tags.heritage,
       listed_status: tags['listed_status'] || tags['HE_ref'],
-      designation: tags.designation
+      designation: tags.designation,
+      // Tags for premium filters
+      tourism: tags.tourism,
+      brand: tags.brand,
+      fee: tags.fee,
+      qualityScore
     }
   }).filter(place => place.lat && place.lng && place.name !== 'Unnamed Place')
 }
@@ -148,6 +218,10 @@ function formatAddress(tags) {
  * Fetch nearby places from OSM via Overpass
  * Uses managed fetch for rate limiting and caching
  *
+ * For large radii (>15km), we use a more focused query strategy:
+ * - Fewer types per query to avoid timeouts
+ * - Prioritize types that typically have named/notable places
+ *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @param {number} radius - Search radius in meters
@@ -160,8 +234,25 @@ export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null
   const result = await managedFetch('overpass', cacheKey, async () => {
     const types = category ? getTypesForCategory(category) : getAllGoodTypes()
 
-    // Limit types per query to avoid timeout (increased for more variety)
-    const limitedTypes = types.slice(0, 35)
+    // For large radii, reduce types and prioritize important ones
+    const isLargeRadius = radius > 15000
+    const maxTypes = isLargeRadius ? 20 : 35
+
+    // Prioritize types that typically have named, notable places for large radii
+    const priorityTypes = isLargeRadius
+      ? ['attraction', 'museum', 'castle', 'ruins', 'monument', 'viewpoint', 'park', 'nature_reserve',
+         'restaurant', 'pub', 'cafe', 'cinema', 'theatre', 'artwork', 'memorial', 'beach', 'waterfall']
+      : []
+
+    // Build limited types list with priorities
+    let limitedTypes
+    if (priorityTypes.length > 0) {
+      const priority = types.filter(t => priorityTypes.includes(t))
+      const others = types.filter(t => !priorityTypes.includes(t))
+      limitedTypes = [...priority, ...others].slice(0, maxTypes)
+    } else {
+      limitedTypes = types.slice(0, maxTypes)
+    }
 
     const query = buildOverpassQuery(lat, lng, radius, limitedTypes)
     const data = await fetchFromOverpass(query)
@@ -283,13 +374,27 @@ export async function geocodeAddress(address) {
   return null
 }
 
+// In-memory weather cache (more aggressive than general cache)
+const weatherCache = new Map()
+const WEATHER_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+
 /**
  * Fetch weather for location
+ * Uses aggressive in-memory caching for fast repeated access
+ *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @returns {Promise<Object|null>} Weather data
  */
 export async function fetchWeather(lat, lng) {
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`
+
+  // Check in-memory cache first
+  const cached = weatherCache.get(cacheKey)
+  if (cached && Date.now() - cached.timestamp < WEATHER_CACHE_TTL) {
+    return cached.data
+  }
+
   try {
     const response = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&timezone=auto`
@@ -297,14 +402,24 @@ export async function fetchWeather(lat, lng) {
 
     if (response.ok) {
       const data = await response.json()
-      return {
+      const weather = {
         temperature: data.current.temperature_2m,
         weatherCode: data.current.weather_code,
         description: getWeatherDescription(data.current.weather_code)
       }
+
+      // Cache the result
+      weatherCache.set(cacheKey, { data: weather, timestamp: Date.now() })
+
+      return weather
     }
   } catch (error) {
     console.warn('Weather fetch failed:', error)
+
+    // Return stale cache on error
+    if (cached) {
+      return cached.data
+    }
   }
   return null
 }
@@ -647,7 +762,10 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  * Uses all three data sources with individual failure handling:
  * - OSM/Overpass (primary - high volume)
  * - OpenTripMap (curated tourist spots)
- * - Wikipedia Geosearch (notable/famous places)
+ * - Wikipedia Geosearch (notable/famous places, max 10km)
+ *
+ * For large radii (driving mode), we make multiple Wikipedia calls
+ * to sample different areas within the search radius.
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
@@ -656,8 +774,31 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  * @returns {Promise<Array>} Merged array of places
  */
 export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null) {
+  const isLargeRadius = radius > 15000
+
+  // For large radii, fetch Wikipedia from multiple sample points
+  // to better cover the search area (since Wiki max radius is 10km)
+  const wikiPromises = []
+  if (isLargeRadius) {
+    // Sample center + 4 cardinal directions at 60% of radius
+    const sampleDistance = radius * 0.6 / 111320 // Convert to degrees (rough)
+    const wikiRadius = 10000 // Max wiki radius
+
+    wikiPromises.push(
+      fetchWikipediaPlaces(lat, lng, wikiRadius).catch(() => []),
+      fetchWikipediaPlaces(lat + sampleDistance, lng, wikiRadius).catch(() => []),
+      fetchWikipediaPlaces(lat - sampleDistance, lng, wikiRadius).catch(() => []),
+      fetchWikipediaPlaces(lat, lng + sampleDistance, wikiRadius).catch(() => []),
+      fetchWikipediaPlaces(lat, lng - sampleDistance, wikiRadius).catch(() => [])
+    )
+  } else {
+    wikiPromises.push(
+      fetchWikipediaPlaces(lat, lng, Math.min(radius, 10000)).catch(() => [])
+    )
+  }
+
   // Fetch from ALL sources in parallel with individual failure handling
-  const [osmPlaces, otmPlaces, wikiPlaces] = await Promise.all([
+  const [osmPlaces, otmPlaces, ...wikiResults] = await Promise.all([
     fetchNearbyPlaces(lat, lng, radius, category).catch(err => {
       console.warn('OSM fetch failed:', err)
       return []
@@ -666,14 +807,19 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
       console.warn('OpenTripMap fetch failed:', err)
       return []
     }),
-    fetchWikipediaPlaces(lat, lng, radius).catch(err => {
-      console.warn('Wikipedia geosearch failed:', err)
-      return []
-    })
+    ...wikiPromises
   ])
+
+  // Merge all wiki results
+  const wikiPlaces = wikiResults.flat()
 
   // Log source counts for debugging
   console.log(`[API] Sources: OSM=${osmPlaces.length}, OTM=${otmPlaces.length}, Wiki=${wikiPlaces.length}`)
+
+  // If all sources returned empty for large radius, log a warning
+  if (isLargeRadius && osmPlaces.length === 0 && otmPlaces.length === 0 && wikiPlaces.length === 0) {
+    console.warn(`[API] No places found for large radius (${radius}m) at ${lat}, ${lng}`)
+  }
 
   // Merge and deduplicate all sources
   return mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces)
@@ -776,6 +922,31 @@ function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
   }
 
   return merged
+}
+
+/**
+ * Fetch places with stale-while-revalidate pattern
+ * Returns cached data immediately (even if stale) for fast UI,
+ * then refreshes in the background
+ *
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} radius - Search radius in meters
+ * @param {string|null} category - Category key or null for all
+ * @param {Function} onRefresh - Callback when fresh data is available
+ * @returns {Promise<{data: Array, fresh: boolean, stale: boolean}>}
+ */
+export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null) {
+  const cacheKey = makeCacheKey(lat, lng, radius, category)
+
+  return getWithSWR(
+    cacheKey,
+    () => fetchEnrichedPlaces(lat, lng, radius, category),
+    {
+      ttl: 10 * 60 * 1000, // 10 minute freshness
+      onBackgroundRefresh: onRefresh
+    }
+  )
 }
 
 /**

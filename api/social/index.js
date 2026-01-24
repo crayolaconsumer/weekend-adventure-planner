@@ -16,6 +16,7 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
+import { createNotification } from '../notifications/index.js'
 
 export default async function handler(req, res) {
   try {
@@ -393,6 +394,20 @@ async function followUser(req, res, user) {
     'INSERT INTO follows (follower_id, following_id) VALUES (?, ?)',
     [user.id, targetUserId]
   )
+
+  // Get follower's username for notification
+  const followerInfo = await queryOne('SELECT username, display_name FROM users WHERE id = ?', [user.id])
+  const followerName = followerInfo?.display_name || followerInfo?.username || 'Someone'
+
+  // Create notification for the followed user
+  await createNotification({
+    userId: targetUserId,
+    actorId: user.id,
+    type: 'follow',
+    title: 'New follower',
+    message: `${followerName} started following you`,
+    data: { followerUsername: followerInfo?.username }
+  })
 
   // Get updated follower count for target user
   const countResult = await queryOne(

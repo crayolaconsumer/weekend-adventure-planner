@@ -366,10 +366,16 @@
   }
 }
 
-@media (max-width: 380px) {
+/* iPhone SE and very small screens */
+@media (max-width: 375px) {
   .card-stack {
     min-height: 480px;
     padding: var(--space-md);
+    padding-top: var(--space-xl); /* More top padding for safe distance from header */
+  }
+
+  .card-stack-wrapper {
+    max-width: 340px;
   }
 
   .card-stack-empty-illustration::before {

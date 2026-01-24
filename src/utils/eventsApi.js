@@ -71,28 +71,50 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30) {
 /**
  * Deduplicate events that appear on multiple platforms
  * Prefers Ticketmaster > Skiddle for data quality
+ *
+ * Uses multiple keys to catch different types of duplicates:
+ * 1. Primary key: normalized name + date + location
+ * 2. Fuzzy key: first few words of name + date (catches slight name variations)
  */
 function deduplicateEvents(events) {
-  const seen = new Map()
+  const seenByPrimary = new Map()  // primaryKey -> event
+  const seenByFuzzy = new Map()    // fuzzyKey -> primaryKey (reverse lookup)
   const sourceRank = { ticketmaster: 1, skiddle: 2 }
 
   for (const event of events) {
-    const key = buildEventKey(event)
+    const primaryKey = buildEventKey(event)
+    const fuzzyKey = buildFuzzyEventKey(event)
 
-    const existing = seen.get(key)
+    // Check if we've seen this event before (by either key)
+    const existingByPrimary = seenByPrimary.get(primaryKey)
+    const existingPrimaryKeyByFuzzy = fuzzyKey ? seenByFuzzy.get(fuzzyKey) : null
+    const existingByFuzzy = existingPrimaryKeyByFuzzy ? seenByPrimary.get(existingPrimaryKeyByFuzzy) : null
+    const existing = existingByPrimary || existingByFuzzy
+
     if (!existing) {
-      seen.set(key, event)
+      // New event - add to both maps
+      seenByPrimary.set(primaryKey, event)
+      if (fuzzyKey) seenByFuzzy.set(fuzzyKey, primaryKey)
     } else {
-      // Keep the higher-ranked source
+      // Duplicate found - keep the higher-ranked source
       const existingRank = sourceRank[existing.source] || 99
       const newRank = sourceRank[event.source] || 99
+
       if (newRank < existingRank) {
-        seen.set(key, event)
+        // New event has higher rank - replace the old one
+        // First, remove the old event's primary key entry if it came via fuzzy match
+        if (existingByFuzzy && existingPrimaryKeyByFuzzy && existingPrimaryKeyByFuzzy !== primaryKey) {
+          seenByPrimary.delete(existingPrimaryKeyByFuzzy)
+        }
+        // Add new event
+        seenByPrimary.set(primaryKey, event)
+        if (fuzzyKey) seenByFuzzy.set(fuzzyKey, primaryKey)
       }
+      // If existing has higher/equal rank, we keep it and ignore the new event
     }
   }
 
-  return Array.from(seen.values())
+  return Array.from(seenByPrimary.values())
 }
 
 /**
@@ -103,6 +125,26 @@ function buildEventKey(event) {
   const dateKey = event.datetime?.start?.toDateString() || 'nodate'
   const locationKey = getLocationKey(event)
   return `${name}_${dateKey}_${locationKey}`
+}
+
+/**
+ * Build a fuzzy key using first significant words of the name + date
+ * Catches duplicates where the same event has slightly different names
+ * e.g., "Taylor Swift - Eras Tour" vs "Taylor Swift: The Eras Tour"
+ */
+function buildFuzzyEventKey(event) {
+  const name = event.name || ''
+  // Extract first 3 significant words (skip articles and connectors)
+  const words = name.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !['the', 'and', 'for', 'with'].includes(w))
+    .slice(0, 3)
+
+  if (words.length < 2) return null // Not enough words for fuzzy match
+
+  const dateKey = event.datetime?.start?.toDateString() || 'nodate'
+  return `fuzzy_${words.join('_')}_${dateKey}`
 }
 
 function normalizeText(value) {

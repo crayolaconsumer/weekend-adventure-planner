@@ -178,6 +178,11 @@
   gap: 10px;
 }
 
+/* Premium modes row - second row for day trip and explorer */
+.filter-modal-mode-grid .premium-mode {
+  position: relative;
+}
+
 .filter-modal-mode-item {
   display: flex;
   flex-direction: column;
@@ -220,6 +225,37 @@
 
 .filter-modal-mode-item.active .filter-modal-mode-detail {
   color: rgba(255, 255, 255, 0.8);
+}
+
+/* Locked premium mode styling */
+.filter-modal-mode-item.locked {
+  opacity: 0.85;
+  cursor: pointer;
+  border: 2px dashed var(--roam-parchment-dark);
+  background: rgba(212, 168, 85, 0.04);
+}
+
+.filter-modal-mode-item.locked:hover {
+  background: rgba(212, 168, 85, 0.1);
+  border-color: var(--roam-gold);
+  opacity: 1;
+}
+
+/* ROAM+ badge on travel modes */
+.filter-modal-mode-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 3px 7px;
+  background: linear-gradient(135deg, var(--roam-gold) 0%, var(--roam-gold-light) 100%);
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: var(--radius-full);
+  box-shadow: 0 2px 6px rgba(212, 168, 85, 0.3);
+  z-index: 1;
 }
 
 .filter-modal-divider {

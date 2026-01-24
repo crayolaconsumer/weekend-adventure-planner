@@ -10,6 +10,7 @@ import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import LoadingState from '../components/LoadingState'
 import { downloadICS } from '../components/plan/CalendarExport'
+import { useSEO } from '../hooks/useSEO'
 import './SharedPlan.css'
 
 const MapIcon = () => (
@@ -46,6 +47,16 @@ export default function SharedPlan() {
   const [plan, setPlan] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Dynamic SEO for shared plans
+  const planTitle = plan?.name || 'Shared Adventure'
+  const placeCount = plan?.places?.length || 0
+  const vibeLabel = plan?.vibe ? VIBE_ICONS[plan.vibe] : ''
+  useSEO({
+    title: planTitle,
+    description: `${vibeLabel} ${placeCount} places to explore — shared via ROAM`,
+    url: `https://go-roam.uk/plan/share/${code}`
+  })
 
   useEffect(() => {
     async function fetchPlan() {

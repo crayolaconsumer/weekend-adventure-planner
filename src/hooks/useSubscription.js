@@ -38,6 +38,7 @@ export function useSubscription() {
     advancedFilters: isPremium,
     exportAdventures: isPremium,
     earlyAccess: isPremium,
+    extendedRadius: isPremium, // Day Trip (75km) and Explorer (150km) modes
     // Limits for free users
     saveLimit: isPremium ? Infinity : 10,
     collectionLimit: isPremium ? Infinity : 3
@@ -121,7 +122,22 @@ export function useSubscription() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to open billing portal')
+
+        // Handle specific error codes with user-friendly messages
+        if (data.code === 'NO_SUBSCRIPTION') {
+          setError('No active subscription found. Subscribe to ROAM+ to manage billing.')
+          return null
+        }
+        if (data.code === 'NO_SUBSCRIPTION_HISTORY') {
+          setError('No subscription history found. Subscribe to ROAM+ first.')
+          return null
+        }
+        if (data.code === 'CUSTOMER_NOT_FOUND') {
+          setError('Billing account not found. Please contact support at hello@go-roam.com')
+          return null
+        }
+
+        throw new Error(data.message || data.error || 'Failed to open billing portal')
       }
 
       const { url } = await response.json()

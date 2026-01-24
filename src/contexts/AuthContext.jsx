@@ -232,6 +232,37 @@ export function AuthProvider({ children }) {
   }, [clearStoredToken])
 
   /**
+   * Update user profile
+   */
+  const updateProfile = useCallback(async (updates) => {
+    setError(null)
+    try {
+      const storedToken = getStoredToken()
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'update', ...updates })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Profile update failed')
+      }
+
+      setUser(data.user)
+      return { success: true, user: data.user }
+    } catch (err) {
+      setError(err.message)
+      return { success: false, error: err.message }
+    }
+  }, [getStoredToken])
+
+  /**
    * Clear error
    */
   const clearError = useCallback(() => {
@@ -247,6 +278,7 @@ export function AuthProvider({ children }) {
     login,
     loginWithGoogle,
     logout,
+    updateProfile,
     checkAuth,
     clearError
   }

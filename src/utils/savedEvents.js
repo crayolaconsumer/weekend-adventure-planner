@@ -14,9 +14,29 @@ const STORAGE_KEY = 'roam_saved_events'
 export function getSavedEvents() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) : []
+    if (!saved) return []
+
+    const parsed = JSON.parse(saved)
+
+    // Validate that we have an array
+    if (!Array.isArray(parsed)) {
+      console.warn('Saved events data was not an array, resetting')
+      localStorage.removeItem(STORAGE_KEY)
+      return []
+    }
+
+    // Filter out any invalid entries (missing required fields)
+    return parsed.filter(event =>
+      event && typeof event === 'object' && event.id
+    )
   } catch (error) {
     console.error('Error reading saved events:', error)
+    // If localStorage is corrupted, clear it and return empty
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // Ignore localStorage errors
+    }
     return []
   }
 }
@@ -26,23 +46,29 @@ export function getSavedEvents() {
  * @param {Object} event - Event object to save
  */
 export function saveEvent(event) {
-  if (!event || !event.id) return
+  if (!event || !event.id) return false
 
-  const saved = getSavedEvents()
+  try {
+    const saved = getSavedEvents()
 
-  // Check if already saved
-  if (saved.some(e => e.id === event.id)) {
-    return // Already saved
+    // Check if already saved
+    if (saved.some(e => e.id === event.id)) {
+      return true // Already saved
+    }
+
+    // Add savedAt timestamp
+    const eventToSave = {
+      ...event,
+      savedAt: Date.now()
+    }
+
+    saved.unshift(eventToSave) // Add to beginning
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(saved))
+    return true
+  } catch (error) {
+    console.error('Error saving event:', error)
+    return false
   }
-
-  // Add savedAt timestamp
-  const eventToSave = {
-    ...event,
-    savedAt: Date.now()
-  }
-
-  saved.unshift(eventToSave) // Add to beginning
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved))
 }
 
 /**
@@ -50,9 +76,15 @@ export function saveEvent(event) {
  * @param {string} eventId - Event ID to remove
  */
 export function unsaveEvent(eventId) {
-  const saved = getSavedEvents()
-  const filtered = saved.filter(e => e.id !== eventId)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
+  try {
+    const saved = getSavedEvents()
+    const filtered = saved.filter(e => e.id !== eventId)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
+    return true
+  } catch (error) {
+    console.error('Error removing saved event:', error)
+    return false
+  }
 }
 
 /**
@@ -92,7 +124,13 @@ export function getSavedCount() {
  * Clear all saved events
  */
 export function clearSavedEvents() {
-  localStorage.removeItem(STORAGE_KEY)
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+    return true
+  } catch (error) {
+    console.error('Error clearing saved events:', error)
+    return false
+  }
 }
 
 /**

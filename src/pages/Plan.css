@@ -157,6 +157,19 @@
   cursor: not-allowed;
 }
 
+.plan-generate-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: plan-spin 0.8s linear infinite;
+}
+
+@keyframes plan-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SECTIONS (Wishlist, Itinerary)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -262,6 +275,105 @@
 .plan-wishlist-item:hover .plan-wishlist-add {
   background: var(--roam-forest);
   color: white;
+}
+
+.plan-wishlist-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plan-wishlist-item:disabled:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.plan-wishlist-item:disabled:hover .plan-wishlist-add {
+  background: var(--roam-parchment);
+  color: var(--color-text-muted);
+}
+
+.plan-wishlist-type {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+  flex-shrink: 0;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-wishlist-more {
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1.5px dashed var(--roam-parchment);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-stone);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-wishlist-more:hover {
+  border-color: var(--roam-forest);
+  color: var(--roam-forest);
+  background: rgba(26, 58, 47, 0.04);
+}
+
+.plan-wishlist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--roam-paper);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.plan-wishlist-empty-icon {
+  font-size: 2rem;
+  margin-bottom: var(--space-sm);
+}
+
+.plan-wishlist-empty p {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 240px;
+}
+
+.plan-wishlist-cta {
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--roam-forest);
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-wishlist-cta:hover {
+  background: var(--roam-forest-light);
+  transform: translateY(-1px);
+}
+
+.plan-section-icon {
+  margin-right: var(--space-xs);
+}
+
+.plan-wishlist-section {
+  background: linear-gradient(135deg, rgba(212, 168, 85, 0.08) 0%, rgba(212, 168, 85, 0.03) 100%);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  border: 1px solid rgba(212, 168, 85, 0.15);
+}
+
+.plan-wishlist-section .plan-section-header {
+  border-bottom-color: rgba(212, 168, 85, 0.2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

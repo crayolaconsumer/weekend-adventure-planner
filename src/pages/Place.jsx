@@ -11,6 +11,7 @@ import { motion } from 'framer-motion'
 import { enrichPlace, fetchPlaceById } from '../utils/apiClient'
 import PlaceDetail from '../components/PlaceDetail'
 import LoadingState from '../components/LoadingState'
+import { useSEO } from '../hooks/useSEO'
 import './Place.css'
 
 export default function Place() {
@@ -19,6 +20,14 @@ export default function Place() {
   const [place, setPlace] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // Dynamic SEO for place pages
+  useSEO({
+    title: place?.name || 'Place Details',
+    description: place?.description || (place?.name ? `Discover ${place.name} on ROAM` : 'View place details on ROAM'),
+    image: place?.photo,
+    url: `https://go-roam.uk/place/${id}`
+  })
 
   useEffect(() => {
     const loadPlace = async () => {

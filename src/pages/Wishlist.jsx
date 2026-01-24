@@ -2,15 +2,25 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
+import CollectionManager from '../components/CollectionManager'
 import { getSavedEvents, unsaveEvent } from '../utils/savedEvents'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useSubscription } from '../hooks/useSubscription'
+import { openDirections } from '../utils/navigation'
 import './Wishlist.css'
 
 // Icons
 const FolderIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+  </svg>
+)
+
+const FolderPlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+    <line x1="12" y1="10" x2="12" y2="16"/>
+    <line x1="9" y1="13" x2="15" y2="13"/>
   </svg>
 )
 
@@ -82,26 +92,48 @@ const TABS = {
   EVENTS: 'events'
 }
 
+// Pagination constants
+const PAGE_SIZE = 12
+
 export default function Wishlist() {
   const navigate = useNavigate()
   const { places: wishlist, removePlace, loading: placesLoading } = useSavedPlaces()
-  const [savedEvents, setSavedEvents] = useState(getSavedEvents)
+  const [savedEvents, setSavedEvents] = useState(() => getSavedEvents())
+  const [eventsError, setEventsError] = useState(null)
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
   const { isPremium } = useSubscription()
+
+  // Pagination state
+  const [placesDisplayLimit, setPlacesDisplayLimit] = useState(PAGE_SIZE)
+  const [eventsDisplayLimit, setEventsDisplayLimit] = useState(PAGE_SIZE)
+
+  // Collection manager state
+  const [selectedPlace, setSelectedPlace] = useState(null)
+  const [showCollectionManager, setShowCollectionManager] = useState(false)
+
+  const openCollectionManager = (place) => {
+    setSelectedPlace(place)
+    setShowCollectionManager(true)
+  }
 
   const removeFromWishlist = (placeId) => {
     removePlace(placeId)
   }
 
   const removeEvent = (eventId) => {
-    unsaveEvent(eventId)
-    setSavedEvents(getSavedEvents())
+    try {
+      unsaveEvent(eventId)
+      setSavedEvents(getSavedEvents())
+      setEventsError(null)
+    } catch (error) {
+      console.error('Failed to remove event:', error)
+      setEventsError('Failed to remove event. Please try again.')
+    }
   }
 
   const goToPlace = (place) => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-    window.open(url, '_blank')
+    openDirections(place.lat, place.lng, place.name)
   }
 
   const formatSavedDate = (timestamp) => {
@@ -123,6 +155,12 @@ export default function Wishlist() {
   const filteredWishlist = filter === 'all'
     ? wishlist
     : wishlist.filter(p => p.category?.key === filter)
+
+  // Paginated items
+  const displayedPlaces = filteredWishlist.slice(0, placesDisplayLimit)
+  const displayedEvents = savedEvents.slice(0, eventsDisplayLimit)
+  const hasMorePlaces = filteredWishlist.length > placesDisplayLimit
+  const hasMoreEvents = savedEvents.length > eventsDisplayLimit
 
   // Total saved count
   const totalSaved = wishlist.length + savedEvents.length
@@ -160,6 +198,7 @@ export default function Wishlist() {
           onClick={() => {
             setActiveTab(TABS.PLACES)
             setFilter('all')
+            setPlacesDisplayLimit(PAGE_SIZE)
           }}
         >
           <MapPinIcon />
@@ -171,6 +210,7 @@ export default function Wishlist() {
           onClick={() => {
             setActiveTab(TABS.EVENTS)
             setFilter('all')
+            setEventsDisplayLimit(PAGE_SIZE)
           }}
         >
           <CalendarIcon />
@@ -194,7 +234,10 @@ export default function Wishlist() {
                 <div className="wishlist-filters">
                   <button
                     className={`chip ${filter === 'all' ? 'selected' : ''}`}
-                    onClick={() => setFilter('all')}
+                    onClick={() => {
+                      setFilter('all')
+                      setPlacesDisplayLimit(PAGE_SIZE)
+                    }}
                   >
                     All
                   </button>
@@ -204,7 +247,10 @@ export default function Wishlist() {
                       <button
                         key={cat}
                         className={`chip ${filter === cat ? 'selected' : ''}`}
-                        onClick={() => setFilter(cat)}
+                        onClick={() => {
+                          setFilter(cat)
+                          setPlacesDisplayLimit(PAGE_SIZE)
+                        }}
                       >
                         {category?.icon} {category?.label}
                       </button>
@@ -216,14 +262,14 @@ export default function Wishlist() {
               {/* Places Grid */}
               <div className="wishlist-grid">
                 <AnimatePresence>
-                  {filteredWishlist.map((place, index) => (
+                  {displayedPlaces.map((place, index) => (
                     <motion.div
                       key={place.id}
                       className="wishlist-card"
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.9 }}
-                      transition={{ delay: index * 0.05 }}
+                      transition={{ delay: Math.min(index, 11) * 0.05 }}
                     >
                       <div
                         className="wishlist-card-image"
@@ -272,6 +318,13 @@ export default function Wishlist() {
                             Go
                           </button>
                           <button
+                            className="wishlist-card-btn collection"
+                            onClick={() => openCollectionManager(place)}
+                            aria-label={`Add ${place.name} to collection`}
+                          >
+                            <FolderPlusIcon />
+                          </button>
+                          <button
                             className="wishlist-card-btn remove"
                             onClick={() => removeFromWishlist(place.id)}
                             aria-label={`Remove ${place.name} from wishlist`}
@@ -284,6 +337,16 @@ export default function Wishlist() {
                   ))}
                 </AnimatePresence>
               </div>
+
+              {/* Load More Button */}
+              {hasMorePlaces && (
+                <button
+                  className="wishlist-load-more"
+                  onClick={() => setPlacesDisplayLimit(prev => prev + PAGE_SIZE)}
+                >
+                  Load More ({filteredWishlist.length - placesDisplayLimit} remaining)
+                </button>
+              )}
             </>
           ) : (
             <div className="wishlist-empty">
@@ -304,45 +367,68 @@ export default function Wishlist() {
 
         {/* EVENTS TAB */}
         {activeTab === TABS.EVENTS && (
-          savedEvents.length > 0 ? (
-            <div className="wishlist-events-grid">
-              <AnimatePresence>
-                {savedEvents.map((event, index) => (
-                  <motion.div
-                    key={event.id}
-                    className="wishlist-event-card"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, x: -100 }}
-                    transition={{ delay: index * 0.05 }}
-                    layout
-                  >
-                    <div className="wishlist-event-content">
-                      <EventCard event={event} variant="full" />
-                    </div>
-                    <div className="wishlist-event-actions">
-                      {event.ticketUrl && (
-                        <a
-                          href={event.ticketUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="wishlist-event-btn tickets"
-                        >
-                          <TicketIcon />
-                          Get Tickets
-                        </a>
-                      )}
-                      <button
-                        className="wishlist-event-btn remove"
-                        onClick={() => removeEvent(event.id)}
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+          eventsError ? (
+            <div className="wishlist-error">
+              <p>{eventsError}</p>
+              <button onClick={() => {
+                setEventsError(null)
+                setSavedEvents(getSavedEvents())
+                setEventsDisplayLimit(PAGE_SIZE)
+              }}>
+                Retry
+              </button>
             </div>
+          ) : savedEvents.length > 0 ? (
+            <>
+              <div className="wishlist-events-grid">
+                <AnimatePresence>
+                  {displayedEvents.map((event, index) => (
+                    <motion.div
+                      key={event.id}
+                      className="wishlist-event-card"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, x: -100 }}
+                      transition={{ delay: Math.min(index, 11) * 0.05 }}
+                      layout
+                    >
+                      <div className="wishlist-event-content">
+                        <EventCard event={event} variant="full" />
+                      </div>
+                      <div className="wishlist-event-actions">
+                        {event.ticketUrl && (
+                          <a
+                            href={event.ticketUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="wishlist-event-btn tickets"
+                          >
+                            <TicketIcon />
+                            Get Tickets
+                          </a>
+                        )}
+                        <button
+                          className="wishlist-event-btn remove"
+                          onClick={() => removeEvent(event.id)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+
+              {/* Load More Button */}
+              {hasMoreEvents && (
+                <button
+                  className="wishlist-load-more"
+                  onClick={() => setEventsDisplayLimit(prev => prev + PAGE_SIZE)}
+                >
+                  Load More ({savedEvents.length - eventsDisplayLimit} remaining)
+                </button>
+              )}
+            </>
           ) : (
             <div className="wishlist-empty">
               <div className="wishlist-empty-icon events">
@@ -360,6 +446,18 @@ export default function Wishlist() {
           )
         )}
       </div>
+
+      {/* Collection Manager Modal */}
+      {selectedPlace && (
+        <CollectionManager
+          isOpen={showCollectionManager}
+          onClose={() => {
+            setShowCollectionManager(false)
+            setSelectedPlace(null)
+          }}
+          place={selectedPlace}
+        />
+      )}
     </div>
   )
 }

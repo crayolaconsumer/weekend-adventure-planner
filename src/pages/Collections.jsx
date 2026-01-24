@@ -45,6 +45,9 @@ const ChevronRightIcon = () => (
   </svg>
 )
 
+// Pagination constant
+const PAGE_SIZE = 15
+
 export default function Collections() {
   const navigate = useNavigate()
   const [collections, setCollections] = useState([])
@@ -52,6 +55,7 @@ export default function Collections() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+  const [placesDisplayLimit, setPlacesDisplayLimit] = useState(PAGE_SIZE)
   const { isPremium } = useSubscription()
 
   const loadCollections = () => {
@@ -89,12 +93,19 @@ export default function Collections() {
     }
   }
 
+  // Paginated places
+  const displayedPlaces = selectedCollection?.places.slice(0, placesDisplayLimit) || []
+  const hasMorePlaces = selectedCollection && selectedCollection.places.length > placesDisplayLimit
+
   // Collection detail view
   if (selectedCollection) {
     return (
       <div className="collections-page">
         <header className="collections-header">
-          <button className="collections-back-btn" onClick={() => setSelectedCollection(null)}>
+          <button className="collections-back-btn" onClick={() => {
+            setSelectedCollection(null)
+            setPlacesDisplayLimit(PAGE_SIZE)
+          }}>
             <BackIcon />
           </button>
           <div className="collections-header-info">
@@ -125,33 +136,45 @@ export default function Collections() {
             </Link>
           </div>
         ) : (
-          <div className="collections-places-list">
-            <AnimatePresence>
-              {selectedCollection.places.map((item, index) => (
-                <motion.div
-                  key={item.placeId}
-                  className="collections-place-item"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -100 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <div className="collections-place-info">
-                    <span className="collections-place-name">{item.placeName || item.placeId}</span>
-                    {item.note && (
-                      <span className="collections-place-note">{item.note}</span>
-                    )}
-                  </div>
-                  <button
-                    className="collections-remove-btn"
-                    onClick={() => handleRemovePlace(selectedCollection.id, item.placeId)}
+          <>
+            <div className="collections-places-list">
+              <AnimatePresence>
+                {displayedPlaces.map((item, index) => (
+                  <motion.div
+                    key={item.placeId}
+                    className="collections-place-item"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ delay: Math.min(index, 14) * 0.05 }}
                   >
-                    <TrashIcon />
-                  </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+                    <div className="collections-place-info">
+                      <span className="collections-place-name">{item.placeName || item.placeId}</span>
+                      {item.note && (
+                        <span className="collections-place-note">{item.note}</span>
+                      )}
+                    </div>
+                    <button
+                      className="collections-remove-btn"
+                      onClick={() => handleRemovePlace(selectedCollection.id, item.placeId)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+
+            {/* Load More Button */}
+            {hasMorePlaces && (
+              <button
+                className="collections-load-more"
+                onClick={() => setPlacesDisplayLimit(prev => prev + PAGE_SIZE)}
+              >
+                Load More ({selectedCollection.places.length - placesDisplayLimit} remaining)
+              </button>
+            )}
+          </>
         )}
 
         {/* Delete confirmation */}
@@ -253,7 +276,10 @@ export default function Collections() {
               <motion.button
                 key={collection.id}
                 className="collections-card"
-                onClick={() => setSelectedCollection(collection)}
+                onClick={() => {
+                  setSelectedCollection(collection)
+                  setPlacesDisplayLimit(PAGE_SIZE)
+                }}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}

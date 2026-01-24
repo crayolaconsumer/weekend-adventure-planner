@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { openDirections } from '../utils/navigation'
 import './BoredomBuster.css'
 
 const NavigationIcon = () => (
@@ -102,8 +103,7 @@ export default function BoredomBuster({
   const handleGo = () => {
     onGo?.(place)
     if (place) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-      window.open(url, '_blank')
+      openDirections(place.lat, place.lng, place.name)
     }
   }
 

@@ -7,7 +7,7 @@
  * Design: Matches Discover page swipe cards for brand consistency
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
@@ -393,15 +393,22 @@ const SORT_OPTIONS = [
   { id: 'popular', label: 'Popular' }
 ]
 
+// Page size for loading events incrementally
+const EVENTS_PAGE_SIZE = 20
+const EVENTS_LOAD_MORE_THRESHOLD = 10
+
 export default function Events({ location }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [displayLimit, setDisplayLimit] = useState(EVENTS_PAGE_SIZE)
   const [activeFilter, setActiveFilter] = useState('all')
   const [viewMode, setViewMode] = useState(VIEW_MODES.SWIPE)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [savedCount, setSavedCount] = useState(() => getSavedEvents().length)
   const [apiStatus, setApiStatus] = useState({ hasEvents: false, sources: [] })
+  const loadMoreTimeoutRef = useRef(null)
   const [searchRadius, setSearchRadius] = useState(() => {
     const saved = localStorage.getItem('roam_events_radius')
     return saved ? parseInt(saved, 10) : 25
@@ -450,6 +457,7 @@ export default function Events({ location }) {
       const fetchedEvents = await fetchAllEvents(location.lat, location.lng, searchRadius)
       setEvents(fetchedEvents)
       setCurrentIndex(0)
+      setDisplayLimit(EVENTS_PAGE_SIZE)
 
       // Track which sources returned data
       const sources = [...new Set(fetchedEvents.map(e => e.source))]
@@ -464,6 +472,27 @@ export default function Events({ location }) {
       setLoading(false)
     }
   }
+
+  // Load more events when running low
+  const loadMoreEvents = useCallback(() => {
+    if (loadingMore) return
+
+    setLoadingMore(true)
+    // Small delay for visual feedback
+    loadMoreTimeoutRef.current = setTimeout(() => {
+      setDisplayLimit(prev => prev + EVENTS_PAGE_SIZE)
+      setLoadingMore(false)
+    }, 300)
+  }, [loadingMore])
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (loadMoreTimeoutRef.current) {
+        clearTimeout(loadMoreTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Fetch events when location or radius changes
   useEffect(() => {
@@ -512,11 +541,23 @@ export default function Events({ location }) {
       return [...prev, categoryId]
     })
     setCurrentIndex(0)
+    setDisplayLimit(EVENTS_PAGE_SIZE)
   }, [])
 
   // Filter events based on active filter and categories
-  const filteredEvents = (() => {
+  // Returns { all: allFiltered, displayed: limitedForDisplay, hasMore: boolean }
+  const { allFilteredEvents, filteredEvents, hasMoreToLoad } = (() => {
     let result = events
+
+    // Deduplicate by event ID (safety check - main dedup happens in API)
+    const seenIds = new Set()
+    result = result.filter(event => {
+      if (seenIds.has(event.id)) {
+        return false
+      }
+      seenIds.add(event.id)
+      return true
+    })
 
     // Apply time filter
     switch (activeFilter) {
@@ -572,8 +613,23 @@ export default function Events({ location }) {
       result = result.filter(event => !seenEventIds.has(event.id))
     }
 
-    return sortEvents(result, sortBy)
+    const sorted = sortEvents(result, sortBy)
+    return {
+      allFilteredEvents: sorted,
+      filteredEvents: sorted.slice(0, displayLimit),
+      hasMoreToLoad: sorted.length > displayLimit
+    }
   })()
+
+  // Trigger load more when running low on cards in swipe mode
+  useEffect(() => {
+    if (viewMode !== VIEW_MODES.SWIPE || loading || loadingMore) return
+
+    const remainingCards = filteredEvents.length - currentIndex
+    if (remainingCards <= EVENTS_LOAD_MORE_THRESHOLD && hasMoreToLoad) {
+      loadMoreEvents()
+    }
+  }, [currentIndex, filteredEvents.length, hasMoreToLoad, loadMoreEvents, loading, loadingMore, viewMode])
 
   // Handle swipe - matches SwipeCard behavior
   const handleSwipe = useCallback((action, event) => {
@@ -686,6 +742,7 @@ export default function Events({ location }) {
             onClick={() => {
               setActiveFilter(filter.id)
               setCurrentIndex(0)
+              setDisplayLimit(EVENTS_PAGE_SIZE)
             }}
             aria-pressed={activeFilter === filter.id}
           >
@@ -737,6 +794,7 @@ export default function Events({ location }) {
                           onClick={() => {
                             setSearchRadius(radius)
                             setCurrentIndex(0)
+                            setDisplayLimit(EVENTS_PAGE_SIZE)
                           }}
                         >
                           <span className="events-radius-dot" />
@@ -766,6 +824,7 @@ export default function Events({ location }) {
                         onClick={() => {
                           setSelectedCategories([])
                           setCurrentIndex(0)
+                          setDisplayLimit(EVENTS_PAGE_SIZE)
                         }}
                       >
                         Clear all
@@ -810,6 +869,7 @@ export default function Events({ location }) {
                           onClick={() => {
                             setPriceFilter(option.id)
                             setCurrentIndex(0)
+                            setDisplayLimit(EVENTS_PAGE_SIZE)
                           }}
                         >
                           {option.label}
@@ -838,6 +898,7 @@ export default function Events({ location }) {
                         onClick={() => {
                           setSortBy(option.id)
                           setCurrentIndex(0)
+                          setDisplayLimit(EVENTS_PAGE_SIZE)
                         }}
                       >
                         {option.label}
@@ -864,6 +925,7 @@ export default function Events({ location }) {
                         onClick={() => {
                           setHideSoldOut(prev => !prev)
                           setCurrentIndex(0)
+                          setDisplayLimit(EVENTS_PAGE_SIZE)
                         }}
                       >
                         Hide sold out
@@ -873,6 +935,7 @@ export default function Events({ location }) {
                         onClick={() => {
                           setHideSeen(prev => !prev)
                           setCurrentIndex(0)
+                          setDisplayLimit(EVENTS_PAGE_SIZE)
                         }}
                       >
                         Hide seen
@@ -900,6 +963,7 @@ export default function Events({ location }) {
                         setHideSeen(true)
                         resetSeenEvents()
                         setCurrentIndex(0)
+                        setDisplayLimit(EVENTS_PAGE_SIZE)
                       }}
                     >
                       Reset all
@@ -909,7 +973,7 @@ export default function Events({ location }) {
                     className="events-filter-apply"
                     onClick={() => setFiltersOpen(false)}
                   >
-                    Show {filteredEvents.length} events
+                    Show {allFilteredEvents.length} events
                   </button>
                 </motion.div>
               </div>
@@ -1005,6 +1069,16 @@ export default function Events({ location }) {
                   >
                     Start Over
                   </button>
+                  <button
+                    className="events-refresh-btn-large"
+                    onClick={() => {
+                      loadEvents()
+                      setCurrentIndex(0)
+                    }}
+                    disabled={loading}
+                  >
+                    <RefreshIcon /> Check for New Events
+                  </button>
                   {savedCount > 0 && (
                     <Link to="/wishlist" className="events-view-saved-btn">
                       <BookmarkIcon filled /> View Saved
@@ -1037,42 +1111,59 @@ export default function Events({ location }) {
                   <div className="events-progress-bar">
                     <div
                       className="events-progress-fill"
-                      style={{ width: `${((currentIndex + 1) / filteredEvents.length) * 100}%` }}
+                      style={{ width: `${((currentIndex + 1) / allFilteredEvents.length) * 100}%` }}
                     />
                   </div>
                   <span className="events-progress-text">
-                    {currentIndex + 1} of {filteredEvents.length}
+                    {currentIndex + 1} of {allFilteredEvents.length}
+                    {loadingMore && ' (loading more...)'}
                   </span>
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <div className="events-grid">
-            <AnimatePresence>
-              {filteredEvents.map((event, index) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: index * 0.05 }}
-                  onClick={() => setSelectedEvent(event)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setSelectedEvent(event)
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`View details for ${event.name}`}
-                  style={{ cursor: 'pointer' }}
+          <div className="events-grid-container">
+            <div className="events-grid">
+              <AnimatePresence>
+                {filteredEvents.map((event, index) => (
+                  <motion.div
+                    key={event.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ delay: Math.min(index * 0.05, 0.5) }}
+                    onClick={() => setSelectedEvent(event)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setSelectedEvent(event)
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View details for ${event.name}`}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <EventCard event={event} variant="full" />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+            {hasMoreToLoad && (
+              <div className="events-load-more">
+                <button
+                  className="events-load-more-btn"
+                  onClick={loadMoreEvents}
+                  disabled={loadingMore}
                 >
-                  <EventCard event={event} variant="full" />
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                  {loadingMore ? 'Loading...' : `Load More (${allFilteredEvents.length - filteredEvents.length} remaining)`}
+                </button>
+              </div>
+            )}
+            <p className="events-grid-count">
+              Showing {filteredEvents.length} of {allFilteredEvents.length} events
+            </p>
           </div>
         )}
       </div>

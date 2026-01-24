@@ -341,11 +341,78 @@ export function useDiscoverUsers() {
   return { users, loading, error, refresh: fetchUsers }
 }
 
+/**
+ * Hook for searching users
+ */
+export function useUserSearch() {
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [total, setTotal] = useState(0)
+
+  const search = useCallback(async (query, offset = 0) => {
+    if (!query || query.trim().length < 2) {
+      setResults([])
+      setTotal(0)
+      setHasMore(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(
+        `/api/users/search?q=${encodeURIComponent(query.trim())}&limit=20&offset=${offset}`,
+        {
+          credentials: 'include',
+          headers: getAuthHeaders()
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Search failed')
+      }
+
+      const data = await response.json()
+
+      if (offset === 0) {
+        setResults(data.users)
+      } else {
+        setResults(prev => [...prev, ...data.users])
+      }
+      setTotal(data.total)
+      setHasMore(data.hasMore)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadMore = useCallback((query) => {
+    if (!loading && hasMore) {
+      search(query, results.length)
+    }
+  }, [loading, hasMore, results.length, search])
+
+  const clearResults = useCallback(() => {
+    setResults([])
+    setTotal(0)
+    setHasMore(false)
+    setError(null)
+  }, [])
+
+  return { results, loading, error, total, hasMore, search, loadMore, clearResults }
+}
+
 export default {
   useFollow,
   useUserProfile,
   useFollowers,
   useFollowing,
   useActivityFeed,
-  useDiscoverUsers
+  useDiscoverUsers,
+  useUserSearch
 }

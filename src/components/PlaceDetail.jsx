@@ -9,6 +9,7 @@ import CollectionManager from './CollectionManager'
 import { ContributionList } from './ContributionDisplay'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { openDirections, openExternalLink } from '../utils/navigation'
 import './PlaceDetail.css'
 
 // Icons
@@ -182,14 +183,13 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   }
 
   const handleDirections = () => {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${enrichedPlace.lat},${enrichedPlace.lng}`
-    window.open(url, '_blank')
+    openDirections(enrichedPlace.lat, enrichedPlace.lng, enrichedPlace.name)
     onGo?.(enrichedPlace)
   }
 
   const handleWebsite = () => {
     if (enrichedPlace.website) {
-      window.open(enrichedPlace.website, '_blank')
+      openExternalLink(enrichedPlace.website)
     }
   }
 
@@ -202,7 +202,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const handleWikipedia = () => {
     if (enrichedPlace.wikipedia) {
       const [lang, title] = enrichedPlace.wikipedia.split(':')
-      window.open(`https://${lang}.wikipedia.org/wiki/${title}`, '_blank')
+      openExternalLink(`https://${lang}.wikipedia.org/wiki/${title}`)
     }
   }
 

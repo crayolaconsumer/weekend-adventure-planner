@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatEventDate, formatPriceRange, getSourceInfo } from '../utils/eventsApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { openDirections, openExternalLink } from '../utils/navigation'
 import './EventDetail.css'
 
 // Event category placeholder images
@@ -183,11 +184,11 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
   // Open in maps
   const openInMaps = () => {
     if (event.venue?.lat && event.venue?.lng) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${event.venue.lat},${event.venue.lng}`
-      window.open(url, '_blank')
+      openDirections(event.venue.lat, event.venue.lng, event.venue.name)
     } else if (event.venue?.address) {
+      // For address search, use external link since we don't have coordinates
       const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue.address)}`
-      window.open(url, '_blank')
+      openExternalLink(url)
     }
   }
 

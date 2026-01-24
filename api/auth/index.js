@@ -46,8 +46,10 @@ export default async function handler(req, res) {
             return await handleGoogle(req, res)
           case 'logout':
             return await handleLogout(req, res)
+          case 'update':
+            return await handleUpdateProfile(req, res)
           default:
-            return res.status(400).json({ error: 'Invalid action. Use: login, register, google, or logout' })
+            return res.status(400).json({ error: 'Invalid action. Use: login, register, google, logout, or update' })
         }
       }
       default:
@@ -361,4 +363,98 @@ async function handleGoogle(req, res) {
 async function handleLogout(req, res) {
   res.setHeader('Set-Cookie', createLogoutCookie())
   return res.status(200).json({ success: true })
+}
+
+/**
+ * POST action=update - Update user profile
+ */
+async function handleUpdateProfile(req, res) {
+  const user = await getUserFromRequest(req)
+
+  if (!user) {
+    return res.status(401).json({ error: 'Not authenticated' })
+  }
+
+  const { displayName, username, avatarUrl } = req.body
+
+  // Validate username if provided
+  if (username !== undefined) {
+    if (!username || username.length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' })
+    }
+    if (username.length > 30) {
+      return res.status(400).json({ error: 'Username must be 30 characters or less' })
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' })
+    }
+
+    // Check if username is taken by another user
+    const existingUser = await queryOne(
+      'SELECT id FROM users WHERE username = ? AND id != ?',
+      [username.toLowerCase(), user.id]
+    )
+    if (existingUser) {
+      return res.status(409).json({ error: 'Username is already taken' })
+    }
+  }
+
+  // Validate display name if provided
+  if (displayName !== undefined) {
+    if (displayName && displayName.length > 50) {
+      return res.status(400).json({ error: 'Display name must be 50 characters or less' })
+    }
+  }
+
+  // Build update query dynamically based on provided fields
+  const updates = []
+  const values = []
+
+  if (displayName !== undefined) {
+    updates.push('display_name = ?')
+    values.push(displayName || null)
+  }
+
+  if (username !== undefined) {
+    updates.push('username = ?')
+    values.push(username.toLowerCase())
+  }
+
+  if (avatarUrl !== undefined) {
+    updates.push('avatar_url = ?')
+    values.push(avatarUrl || null)
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+
+  values.push(user.id)
+
+  await update(
+    `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+    values
+  )
+
+  // Fetch updated user
+  const updatedUser = await queryOne(
+    'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE id = ?',
+    [user.id]
+  )
+
+  return res.status(200).json({
+    user: {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      username: updatedUser.username,
+      displayName: updatedUser.display_name,
+      avatarUrl: updatedUser.avatar_url,
+      emailVerified: updatedUser.email_verified,
+      tier: updatedUser.tier,
+      subscription_id: updatedUser.subscription_id,
+      subscription_expires_at: updatedUser.subscription_expires_at,
+      subscription_cancelled_at: updatedUser.subscription_cancelled_at,
+      stripe_customer_id: updatedUser.stripe_customer_id
+    }
+  })
 }

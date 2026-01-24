@@ -19,6 +19,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
+import InstallBanner from './components/InstallBanner'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 
@@ -323,6 +324,9 @@ function App() {
                 isOpen={showSubscriptionSuccess}
                 onClose={() => setShowSubscriptionSuccess(false)}
               />
+
+              {/* PWA Install Banner */}
+              <InstallBanner />
 
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>

@@ -8,7 +8,7 @@
  * Tabs: Activity | Journey | Settings (owner only)
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
@@ -16,6 +16,8 @@ import { useSubscription } from '../hooks/useSubscription'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import { getVisitedPlaces } from '../utils/statsUtils'
+import { useToast } from '../hooks/useToast'
+import { useSEO } from '../hooks/useSEO'
 import FollowButton from '../components/FollowButton'
 import UserCard from '../components/UserCard'
 import { ContributionCard } from '../components/ContributionDisplay'
@@ -78,13 +80,23 @@ function loadStatsFromStorage() {
   const wishlist = JSON.parse(localStorage.getItem('roam_wishlist') || '[]')
   const adventures = JSON.parse(localStorage.getItem('roam_adventures') || '[]')
 
-  const lastActivity = savedStats.lastActivityDate
+  // Use lastStreakDate (not lastActivityDate) - this matches Discover.jsx logic
+  const lastStreakDate = savedStats.lastStreakDate
   let currentStreak = savedStats.currentStreak || 0
 
-  if (lastActivity) {
-    const lastDate = new Date(lastActivity)
-    const daysDiff = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24))
-    if (daysDiff > 1) {
+  if (lastStreakDate) {
+    // Check if streak should be reset (more than 1 day since last streak update)
+    const lastDate = new Date(lastStreakDate)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    // If lastStreakDate is neither today nor yesterday, streak is broken
+    const lastDateStr = lastDate.toDateString()
+    const todayStr = today.toDateString()
+    const yesterdayStr = yesterday.toDateString()
+
+    if (lastDateStr !== todayStr && lastDateStr !== yesterdayStr) {
       currentStreak = 0
     }
   }
@@ -123,9 +135,23 @@ export default function UnifiedProfile() {
   // Tab state
   const [activeTab, setActiveTab] = useState('activity')
 
+  // Dynamic SEO for user profiles
+  const displayName = profile?.user?.displayName || profile?.user?.username || username
+  useSEO({
+    title: isOwnProfile ? 'My Profile' : `${displayName} (@${username})`,
+    description: profile?.stats
+      ? `${displayName} on ROAM — ${profile.stats.contributions || 0} tips shared, ${profile.stats.followers || 0} followers`
+      : `${displayName}'s profile on ROAM`,
+    url: `https://go-roam.uk/user/${username}`
+  })
+
   // Modal states
   const [showFollowersModal, setShowFollowersModal] = useState(false)
   const [showFollowingModal, setShowFollowingModal] = useState(false)
+
+  // Toast for badge notifications
+  const toast = useToast()
+  const badgeCheckDone = useRef(false)
 
   // Refresh contributions when profile loads
   useEffect(() => {
@@ -148,6 +174,39 @@ export default function UnifiedProfile() {
   // Get earned badges
   const earnedBadges = BADGES.filter(badge => badge.requirement(localStats))
   const lockedBadges = BADGES.filter(badge => !badge.requirement(localStats))
+
+  // Check for newly earned badges and show toast notifications
+  useEffect(() => {
+    if (!isOwnProfile || badgeCheckDone.current) return
+
+    // Get previously stored earned badge IDs
+    const storedBadgeIds = JSON.parse(localStorage.getItem('roam_earned_badges') || '[]')
+    const currentBadgeIds = earnedBadges.map(b => b.id)
+
+    // Find new badges (in current but not in stored)
+    const newBadges = earnedBadges.filter(b => !storedBadgeIds.includes(b.id))
+
+    // Show toast for each new badge
+    if (newBadges.length > 0) {
+      // Small delay to ensure toast is visible after page loads
+      setTimeout(() => {
+        newBadges.forEach((badge, index) => {
+          // Stagger toasts so they don't overlap
+          setTimeout(() => {
+            toast.success(`${badge.icon} Badge Unlocked: ${badge.name}!`)
+          }, index * 1000)
+        })
+      }, 500)
+
+      // Save current badges to localStorage
+      localStorage.setItem('roam_earned_badges', JSON.stringify(currentBadgeIds))
+    } else if (currentBadgeIds.length !== storedBadgeIds.length) {
+      // Sync if mismatch (e.g., badge list changed)
+      localStorage.setItem('roam_earned_badges', JSON.stringify(currentBadgeIds))
+    }
+
+    badgeCheckDone.current = true
+  }, [isOwnProfile, earnedBadges, toast])
 
   // Loading state
   if (profileLoading || authLoading) {
@@ -185,15 +244,8 @@ export default function UnifiedProfile() {
           <BackIcon />
         </button>
         <h1 className="unified-profile-header-title">@{user.username}</h1>
-        {isOwnProfile && (
-          <button
-            className="unified-profile-settings-btn"
-            onClick={() => setActiveTab('settings')}
-            aria-label="Settings"
-          >
-            <SettingsIcon />
-          </button>
-        )}
+        {/* Settings moved to tab bar - removed duplicate header button */}
+        <div className="unified-profile-header-spacer" />
       </header>
 
       {/* Profile Card */}
@@ -561,10 +613,96 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
 }
 
 /**
- * Settings Tab - Account Management
+ * Settings Tab - Account Management (Fully Editable)
  */
 function SettingsTab({ user, onLogout }) {
-  const { isPremium, manageSubscription, loading, error, expiresAt, isCancelled } = useSubscription()
+  const { updateProfile } = useAuth()
+  const { isPremium, manageSubscription, loading: subLoading, error: subError, expiresAt, isCancelled } = useSubscription()
+
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Form state for account info
+  const [displayName, setDisplayName] = useState(user?.displayName || '')
+
+  // Preferences state (localStorage-backed)
+  const [travelMode, setTravelMode] = useState(() =>
+    localStorage.getItem('roam_travel_mode') || 'walking'
+  )
+  const [freeOnly, setFreeOnly] = useState(() =>
+    localStorage.getItem('roam_free_only') === 'true'
+  )
+  const [accessibilityMode, setAccessibilityMode] = useState(() =>
+    localStorage.getItem('roam_accessibility') === 'true'
+  )
+  const [openOnly, setOpenOnly] = useState(() =>
+    localStorage.getItem('roam_open_only') === 'true'
+  )
+
+  // Travel mode options
+  const travelModes = {
+    walking: { label: 'Walking', icon: '🚶', desc: 'Up to 5km' },
+    driving: { label: 'Driving', icon: '🚗', desc: 'Up to 30km' },
+    transit: { label: 'Transit', icon: '🚌', desc: 'Up to 15km' }
+  }
+
+  // Reset form when user changes
+  useEffect(() => {
+    setDisplayName(user?.displayName || '')
+  }, [user?.displayName])
+
+  // Save preferences to localStorage
+  const savePreferences = useCallback(() => {
+    localStorage.setItem('roam_travel_mode', travelMode)
+    localStorage.setItem('roam_free_only', freeOnly.toString())
+    localStorage.setItem('roam_accessibility', accessibilityMode.toString())
+    localStorage.setItem('roam_open_only', openOnly.toString())
+  }, [travelMode, freeOnly, accessibilityMode, openOnly])
+
+  // Handle save
+  const handleSave = async () => {
+    setSaveError('')
+    setSaveSuccess(false)
+    setIsSaving(true)
+
+    try {
+      // Save account info to backend if changed
+      if (displayName !== (user?.displayName || '')) {
+        const result = await updateProfile({ displayName: displayName || null })
+        if (!result.success) {
+          throw new Error(result.error)
+        }
+      }
+
+      // Save preferences to localStorage
+      savePreferences()
+
+      setSaveSuccess(true)
+      setIsEditing(false)
+
+      // Clear success message after 3s
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err) {
+      setSaveError(err.message || 'Failed to save settings')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Handle cancel
+  const handleCancel = () => {
+    // Reset form to current values
+    setDisplayName(user?.displayName || '')
+    setTravelMode(localStorage.getItem('roam_travel_mode') || 'walking')
+    setFreeOnly(localStorage.getItem('roam_free_only') === 'true')
+    setAccessibilityMode(localStorage.getItem('roam_accessibility') === 'true')
+    setOpenOnly(localStorage.getItem('roam_open_only') === 'true')
+    setSaveError('')
+    setIsEditing(false)
+  }
 
   return (
     <div className="unified-profile-settings">
@@ -601,20 +739,51 @@ function SettingsTab({ user, onLogout }) {
             <button
               className="premium-manage-btn"
               onClick={manageSubscription}
-              disabled={loading}
+              disabled={subLoading}
             >
-              {loading ? 'Loading...' : 'Manage Subscription'}
+              {subLoading ? 'Loading...' : 'Manage Subscription'}
             </button>
-            {error && (
-              <p className="premium-manage-error">{error}</p>
+            {subError && (
+              <div className="premium-manage-error-container">
+                <p className="premium-manage-error">{subError}</p>
+                {subError.includes('Subscribe') && (
+                  <Link to="/pricing" className="premium-manage-subscribe-link">
+                    Subscribe to ROAM+
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         </div>
       )}
 
+      {/* Success Message */}
+      {saveSuccess && (
+        <div className="unified-profile-settings-success" role="status">
+          Settings saved successfully
+        </div>
+      )}
+
+      {/* Error Message */}
+      {saveError && (
+        <div className="unified-profile-settings-error" role="alert">
+          {saveError}
+        </div>
+      )}
+
       {/* Account Info */}
       <div className="unified-profile-settings-section">
-        <h3 className="unified-profile-settings-title">Account</h3>
+        <div className="unified-profile-settings-header">
+          <h3 className="unified-profile-settings-title">Account</h3>
+          {!isEditing && (
+            <button
+              className="unified-profile-settings-edit-btn"
+              onClick={() => setIsEditing(true)}
+            >
+              Edit
+            </button>
+          )}
+        </div>
 
         <div className="unified-profile-settings-item">
           <span className="unified-profile-settings-label">Email</span>
@@ -626,30 +795,149 @@ function SettingsTab({ user, onLogout }) {
           <span className="unified-profile-settings-value">@{user?.username}</span>
         </div>
 
-        <div className="unified-profile-settings-item">
-          <span className="unified-profile-settings-label">Display Name</span>
-          <span className="unified-profile-settings-value">{user?.displayName || user?.username}</span>
-        </div>
+        {isEditing ? (
+          <div className="unified-profile-settings-field">
+            <label htmlFor="displayName" className="unified-profile-settings-label">
+              Display Name
+            </label>
+            <input
+              id="displayName"
+              type="text"
+              className="unified-profile-settings-input"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Enter display name"
+              maxLength={50}
+              disabled={isSaving}
+            />
+          </div>
+        ) : (
+          <div className="unified-profile-settings-item">
+            <span className="unified-profile-settings-label">Display Name</span>
+            <span className="unified-profile-settings-value">
+              {user?.displayName || user?.username || 'Not set'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Preferences */}
       <div className="unified-profile-settings-section">
         <h3 className="unified-profile-settings-title">Preferences</h3>
 
-        <div className="unified-profile-settings-item">
+        {/* Travel Mode */}
+        <div className="unified-profile-settings-field">
           <span className="unified-profile-settings-label">Default Travel Mode</span>
-          <span className="unified-profile-settings-value">
-            {localStorage.getItem('roam_travel_mode') || 'walking'}
-          </span>
+          <div className="unified-profile-settings-mode-grid">
+            {Object.entries(travelModes).map(([key, mode]) => (
+              <button
+                key={key}
+                className={`unified-profile-settings-mode-btn ${travelMode === key ? 'active' : ''}`}
+                onClick={() => {
+                  setTravelMode(key)
+                  if (!isEditing) {
+                    localStorage.setItem('roam_travel_mode', key)
+                  }
+                }}
+                disabled={isSaving}
+              >
+                <span className="mode-icon">{mode.icon}</span>
+                <span className="mode-label">{mode.label}</span>
+                <span className="mode-desc">{mode.desc}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="unified-profile-settings-item">
-          <span className="unified-profile-settings-label">Free Places Only</span>
-          <span className="unified-profile-settings-value">
-            {localStorage.getItem('roam_free_only') === 'true' ? 'Yes' : 'No'}
-          </span>
+        {/* Toggle Preferences */}
+        <div className="unified-profile-settings-toggles">
+          <button
+            className={`unified-profile-settings-toggle ${freeOnly ? 'active' : ''}`}
+            onClick={() => {
+              const newValue = !freeOnly
+              setFreeOnly(newValue)
+              if (!isEditing) {
+                localStorage.setItem('roam_free_only', newValue.toString())
+              }
+            }}
+            disabled={isSaving}
+            aria-pressed={freeOnly}
+          >
+            <span className="toggle-icon">💸</span>
+            <span className="toggle-text">
+              <span className="toggle-label">Free Places Only</span>
+              <span className="toggle-desc">Show only free attractions</span>
+            </span>
+            <span className={`toggle-switch ${freeOnly ? 'on' : ''}`}>
+              <span className="toggle-knob" />
+            </span>
+          </button>
+
+          <button
+            className={`unified-profile-settings-toggle ${accessibilityMode ? 'active' : ''}`}
+            onClick={() => {
+              const newValue = !accessibilityMode
+              setAccessibilityMode(newValue)
+              if (!isEditing) {
+                localStorage.setItem('roam_accessibility', newValue.toString())
+              }
+            }}
+            disabled={isSaving}
+            aria-pressed={accessibilityMode}
+          >
+            <span className="toggle-icon">♿</span>
+            <span className="toggle-text">
+              <span className="toggle-label">Accessibility Mode</span>
+              <span className="toggle-desc">Prioritize accessible places</span>
+            </span>
+            <span className={`toggle-switch ${accessibilityMode ? 'on' : ''}`}>
+              <span className="toggle-knob" />
+            </span>
+          </button>
+
+          <button
+            className={`unified-profile-settings-toggle ${openOnly ? 'active' : ''}`}
+            onClick={() => {
+              const newValue = !openOnly
+              setOpenOnly(newValue)
+              if (!isEditing) {
+                localStorage.setItem('roam_open_only', newValue.toString())
+              }
+            }}
+            disabled={isSaving}
+            aria-pressed={openOnly}
+          >
+            <span className="toggle-icon">🕐</span>
+            <span className="toggle-text">
+              <span className="toggle-label">Open Now Only</span>
+              <span className="toggle-desc">Hide places that are closed</span>
+            </span>
+            <span className={`toggle-switch ${openOnly ? 'on' : ''}`}>
+              <span className="toggle-knob" />
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* Save/Cancel Buttons (when editing account info) */}
+      {isEditing && (
+        <div className="unified-profile-settings-actions">
+          <button
+            className="unified-profile-settings-cancel-btn"
+            onClick={handleCancel}
+            disabled={isSaving}
+          >
+            Cancel
+          </button>
+          <button
+            className="unified-profile-settings-save-btn"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      )}
 
       {/* Sign Out */}
       <button className="unified-profile-logout-btn" onClick={onLogout}>

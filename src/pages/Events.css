@@ -1290,6 +1290,35 @@
   background: var(--roam-forest-light);
 }
 
+.events-refresh-btn-large {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  background: transparent;
+  border: 2px solid var(--roam-forest);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.events-refresh-btn-large:hover:not(:disabled) {
+  background: rgba(26, 58, 47, 0.08);
+}
+
+.events-refresh-btn-large:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.events-refresh-btn-large svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE - Matches SwipeCard breakpoints
    ═══════════════════════════════════════════════════════ */
@@ -1553,4 +1582,54 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOAD MORE - Grid pagination
+   ═══════════════════════════════════════════════════════ */
+
+.events-grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.events-load-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-md) 0;
+}
+
+.events-load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-xl);
+  background: white;
+  border: 1.5px solid var(--roam-forest);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.events-load-more-btn:hover:not(:disabled) {
+  background: var(--roam-forest);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26, 58, 47, 0.2);
+}
+
+.events-load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.events-grid-count {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0;
 }
