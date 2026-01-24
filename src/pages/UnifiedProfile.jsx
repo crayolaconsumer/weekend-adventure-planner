@@ -25,6 +25,8 @@ import CategoryChart from '../components/stats/CategoryChart'
 import DistanceStats from '../components/stats/DistanceStats'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
 import VisitedMap from '../components/stats/VisitedMap'
+import PrivacySettings from '../components/PrivacySettings'
+import UserSearchBar from '../components/UserSearchBar'
 import { formatDate } from '../utils/dateUtils'
 import './UnifiedProfile.css'
 
@@ -57,6 +59,13 @@ const LogOutIcon = () => (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
     <polyline points="16 17 21 12 16 7"/>
     <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+)
+
+const LockIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
   </svg>
 )
 
@@ -232,7 +241,17 @@ export default function UnifiedProfile() {
     )
   }
 
-  const { user, stats, contributions, isFollowing } = profile
+  const {
+    user,
+    stats,
+    contributions,
+    isFollowing,
+    followStatus,
+    isPrivateAccount,
+    canSeeFullProfile,
+    hideFollowersList,
+    hideFollowingList
+  } = profile
   const avatarUrl = user.avatarUrl ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.username)}&background=E07A5F&color=fff&size=200`
 
@@ -247,6 +266,16 @@ export default function UnifiedProfile() {
         {/* Settings moved to tab bar - removed duplicate header button */}
         <div className="unified-profile-header-spacer" />
       </header>
+
+      {/* User Search - only on own profile */}
+      {isOwnProfile && (
+        <div className="unified-profile-search-section">
+          <UserSearchBar
+            placeholder="Find people to follow..."
+            onResultClick={(clickedUser) => navigate(`/user/${clickedUser.username}`)}
+          />
+        </div>
+      )}
 
       {/* Profile Card */}
       <motion.section
@@ -286,9 +315,19 @@ export default function UnifiedProfile() {
             <FollowButton
               userId={user.id}
               initialIsFollowing={isFollowing}
+              initialFollowStatus={followStatus}
+              isPrivateAccount={isPrivateAccount}
               onFollowChange={handleFollowChange}
               size="large"
             />
+          </div>
+        )}
+
+        {/* Private account indicator */}
+        {isPrivateAccount && !isOwnProfile && !canSeeFullProfile && (
+          <div className="unified-profile-private-notice">
+            <LockIcon />
+            <span>This account is private</span>
           </div>
         )}
       </motion.section>
@@ -300,21 +339,35 @@ export default function UnifiedProfile() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        <button
-          className="unified-profile-stat"
-          onClick={() => setShowFollowersModal(true)}
-        >
-          <span className="unified-profile-stat-value">{stats.followers}</span>
-          <span className="unified-profile-stat-label">Followers</span>
-        </button>
+        {hideFollowersList && !isOwnProfile ? (
+          <div className="unified-profile-stat hidden">
+            <span className="unified-profile-stat-value">-</span>
+            <span className="unified-profile-stat-label">Followers</span>
+          </div>
+        ) : (
+          <button
+            className="unified-profile-stat"
+            onClick={() => setShowFollowersModal(true)}
+          >
+            <span className="unified-profile-stat-value">{stats.followers}</span>
+            <span className="unified-profile-stat-label">Followers</span>
+          </button>
+        )}
 
-        <button
-          className="unified-profile-stat"
-          onClick={() => setShowFollowingModal(true)}
-        >
-          <span className="unified-profile-stat-value">{stats.following}</span>
-          <span className="unified-profile-stat-label">Following</span>
-        </button>
+        {hideFollowingList && !isOwnProfile ? (
+          <div className="unified-profile-stat hidden">
+            <span className="unified-profile-stat-value">-</span>
+            <span className="unified-profile-stat-label">Following</span>
+          </div>
+        ) : (
+          <button
+            className="unified-profile-stat"
+            onClick={() => setShowFollowingModal(true)}
+          >
+            <span className="unified-profile-stat-value">{stats.following}</span>
+            <span className="unified-profile-stat-label">Following</span>
+          </button>
+        )}
 
         <div className="unified-profile-stat">
           <span className="unified-profile-stat-value">{stats.contributions}</span>
@@ -377,6 +430,8 @@ export default function UnifiedProfile() {
               loading={isOwnProfile ? contribLoading : false}
               user={user}
               isOwnProfile={isOwnProfile}
+              isPrivateAccount={isPrivateAccount}
+              canSeeFullProfile={canSeeFullProfile}
             />
           </motion.section>
         )}
@@ -449,7 +504,23 @@ export default function UnifiedProfile() {
 /**
  * Activity Tab - Tips/Contributions
  */
-function ActivityTab({ contributions, loading, user, isOwnProfile }) {
+function ActivityTab({ contributions, loading, user, isOwnProfile, isPrivateAccount, canSeeFullProfile }) {
+  // Show private account message if user can't see full profile
+  if (!isOwnProfile && isPrivateAccount && !canSeeFullProfile) {
+    return (
+      <div className="unified-profile-private">
+        <span className="unified-profile-private-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </span>
+        <h3>This account is private</h3>
+        <p>Follow this account to see their tips and activity.</p>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="unified-profile-loading">
@@ -938,6 +1009,11 @@ function SettingsTab({ user, onLogout }) {
           </button>
         </div>
       )}
+
+      {/* Privacy Settings */}
+      <div className="unified-profile-settings-section">
+        <PrivacySettings />
+      </div>
 
       {/* Sign Out */}
       <button className="unified-profile-logout-btn" onClick={onLogout}>

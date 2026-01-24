@@ -25,12 +25,18 @@ let combinedCache = {
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @param {number} radiusKm - Search radius in km
- * @returns {Promise<RoamEvent[]>}
+ * @param {Object} options - Fetch options
+ * @param {number} options.pagesToFetch - Number of Ticketmaster pages to fetch (default 3)
+ * @param {number} options.startPage - Starting page for Ticketmaster (default 0)
+ * @returns {Promise<{events: RoamEvent[], hasMore: boolean, totalAvailable: number, currentPage: number}>}
  */
-export async function fetchAllEvents(lat, lng, radiusKm = 30) {
-  // Check cache validity
+export async function fetchAllEvents(lat, lng, radiusKm = 30, options = {}) {
+  const { pagesToFetch = 3, startPage = 0 } = options
+
+  // Check cache validity (only for initial load)
   const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm}`
   if (
+    startPage === 0 &&
     combinedCache.data &&
     combinedCache.location === cacheKey &&
     Date.now() - combinedCache.timestamp < COMBINED_CACHE_TTL
@@ -39,15 +45,19 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30) {
   }
 
   // Fetch from all sources in parallel
-  const [ticketmasterEvents, skiddleEvents] = await Promise.allSettled([
-    fetchTicketmasterEvents(lat, lng, radiusKm),
+  const [ticketmasterResult, skiddleResult] = await Promise.allSettled([
+    fetchTicketmasterEvents(lat, lng, radiusKm, { pagesToFetch, startPage }),
     fetchSkiddleEvents(lat, lng, Math.round(radiusKm * 0.621371)) // Convert to miles
   ])
 
-  // Combine results, handling rejected promises
+  // Extract events from new response format
+  const tmData = ticketmasterResult.status === 'fulfilled' ? ticketmasterResult.value : { events: [], pagination: null }
+  const skiddleEvents = skiddleResult.status === 'fulfilled' ? skiddleResult.value : []
+
+  // Combine results
   const allEvents = [
-    ...(ticketmasterEvents.status === 'fulfilled' ? ticketmasterEvents.value : []),
-    ...(skiddleEvents.status === 'fulfilled' ? skiddleEvents.value : [])
+    ...tmData.events,
+    ...skiddleEvents
   ]
 
   // Deduplicate by name + date (same event might be on multiple platforms)
@@ -58,14 +68,44 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30) {
   const enhancedEvents = enhanceEvents(upcomingEvents, { lat, lng, radiusKm })
   const sortedEvents = sortEvents(enhancedEvents, 'recommended')
 
-  // Update cache
-  combinedCache = {
-    data: sortedEvents,
-    location: cacheKey,
-    timestamp: Date.now()
+  // Calculate pagination info from Ticketmaster response
+  const tmPagination = tmData.pagination
+  const currentPage = tmPagination?.number ?? startPage
+  const totalPages = tmPagination?.totalPages ?? 0
+  const hasMore = tmPagination ? (currentPage + pagesToFetch) < totalPages : false
+  const totalAvailable = tmPagination?.totalElements ?? sortedEvents.length
+
+  const responseData = {
+    events: sortedEvents,
+    hasMore,
+    totalAvailable,
+    currentPage: currentPage + pagesToFetch, // Next page to fetch
+    pagesLoaded: pagesToFetch
   }
 
-  return sortedEvents
+  // Update cache only for initial load
+  if (startPage === 0) {
+    combinedCache = {
+      data: responseData,
+      location: cacheKey,
+      timestamp: Date.now()
+    }
+  }
+
+  return responseData
+}
+
+/**
+ * Fetch more events (for "Load More" functionality)
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} radiusKm - Search radius in km
+ * @param {number} startPage - Page to start fetching from
+ * @param {number} pagesToFetch - Number of pages to fetch
+ * @returns {Promise<{events: RoamEvent[], hasMore: boolean, totalAvailable: number, currentPage: number}>}
+ */
+export async function fetchMoreEvents(lat, lng, radiusKm, startPage, pagesToFetch = 3) {
+  return fetchAllEvents(lat, lng, radiusKm, { pagesToFetch, startPage })
 }
 
 /**
@@ -467,6 +507,7 @@ export function getSourceInfo(source) {
 
 export default {
   fetchAllEvents,
+  fetchMoreEvents,
   getTodayEvents,
   getTomorrowEvents,
   getWeekendEvents,

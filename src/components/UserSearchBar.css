@@ -1,0 +1,140 @@
+/* User Search Bar Component Styles */
+
+.user-search-bar {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.user-search-bar.inline {
+  margin-bottom: 0;
+}
+
+.user-search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface-secondary, #f5f5f5);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.user-search-input-wrapper:focus-within {
+  background: var(--surface-color, #fff);
+  box-shadow: 0 0 0 2px var(--primary-color, #E07A5F);
+}
+
+.user-search-input-wrapper svg {
+  color: var(--text-tertiary, #999);
+  flex-shrink: 0;
+}
+
+.user-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  color: var(--text-primary, #1a1a1a);
+  outline: none;
+}
+
+.user-search-input::placeholder {
+  color: var(--text-tertiary, #999);
+}
+
+.user-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--surface-color, #fff);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-tertiary, #999);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.user-search-clear:hover {
+  color: var(--text-primary, #1a1a1a);
+  background: var(--surface-hover, #eee);
+}
+
+.user-search-count {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #666);
+  margin-top: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+/* Search Results Dropdown */
+.user-search-results {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
+  background: var(--surface-color, #fff);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 0.75rem;
+}
+
+.user-search-bar.inline .user-search-results {
+  max-height: 300px;
+}
+
+.user-search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-search-results-list > div {
+  cursor: pointer;
+}
+
+.user-search-results-list > div:hover .user-card {
+  background: var(--surface-secondary, #f5f5f5);
+}
+
+/* Empty State */
+.user-search-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-secondary, #666);
+}
+
+.user-search-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Load More Button */
+.user-search-load-more {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--surface-secondary, #f5f5f5);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--primary-color, #E07A5F);
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.user-search-load-more:hover:not(:disabled) {
+  background: rgba(224, 122, 95, 0.1);
+}
+
+.user-search-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

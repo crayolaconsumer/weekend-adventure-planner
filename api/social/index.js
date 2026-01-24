@@ -17,6 +17,7 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
+import { hasBlockBetween } from './block.js'
 
 export default async function handler(req, res) {
   try {
@@ -258,10 +259,11 @@ async function getActivityFeed(req, res, currentUser, limit, offset) {
 /**
  * Discover users - "People Like You"
  * Finds users who have saved similar places
+ * Filters out blocked users and respects privacy settings
  */
 async function discoverUsers(req, res, currentUser, limit) {
   if (!currentUser) {
-    // For anonymous users, show active contributors
+    // For anonymous users, show active contributors (public accounts only)
     const sql = `
       SELECT
         u.id,
@@ -271,7 +273,9 @@ async function discoverUsers(req, res, currentUser, limit) {
         COUNT(c.id) as contribution_count
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status IN ('approved', 'pending')
+      LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
+      AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
       GROUP BY u.id
       HAVING contribution_count > 0
       ORDER BY contribution_count DESC
@@ -287,12 +291,14 @@ async function discoverUsers(req, res, currentUser, limit) {
         avatarUrl: u.avatar_url,
         contributionCount: u.contribution_count,
         isFollowing: false,
+        isPrivate: false,
         matchReason: 'Active contributor'
       }))
     })
   }
 
   // For logged in users, find users with similar saved places
+  // Exclude blocked users in both directions
   const sql = `
     SELECT
       u.id,
@@ -301,19 +307,22 @@ async function discoverUsers(req, res, currentUser, limit) {
       u.avatar_url,
       COUNT(DISTINCT sp2.place_id) as common_saves,
       (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status IN ('approved', 'pending')) as contribution_count,
-      (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following
+      (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following,
+      COALESCE(ups.is_private_account, FALSE) as is_private
     FROM users u
     JOIN saved_places sp2 ON u.id = sp2.user_id
+    LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
     WHERE sp2.place_id IN (SELECT place_id FROM saved_places WHERE user_id = ?)
     AND u.id != ?
     AND u.username IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
+    AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
     GROUP BY u.id
     ORDER BY common_saves DESC, contribution_count DESC
     LIMIT ?
   `
 
-  const similarUsers = await query(sql, [currentUser.id, currentUser.id, currentUser.id, currentUser.id, limit])
+  const similarUsers = await query(sql, [currentUser.id, currentUser.id, currentUser.id, currentUser.id, currentUser.id, currentUser.id, limit])
 
   // If not enough similar users, fill with active contributors
   if (similarUsers.length < limit) {
@@ -326,18 +335,21 @@ async function discoverUsers(req, res, currentUser, limit) {
         u.avatar_url,
         0 as common_saves,
         COUNT(c.id) as contribution_count,
-        (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following
+        (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following,
+        COALESCE(ups.is_private_account, FALSE) as is_private
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status IN ('approved', 'pending')
+      LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.id NOT IN (${excludeIds.map(() => '?').join(',')})
       AND u.username IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
+      AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
       GROUP BY u.id
       HAVING contribution_count > 0
       ORDER BY contribution_count DESC
       LIMIT ?
     `
-    const fillUsers = await query(fillSql, [currentUser.id, ...excludeIds, currentUser.id, limit - similarUsers.length])
+    const fillUsers = await query(fillSql, [currentUser.id, ...excludeIds, currentUser.id, currentUser.id, currentUser.id, limit - similarUsers.length])
     similarUsers.push(...fillUsers)
   }
 
@@ -350,6 +362,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       commonSaves: u.common_saves,
       contributionCount: u.contribution_count,
       isFollowing: !!u.is_following,
+      isPrivate: !!u.is_private,
       matchReason: u.common_saves > 0
         ? `${u.common_saves} places in common`
         : 'Active contributor'
@@ -379,6 +392,12 @@ async function followUser(req, res, user) {
     return res.status(404).json({ error: 'User not found' })
   }
 
+  // Check if blocked
+  const blocked = await hasBlockBetween(user.id, targetUserId)
+  if (blocked) {
+    return res.status(403).json({ error: 'Unable to follow this user' })
+  }
+
   // Check if already following
   const existing = await queryOne(
     'SELECT id FROM follows WHERE follower_id = ? AND following_id = ?',
@@ -386,10 +405,63 @@ async function followUser(req, res, user) {
   )
 
   if (existing) {
-    return res.status(200).json({ success: true, message: 'Already following' })
+    return res.status(200).json({ success: true, message: 'Already following', status: 'following' })
   }
 
-  // Create follow
+  // Check if target user has private account
+  const privacySettings = await queryOne(
+    'SELECT is_private_account FROM user_privacy_settings WHERE user_id = ?',
+    [targetUserId]
+  )
+
+  if (privacySettings?.is_private_account) {
+    // Check if there's already a pending request
+    const existingRequest = await queryOne(
+      'SELECT id, status FROM follow_requests WHERE requester_id = ? AND target_id = ?',
+      [user.id, targetUserId]
+    )
+
+    if (existingRequest) {
+      if (existingRequest.status === 'pending') {
+        return res.status(200).json({ success: true, message: 'Request already pending', status: 'requested' })
+      }
+      // If previously rejected, allow new request
+      if (existingRequest.status === 'rejected') {
+        await update(
+          'UPDATE follow_requests SET status = ?, created_at = NOW() WHERE id = ?',
+          ['pending', existingRequest.id]
+        )
+      }
+    } else {
+      // Create follow request
+      await insert(
+        'INSERT INTO follow_requests (requester_id, target_id, status) VALUES (?, ?, ?)',
+        [user.id, targetUserId, 'pending']
+      )
+    }
+
+    // Get follower's username for notification
+    const followerInfo = await queryOne('SELECT username, display_name FROM users WHERE id = ?', [user.id])
+    const followerName = followerInfo?.display_name || followerInfo?.username || 'Someone'
+
+    // Create notification for the target user
+    await createNotification({
+      userId: targetUserId,
+      actorId: user.id,
+      type: 'follow_request',
+      title: 'Follow request',
+      message: `${followerName} wants to follow you`,
+      data: { requesterUsername: followerInfo?.username }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Follow request sent',
+      status: 'requested'
+    })
+  }
+
+  // Public account - create follow directly
   await insert(
     'INSERT INTO follows (follower_id, following_id) VALUES (?, ?)',
     [user.id, targetUserId]
@@ -417,12 +489,13 @@ async function followUser(req, res, user) {
 
   return res.status(200).json({
     success: true,
-    followerCount: countResult.count
+    followerCount: countResult.count,
+    status: 'following'
   })
 }
 
 /**
- * Unfollow a user
+ * Unfollow a user (also cancels pending follow requests)
  */
 async function unfollowUser(req, res, user) {
   const { userId } = req.body
@@ -433,9 +506,16 @@ async function unfollowUser(req, res, user) {
 
   const targetUserId = parseInt(userId)
 
+  // Delete follow relationship if exists
   await update(
     'DELETE FROM follows WHERE follower_id = ? AND following_id = ?',
     [user.id, targetUserId]
+  )
+
+  // Also cancel any pending follow request
+  await update(
+    'DELETE FROM follow_requests WHERE requester_id = ? AND target_id = ? AND status = ?',
+    [user.id, targetUserId, 'pending']
   )
 
   // Get updated follower count for target user
@@ -446,6 +526,7 @@ async function unfollowUser(req, res, user) {
 
   return res.status(200).json({
     success: true,
-    followerCount: countResult.count
+    followerCount: countResult.count,
+    status: 'not_following'
   })
 }

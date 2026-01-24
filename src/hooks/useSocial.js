@@ -46,7 +46,12 @@ export function useFollow() {
         return { success: false, error: data.error }
       }
 
-      return { success: true, followerCount: data.followerCount }
+      // status can be 'following' or 'requested' (for private accounts)
+      return {
+        success: true,
+        followerCount: data.followerCount,
+        status: data.status || 'following'
+      }
     } catch (err) {
       setLoading(false)
       return { success: false, error: err.message }
@@ -77,7 +82,11 @@ export function useFollow() {
         return { success: false, error: data.error }
       }
 
-      return { success: true, followerCount: data.followerCount }
+      return {
+        success: true,
+        followerCount: data.followerCount,
+        status: data.status || 'not_following'
+      }
     } catch (err) {
       setLoading(false)
       return { success: false, error: err.message }

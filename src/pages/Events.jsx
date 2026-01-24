@@ -15,6 +15,7 @@ import EventCard from '../components/EventCard'
 import EventDetail from '../components/EventDetail'
 import {
   fetchAllEvents,
+  fetchMoreEvents,
   getTodayEvents,
   getTomorrowEvents,
   getWeekendEvents,
@@ -408,6 +409,10 @@ export default function Events({ location }) {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [savedCount, setSavedCount] = useState(() => getSavedEvents().length)
   const [apiStatus, setApiStatus] = useState({ hasEvents: false, sources: [] })
+  // Server-side pagination state
+  const [hasMoreFromServer, setHasMoreFromServer] = useState(false)
+  const [nextServerPage, setNextServerPage] = useState(0)
+  const [totalAvailable, setTotalAvailable] = useState(0)
   const loadMoreTimeoutRef = useRef(null)
   const [searchRadius, setSearchRadius] = useState(() => {
     const saved = localStorage.getItem('roam_events_radius')
@@ -454,10 +459,16 @@ export default function Events({ location }) {
     setLoading(true)
 
     try {
-      const fetchedEvents = await fetchAllEvents(location.lat, location.lng, searchRadius)
+      const result = await fetchAllEvents(location.lat, location.lng, searchRadius)
+      const fetchedEvents = result.events || result // Handle both new and old format
       setEvents(fetchedEvents)
       setCurrentIndex(0)
       setDisplayLimit(EVENTS_PAGE_SIZE)
+
+      // Update server-side pagination state
+      setHasMoreFromServer(result.hasMore || false)
+      setNextServerPage(result.currentPage || 3) // Default to page 3 since we fetched 0,1,2
+      setTotalAvailable(result.totalAvailable || fetchedEvents.length)
 
       // Track which sources returned data
       const sources = [...new Set(fetchedEvents.map(e => e.source))]
@@ -473,17 +484,45 @@ export default function Events({ location }) {
     }
   }
 
-  // Load more events when running low
-  const loadMoreEvents = useCallback(() => {
+  // Load more events - either from local cache or fetch from server
+  const loadMoreEvents = useCallback(async () => {
     if (loadingMore) return
 
     setLoadingMore(true)
-    // Small delay for visual feedback
-    loadMoreTimeoutRef.current = setTimeout(() => {
-      setDisplayLimit(prev => prev + EVENTS_PAGE_SIZE)
-      setLoadingMore(false)
-    }, 300)
-  }, [loadingMore])
+
+    // Check if we need to fetch more from server
+    const remainingCached = events.length - displayLimit
+    if (remainingCached <= 0 && hasMoreFromServer && location?.lat && location?.lng) {
+      // Fetch more from server
+      try {
+        const result = await fetchMoreEvents(
+          location.lat,
+          location.lng,
+          searchRadius,
+          nextServerPage,
+          3 // Fetch 3 more pages
+        )
+
+        if (result.events && result.events.length > 0) {
+          // Append new events, avoiding duplicates
+          setEvents(prev => {
+            const existingIds = new Set(prev.map(e => e.id))
+            const newEvents = result.events.filter(e => !existingIds.has(e.id))
+            return [...prev, ...newEvents]
+          })
+          setHasMoreFromServer(result.hasMore)
+          setNextServerPage(result.currentPage)
+          setTotalAvailable(result.totalAvailable)
+        }
+      } catch (err) {
+        console.error('Failed to load more events:', err)
+      }
+    }
+
+    // Always increase display limit
+    setDisplayLimit(prev => prev + EVENTS_PAGE_SIZE)
+    setLoadingMore(false)
+  }, [loadingMore, events.length, displayLimit, hasMoreFromServer, location?.lat, location?.lng, searchRadius, nextServerPage])
 
   // Clean up timeout on unmount
   useEffect(() => {
@@ -675,7 +714,7 @@ export default function Events({ location }) {
             <h1 className="page-title">What's On</h1>
             <p className="events-subtitle">
               {apiStatus.hasEvents
-                ? `${filteredEvents.length} events near you`
+                ? `${filteredEvents.length} events${totalAvailable > events.length ? ` (${totalAvailable.toLocaleString()} available)` : ' near you'}`
                 : 'Local events near you'
               }
             </p>
@@ -1150,19 +1189,27 @@ export default function Events({ location }) {
                 ))}
               </AnimatePresence>
             </div>
-            {hasMoreToLoad && (
+            {(hasMoreToLoad || hasMoreFromServer) && (
               <div className="events-load-more">
                 <button
                   className="events-load-more-btn"
                   onClick={loadMoreEvents}
                   disabled={loadingMore}
                 >
-                  {loadingMore ? 'Loading...' : `Load More (${allFilteredEvents.length - filteredEvents.length} remaining)`}
+                  {loadingMore ? 'Loading...' : hasMoreToLoad
+                    ? `Load More (${allFilteredEvents.length - filteredEvents.length} remaining)`
+                    : hasMoreFromServer
+                      ? `Load More Events (${totalAvailable.toLocaleString()} available)`
+                      : 'Load More'
+                  }
                 </button>
               </div>
             )}
             <p className="events-grid-count">
               Showing {filteredEvents.length} of {allFilteredEvents.length} events
+              {hasMoreFromServer && totalAvailable > 0 && (
+                <span className="events-total-available"> ({totalAvailable.toLocaleString()} available)</span>
+              )}
             </p>
           </div>
         )}

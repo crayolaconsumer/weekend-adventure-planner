@@ -1,0 +1,269 @@
+/* Blocked Users Modal Styles */
+
+.blocked-users-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+@media (min-width: 600px) {
+  .blocked-users-modal-overlay {
+    align-items: center;
+  }
+}
+
+.blocked-users-modal {
+  background: var(--surface-color, #fff);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (min-width: 600px) {
+  .blocked-users-modal {
+    border-radius: 20px;
+    max-height: 70vh;
+  }
+}
+
+.blocked-users-modal-header {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color, #e5e5e5);
+}
+
+.blocked-users-modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+
+.blocked-users-modal-header .blocked-count {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  margin-right: 1rem;
+}
+
+.blocked-users-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--surface-secondary, #f5f5f5);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  transition: all 0.2s ease;
+}
+
+.blocked-users-modal-close:hover {
+  background: var(--surface-hover, #eee);
+  color: var(--text-primary, #1a1a1a);
+}
+
+.blocked-users-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* Loading State */
+.blocked-users-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: var(--text-secondary, #666);
+}
+
+.blocked-users-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color, #e5e5e5);
+  border-top-color: var(--primary-color, #E07A5F);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.blocked-users-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  color: var(--text-secondary, #666);
+  text-align: center;
+}
+
+.blocked-users-empty .empty-icon {
+  color: var(--text-tertiary, #999);
+  margin-bottom: 0.5rem;
+}
+
+.blocked-users-empty p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.blocked-users-empty .empty-desc {
+  font-size: 0.85rem;
+  color: var(--text-tertiary, #999);
+  max-width: 240px;
+}
+
+/* Error State */
+.blocked-users-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: var(--error-color, #dc3545);
+  text-align: center;
+}
+
+.blocked-users-error .error-icon {
+  width: 32px;
+  height: 32px;
+  background: rgba(220, 53, 69, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* Blocked Users List */
+.blocked-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.blocked-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background: var(--surface-secondary, #f5f5f5);
+  border-radius: 12px;
+  gap: 0.75rem;
+}
+
+.blocked-user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.blocked-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  filter: grayscale(50%);
+}
+
+.blocked-user-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.blocked-user-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blocked-user-username {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+}
+
+.blocked-user-time {
+  font-size: 0.75rem;
+  color: var(--text-tertiary, #999);
+  margin-top: 0.25rem;
+}
+
+/* Unblock Button */
+.blocked-user-unblock {
+  padding: 0.5rem 1rem;
+  background: var(--surface-color, #fff);
+  border: 1px solid var(--border-color, #e5e5e5);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary, #1a1a1a);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.blocked-user-unblock:hover:not(:disabled) {
+  border-color: var(--primary-color, #E07A5F);
+  color: var(--primary-color, #E07A5F);
+}
+
+.blocked-user-unblock:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Load More Button */
+.blocked-users-load-more {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--surface-secondary, #f5f5f5);
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--primary-color, #E07A5F);
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.blocked-users-load-more:hover:not(:disabled) {
+  background: rgba(224, 122, 95, 0.1);
+}
+
+.blocked-users-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

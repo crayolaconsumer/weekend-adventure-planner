@@ -27,35 +27,76 @@ let tmCache = {
 }
 
 /**
+ * Fetch a single page of events from Ticketmaster
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} radiusKm - Search radius in km
+ * @param {number} page - Page number (0-indexed)
+ * @returns {Promise<{events: Array, pagination: Object|null}>}
+ */
+async function fetchTicketmasterPage(lat, lng, radiusKm, page) {
+  const params = new URLSearchParams({
+    lat: lat.toString(),
+    lng: lng.toString(),
+    radius: radiusKm.toString(),
+    page: page.toString()
+  })
+
+  const response = await fetchWithTimeout(`/api/events/ticketmaster?${params}`)
+
+  if (!response.ok) {
+    return { events: [], pagination: null }
+  }
+
+  const data = await response.json()
+  const events = (data.events || [])
+    .map(normalizeTicketmasterEvent)
+    .filter(Boolean)
+
+  return {
+    events,
+    pagination: data.pagination || null
+  }
+}
+
+/**
  * Fetch events from Ticketmaster via secure server-side proxy
+ * Fetches multiple pages in parallel for better coverage
+ *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
  * @param {number} radiusKm - Search radius in km (default 30)
- * @returns {Promise<RoamEvent[]>}
+ * @param {Object} options - Fetch options
+ * @param {number} options.pagesToFetch - Number of pages to fetch in parallel (default 3)
+ * @param {number} options.startPage - Starting page number (default 0)
+ * @returns {Promise<{events: RoamEvent[], pagination: Object|null}>}
  */
-export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30) {
+export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options = {}) {
+  const { pagesToFetch = 3, startPage = 0 } = options
+
   // Validate inputs
   const coordCheck = validateCoordinates(lat, lng)
   if (!coordCheck.valid) {
     console.error('Ticketmaster:', coordCheck.error)
-    return []
+    return { events: [], pagination: null }
   }
 
   const radiusCheck = validateRadius(radiusKm)
   if (!radiusCheck.valid) {
     console.error('Ticketmaster:', radiusCheck.error)
-    return []
+    return { events: [], pagination: null }
   }
 
   // Check circuit breaker before proceeding
   if (!canMakeRequest(API_NAME)) {
     console.warn('Ticketmaster API circuit breaker open, using cached data')
-    return tmCache.data || []
+    return { events: tmCache.data?.events || [], pagination: tmCache.data?.pagination || null }
   }
 
-  // Check cache validity
-  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`
+  // Check cache validity (only for initial load, startPage === 0)
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm}`
   if (
+    startPage === 0 &&
     tmCache.data &&
     tmCache.location === cacheKey &&
     Date.now() - tmCache.timestamp < CACHE_TTL
@@ -64,41 +105,59 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30) {
   }
 
   // Deduplicate requests - return existing promise if same request in flight
-  const requestKey = `tm_${cacheKey}_${radiusKm}`
+  const requestKey = `tm_${cacheKey}_${startPage}_${pagesToFetch}`
 
   return deduplicateRequest(requestKey, async () => {
     try {
-      // Call secure server-side proxy (API key handled server-side)
-      const params = new URLSearchParams({
-        lat: lat.toString(),
-        lng: lng.toString(),
-        radius: radiusKm.toString()
-      })
+      // Fetch multiple pages in parallel
+      const pagePromises = Array.from({ length: pagesToFetch }, (_, i) =>
+        fetchTicketmasterPage(lat, lng, radiusKm, startPage + i)
+      )
 
-      const response = await fetchWithTimeout(`/api/events/ticketmaster?${params}`)
+      const results = await Promise.allSettled(pagePromises)
 
-      if (!response.ok) {
-        // Silently fail and return cached data (API might not be configured)
-        return tmCache.data || []
+      // Combine events from all successful page fetches
+      const allEvents = []
+      let firstPagination = null
+
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value.events.length > 0) {
+          allEvents.push(...result.value.events)
+          // Use pagination from first successful response
+          if (!firstPagination && result.value.pagination) {
+            firstPagination = result.value.pagination
+          }
+        }
       }
 
-      const data = await response.json()
-      const events = (data._embedded?.events || [])
-        .map(normalizeTicketmasterEvent)
-        .filter(Boolean)
+      // Deduplicate events by ID (same event shouldn't appear twice)
+      const seenIds = new Set()
+      const uniqueEvents = allEvents.filter(event => {
+        if (seenIds.has(event.id)) return false
+        seenIds.add(event.id)
+        return true
+      })
 
-      // Update cache
-      tmCache = {
-        data: events,
-        location: cacheKey,
-        timestamp: Date.now()
+      const responseData = {
+        events: uniqueEvents,
+        pagination: firstPagination
+      }
+
+      // Update cache only for initial load
+      if (startPage === 0) {
+        tmCache = {
+          data: responseData,
+          location: cacheKey,
+          timestamp: Date.now()
+        }
       }
 
       recordSuccess(API_NAME)
-      return events
+      console.log(`Ticketmaster: Fetched ${uniqueEvents.length} events from ${pagesToFetch} pages (${firstPagination?.totalElements || 'unknown'} total available)`)
+      return responseData
     } catch {
       recordFailure(API_NAME)
-      return tmCache.data || []
+      return { events: tmCache.data?.events || [], pagination: tmCache.data?.pagination || null }
     }
   })
 }

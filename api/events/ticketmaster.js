@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   }
 
   // Get and validate query parameters
-  const { lat, lng, radius = '30' } = req.query
+  const { lat, lng, radius = '30', page = '0' } = req.query
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'Missing required parameters: lat, lng' })
@@ -67,6 +67,11 @@ export default async function handler(req, res) {
   }
   if (isNaN(radiusKm) || radiusKm < 1 || radiusKm > 500) {
     return res.status(400).json({ error: 'Invalid radius (1-500km)' })
+  }
+
+  const pageNum = parseInt(page, 10)
+  if (isNaN(pageNum) || pageNum < 0 || pageNum > 100) {
+    return res.status(400).json({ error: 'Invalid page (0-100)' })
   }
 
   try {
@@ -90,6 +95,7 @@ export default async function handler(req, res) {
       startDateTime,
       endDateTime,
       size: '50',
+      page: pageNum.toString(),
       sort: 'date,asc',
       countryCode: 'GB'
     })
@@ -127,7 +133,14 @@ export default async function handler(req, res) {
     // Set cache headers (5 minutes)
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
 
-    return res.status(200).json(data)
+    // Return structured response with events and pagination metadata
+    // Ticketmaster page object: { size, totalElements, totalPages, number }
+    return res.status(200).json({
+      events: data._embedded?.events || [],
+      pagination: data.page || null,
+      // Expose additional metadata for debugging/analytics
+      _links: data._links || null
+    })
   } catch (error) {
     console.error('Ticketmaster proxy error:', error.message)
     return res.status(500).json({ error: 'Failed to fetch events' })

@@ -1324,3 +1324,84 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* ═══════════════════════════════════════════════════════
+   PRIVACY & SEARCH FEATURES (Phase 8)
+   ═══════════════════════════════════════════════════════ */
+
+/* User Search Section */
+.unified-profile-search-section {
+  padding: 0 var(--space-lg, 16px) var(--space-md, 12px);
+  background: var(--roam-cream, #fdfcf8);
+}
+
+/* Private Account Notice (on profile card) */
+.unified-profile-private-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 6px);
+  margin-top: var(--space-md, 12px);
+  padding: var(--space-sm, 8px) var(--space-md, 16px);
+  background: var(--roam-parchment, #e8e0d0);
+  border-radius: var(--radius-full, 24px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  color: var(--roam-ink-muted, #6b6b6b);
+}
+
+.unified-profile-private-notice svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* Private Account Full View (Activity Tab) */
+.unified-profile-private {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-3xl, 64px) var(--space-xl, 24px);
+  color: var(--roam-ink-muted, #6b6b6b);
+}
+
+.unified-profile-private-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  margin-bottom: var(--space-lg, 16px);
+  background: var(--roam-parchment, #e8e0d0);
+  border-radius: 50%;
+  color: var(--roam-ink-muted, #6b6b6b);
+}
+
+.unified-profile-private h3 {
+  font-family: var(--font-display, 'Newsreader', serif);
+  margin: 0 0 var(--space-sm, 8px);
+  font-size: var(--text-xl, 24px);
+  font-weight: 500;
+  color: var(--roam-forest, #1a3a2f);
+}
+
+.unified-profile-private p {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  margin: 0;
+  font-size: var(--text-sm, 14px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* Hidden Stats (followers/following lists hidden) */
+.unified-profile-stat.hidden {
+  cursor: default;
+}
+
+.unified-profile-stat.hidden:hover {
+  background: transparent;
+}
+
+.unified-profile-stat.hidden .unified-profile-stat-value {
+  color: var(--roam-ink-muted, #6b6b6b);
+}

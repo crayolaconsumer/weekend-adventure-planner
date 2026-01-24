@@ -2,6 +2,7 @@
  * GET /api/users/search
  *
  * Search for users by username or display name
+ * Respects privacy settings (show_in_search) and excludes blocked users
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
@@ -24,8 +25,10 @@ export default async function handler(req, res) {
     const likePattern = `%${searchTerm}%`
     const limitNum = Math.min(parseInt(limit), 50)
     const offsetNum = parseInt(offset) || 0
+    const startsWith = `${searchTerm}%`
 
     // Search for users by username or display_name
+    // Respect show_in_search privacy setting and exclude blocked users
     let sql = `
       SELECT
         u.id,
@@ -33,7 +36,8 @@ export default async function handler(req, res) {
         u.display_name,
         u.avatar_url,
         (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status IN ('approved', 'pending')) as contribution_count,
-        (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as follower_count
+        (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as follower_count,
+        COALESCE(ups.is_private_account, FALSE) as is_private
     `
 
     // If logged in, check if current user follows each result
@@ -45,16 +49,34 @@ export default async function handler(req, res) {
 
     sql += `
       FROM users u
+      LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
       AND (
         u.username LIKE ?
         OR u.display_name LIKE ?
       )
+      AND (ups.show_in_search IS NULL OR ups.show_in_search = TRUE)
     `
 
-    // Exclude current user from results
+    const params = []
+
     if (currentUser) {
-      sql += ` AND u.id != ?`
+      params.push(currentUser.id) // For is_following subquery
+    }
+
+    params.push(likePattern, likePattern)
+
+    // Exclude current user and blocked users from results
+    if (currentUser) {
+      sql += `
+        AND u.id != ?
+        AND NOT EXISTS (
+          SELECT 1 FROM blocked_users
+          WHERE (blocker_id = ? AND blocked_id = u.id)
+             OR (blocker_id = u.id AND blocked_id = ?)
+        )
+      `
+      params.push(currentUser.id, currentUser.id, currentUser.id)
     }
 
     sql += `
@@ -68,24 +90,30 @@ export default async function handler(req, res) {
       LIMIT ? OFFSET ?
     `
 
-    const startsWith = `${searchTerm}%`
-    const params = currentUser
-      ? [currentUser.id, likePattern, likePattern, currentUser.id, searchTerm, startsWith, limitNum, offsetNum]
-      : [likePattern, likePattern, searchTerm, startsWith, limitNum, offsetNum]
+    params.push(searchTerm, startsWith, limitNum, offsetNum)
 
     const users = await query(sql, params)
 
     // Get total count for pagination
     let countSql = `
       SELECT COUNT(*) as total FROM users u
+      LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
       AND (u.username LIKE ? OR u.display_name LIKE ?)
+      AND (ups.show_in_search IS NULL OR ups.show_in_search = TRUE)
     `
     const countParams = [likePattern, likePattern]
 
     if (currentUser) {
-      countSql += ` AND u.id != ?`
-      countParams.push(currentUser.id)
+      countSql += `
+        AND u.id != ?
+        AND NOT EXISTS (
+          SELECT 1 FROM blocked_users
+          WHERE (blocker_id = ? AND blocked_id = u.id)
+             OR (blocker_id = u.id AND blocked_id = ?)
+        )
+      `
+      countParams.push(currentUser.id, currentUser.id, currentUser.id)
     }
 
     const countResult = await queryOne(countSql, countParams)
@@ -98,7 +126,8 @@ export default async function handler(req, res) {
         avatarUrl: u.avatar_url,
         contributionCount: u.contribution_count,
         followerCount: u.follower_count,
-        isFollowing: !!u.is_following
+        isFollowing: !!u.is_following,
+        isPrivate: !!u.is_private
       })),
       total: countResult.total,
       hasMore: offsetNum + users.length < countResult.total
