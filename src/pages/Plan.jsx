@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import { fetchEnrichedPlaces } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
@@ -99,9 +100,15 @@ const ChevronIcon = () => (
   </svg>
 )
 
+// Get auth token from storage
+const getAuthToken = () => {
+  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+}
+
 export default function Plan({ location }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { getTravelTime: fetchTravelTime } = useRouting()
   const { places: wishlist } = useSavedPlaces()
 
@@ -413,9 +420,13 @@ export default function Plan({ location }) {
         })
       }
 
+      const token = getAuthToken()
       const res = await fetch('/api/plans', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         credentials: 'include',
         body: JSON.stringify(payload)
       })
