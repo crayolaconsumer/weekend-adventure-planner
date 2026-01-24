@@ -93,25 +93,24 @@ function buildOverpassQuery(lat, lng, radius, types) {
 
   // Use bbox instead of around - SIGNIFICANTLY faster per Overpass docs
   const bbox = radiusToBbox(lat, lng, radius)
-  const bboxStr = `(${bbox.south},${bbox.west},${bbox.north},${bbox.east})`
 
   // Group types by their OSM keys - reduces clauses by ~70%
   const grouped = groupTypesByKey(uniqueTypes)
 
-  // Build query clauses with bbox (faster) instead of around
+  // Build query clauses - global bbox applies to all statements
   const typeFilters = Object.entries(grouped)
     .map(([key, keyTypes]) => {
       const regex = keyTypes.map(escapeOverpassRegex).join('|')
-      return `nw["${key}"~"^(${regex})$"]${nameFilter}${bboxStr};`
+      return `nw["${key}"~"^(${regex})$"]${nameFilter};`
     })
     .join('\n      ')
 
-  // Use global bbox limit + compact output
+  // Global bbox setting applies to ALL statements - no need for per-statement bbox
   const query = `[out:json][timeout:${timeout}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
-    (
-      ${typeFilters}
-    );
-    out center;`
+(
+${typeFilters}
+);
+out center;`
 
   return {
     query,
