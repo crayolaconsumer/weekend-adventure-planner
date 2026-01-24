@@ -456,27 +456,6 @@
     0 8px 24px rgba(34, 197, 94, 0.25);
 }
 
-/* Map button - Quick location preview */
-.swipe-card-btn.map {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #fff 0%, #f0f9ff 100%);
-  color: #0ea5e9;
-  box-shadow:
-    0 2px 4px rgba(14, 165, 233, 0.15),
-    0 4px 8px rgba(14, 165, 233, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-.swipe-card-btn.map:hover {
-  background: #0ea5e9;
-  color: white;
-  transform: scale(1.08);
-  box-shadow:
-    0 4px 8px rgba(14, 165, 233, 0.3),
-    0 8px 16px rgba(14, 165, 233, 0.2);
-}
-
 /* Go button - THE HERO ACTION */
 .swipe-card-btn.go {
   width: 72px;
@@ -552,11 +531,6 @@
   .swipe-card-btn.like {
     width: 50px;
     height: 50px;
-  }
-
-  .swipe-card-btn.map {
-    width: 42px;
-    height: 42px;
   }
 }
 

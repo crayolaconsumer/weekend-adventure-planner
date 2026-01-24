@@ -56,7 +56,6 @@ export default function CardStack({
   userLocation = null, // For ad tracking
   onSwipe,
   onExpand,
-  onShowMap,
   onEmpty,
   onRefresh,
   onOpenSettings,
@@ -382,7 +381,6 @@ export default function CardStack({
                     place={place}
                     onSwipe={isTop ? handleSwipe : undefined}
                     onExpand={isTop ? onExpand : undefined}
-                    onShowMap={isTop ? onShowMap : undefined}
                     isTop={isTop}
                     topContribution={topContributions?.[place.id] || null}
                   />

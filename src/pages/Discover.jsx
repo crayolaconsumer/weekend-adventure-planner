@@ -8,7 +8,6 @@ import VisitedPrompt from '../components/VisitedPrompt'
 import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
-import MapPreview from '../components/MapPreview'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -121,9 +120,6 @@ export default function Discover({ location }) {
   // Plan prompt state (show after saving, with frequency limit)
   const [planPromptPlace, setPlanPromptPlace] = useState(null)
   const lastPlanPromptRef = useRef(0)
-
-  // Map preview state (quick location view without triggering visit flow)
-  const [mapPreviewPlace, setMapPreviewPlace] = useState(null)
 
   // Settings state
   const [travelMode, setTravelMode] = useState(() => {
@@ -933,7 +929,6 @@ export default function Discover({ location }) {
             userLocation={location}
             onSwipe={handleSwipe}
             onExpand={(place) => setSelectedPlace(place)}
-            onShowMap={(place) => setMapPreviewPlace(place)}
             onEmpty={() => {}}
             onRefresh={() => loadPlaces(weather)}
             onOpenSettings={() => setShowFilterModal(true)}
@@ -1067,20 +1062,6 @@ export default function Discover({ location }) {
             place={planPromptPlace}
             onClose={() => setPlanPromptPlace(null)}
             onAddToPlan={() => setPlanPromptPlace(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Map Preview - quick location view without triggering visit flow */}
-      <AnimatePresence>
-        {mapPreviewPlace && (
-          <MapPreview
-            place={mapPreviewPlace}
-            onClose={() => setMapPreviewPlace(null)}
-            onViewDetails={() => {
-              setMapPreviewPlace(null)
-              setSelectedPlace(mapPreviewPlace)
-            }}
           />
         )}
       </AnimatePresence>
