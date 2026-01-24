@@ -408,44 +408,44 @@ export function createOverpassController() {
 }
 
 // ═══════════════════════════════════════════════════════
-// LARGE RADIUS TILING - Split big searches into smaller tiles
-// Prevents timeouts for Explorer mode (150km) and Day Trip (75km)
+// LARGE RADIUS STRATEGY
+// For very large radii (Explorer/Day Trip), use sampling instead of tiling
+// to avoid rate limits (15+ requests = 429 errors)
 // ═══════════════════════════════════════════════════════
 
-const TILE_SIZE = 25000 // 25km tiles
-const MAX_CONCURRENT_TILES = 3 // Limit parallel requests
+const TILE_SIZE = 35000 // 35km tiles (larger = fewer requests)
+const MAX_TILES = 5 // Hard limit on tiles to avoid rate limits
+const BATCH_DELAY_MS = 2000 // Delay between batches to respect rate limits
 
 /**
- * Generate tiles for a large radius search
- * Creates a center tile + ring of tiles at 60% radius
- *
- * @param {number} lat - Center latitude
- * @param {number} lng - Center longitude
- * @param {number} radius - Total search radius in meters
- * @returns {Array<{lat, lng, radius}>} Array of tile definitions
+ * Generate sample points for a large radius search
+ * Uses center + cardinal directions instead of full ring
+ * Max 5 tiles to avoid rate limiting
  */
-function tileLargeRadius(lat, lng, radius) {
-  // Don't tile for smaller radii
-  if (radius <= TILE_SIZE * 1.5) {
+function sampleLargeRadius(lat, lng, radius) {
+  // For moderate radii, just use the full area
+  if (radius <= TILE_SIZE * 1.2) {
     return [{ lat, lng, radius }]
   }
 
-  const tiles = []
+  // For large radii, sample center + 4 cardinal directions
+  // This gives good coverage with only 5 requests max
+  const tiles = [{ lat, lng, radius: TILE_SIZE }] // Center
 
-  // Center tile
-  tiles.push({ lat, lng, radius: TILE_SIZE })
+  // Sample distance - halfway to edge
+  const sampleDist = radius * 0.5
 
-  // Ring of tiles at 60% of radius for better coverage
-  const ringRadius = radius * 0.6
-  const circumference = 2 * Math.PI * ringRadius
-  const tileCount = Math.ceil(circumference / (TILE_SIZE * 1.5)) // Overlap for coverage
+  // Cardinal directions (N, E, S, W)
+  const offsets = [
+    { latMult: 1, lngMult: 0 },  // North
+    { latMult: 0, lngMult: 1 },  // East
+    { latMult: -1, lngMult: 0 }, // South
+    { latMult: 0, lngMult: -1 }, // West
+  ]
 
-  for (let i = 0; i < tileCount; i++) {
-    const angle = (2 * Math.PI * i) / tileCount
-    // Convert meters to degrees (rough approximation)
-    const latOffset = (ringRadius / 111320) * Math.cos(angle)
-    const lngOffset = (ringRadius / (111320 * Math.cos(lat * Math.PI / 180))) * Math.sin(angle)
-
+  for (const { latMult, lngMult } of offsets) {
+    const latOffset = (sampleDist / 111320) * latMult
+    const lngOffset = (sampleDist / (111320 * Math.cos(lat * Math.PI / 180))) * lngMult
     tiles.push({
       lat: lat + latOffset,
       lng: lng + lngOffset,
@@ -453,12 +453,17 @@ function tileLargeRadius(lat, lng, radius) {
     })
   }
 
-  return tiles
+  return tiles.slice(0, MAX_TILES)
 }
 
 /**
- * Fetch places with tiling for large radii
- * Splits large searches into smaller tiles fetched with limited concurrency
+ * Delay helper
+ */
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * Fetch places with sampling for large radii
+ * Uses 5 sample points max to avoid rate limits
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
@@ -468,50 +473,46 @@ function tileLargeRadius(lat, lng, radius) {
  * @returns {Promise<Array>} Deduplicated array of places
  */
 export async function fetchWithTiling(lat, lng, radius, category = null, signal = null) {
-  const tiles = tileLargeRadius(lat, lng, radius)
+  const tiles = sampleLargeRadius(lat, lng, radius)
 
   // Single tile = use normal fetch
   if (tiles.length === 1) {
     return fetchNearbyPlaces(lat, lng, radius, category, signal)
   }
 
-  console.log(`[API] Tiling large radius (${radius}m) into ${tiles.length} tiles`)
+  console.log(`[API] Sampling large radius (${radius}m) with ${tiles.length} points`)
 
   const results = []
   const seen = new Set()
 
-  // Fetch tiles in batches to limit concurrency
-  for (let i = 0; i < tiles.length; i += MAX_CONCURRENT_TILES) {
-    // Check for cancellation between batches
+  // Fetch tiles SEQUENTIALLY with delays to avoid rate limits
+  for (let i = 0; i < tiles.length; i++) {
     if (signal?.aborted) {
       throw new DOMException('Aborted', 'AbortError')
     }
 
-    const batch = tiles.slice(i, i + MAX_CONCURRENT_TILES)
-    const batchResults = await Promise.all(
-      batch.map(tile =>
-        fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal)
-          .catch(err => {
-            // Rethrow abort errors, swallow others
-            if (err.name === 'AbortError') throw err
-            console.warn(`Tile fetch failed:`, err)
-            return []
-          })
-      )
-    )
+    // Add delay between requests (not before first)
+    if (i > 0) {
+      await delay(BATCH_DELAY_MS)
+    }
 
-    // Deduplicate as we go
-    for (const places of batchResults) {
+    const tile = tiles[i]
+    try {
+      const places = await fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal)
       for (const place of places) {
         if (!seen.has(place.id)) {
           seen.add(place.id)
           results.push(place)
         }
       }
+      console.log(`[API] Sample ${i + 1}/${tiles.length}: ${places.length} places`)
+    } catch (err) {
+      if (err.name === 'AbortError') throw err
+      console.warn(`Sample ${i + 1} failed:`, err)
     }
   }
 
-  console.log(`[API] Tiled fetch complete: ${results.length} unique places from ${tiles.length} tiles`)
+  console.log(`[API] Sampling complete: ${results.length} unique places`)
   return results
 }
 
