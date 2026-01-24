@@ -370,6 +370,7 @@
   border-radius: var(--radius-lg);
   padding: var(--space-md);
   border: 1px solid rgba(212, 168, 85, 0.15);
+  overflow: hidden; /* Prevent grid items from breaking out */
 }
 
 .plan-wishlist-section .plan-section-header {
@@ -762,5 +763,10 @@
   .plan-wishlist {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Ensure grid items don't overflow */
+  .plan-wishlist-item {
+    min-width: 0; /* Allow flex children to shrink below content size */
   }
 }
