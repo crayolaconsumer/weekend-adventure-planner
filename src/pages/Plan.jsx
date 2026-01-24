@@ -14,7 +14,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchEnrichedPlaces } from '../utils/apiClient'
-import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
+import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
 import { useRouting } from '../hooks/useRouting'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -103,6 +103,84 @@ const ChevronIcon = () => (
 // Get auth token from storage
 const getAuthToken = () => {
   return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+}
+
+/**
+ * Select stops with strict category diversity
+ * Ensures an itinerary has variety - no 3 pubs in a row
+ */
+function selectDiverseStops(places, count, isMixed = false) {
+  if (places.length === 0) return []
+
+  // Group by category
+  const byCategory = {}
+  for (const place of places) {
+    const key = place.category?.key || 'other'
+    if (!byCategory[key]) byCategory[key] = []
+    byCategory[key].push(place)
+  }
+
+  // Shuffle within each category
+  for (const key of Object.keys(byCategory)) {
+    byCategory[key].sort(() => Math.random() - 0.5)
+  }
+
+  const selected = []
+  const usedCategories = new Set()
+
+  // For mixed mode: strictly rotate through different categories
+  if (isMixed) {
+    const categoryKeys = Object.keys(byCategory)
+    // Shuffle category order
+    categoryKeys.sort(() => Math.random() - 0.5)
+
+    const categoryIndices = {}
+    categoryKeys.forEach(k => categoryIndices[k] = 0)
+
+    // Round-robin through categories, never picking same category twice in a row
+    let lastCategory = null
+    let attempts = 0
+    const maxAttempts = count * categoryKeys.length * 2
+
+    while (selected.length < count && attempts < maxAttempts) {
+      for (const catKey of categoryKeys) {
+        if (selected.length >= count) break
+        // Skip if same as last pick (prevent back-to-back same category)
+        if (catKey === lastCategory && categoryKeys.length > 1) continue
+
+        const catPlaces = byCategory[catKey]
+        const idx = categoryIndices[catKey]
+
+        if (idx < catPlaces.length) {
+          selected.push(catPlaces[idx])
+          categoryIndices[catKey]++
+          lastCategory = catKey
+        }
+      }
+      attempts++
+    }
+  } else {
+    // For specific vibes: still ensure some variety but less strict
+    const pool = [...places].sort(() => Math.random() - 0.5)
+    for (const place of pool) {
+      if (selected.length >= count) break
+      const cat = place.category?.key || 'other'
+      // Allow max 2 from same category
+      const countInCat = selected.filter(p => (p.category?.key || 'other') === cat).length
+      if (countInCat < 2) {
+        selected.push(place)
+      }
+    }
+    // Fill remaining if needed
+    for (const place of pool) {
+      if (selected.length >= count) break
+      if (!selected.includes(place)) {
+        selected.push(place)
+      }
+    }
+  }
+
+  return selected.slice(0, count)
 }
 
 export default function Plan({ location }) {
@@ -241,9 +319,10 @@ export default function Plan({ location }) {
 
       setAvailablePlaces(filtered)
 
-      // Remove redundant minScore filter - places already passed filtering
-      const stops = getRandomQualityPlaces(filtered, duration.stops, { minScore: 0 })
-      console.log('[Plan] Stops:', stops.length)
+      // Select stops with category diversity (strict for mixed mode)
+      const isMixed = selectedVibe === 'mixed'
+      const stops = selectDiverseStops(filtered, duration.stops, isMixed)
+      console.log('[Plan] Stops:', stops.length, isMixed ? '(mixed mode - diverse)' : '')
 
       const optimized = optimizeRoute(stops, location)
 
