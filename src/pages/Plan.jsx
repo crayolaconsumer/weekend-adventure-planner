@@ -42,6 +42,14 @@ const TRANSPORT_MODES = [
   { key: 'drive', label: 'Driving', speed: 35, icon: '🚗' },
 ]
 
+// Search radius options
+const RADIUS_OPTIONS = [
+  { key: 'nearby', label: 'Nearby', radius: 5000, description: '5km' },
+  { key: 'local', label: 'Local', radius: 10000, description: '10km' },
+  { key: 'area', label: 'Area', radius: 25000, description: '25km' },
+  { key: 'daytrip', label: 'Day Trip', radius: 50000, description: '50km' },
+]
+
 // Icons
 const DragIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -101,6 +109,7 @@ export default function Plan({ location }) {
   const [selectedVibe, setSelectedVibe] = useState('mixed')
   const [selectedDuration, setSelectedDuration] = useState(4)
   const [selectedTransport, setSelectedTransport] = useState('walk')
+  const [selectedRadius, setSelectedRadius] = useState('local')
   const [itinerary, setItinerary] = useState([])
   const [travelTimes, setTravelTimes] = useState({}) // Cache of travel times: { "stopId-nextStopId": { duration, mode } }
   const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
@@ -158,6 +167,7 @@ export default function Plan({ location }) {
     setIsGenerating(true)
     const vibe = VIBES.find(v => v.key === selectedVibe)
     const duration = DURATIONS.find(d => d.hours === selectedDuration)
+    const radiusConfig = RADIUS_OPTIONS.find(r => r.key === selectedRadius)
 
     // Create a timeout promise - 45 seconds for first try, 60 for retry
     const timeoutMs = retryCount > 0 ? 60000 : 45000
@@ -175,7 +185,7 @@ export default function Plan({ location }) {
 
       // Fetch with timeout
       const raw = await Promise.race([
-        fetchEnrichedPlaces(location.lat, location.lng, 10000, null),
+        fetchEnrichedPlaces(location.lat, location.lng, radiusConfig.radius, null),
         timeoutPromise
       ])
       console.log('[Plan] Raw places:', raw.length)
@@ -606,6 +616,23 @@ export default function Plan({ location }) {
                 aria-pressed={selectedTransport === t.key}
               >
                 {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* RADIUS: [chips] - inline */}
+        <div className="plan-row">
+          <span className="plan-label">RADIUS:</span>
+          <div className="plan-chips">
+            {RADIUS_OPTIONS.map(r => (
+              <button
+                key={r.key}
+                className={`plan-chip ${selectedRadius === r.key ? 'active' : ''}`}
+                onClick={() => setSelectedRadius(r.key)}
+                aria-pressed={selectedRadius === r.key}
+              >
+                {r.label}
               </button>
             ))}
           </div>
