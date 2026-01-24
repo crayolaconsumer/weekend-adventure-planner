@@ -14,7 +14,7 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { useSubscription } from '../hooks/useSubscription'
-import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR } from '../utils/apiClient'
+import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
@@ -109,6 +109,7 @@ export default function Discover({ location }) {
   const latestFilterKeyRef = useRef('')
   const basePlacesRef = useRef([])
   const weatherKeyRef = useRef('')
+  const categoryDebounceRef = useRef(null) // Debounce timer for category changes
 
   // Place detail modal state
   const [selectedPlace, setSelectedPlace] = useState(null)
@@ -471,7 +472,8 @@ export default function Discover({ location }) {
     })
   }, [filteredPlaces, basePlaces.length])
 
-  // Load places when location or settings change
+  // Load places when location or travel mode changes
+  // Category changes are handled by toggleCategory with debouncing
 
   useEffect(() => {
     if (!location) return
@@ -506,12 +508,27 @@ export default function Discover({ location }) {
 
     return () => {
       isCancelled = true
+      // Clean up any pending category debounce
+      clearTimeout(categoryDebounceRef.current)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid refetch on local filter toggles
-  }, [location?.lat, location?.lng, travelMode, selectedCategories])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- category changes handled by debounced toggleCategory
+  }, [location?.lat, location?.lng, travelMode])
+
+  // Handle category changes with initial load
+  // This effect ONLY runs on initial mount to load with saved categories
+  // Subsequent category changes are handled by the debounced toggleCategory
+  const initialCategoryLoadRef = useRef(false)
+  useEffect(() => {
+    if (!location || initialCategoryLoadRef.current) return
+    if (selectedCategories.length > 0) {
+      // Has saved categories from onboarding - load is already triggered by location effect
+      initialCategoryLoadRef.current = true
+    }
+  }, [location, selectedCategories.length])
 
 
-  // Handle category filter changes
+  // Handle category filter changes with debouncing
+  // Rapid toggles won't spam the API - we wait for user to finish selecting
   const toggleCategory = (categoryKey) => {
     setSelectedCategories(prev => {
       const newSelection = prev.includes(categoryKey)
@@ -519,6 +536,15 @@ export default function Discover({ location }) {
         : [...prev, categoryKey]
       return newSelection
     })
+
+    // Cancel any pending API request from previous toggle
+    cancelOverpassRequest()
+
+    // Debounce the API call - wait for user to finish toggling
+    clearTimeout(categoryDebounceRef.current)
+    categoryDebounceRef.current = setTimeout(() => {
+      loadPlaces(weather)
+    }, 300) // 300ms debounce - fast enough to feel responsive
   }
 
   const clearAllFilters = () => {

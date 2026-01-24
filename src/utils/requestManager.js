@@ -35,6 +35,7 @@ const circuitBreakers = new Map()  // source -> { failures, tripCount, disabledU
 const lastRequestTime = new Map()  // source -> timestamp
 const pendingRequests = new Map()  // cacheKey -> Promise
 const requestQueue = new Map()     // source -> Promise (rate limit queue)
+const endpointStats = new Map()    // endpoint -> { successes, failures, totalLatency }
 
 /**
  * Circuit breaker states
@@ -257,4 +258,92 @@ export function resetAll() {
   lastRequestTime.clear()
   pendingRequests.clear()
   requestQueue.clear()
+  endpointStats.clear()
+}
+
+// ═══════════════════════════════════════════════════════
+// ENDPOINT HEALTH TRACKING
+// Prioritize faster/more reliable endpoints
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Record endpoint performance for ranking
+ *
+ * @param {string} endpoint - Endpoint URL
+ * @param {boolean} success - Whether request succeeded
+ * @param {number} latency - Request duration in ms
+ */
+export function recordEndpoint(endpoint, success, latency) {
+  const stats = endpointStats.get(endpoint) || {
+    successes: 0,
+    failures: 0,
+    totalLatency: 0
+  }
+
+  if (success) {
+    stats.successes++
+    stats.totalLatency += latency
+  } else {
+    stats.failures++
+  }
+
+  endpointStats.set(endpoint, stats)
+}
+
+/**
+ * Rank endpoints by performance (fastest & most reliable first)
+ *
+ * @param {string[]} endpoints - Array of endpoint URLs
+ * @returns {string[]} Sorted endpoints (best first)
+ */
+export function rankEndpoints(endpoints) {
+  return [...endpoints].sort((a, b) => {
+    const aStats = endpointStats.get(a)
+    const bStats = endpointStats.get(b)
+
+    // No stats = try it (put at end of known good ones)
+    if (!aStats && !bStats) return 0
+    if (!aStats) return 1
+    if (!bStats) return -1
+
+    // Calculate average latency (only for successes)
+    const aAvg = aStats.successes > 0
+      ? aStats.totalLatency / aStats.successes
+      : Infinity
+    const bAvg = bStats.successes > 0
+      ? bStats.totalLatency / bStats.successes
+      : Infinity
+
+    // Factor in reliability (penalize high failure rates)
+    const aTotal = aStats.successes + aStats.failures
+    const bTotal = bStats.successes + bStats.failures
+    const aFailRate = aTotal > 0 ? aStats.failures / aTotal : 0
+    const bFailRate = bTotal > 0 ? bStats.failures / bTotal : 0
+
+    // Score = avgLatency * (1 + failRate) - lower is better
+    const aScore = aAvg * (1 + aFailRate * 2)
+    const bScore = bAvg * (1 + bFailRate * 2)
+
+    return aScore - bScore
+  })
+}
+
+/**
+ * Get endpoint stats for debugging
+ */
+export function getEndpointStats() {
+  const stats = {}
+  for (const [endpoint, data] of endpointStats) {
+    const total = data.successes + data.failures
+    stats[endpoint] = {
+      ...data,
+      avgLatency: data.successes > 0
+        ? Math.round(data.totalLatency / data.successes)
+        : null,
+      successRate: total > 0
+        ? ((data.successes / total) * 100).toFixed(1) + '%'
+        : 'N/A'
+    }
+  }
+  return stats
 }
