@@ -6,6 +6,16 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+// Get auth token from storage
+function getAuthToken() {
+  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+}
+
+function getAuthHeaders() {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 export function usePushNotifications() {
   const [permission, setPermission] = useState('default')
   const [subscription, setSubscription] = useState(null)
@@ -89,7 +99,11 @@ export function usePushNotifications() {
       // Send subscription to server
       const saveResponse = await fetch('/api/push/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include',
         body: JSON.stringify(newSubscription.toJSON())
       })
 
@@ -121,7 +135,11 @@ export function usePushNotifications() {
       // Notify server
       await fetch('/api/push/unsubscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        credentials: 'include',
         body: JSON.stringify({ endpoint: subscription.endpoint })
       })
 
