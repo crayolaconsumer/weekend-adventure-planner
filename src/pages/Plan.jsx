@@ -198,6 +198,7 @@ export default function Plan({ location }) {
   const [itinerary, setItinerary] = useState([])
   const [travelTimes, setTravelTimes] = useState({}) // Cache of travel times: { "stopId-nextStopId": { duration, mode } }
   const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
+  const [editingTimeIndex, setEditingTimeIndex] = useState(null) // Which stop's time is being edited
   const [availablePlaces, setAvailablePlaces] = useState([])
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareCode, setShareCode] = useState(null)
@@ -285,11 +286,11 @@ export default function Plan({ location }) {
             const startTime = new Date()
             startTime.setHours(10, 0, 0, 0)
             const time = new Date(startTime)
-            time.setMinutes(time.getMinutes() + i * 90)
+            time.setMinutes(time.getMinutes() + i * 150)
             return {
               ...place,
               scheduledTime: time.toISOString(),
-              duration: 60,
+              duration: 90,
               distance: calcDist(location.lat, location.lng, place.lat, place.lng)
             }
           })
@@ -331,11 +332,12 @@ export default function Plan({ location }) {
 
       const withTimes = optimized.map((stop, i) => {
         const time = new Date(startTime)
-        time.setMinutes(time.getMinutes() + i * 90)
+        // 2.5 hours per stop (150 min) - enough time to travel + actually enjoy the place
+        time.setMinutes(time.getMinutes() + i * 150)
         return {
           ...stop,
           scheduledTime: time.toISOString(),
-          duration: 60,
+          duration: 90, // 1.5 hours at each place by default
           distance: calcDist(location.lat, location.lng, stop.lat, stop.lng)
         }
       })
@@ -366,11 +368,11 @@ export default function Plan({ location }) {
               const startTime = new Date()
               startTime.setHours(10, 0, 0, 0)
               const time = new Date(startTime)
-              time.setMinutes(time.getMinutes() + i * 90)
+              time.setMinutes(time.getMinutes() + i * 150)
               return {
                 ...place,
                 scheduledTime: time.toISOString(),
-                duration: 60,
+                duration: 90,
                 distance: calcDist(location.lat, location.lng, place.lat, place.lng)
               }
             })
@@ -402,7 +404,7 @@ export default function Plan({ location }) {
     let time = new Date()
     if (last) {
       time = new Date(last.scheduledTime)
-      time.setMinutes(time.getMinutes() + 90)
+      time.setMinutes(time.getMinutes() + 150) // 2.5 hours after previous stop
     } else {
       time.setHours(10, 0, 0, 0)
     }
@@ -410,7 +412,7 @@ export default function Plan({ location }) {
     setItinerary(prev => [...prev, {
       ...place,
       scheduledTime: time.toISOString(),
-      duration: 60,
+      duration: 90, // 1.5 hours at the place
       distance: location ? calcDist(location.lat, location.lng, place.lat, place.lng) : null
     }])
     toast.success(`Added ${place.name}`)
@@ -424,7 +426,7 @@ export default function Plan({ location }) {
       const start = new Date(prev[0].scheduledTime)
       return next.map((s, i) => {
         const t = new Date(start)
-        t.setMinutes(t.getMinutes() + i * 90)
+        t.setMinutes(t.getMinutes() + i * 150)
         return { ...s, scheduledTime: t.toISOString() }
       })
     })
@@ -456,10 +458,22 @@ export default function Plan({ location }) {
     const start = new Date(itinerary[0].scheduledTime)
     setItinerary(newOrder.map((s, i) => {
       const t = new Date(start)
-      t.setMinutes(t.getMinutes() + i * 90)
+      t.setMinutes(t.getMinutes() + i * 150)
       return { ...s, scheduledTime: t.toISOString() }
     }))
   }, [itinerary])
+
+  // Update a stop's scheduled time
+  const updateStopTime = useCallback((index, newTime) => {
+    setItinerary(prev => prev.map((s, i) => {
+      if (i !== index) return s
+      const date = new Date(s.scheduledTime)
+      const [hours, minutes] = newTime.split(':').map(Number)
+      date.setHours(hours, minutes, 0, 0)
+      return { ...s, scheduledTime: date.toISOString() }
+    }))
+    setEditingTimeIndex(null)
+  }, [])
 
   // Save to database
   const save = useCallback(async () => {
@@ -825,7 +839,29 @@ export default function Plan({ location }) {
                     transition={{ duration: 0.2 }}
                   >
                     <div className="plan-stop">
-                      <span className="plan-stop-time">{formatTime(stop.scheduledTime)}</span>
+                      <div className="plan-stop-time-wrapper">
+                        {editingTimeIndex === idx ? (
+                          <input
+                            type="time"
+                            className="plan-stop-time-input"
+                            defaultValue={new Date(stop.scheduledTime).toTimeString().slice(0, 5)}
+                            onBlur={(e) => updateStopTime(idx, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') updateStopTime(idx, e.target.value)
+                              if (e.key === 'Escape') setEditingTimeIndex(null)
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            className="plan-stop-time"
+                            onClick={() => setEditingTimeIndex(idx)}
+                            title="Click to edit time"
+                          >
+                            {formatTime(stop.scheduledTime)}
+                          </button>
+                        )}
+                      </div>
                       <motion.div
                         className="plan-stop-card"
                         key={stop.id}

@@ -453,15 +453,44 @@
   padding: var(--space-xs) 0;
 }
 
-.plan-stop-time {
-  width: 48px;
+.plan-stop-time-wrapper {
+  width: 52px;
   flex-shrink: 0;
+}
+
+.plan-stop-time {
+  width: 100%;
+  padding: 4px 6px;
   font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--roam-forest);
-  text-align: right;
+  text-align: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.plan-stop-time:hover {
+  background: var(--roam-parchment);
+  border-color: var(--roam-stone-light);
+}
+
+.plan-stop-time-input {
+  width: 100%;
+  padding: 4px 2px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--roam-forest);
+  text-align: center;
+  background: white;
+  border: 2px solid var(--roam-forest);
+  border-radius: var(--radius-sm);
+  outline: none;
 }
 
 /* Stop Card */
@@ -712,9 +741,14 @@
     font-size: var(--text-sm);
   }
 
-  .plan-stop-time {
-    width: 44px;
+  .plan-stop-time-wrapper {
+    width: 46px;
+  }
+
+  .plan-stop-time,
+  .plan-stop-time-input {
     font-size: var(--text-xs);
+    padding: 3px 4px;
   }
 
   .plan-stop-card {
