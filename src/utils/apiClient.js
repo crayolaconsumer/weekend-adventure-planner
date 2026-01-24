@@ -45,6 +45,21 @@ const OTM_API_KEY = import.meta.env.VITE_OPENTRIPMAP_KEY || null
  *
  * Only apply name filter for very large radii (>50km) to avoid empty results
  */
+const OVERPASS_TAG_KEYS = [
+  'amenity',
+  'tourism',
+  'leisure',
+  'historic',
+  'shop',
+  'natural',
+  'man_made',
+  'landuse'
+]
+
+function escapeOverpassRegex(value) {
+  return value.replace(/[\\.^$|?*+()[\]{}]/g, '\\$&')
+}
+
 function buildOverpassQuery(lat, lng, radius, types) {
   // Scale timeout with radius
   let timeout = 30
@@ -56,23 +71,21 @@ function buildOverpassQuery(lat, lng, radius, types) {
   const isVeryLargeRadius = radius > 50000
   const nameFilter = isVeryLargeRadius ? '["name"]' : ''
 
-  const typeFilters = types.map(type =>
-    `node["amenity"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["amenity"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["tourism"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["tourism"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["leisure"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["leisure"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["historic"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["historic"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["shop"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["shop"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["natural"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["natural"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["man_made"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["man_made"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     node["landuse"="${type}"]${nameFilter}(around:${radius},${lat},${lng});
-     way["landuse"="${type}"]${nameFilter}(around:${radius},${lat},${lng});`
+  const uniqueTypes = Array.from(new Set(types)).filter(Boolean)
+  if (uniqueTypes.length === 0) {
+    return `
+      [out:json][timeout:${timeout}];
+      ();
+      out tags center;
+    `
+  }
+
+  const typeRegex = uniqueTypes.map(escapeOverpassRegex).join('|')
+  const typeFilter = `~"^(${typeRegex})$"`
+
+  const typeFilters = OVERPASS_TAG_KEYS.map(key =>
+    `node["${key}"${typeFilter}]${nameFilter}(around:${radius},${lat},${lng});
+     way["${key}"${typeFilter}]${nameFilter}(around:${radius},${lat},${lng});`
   ).join('\n')
 
   return `
@@ -80,7 +93,7 @@ function buildOverpassQuery(lat, lng, radius, types) {
     (
       ${typeFilters}
     );
-    out body center;
+    out tags center;
   `
 }
 
