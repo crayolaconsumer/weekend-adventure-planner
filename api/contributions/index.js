@@ -95,6 +95,24 @@ async function handleGet(req, res) {
   }
   sql += `)`
 
+  // Enforce visibility rules
+  // - public: visible to everyone
+  // - followers_only: visible to author and their followers
+  // - private: only visible to author
+  if (currentUser) {
+    sql += ` AND (
+      c.visibility = 'public'
+      OR c.user_id = ?
+      OR (c.visibility = 'followers_only' AND EXISTS (
+        SELECT 1 FROM follows WHERE follower_id = ? AND following_id = c.user_id
+      ))
+    )`
+    params.push(currentUser.id, currentUser.id)
+  } else {
+    // Anonymous users can only see public contributions
+    sql += ` AND c.visibility = 'public'`
+  }
+
   if (placeId) {
     sql += ' AND c.place_id = ?'
     params.push(placeId)
