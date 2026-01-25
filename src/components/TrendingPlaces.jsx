@@ -68,7 +68,10 @@ export default function TrendingPlaces({ onSelectPlace }) {
           >
             <span className="trending-rank">#{index + 1}</span>
             <div className="trending-content">
-              <div className="trending-place-id">{item.placeId}</div>
+              <div className="trending-place-name">{item.placeName || 'Unknown Place'}</div>
+              {item.placeCategory && (
+                <div className="trending-place-category">{item.placeCategory}</div>
+              )}
               {item.topTip && (
                 <div className="trending-tip">
                   "{item.topTip.content.slice(0, 60)}{item.topTip.content.length > 60 ? '...' : ''}"

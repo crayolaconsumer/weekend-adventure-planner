@@ -57,8 +57,11 @@ export default async function handler(req, res) {
     const placeIds = trending.map(t => t.place_id)
 
     let contributions = []
+    let placeData = []
     if (placeIds.length > 0) {
       const placeholders = placeIds.map(() => '?').join(',')
+
+      // Fetch contributions
       contributions = await query(
         `SELECT
           c.place_id,
@@ -75,6 +78,15 @@ export default async function handler(req, res) {
         ORDER BY (c.upvotes - c.downvotes) DESC`,
         placeIds
       )
+
+      // Fetch place names from saved_places (most recent save for each place)
+      placeData = await query(
+        `SELECT place_id, place_data
+        FROM saved_places
+        WHERE place_id IN (${placeholders})
+        GROUP BY place_id`,
+        placeIds
+      )
     }
 
     // Group contributions by place
@@ -85,17 +97,33 @@ export default async function handler(req, res) {
       }
     }
 
-    const result = trending.map(t => ({
-      placeId: t.place_id,
-      contributionCount: t.contribution_count,
-      planCount: t.plan_inclusion_count,
-      popularityScore: t.popularity_score,
-      topTip: contributionsByPlace[t.place_id] ? {
-        content: contributionsByPlace[t.place_id].content,
-        username: contributionsByPlace[t.place_id].username,
-        displayName: contributionsByPlace[t.place_id].display_name
-      } : null
-    }))
+    // Map place data by place_id
+    const placeDataByPlace = {}
+    for (const p of placeData) {
+      try {
+        const data = typeof p.place_data === 'string' ? JSON.parse(p.place_data) : p.place_data
+        placeDataByPlace[p.place_id] = data
+      } catch {
+        // Skip invalid JSON
+      }
+    }
+
+    const result = trending.map(t => {
+      const place = placeDataByPlace[t.place_id]
+      return {
+        placeId: t.place_id,
+        placeName: place?.name || null,
+        placeCategory: place?.category?.label || place?.type || null,
+        contributionCount: t.contribution_count,
+        planCount: t.plan_inclusion_count,
+        popularityScore: t.popularity_score,
+        topTip: contributionsByPlace[t.place_id] ? {
+          content: contributionsByPlace[t.place_id].content,
+          username: contributionsByPlace[t.place_id].username,
+          displayName: contributionsByPlace[t.place_id].display_name
+        } : null
+      }
+    })
 
     return res.status(200).json({
       trending: result,
