@@ -5,11 +5,26 @@
  * GET /api/places/opentripmap/details?xid=PLACE_XID
  */
 
+import { applyRateLimit } from '../../lib/rateLimit.js'
+
 const OTM_API = 'https://api.opentripmap.com/0.1'
+
+// Rate limit: 120 requests per minute per IP (details are smaller requests)
+const OTM_DETAILS_RATE_LIMIT = {
+  windowMs: 60 * 1000,
+  max: 120,
+  blockDurationMs: 5 * 60 * 1000 // Block for 5 min if exceeded
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Apply rate limiting
+  const rateLimitError = applyRateLimit(req, res, OTM_DETAILS_RATE_LIMIT, 'otm_details')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
   }
 
   const apiKey = process.env.OPENTRIPMAP_KEY
@@ -24,9 +39,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'xid is required' })
   }
 
+  // Validate xid format (alphanumeric, underscores, colons - typical OTM format)
+  if (!/^[a-zA-Z0-9_:]+$/.test(xid) || xid.length > 50) {
+    return res.status(400).json({ error: 'Invalid xid format' })
+  }
+
   try {
     const response = await fetch(
-      `${OTM_API}/en/places/xid/${xid}?apikey=${apiKey}`
+      `${OTM_API}/en/places/xid/${encodeURIComponent(xid)}?apikey=${apiKey}`
     )
 
     if (!response.ok) {

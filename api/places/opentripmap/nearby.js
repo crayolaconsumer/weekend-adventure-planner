@@ -5,11 +5,26 @@
  * GET /api/places/opentripmap/nearby?lat=X&lng=Y&radius=Z&kinds=optional
  */
 
+import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
+
 const OTM_API = 'https://api.opentripmap.com/0.1'
+
+// Rate limit: 60 requests per minute per IP (OTM free tier is 5000/day)
+const OTM_RATE_LIMIT = {
+  windowMs: 60 * 1000,
+  max: 60,
+  blockDurationMs: 5 * 60 * 1000 // Block for 5 min if exceeded
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Apply rate limiting
+  const rateLimitError = applyRateLimit(req, res, OTM_RATE_LIMIT, 'otm_nearby')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
   }
 
   const apiKey = process.env.OPENTRIPMAP_KEY
@@ -24,10 +39,26 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'lat and lng are required' })
   }
 
-  try {
-    let url = `${OTM_API}/en/places/radius?lat=${lat}&lon=${lng}&radius=${radius}&limit=100&rate=2&apikey=${apiKey}`
+  // Validate parameters to prevent injection
+  const latNum = parseFloat(lat)
+  const lngNum = parseFloat(lng)
+  const radiusNum = parseInt(radius, 10)
 
-    if (kinds) {
+  if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+    return res.status(400).json({ error: 'Invalid latitude' })
+  }
+  if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
+    return res.status(400).json({ error: 'Invalid longitude' })
+  }
+  if (isNaN(radiusNum) || radiusNum < 100 || radiusNum > 50000) {
+    return res.status(400).json({ error: 'Invalid radius (100-50000m)' })
+  }
+
+  try {
+    let url = `${OTM_API}/en/places/radius?lat=${latNum}&lon=${lngNum}&radius=${radiusNum}&limit=100&rate=2&apikey=${apiKey}`
+
+    // Sanitize kinds parameter (only allow alphanumeric and underscores)
+    if (kinds && /^[a-zA-Z0-9_,]+$/.test(kinds)) {
       url += `&kinds=${kinds}`
     }
 
