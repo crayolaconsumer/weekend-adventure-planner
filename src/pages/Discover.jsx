@@ -267,7 +267,8 @@ export default function Discover({ location }) {
     localStorage.setItem('roam_free_only', showFreeOnly.toString())
     localStorage.setItem('roam_accessibility', accessibilityMode.toString())
     localStorage.setItem('roam_open_only', showOpenOnly.toString())
-  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly])
+    localStorage.setItem('roam_interests', JSON.stringify(selectedCategories))
+  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, selectedCategories])
 
   // Detect desktop viewport for view mode toggle
   useEffect(() => {
