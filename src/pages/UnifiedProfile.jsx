@@ -299,7 +299,7 @@ export default function UnifiedProfile() {
 
           {/* Level badge (public) */}
           {isOwnProfile && level > 1 && (
-            <span className="unified-profile-level-badge">
+            <span className="unified-profile-header-level">
               Level {level} Explorer
             </span>
           )}

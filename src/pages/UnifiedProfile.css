@@ -102,18 +102,19 @@
   margin: 0 0 var(--space-sm, 8px);
 }
 
-.unified-profile-level-badge {
+.unified-profile-header-level {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs, 6px);
-  padding: var(--space-xs, 6px) var(--space-sm, 12px);
-  background: linear-gradient(135deg, #1a3a2f 0%, #2d5a3d 100%);
+  padding: var(--space-xs, 6px) var(--space-md, 16px);
+  background: linear-gradient(135deg, var(--roam-forest, #1a3a2f) 0%, #2d5a3d 100%);
   color: white;
   font-family: var(--font-body, 'Outfit', sans-serif);
-  font-size: var(--text-xs, 12px);
+  font-size: var(--text-sm, 14px);
   font-weight: 600;
   border-radius: var(--radius-full, 24px);
   margin-bottom: var(--space-sm, 8px);
+  box-shadow: 0 2px 8px rgba(26, 58, 47, 0.2);
 }
 
 .unified-profile-meta {
