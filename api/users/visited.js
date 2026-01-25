@@ -138,13 +138,13 @@ async function handlePost(req, res, user) {
     const count = visitCount?.places_visited || 1
 
     if (count === 1) {
-      awardBadge(user.id, 'first_visit', 'Explorer').catch(() => {})
+      awardBadge(user.id, 'first_visit').catch(() => {})
     } else if (count === 10) {
-      awardBadge(user.id, 'visits_10', 'Adventurer').catch(() => {})
+      awardBadge(user.id, 'visits_10').catch(() => {})
     } else if (count === 50) {
-      awardBadge(user.id, 'visits_50', 'Seasoned Traveler').catch(() => {})
+      awardBadge(user.id, 'visits_50').catch(() => {})
     } else if (count === 100) {
-      awardBadge(user.id, 'visits_100', 'World Wanderer').catch(() => {})
+      awardBadge(user.id, 'visits_100').catch(() => {})
     }
   }
 

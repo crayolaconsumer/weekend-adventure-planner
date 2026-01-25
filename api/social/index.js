@@ -508,9 +508,9 @@ async function followUser(req, res, user) {
   // Award follower milestone badges to the person being followed (non-blocking)
   const followerCountForBadge = countResult?.count || 1
   if (followerCountForBadge === 10) {
-    awardBadge(targetUserId, 'followers_10', 'Rising Star').catch(() => {})
+    awardBadge(targetUserId, 'followers_10').catch(() => {})
   } else if (followerCountForBadge === 100) {
-    awardBadge(targetUserId, 'followers_100', 'Influencer').catch(() => {})
+    awardBadge(targetUserId, 'followers_100').catch(() => {})
   }
 
   return res.status(200).json({

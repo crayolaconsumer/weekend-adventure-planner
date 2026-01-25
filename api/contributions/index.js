@@ -200,11 +200,11 @@ async function handlePost(req, res) {
   const count = contributionCount?.count || 1
 
   if (count === 1) {
-    awardBadge(user.id, 'first_contribution', 'First Steps').catch(() => {})
+    awardBadge(user.id, 'first_contribution').catch(() => {})
   } else if (count === 10) {
-    awardBadge(user.id, 'contributor_10', 'Local Expert').catch(() => {})
+    awardBadge(user.id, 'contributor_10').catch(() => {})
   } else if (count === 50) {
-    awardBadge(user.id, 'contributor_50', 'Community Pillar').catch(() => {})
+    awardBadge(user.id, 'contributor_50').catch(() => {})
   }
 
   return res.status(201).json({
