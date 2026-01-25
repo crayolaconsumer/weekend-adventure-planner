@@ -1118,8 +1118,13 @@ function SettingsTab({ user, onLogout }) {
   )
 }
 
+// Helper to get auth token
+function getAuthToken() {
+  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+}
+
 /**
- * Notifications Section - Push notification settings
+ * Notifications Section - Push notification settings with granular preferences
  */
 function NotificationsSection() {
   const {
@@ -1131,6 +1136,68 @@ function NotificationsSection() {
     subscribe,
     unsubscribe
   } = usePushNotifications()
+
+  // Notification preferences state
+  const [prefs, setPrefs] = useState({
+    newFollower: true,
+    newContribution: true,
+    planShared: true,
+    weeklyDigest: true
+  })
+  const [prefsLoading, setPrefsLoading] = useState(true)
+
+  // Load notification preferences
+  useEffect(() => {
+    const loadPrefs = async () => {
+      const token = getAuthToken()
+      if (!token) {
+        setPrefsLoading(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/users/notification-preferences', {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include'
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setPrefs(data.preferences)
+        }
+      } catch (err) {
+        console.error('Failed to load notification preferences:', err)
+      } finally {
+        setPrefsLoading(false)
+      }
+    }
+
+    loadPrefs()
+  }, [])
+
+  // Update a specific preference
+  const updatePref = async (key, value) => {
+    // Optimistic update
+    setPrefs(prev => ({ ...prev, [key]: value }))
+
+    const token = getAuthToken()
+    if (!token) return
+
+    try {
+      await fetch('/api/users/notification-preferences', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({ [key]: value })
+      })
+    } catch (err) {
+      // Revert on error
+      setPrefs(prev => ({ ...prev, [key]: !value }))
+      console.error('Failed to update notification preference:', err)
+    }
+  }
 
   const handleToggle = async () => {
     if (isSubscribed) {
@@ -1169,6 +1236,7 @@ function NotificationsSection() {
       <h3 className="unified-profile-settings-title">Notifications</h3>
 
       <div className="unified-profile-settings-toggles">
+        {/* Master push toggle */}
         <button
           className={`unified-profile-settings-toggle ${isSubscribed ? 'active' : ''}`}
           onClick={handleToggle}
@@ -1180,7 +1248,7 @@ function NotificationsSection() {
             <span className="toggle-label">Push Notifications</span>
             <span className="toggle-desc">
               {isSubscribed
-                ? 'Get notified about follows and tip votes'
+                ? 'Receiving notifications'
                 : 'Enable to receive updates'}
             </span>
           </span>
@@ -1188,6 +1256,71 @@ function NotificationsSection() {
             <span className="toggle-knob" />
           </span>
         </button>
+
+        {/* Granular preferences - only show when subscribed */}
+        {isSubscribed && !prefsLoading && (
+          <>
+            <button
+              className={`unified-profile-settings-toggle sub-toggle ${prefs.newFollower ? 'active' : ''}`}
+              onClick={() => updatePref('newFollower', !prefs.newFollower)}
+              aria-pressed={prefs.newFollower}
+            >
+              <span className="toggle-icon">👥</span>
+              <span className="toggle-text">
+                <span className="toggle-label">New Followers</span>
+                <span className="toggle-desc">When someone follows you</span>
+              </span>
+              <span className={`toggle-switch ${prefs.newFollower ? 'on' : ''}`}>
+                <span className="toggle-knob" />
+              </span>
+            </button>
+
+            <button
+              className={`unified-profile-settings-toggle sub-toggle ${prefs.newContribution ? 'active' : ''}`}
+              onClick={() => updatePref('newContribution', !prefs.newContribution)}
+              aria-pressed={prefs.newContribution}
+            >
+              <span className="toggle-icon">⬆️</span>
+              <span className="toggle-text">
+                <span className="toggle-label">Tip Upvotes</span>
+                <span className="toggle-desc">When your tips get upvoted</span>
+              </span>
+              <span className={`toggle-switch ${prefs.newContribution ? 'on' : ''}`}>
+                <span className="toggle-knob" />
+              </span>
+            </button>
+
+            <button
+              className={`unified-profile-settings-toggle sub-toggle ${prefs.planShared ? 'active' : ''}`}
+              onClick={() => updatePref('planShared', !prefs.planShared)}
+              aria-pressed={prefs.planShared}
+            >
+              <span className="toggle-icon">🗺️</span>
+              <span className="toggle-text">
+                <span className="toggle-label">Shared Plans</span>
+                <span className="toggle-desc">When someone shares a plan with you</span>
+              </span>
+              <span className={`toggle-switch ${prefs.planShared ? 'on' : ''}`}>
+                <span className="toggle-knob" />
+              </span>
+            </button>
+
+            <button
+              className={`unified-profile-settings-toggle sub-toggle ${prefs.weeklyDigest ? 'active' : ''}`}
+              onClick={() => updatePref('weeklyDigest', !prefs.weeklyDigest)}
+              aria-pressed={prefs.weeklyDigest}
+            >
+              <span className="toggle-icon">📬</span>
+              <span className="toggle-text">
+                <span className="toggle-label">Weekly Digest</span>
+                <span className="toggle-desc">Weekly summary of activity</span>
+              </span>
+              <span className={`toggle-switch ${prefs.weeklyDigest ? 'on' : ''}`}>
+                <span className="toggle-knob" />
+              </span>
+            </button>
+          </>
+        )}
       </div>
 
       {error && (

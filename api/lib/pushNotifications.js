@@ -14,7 +14,22 @@
  */
 
 /* global process */
-import { query } from './db.js'
+import { query, queryOne } from './db.js'
+
+/**
+ * Check if a user has a specific notification type enabled
+ * @param {number} userId - User ID to check
+ * @param {string} notificationType - Column name in notification_preferences table
+ * @returns {Promise<boolean>} Whether the notification type is enabled
+ */
+async function isNotificationEnabled(userId, notificationType) {
+  const prefs = await queryOne(
+    `SELECT ${notificationType} as enabled FROM notification_preferences WHERE user_id = ?`,
+    [userId]
+  )
+  // Default to true if no preferences set (new users)
+  return prefs ? !!prefs.enabled : true
+}
 
 // Lazy-load web-push to allow the app to run without it installed
 let webpush = null
@@ -128,6 +143,11 @@ export async function sendPushToUser(userId, payload) {
  * @param {string} followerUsername - Username of the follower
  */
 export async function notifyNewFollower(followerId, followeeId, followerUsername) {
+  // Check user preferences
+  if (!await isNotificationEnabled(followeeId, 'new_follower')) {
+    return false
+  }
+
   return sendPushToUser(followeeId, {
     title: 'New Follower',
     body: `@${followerUsername} started following you`,
@@ -143,6 +163,11 @@ export async function notifyNewFollower(followerId, followeeId, followerUsername
  * @param {number} newVoteCount - New total vote count
  */
 export async function notifyContributionUpvote(userId, placeName, newVoteCount) {
+  // Check user preferences (contribution notifications)
+  if (!await isNotificationEnabled(userId, 'new_contribution')) {
+    return false
+  }
+
   return sendPushToUser(userId, {
     title: 'Your tip is helpful!',
     body: `Your tip about ${placeName} has ${newVoteCount} upvotes`,
@@ -164,9 +189,31 @@ export async function notifyFollowRequestApproved(requesterId, approverUsername)
   })
 }
 
+/**
+ * Send notification when a plan is shared with a user
+ * @param {number} userId - ID of user to notify
+ * @param {string} sharerUsername - Username who shared the plan
+ * @param {string} planName - Name of the shared plan
+ * @param {string} shareCode - Share code to view the plan
+ */
+export async function notifyPlanShared(userId, sharerUsername, planName, shareCode) {
+  // Check user preferences
+  if (!await isNotificationEnabled(userId, 'plan_shared')) {
+    return false
+  }
+
+  return sendPushToUser(userId, {
+    title: 'Plan Shared With You',
+    body: `@${sharerUsername} shared "${planName}" with you`,
+    url: `/plan/share/${shareCode}`,
+    tag: 'plan-shared'
+  })
+}
+
 export default {
   sendPushToUser,
   notifyNewFollower,
   notifyContributionUpvote,
-  notifyFollowRequestApproved
+  notifyFollowRequestApproved,
+  notifyPlanShared
 }

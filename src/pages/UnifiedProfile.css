@@ -1336,6 +1336,40 @@
   transform: translateX(20px);
 }
 
+/* Sub-toggles for granular notification preferences */
+.unified-profile-settings-toggle.sub-toggle {
+  margin-left: var(--space-lg, 20px);
+  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  background: var(--roam-paper, #f8f6f1);
+  border-color: transparent;
+}
+
+.unified-profile-settings-toggle.sub-toggle .toggle-icon {
+  font-size: 16px;
+}
+
+.unified-profile-settings-toggle.sub-toggle .toggle-label {
+  font-size: var(--text-xs, 12px);
+}
+
+.unified-profile-settings-toggle.sub-toggle .toggle-desc {
+  font-size: 10px;
+}
+
+.unified-profile-settings-toggle.sub-toggle .toggle-switch {
+  width: 36px;
+  height: 20px;
+}
+
+.unified-profile-settings-toggle.sub-toggle .toggle-knob {
+  width: 16px;
+  height: 16px;
+}
+
+.unified-profile-settings-toggle.sub-toggle .toggle-switch.on .toggle-knob {
+  transform: translateX(16px);
+}
+
 /* Action Buttons */
 .unified-profile-settings-actions {
   display: flex;
