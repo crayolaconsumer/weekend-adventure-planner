@@ -30,7 +30,7 @@ export default async function handler(req, res) {
     // Score = contributions + plan inclusions (weighted)
     const sql = `
       SELECT
-        place_id,
+        c.place_id,
         COUNT(DISTINCT c.id) as contribution_count,
         COUNT(DISTINCT ps.id) as plan_inclusion_count,
         (COUNT(DISTINCT c.id) * 2 + COUNT(DISTINCT ps.id)) as popularity_score,
