@@ -118,22 +118,6 @@ function LocationBanner({ error, onRetry }) {
   )
 }
 
-// App header with notification bell (for authenticated users)
-function AppHeader() {
-  const { isAuthenticated } = useAuth()
-
-  if (!isAuthenticated) return null
-
-  return (
-    <header className="app-header">
-      <div className="app-header-content">
-        <span className="app-header-logo">ROAM</span>
-        <NotificationBell />
-      </div>
-    </header>
-  )
-}
-
 // Profile redirect - sends authenticated users to their profile
 function ProfileRedirect({ onOpenAuth }) {
   const { user, isAuthenticated, loading } = useAuth()
@@ -353,8 +337,8 @@ function App() {
                 )}
               </AnimatePresence>
 
-              {/* App Header with Notification Bell */}
-              {!showOnboarding && <AppHeader />}
+              {/* Floating Notification Bell */}
+              {!showOnboarding && <NotificationBell />}
 
               {/* Auth Modal */}
               <AuthModal

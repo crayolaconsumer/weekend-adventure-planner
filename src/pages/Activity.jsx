@@ -11,7 +11,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { useDiscoverUsers, useUserSearch } from '../hooks/useSocial'
 import ActivityFeed from '../components/ActivityFeed'
 import UserCard, { UserCardSkeleton } from '../components/UserCard'
-import NotificationBell from '../components/NotificationBell'
 import './Activity.css'
 
 // Search icon
@@ -80,7 +79,6 @@ export default function Activity() {
     <div className="page activity-page">
       <header className="page-header">
         <h1 className="page-title">Activity</h1>
-        {isAuthenticated && <NotificationBell />}
       </header>
 
       {/* User Search */}

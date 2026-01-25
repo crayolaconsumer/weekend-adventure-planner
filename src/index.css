@@ -417,40 +417,6 @@ p {
   z-index: var(--z-sticky);
 }
 
-/* App Header with Notification Bell */
-.app-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: var(--z-sticky);
-  background: var(--roam-cream);
-  border-bottom: 1px solid var(--roam-parchment);
-  padding: var(--space-sm) var(--space-md);
-  padding-top: max(var(--space-sm), env(safe-area-inset-top));
-}
-
-.app-header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.app-header-logo {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--roam-forest);
-  letter-spacing: 0.05em;
-}
-
-/* Adjust main content when header is present */
-.app:has(.app-header) main {
-  padding-top: 52px;
-}
-
 /* Location fallback banner */
 .location-banner {
   position: fixed;
