@@ -4,9 +4,42 @@
  * Displays event information in compact or full variants.
  */
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { formatEventDate, formatPriceRange } from '../utils/eventsApi'
 import './EventCard.css'
+
+// Event category placeholder images (same as Events.jsx)
+const EVENT_IMAGES = {
+  music: [
+    'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80',
+    'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80',
+    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
+  ],
+  entertainment: [
+    'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=800&q=80',
+    'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&q=80',
+  ],
+  culture: [
+    'https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=800&q=80',
+    'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800&q=80',
+  ],
+  nightlife: [
+    'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=800&q=80',
+    'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=800&q=80',
+  ],
+  default: [
+    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80',
+    'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=800&q=80',
+  ]
+}
+
+function getEventPlaceholderImage(eventId, categories) {
+  const category = categories?.[0] || 'default'
+  const images = EVENT_IMAGES[category] || EVENT_IMAGES.default
+  const index = Math.abs(eventId?.toString().split('').reduce((a, b) => a + b.charCodeAt(0), 0) || 0) % images.length
+  return images[index]
+}
 
 // Icons
 const CalendarIcon = () => (
@@ -43,6 +76,8 @@ const ExternalLinkIcon = () => (
 )
 
 export default function EventCard({ event, variant = 'compact' }) {
+  const [imageLoaded, setImageLoaded] = useState(false)
+
   if (!event) return null
 
   const handleClick = () => {
@@ -53,6 +88,7 @@ export default function EventCard({ event, variant = 'compact' }) {
 
   const priceLabel = formatPriceRange(event.pricing)
   const dateLabel = formatEventDate(event.datetime.start)
+  const imageUrl = event.imageUrl || getEventPlaceholderImage(event.id, event.categories)
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -73,11 +109,17 @@ export default function EventCard({ event, variant = 'compact' }) {
         role="button"
         aria-label={`${event.name} on ${dateLabel}${event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view tickets.`}
       >
-        {event.imageUrl && (
-          <div className="event-card-image">
-            <img src={event.imageUrl} alt={event.name} loading="lazy" />
-          </div>
-        )}
+        <div className="event-card-image">
+          {!imageLoaded && <div className="event-card-image-placeholder" />}
+          <img
+            src={imageUrl}
+            alt={event.name}
+            loading="lazy"
+            className={imageLoaded ? 'loaded' : ''}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageLoaded(true)}
+          />
+        </div>
 
         <div className="event-card-content">
           <div className="event-card-meta">
@@ -112,14 +154,20 @@ export default function EventCard({ event, variant = 'compact' }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      {event.imageUrl && (
-        <div className="event-card-image">
-          <img src={event.imageUrl} alt={event.name} loading="lazy" />
-          {event.isSoldOut && (
-            <div className="event-card-sold-out-badge">Sold Out</div>
-          )}
-        </div>
-      )}
+      <div className="event-card-image">
+        {!imageLoaded && <div className="event-card-image-placeholder" />}
+        <img
+          src={imageUrl}
+          alt={event.name}
+          loading="lazy"
+          className={imageLoaded ? 'loaded' : ''}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageLoaded(true)}
+        />
+        {event.isSoldOut && (
+          <div className="event-card-sold-out-badge">Sold Out</div>
+        )}
+      </div>
 
       <div className="event-card-body">
         <div className="event-card-header">
