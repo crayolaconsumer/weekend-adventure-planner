@@ -8,6 +8,7 @@ import VisitedPrompt from '../components/VisitedPrompt'
 import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
+import JustGoModal from '../components/JustGoModal'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -20,6 +21,7 @@ import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRe
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
+import { getTopRecommendations } from '../utils/tasteProfile'
 import './Discover.css'
 
 // Lazy load desktop-only components to keep mobile bundle small
@@ -109,6 +111,7 @@ export default function Discover({ location }) {
   const [boredomPlace, setBoredomPlace] = useState(null)
   const [boredomLoading, setBoredomLoading] = useState(false)
   const [showFilterModal, setShowFilterModal] = useState(false)
+  const [showJustGo, setShowJustGo] = useState(false)
   const [viewMode, setViewMode] = useState('swipe') // 'swipe' | 'map' | 'list'
   const [isDesktop, setIsDesktop] = useState(false)
   const latestLoadRequestRef = useRef(0)
@@ -957,6 +960,23 @@ export default function Discover({ location }) {
         </div>
       )}
 
+      {/* Just Go Button - prominent CTA for instant recommendations */}
+      <motion.button
+        className="just-go-btn"
+        onClick={() => setShowJustGo(true)}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <span className="just-go-icon">🎯</span>
+        <div className="just-go-text">
+          <span className="just-go-title">Just Go</span>
+          <span className="just-go-subtitle">Find me something now</span>
+        </div>
+      </motion.button>
+
       {/* Main Content Area - conditionally render based on view mode */}
       <div className={`discover-content ${isDesktop ? `view-${viewMode}` : ''}`}>
         {/* Error Recovery UI */}
@@ -1165,6 +1185,47 @@ export default function Discover({ location }) {
         type={upgradePromptType}
         isOpen={showUpgradePrompt}
         onClose={() => setShowUpgradePrompt(false)}
+      />
+
+      {/* Just Go Modal - instant personalized recommendation */}
+      <JustGoModal
+        isOpen={showJustGo}
+        onClose={() => setShowJustGo(false)}
+        recommendations={getTopRecommendations(places, 5)}
+        weather={weather}
+        onGo={(place) => {
+          // Save as pending visit for later prompt
+          setPendingVisit(place)
+
+          // Track via hook (syncs to API)
+          incrementStat('totalSwipes')
+
+          // Update streak and going out stats
+          const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
+          const today = new Date().toDateString()
+          const lastDate = stats.lastStreakDate
+          let currentStreak = stats.currentStreak || 0
+          let bestStreak = stats.bestStreak || 0
+
+          if (lastDate !== today) {
+            const yesterday = new Date()
+            yesterday.setDate(yesterday.getDate() - 1)
+            currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
+            bestStreak = Math.max(bestStreak, currentStreak)
+          }
+
+          updateStats({
+            timesWentOut: (stats.timesWentOut || 0) + 1,
+            justGoUses: (stats.justGoUses || 0) + 1,
+            lastActivityDate: new Date().toISOString(),
+            currentStreak,
+            bestStreak,
+            lastStreakDate: today
+          })
+
+          // Close modal (navigation handled by modal itself)
+          setShowJustGo(false)
+        }}
       />
     </div>
   )
