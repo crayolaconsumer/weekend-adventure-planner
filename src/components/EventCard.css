@@ -35,10 +35,27 @@
   background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
 }
 
+.event-card-compact .event-card-image {
+  position: relative;
+}
+
 .event-card-compact .event-card-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.event-card-compact .event-card-image img.loaded {
+  opacity: 1;
+}
+
+.event-card-compact .event-card-image-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
+  animation: eventImagePulse 1.5s ease-in-out infinite;
 }
 
 .event-card-compact .event-card-content {
@@ -128,6 +145,24 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.event-card-full .event-card-image img.loaded {
+  opacity: 1;
+}
+
+.event-card-full .event-card-image-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);
+  animation: eventImagePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes eventImagePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .event-card-full .event-card-sold-out-badge {

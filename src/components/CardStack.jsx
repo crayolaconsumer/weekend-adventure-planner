@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
+import { fetchWikipediaImage, fetchWikidataImage } from '../utils/apiClient'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
 import { openDirections } from '../utils/navigation'
@@ -112,27 +113,73 @@ export default function CardStack({
     return () => clearInterval(interval)
   }, [loading])
 
-  // Preload images for upcoming cards (next 3 after visible ones)
+  // Track places we've already tried to fetch images for
+  const [fetchedImageIds] = useState(() => new Set())
+
+  // Fetch image for a place from Wikipedia/Wikidata if it doesn't have one
+  const fetchPlaceImage = useCallback(async (place) => {
+    if (!place || fetchedImageIds.has(place.id)) return null
+    fetchedImageIds.add(place.id)
+
+    // Already has an image
+    if (place.photo || place.image) return null
+
+    try {
+      // Try Wikipedia first (better quality images)
+      if (place.wikipedia) {
+        const title = place.wikipedia.includes(':')
+          ? place.wikipedia.split(':')[1]
+          : place.wikipedia
+        const imageUrl = await fetchWikipediaImage(title)
+        if (imageUrl) {
+          place.image = imageUrl
+          place.imageSource = 'wikipedia'
+          // Pre-cache it
+          fetchAndCacheImage(imageUrl, place.id).catch(() => {})
+          return imageUrl
+        }
+      }
+
+      // Try Wikidata
+      if (place.wikidata) {
+        const imageUrl = await fetchWikidataImage(place.wikidata)
+        if (imageUrl) {
+          place.image = imageUrl
+          place.imageSource = 'wikidata'
+          fetchAndCacheImage(imageUrl, place.id).catch(() => {})
+          return imageUrl
+        }
+      }
+    } catch (err) {
+      // Silently ignore fetch errors
+    }
+    return null
+  }, [fetchedImageIds])
+
+  // Preload images for upcoming cards (next 5 after visible ones)
   useEffect(() => {
     if (loading || mergedPlaces.length === 0) return
 
     // Visible cards are currentIndex to currentIndex + 2
-    // Preload currentIndex + 3 to currentIndex + 5
+    // Preload currentIndex + 3 to currentIndex + 7
     const preloadStart = currentIndex + 3
-    const preloadEnd = Math.min(preloadStart + 3, mergedPlaces.length)
+    const preloadEnd = Math.min(preloadStart + 5, mergedPlaces.length)
 
     for (let i = preloadStart; i < preloadEnd; i++) {
       const item = mergedPlaces[i]
       const place = item?.place
+      if (!place) continue
+
       const imageUrl = place?.photo || place?.image
       if (imageUrl) {
-        // Fire and forget - just cache the image for later
-        fetchAndCacheImage(imageUrl, place.id).catch(() => {
-          // Silently ignore preload errors
-        })
+        // Already has image - just cache it
+        fetchAndCacheImage(imageUrl, place.id).catch(() => {})
+      } else if (place.wikipedia || place.wikidata) {
+        // No image but has wiki data - try to fetch one
+        fetchPlaceImage(place)
       }
     }
-  }, [currentIndex, mergedPlaces, loading])
+  }, [currentIndex, mergedPlaces, loading, fetchPlaceImage])
 
   // Load more places when getting close to the end (10 cards left)
   // Increased from 5 to reduce perceived loading lag
