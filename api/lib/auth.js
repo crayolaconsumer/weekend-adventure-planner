@@ -218,7 +218,22 @@ export async function generateUsername(email) {
  */
 export function isPremiumUser(user) {
   if (!user) return false
-  return user.tier === 'premium'
+  if (user.tier !== 'premium') return false
+
+  // Check subscription hasn't expired
+  if (user.subscription_expires_at) {
+    return new Date(user.subscription_expires_at) > new Date()
+  }
+
+  // Lifetime premium or no expiry set
+  return true
+}
+
+// Free tier limits
+const FREE_TIER_LIMITS = {
+  MAX_SAVED_PLACES: 10,
+  MAX_COLLECTIONS: 3,
+  MAX_SAVED_EVENTS: 10
 }
 
 /**
@@ -229,9 +244,9 @@ export function isPremiumUser(user) {
 export function getUserLimits(user) {
   const isPremium = isPremiumUser(user)
   return {
-    maxSavedPlaces: isPremium ? Infinity : 10,
-    maxCollections: isPremium ? Infinity : 3,
-    maxSavedEvents: isPremium ? Infinity : 10
+    maxSavedPlaces: isPremium ? Infinity : FREE_TIER_LIMITS.MAX_SAVED_PLACES,
+    maxCollections: isPremium ? Infinity : FREE_TIER_LIMITS.MAX_COLLECTIONS,
+    maxSavedEvents: isPremium ? Infinity : FREE_TIER_LIMITS.MAX_SAVED_EVENTS
   }
 }
 
