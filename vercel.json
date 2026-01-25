@@ -17,11 +17,5 @@
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     }
-  ],
-  "protectionBypass": [
-    "/manifest.json",
-    "/sw.js",
-    "/robots.txt",
-    "/icons/(.*)"
   ]
 }
