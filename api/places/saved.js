@@ -4,7 +4,7 @@
  * Manage saved places for authenticated users.
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
+import { getUserFromRequest, getUserLimits } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
@@ -127,6 +127,30 @@ async function handlePost(req, res, user) {
   const placeDataJson = JSON.stringify(placeData)
   if (placeDataJson.length > MAX_JSON_SIZE) {
     return res.status(400).json({ error: 'Place data too large (max 10KB)' })
+  }
+
+  // Check if already saved
+  const existing = await queryOne(
+    'SELECT place_id FROM saved_places WHERE user_id = ? AND place_id = ?',
+    [user.id, placeId]
+  )
+
+  // If not already saved, check limit
+  if (!existing) {
+    const limits = getUserLimits(user)
+    if (limits.maxSavedPlaces !== Infinity) {
+      const countResult = await queryOne(
+        'SELECT COUNT(*) as count FROM saved_places WHERE user_id = ?',
+        [user.id]
+      )
+      if (countResult.count >= limits.maxSavedPlaces) {
+        return res.status(403).json({
+          error: 'Save limit reached',
+          limit: limits.maxSavedPlaces,
+          upgrade: true
+        })
+      }
+    }
   }
 
   // Upsert: insert or update if exists

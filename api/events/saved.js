@@ -4,7 +4,7 @@
  * Manage saved events for authenticated users.
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
+import { getUserFromRequest, getUserLimits } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
@@ -135,6 +135,22 @@ async function handlePost(req, res, user) {
       alreadySaved: true,
       event: { ...eventData, id: eventId, savedAt: Date.now() }
     })
+  }
+
+  // Check saved events limit for new saves
+  const limits = getUserLimits(user)
+  if (limits.maxSavedEvents !== Infinity) {
+    const countResult = await queryOne(
+      'SELECT COUNT(*) as count FROM saved_events WHERE user_id = ?',
+      [user.id]
+    )
+    if (countResult.count >= limits.maxSavedEvents) {
+      return res.status(403).json({
+        error: 'Saved events limit reached',
+        limit: limits.maxSavedEvents,
+        upgrade: true
+      })
+    }
   }
 
   await query(

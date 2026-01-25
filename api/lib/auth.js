@@ -211,6 +211,30 @@ export async function generateUsername(email) {
   return `${username}${Date.now()}`.slice(0, 50)
 }
 
+/**
+ * Check if user has premium tier
+ * @param {Object} user - User object from getUserFromRequest
+ * @returns {boolean}
+ */
+export function isPremiumUser(user) {
+  if (!user) return false
+  return user.tier === 'premium'
+}
+
+/**
+ * Get user's feature limits based on tier
+ * @param {Object} user - User object
+ * @returns {Object} limits
+ */
+export function getUserLimits(user) {
+  const isPremium = isPremiumUser(user)
+  return {
+    maxSavedPlaces: isPremium ? Infinity : 10,
+    maxCollections: isPremium ? Infinity : 3,
+    maxSavedEvents: isPremium ? Infinity : 10
+  }
+}
+
 export default {
   hashPassword,
   comparePassword,
@@ -222,5 +246,7 @@ export default {
   createLogoutCookie,
   isValidEmail,
   validatePassword,
-  generateUsername
+  generateUsername,
+  isPremiumUser,
+  getUserLimits
 }

@@ -4,7 +4,7 @@
  * Manage collections for authenticated users.
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
+import { getUserFromRequest, getUserLimits } from '../lib/auth.js'
 import { query, queryOne, insert } from '../lib/db.js'
 import { validateCollectionName, validateEmoji, sanitizeString } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
@@ -122,6 +122,22 @@ async function handlePost(req, res, user) {
   }
 
   const isPublic = visibility === 'public' ? 1 : 0
+
+  // Check collection limit
+  const limits = getUserLimits(user)
+  if (limits.maxCollections !== Infinity) {
+    const countResult = await queryOne(
+      'SELECT COUNT(*) as count FROM collections WHERE user_id = ?',
+      [user.id]
+    )
+    if (countResult.count >= limits.maxCollections) {
+      return res.status(403).json({
+        error: 'Collection limit reached',
+        limit: limits.maxCollections,
+        upgrade: true
+      })
+    }
+  }
 
   const collectionId = await insert(
     `INSERT INTO collections (user_id, name, emoji, description, is_public)
