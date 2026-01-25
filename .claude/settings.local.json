@@ -42,7 +42,15 @@
       "mcp__mysql-roam__mysql_list_tables",
       "mcp__mysql-roam__mysql_show_indexes",
       "mcp__mysql-roam__mysql_list_databases",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebFetch(domain:opentripmap.io)",
+      "WebSearch",
+      "WebFetch(domain:dev.opentripmap.org)",
+      "Bash(for component in OfflineMapsManager BoredomBuster FeatureGate BlockedUsersModal FollowRequestsModal FilterModal SocialProof SponsoredCard PlaceBadges)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(mysql:*)",
+      "Bash(git check-ignore:*)"
     ],
     "defaultMode": "acceptEdits"
   }

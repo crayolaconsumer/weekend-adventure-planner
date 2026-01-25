@@ -71,7 +71,7 @@ export default async function handler(req, res) {
         JOIN users u ON c.user_id = u.id
         WHERE c.place_id IN (${placeholders})
           AND c.contribution_type = 'tip'
-          AND c.status IN ('approved', 'pending')
+          AND c.status = 'approved'
         ORDER BY (c.upvotes - c.downvotes) DESC`,
         placeIds
       )

@@ -170,7 +170,11 @@ async function handlePost(req, res) {
     return res.status(401).json({ error: 'Authentication required' })
   }
 
-  const { placeId, type, content, metadata } = req.body
+  const { placeId, type, content, metadata, visibility } = req.body
+
+  // Validate visibility
+  const validVisibility = ['public', 'followers_only', 'private']
+  const safeVisibility = validVisibility.includes(visibility) ? visibility : 'public'
 
   // Validate required fields
   if (!placeId || !type || !content) {
@@ -205,9 +209,9 @@ async function handlePost(req, res) {
   // Insert contribution with pending status for moderation
   // New contributions require review before becoming visible
   const id = await insert(
-    `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status)
-     VALUES (?, ?, ?, ?, ?, 'pending')`,
-    [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null]
+    `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status, visibility)
+     VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+    [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null, safeVisibility]
   )
 
   // Award contribution badges (non-blocking)

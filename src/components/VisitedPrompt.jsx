@@ -451,10 +451,12 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
 
                 {/* Visibility selector */}
                 <div className="tip-visibility">
-                  <span className="tip-visibility-label">Who can see this?</span>
-                  <div className="tip-visibility-options">
+                  <span id="visibility-label" className="tip-visibility-label">Who can see this?</span>
+                  <div className="tip-visibility-options" role="radiogroup" aria-labelledby="visibility-label">
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={visibility === 'public'}
                       className={`tip-visibility-btn ${visibility === 'public' ? 'selected' : ''}`}
                       onClick={() => setVisibility('public')}
                     >
@@ -462,6 +464,8 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                     </button>
                     <button
                       type="button"
+                      role="radio"
+                      aria-checked={visibility === 'followers_only'}
                       className={`tip-visibility-btn ${visibility === 'followers_only' ? 'selected' : ''}`}
                       onClick={() => setVisibility('followers_only')}
                     >
