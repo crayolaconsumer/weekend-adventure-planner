@@ -952,10 +952,14 @@
 @media (min-width: 1024px) {
   .events-swipe-container {
     padding: var(--space-lg) 0;
+    /* On desktop, page has height:auto, so give container explicit height */
+    min-height: 560px;
   }
 
   .events-swipe-stack {
     max-width: 380px;
+    /* Use explicit height since parent is now height:auto on desktop */
+    height: 500px;
     max-height: 540px;
   }
 }
