@@ -14,7 +14,9 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { useSubscription } from '../hooks/useSubscription'
-import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController } from '../utils/apiClient'
+import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
+import { useUserStats } from '../hooks/useUserStats'
+import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
@@ -23,6 +25,7 @@ import './Discover.css'
 // Lazy load desktop-only components to keep mobile bundle small
 const DiscoverMap = lazy(() => import('../components/DiscoverMap'))
 const DiscoverList = lazy(() => import('../components/DiscoverList'))
+const TrendingPlaces = lazy(() => import('../components/TrendingPlaces'))
 
 // Travel mode configurations
 const TRAVEL_MODES = {
@@ -85,12 +88,15 @@ export default function Discover({ location }) {
   const { profile: userProfile } = useTasteProfile()
   const { sponsoredPlaces } = useSponsoredPlaces(location)
   const { isPremium } = useSubscription()
+  const { recordSwipe } = useSwipedPlaces()
+  const { incrementStat, updateStats } = useUserStats()
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [upgradePromptType, setUpgradePromptType] = useState('saves')
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [loadError, setLoadError] = useState(null)
   const [seenPlaceIds, setSeenPlaceIds] = useState(new Set())
   const [, setFetchOffset] = useState(0)
   const [weather, setWeather] = useState(null)
@@ -315,6 +321,7 @@ export default function Discover({ location }) {
     latestFilterKeyRef.current = requestKey
 
     setLoading(true)
+    setLoadError(null)
     const mode = TRAVEL_MODES[travelMode]
     const resolvedWeather = currentWeather ?? weather
 
@@ -370,6 +377,7 @@ export default function Discover({ location }) {
       if (requestId === latestLoadRequestRef.current) {
         console.error('Failed to load places:', error)
         setBasePlaces([])
+        setLoadError(error.message || 'Failed to load places')
         toast.error("Couldn't load places. Try refreshing.")
       }
     }
@@ -572,7 +580,7 @@ export default function Discover({ location }) {
   }
 
   // Handle swipe actions
-  const handleSwipe = (action, place) => {
+  const handleSwipe = async (action, place) => {
     if (action === 'like') {
       // CHECK SAVE LIMIT FOR FREE USERS
       const currentSaveCount = savedPlaces?.length || 0
@@ -583,7 +591,10 @@ export default function Discover({ location }) {
       }
 
       // Save to wishlist (hook handles localStorage vs API)
-      savePlace(place)
+      const saveResult = await savePlace(place)
+      if (!saveResult.success && !saveResult.fallback) {
+        toast.error('Failed to save place. Please try again.')
+      }
 
       // SOFT PROMPT AT 5TH SAVE (success moment)
       const newSaveCount = currentSaveCount + 1
@@ -625,12 +636,16 @@ export default function Discover({ location }) {
 
     // Track negative signals for "not interested" personalization
     if (action === 'nope') {
+      // Sync to API when authenticated
+      recordSwipe(place.id, 'skip')
+
       const notInterested = JSON.parse(localStorage.getItem('roam_not_interested') || '[]')
       const categoryKey = place.category?.key || place.categoryKey
       const placeType = place.type
 
       // Track the skip with timestamp (keep last 50)
       notInterested.push({
+        placeId: place.id,
         categoryKey,
         placeType,
         timestamp: Date.now()
@@ -644,32 +659,39 @@ export default function Discover({ location }) {
       localStorage.setItem('roam_not_interested', JSON.stringify(notInterested))
     }
 
-    // Track for analytics/stats
-    const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-    stats.totalSwipes = (stats.totalSwipes || 0) + 1
-    if (action === 'go') {
-      stats.timesWentOut = (stats.timesWentOut || 0) + 1
-      stats.lastActivityDate = new Date().toISOString()
+    // Sync likes to API when authenticated
+    if (action === 'like') {
+      recordSwipe(place.id, 'like')
+    }
 
+    // Track for analytics/stats via hook (syncs to API)
+    incrementStat('totalSwipes')
+    if (action === 'go') {
       // Save as pending visit for later prompt
       setPendingVisit(place)
 
-      // Update streak
+      // Update streak and going out stats
+      const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
       const today = new Date().toDateString()
       const lastDate = stats.lastStreakDate
+      let currentStreak = stats.currentStreak || 0
+      let bestStreak = stats.bestStreak || 0
+
       if (lastDate !== today) {
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
-        if (lastDate === yesterday.toDateString()) {
-          stats.currentStreak = (stats.currentStreak || 0) + 1
-        } else {
-          stats.currentStreak = 1
-        }
-        stats.lastStreakDate = today
-        stats.bestStreak = Math.max(stats.bestStreak || 0, stats.currentStreak)
+        currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
+        bestStreak = Math.max(bestStreak, currentStreak)
       }
+
+      updateStats({
+        timesWentOut: (stats.timesWentOut || 0) + 1,
+        lastActivityDate: new Date().toISOString(),
+        currentStreak,
+        bestStreak,
+        lastStreakDate: today
+      })
     }
-    localStorage.setItem('roam_stats', JSON.stringify(stats))
   }
 
   // Helper: fetch with timeout for BoredomBuster
@@ -763,6 +785,20 @@ export default function Discover({ location }) {
     }
 
     setBoredomLoading(false)
+  }
+
+  // Handle clicking a trending place
+  const handleViewTrending = async (placeId) => {
+    try {
+      const place = await fetchPlaceById(placeId)
+      if (place) {
+        const enriched = await apiEnrichPlace(place)
+        setSelectedPlace({ ...place, ...enriched })
+      }
+    } catch (error) {
+      console.error('Failed to load trending place:', error)
+      toast.error("Couldn't load place details")
+    }
   }
 
   const currentMode = TRAVEL_MODES[travelMode]
@@ -889,6 +925,11 @@ export default function Discover({ location }) {
         </div>
       )}
 
+      {/* Trending Places - shows what's popular in the community */}
+      <Suspense fallback={null}>
+        <TrendingPlaces onSelectPlace={handleViewTrending} />
+      </Suspense>
+
       {/* View Mode Toggle (desktop only) */}
       {isDesktop && (
         <div className="discover-view-toggle" role="group" aria-label="View mode">
@@ -921,8 +962,35 @@ export default function Discover({ location }) {
 
       {/* Main Content Area - conditionally render based on view mode */}
       <div className={`discover-content ${isDesktop ? `view-${viewMode}` : ''}`}>
+        {/* Error Recovery UI */}
+        {loadError && !loading && places.length === 0 && (
+          <motion.div
+            className="discover-error-recovery"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="discover-error-icon">⚠️</div>
+            <h3>Something went wrong</h3>
+            <p>We couldn't load places near you. This might be a temporary issue.</p>
+            <div className="discover-error-actions">
+              <button
+                className="discover-error-retry"
+                onClick={() => loadPlaces(weather)}
+              >
+                Try Again
+              </button>
+              <button
+                className="discover-error-settings"
+                onClick={() => setShowFilterModal(true)}
+              >
+                Check Filters
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Card Stack (always on mobile, conditional on desktop) */}
-        {(viewMode === 'swipe' || !isDesktop) && (
+        {(viewMode === 'swipe' || !isDesktop) && !loadError && (
           <CardStack
             places={places}
             sponsoredPlaces={sponsoredPlaces}
@@ -975,28 +1043,28 @@ export default function Discover({ location }) {
           travelMode={travelMode}
           onRefresh={refreshBoredomBuster}
           onGo={() => {
-            // Track it - Boredom Buster should count as going out and update streaks
+            // Track it via hook (syncs to API)
             const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-            stats.boredomBusts = (stats.boredomBusts || 0) + 1
-            stats.timesWentOut = (stats.timesWentOut || 0) + 1
-            stats.lastActivityDate = new Date().toISOString()
-
-            // Update streak (same logic as regular "go" action)
             const today = new Date().toDateString()
             const lastDate = stats.lastStreakDate
+            let currentStreak = stats.currentStreak || 0
+            let bestStreak = stats.bestStreak || 0
+
             if (lastDate !== today) {
               const yesterday = new Date()
               yesterday.setDate(yesterday.getDate() - 1)
-              if (lastDate === yesterday.toDateString()) {
-                stats.currentStreak = (stats.currentStreak || 0) + 1
-              } else {
-                stats.currentStreak = 1
-              }
-              stats.lastStreakDate = today
-              stats.bestStreak = Math.max(stats.bestStreak || 0, stats.currentStreak)
+              currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
+              bestStreak = Math.max(bestStreak, currentStreak)
             }
 
-            localStorage.setItem('roam_stats', JSON.stringify(stats))
+            updateStats({
+              boredomBusts: (stats.boredomBusts || 0) + 1,
+              timesWentOut: (stats.timesWentOut || 0) + 1,
+              lastActivityDate: new Date().toISOString(),
+              currentStreak,
+              bestStreak,
+              lastStreakDate: today
+            })
           }}
           onClose={() => setShowBoredomBuster(false)}
         />
@@ -1009,29 +1077,30 @@ export default function Discover({ location }) {
             place={selectedPlace}
             onClose={() => setSelectedPlace(null)}
             onGo={(place) => {
-              // Track as going out
-              const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-              stats.timesWentOut = (stats.timesWentOut || 0) + 1
-              stats.lastActivityDate = new Date().toISOString()
-
               // Save as pending visit for later prompt
               setPendingVisit(place)
 
+              // Track via hook (syncs to API)
+              const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
               const today = new Date().toDateString()
               const lastDate = stats.lastStreakDate
+              let currentStreak = stats.currentStreak || 0
+              let bestStreak = stats.bestStreak || 0
+
               if (lastDate !== today) {
                 const yesterday = new Date()
                 yesterday.setDate(yesterday.getDate() - 1)
-                if (lastDate === yesterday.toDateString()) {
-                  stats.currentStreak = (stats.currentStreak || 0) + 1
-                } else {
-                  stats.currentStreak = 1
-                }
-                stats.lastStreakDate = today
-                stats.bestStreak = Math.max(stats.bestStreak || 0, stats.currentStreak)
+                currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
+                bestStreak = Math.max(bestStreak, currentStreak)
               }
 
-              localStorage.setItem('roam_stats', JSON.stringify(stats))
+              updateStats({
+                timesWentOut: (stats.timesWentOut || 0) + 1,
+                lastActivityDate: new Date().toISOString(),
+                currentStreak,
+                bestStreak,
+                lastStreakDate: today
+              })
               setSelectedPlace(null)
             }}
           />

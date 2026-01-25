@@ -8,8 +8,15 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { hasBlockBetween } from '../social/block.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Rate limit profile lookups to prevent enumeration
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'users:profile')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -76,14 +83,17 @@ export default async function handler(req, res) {
     }
 
     // Get privacy settings
+    // SECURITY: Default to private if no settings exist (opt-in to public)
     const privacySettings = await queryOne(
       'SELECT * FROM user_privacy_settings WHERE user_id = ?',
       [user.id]
     )
 
-    const isPrivateAccount = !!privacySettings?.is_private_account
-    const hideFollowersList = !!privacySettings?.hide_followers_list
-    const hideFollowingList = !!privacySettings?.hide_following_list
+    // Default to private account if no privacy settings row exists
+    // This ensures new users are private by default until they explicitly choose public
+    const isPrivateAccount = privacySettings === null ? true : !!privacySettings.is_private_account
+    const hideFollowersList = privacySettings === null ? true : !!privacySettings.hide_followers_list
+    const hideFollowingList = privacySettings === null ? true : !!privacySettings.hide_following_list
 
     // Determine if current user can see full profile
     const canSeeFullProfile = isOwnProfile || !isPrivateAccount || isFollowing
@@ -92,7 +102,7 @@ export default async function handler(req, res) {
     const [followerCount, followingCount, contributionCount, savedPlacesCount] = await Promise.all([
       queryOne('SELECT COUNT(*) as count FROM follows WHERE following_id = ?', [user.id]),
       queryOne('SELECT COUNT(*) as count FROM follows WHERE follower_id = ?', [user.id]),
-      queryOne('SELECT COUNT(*) as count FROM contributions WHERE user_id = ? AND status IN ("approved", "pending")', [user.id]),
+      queryOne('SELECT COUNT(*) as count FROM contributions WHERE user_id = ? AND status = "approved"', [user.id]),
       queryOne('SELECT COUNT(*) as count FROM saved_places WHERE user_id = ?', [user.id])
     ])
 
@@ -134,13 +144,17 @@ export default async function handler(req, res) {
         c.upvotes,
         c.downvotes,
         c.created_at,
-        c.visibility
+        c.visibility,
+        c.status
       FROM contributions c
-      WHERE c.user_id = ? AND c.status IN ('approved', 'pending')
+      WHERE c.user_id = ?
     `
 
-    // Filter by visibility unless viewing own profile
-    if (!isOwnProfile) {
+    // Only show pending contributions to the profile owner
+    if (isOwnProfile) {
+      contributionSql += ` AND c.status IN ('approved', 'pending')`
+    } else {
+      contributionSql += ` AND c.status = 'approved'`
       if (isFollowing) {
         // Can see public and followers_only
         contributionSql += ` AND c.visibility IN ('public', 'followers_only')`
@@ -154,9 +168,9 @@ export default async function handler(req, res) {
 
     const contributions = await query(contributionSql, [user.id])
 
-    // Get helpful votes received (sum of upvotes on their contributions)
+    // Get helpful votes received (sum of upvotes on approved contributions only)
     const helpfulVotes = await queryOne(
-      'SELECT COALESCE(SUM(upvotes), 0) as total FROM contributions WHERE user_id = ? AND status IN ("approved", "pending")',
+      'SELECT COALESCE(SUM(upvotes), 0) as total FROM contributions WHERE user_id = ? AND status = "approved"',
       [user.id]
     )
 
@@ -184,7 +198,8 @@ export default async function handler(req, res) {
         downvotes: c.downvotes,
         score: c.upvotes - c.downvotes,
         createdAt: c.created_at,
-        visibility: c.visibility || 'public'
+        visibility: c.visibility || 'public',
+        status: isOwnProfile ? c.status : 'approved'
       })),
       isFollowing,
       followStatus,

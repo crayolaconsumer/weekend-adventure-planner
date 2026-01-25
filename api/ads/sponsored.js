@@ -7,14 +7,23 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query } from '../lib/db.js'
+import { parseCoordinates, validatePagination } from '../lib/validation.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Rate limit ad requests
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'ads:sponsored')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
-    const { lat, lng, category, limit = 3 } = req.query
+    const { lat, lng, category, limit: queryLimit } = req.query
+    const { limit } = validatePagination(queryLimit, 0, 10)
 
     // Get current user if authenticated
     const user = await getUserFromRequest(req)
@@ -48,7 +57,7 @@ export default async function handler(req, res) {
 
     // Order by random to distribute impressions fairly
     sql += ` ORDER BY RAND() LIMIT ?`
-    params.push(parseInt(limit, 10))
+    params.push(limit)
 
     const sponsoredPlaces = await query(sql, params)
 
@@ -58,15 +67,18 @@ export default async function handler(req, res) {
         ? JSON.parse(sp.place_data)
         : sp.place_data
 
-      // Calculate distance if user location provided
+      // Calculate distance if user location provided and valid
       let distance = null
       if (lat && lng && placeData.lat && placeData.lng) {
-        distance = calculateDistance(
-          parseFloat(lat),
-          parseFloat(lng),
-          placeData.lat,
-          placeData.lng
-        )
+        const coords = parseCoordinates(lat, lng)
+        if (coords.valid) {
+          distance = calculateDistance(
+            coords.lat,
+            coords.lng,
+            placeData.lat,
+            placeData.lng
+          )
+        }
       }
 
       return {

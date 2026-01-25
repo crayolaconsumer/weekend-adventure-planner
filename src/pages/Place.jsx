@@ -12,6 +12,7 @@ import { enrichPlace, fetchPlaceById } from '../utils/apiClient'
 import PlaceDetail from '../components/PlaceDetail'
 import LoadingState from '../components/LoadingState'
 import { useSEO } from '../hooks/useSEO'
+import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import './Place.css'
 
 export default function Place() {
@@ -20,6 +21,7 @@ export default function Place() {
   const [place, setPlace] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const { markVisited } = useVisitedPlaces()
 
   // Dynamic SEO for place pages
   useSEO({
@@ -80,8 +82,10 @@ export default function Place() {
   }
 
   const handleGo = (place) => {
-    // Track that user went to this place
-    console.log('User navigating to:', place.name)
+    // Mark as visited and open directions in Google Maps
+    markVisited(place)
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
+    window.open(mapsUrl, '_blank')
   }
 
   if (loading) {

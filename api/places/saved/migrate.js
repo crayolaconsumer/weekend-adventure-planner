@@ -7,11 +7,18 @@
 
 import { getUserFromRequest } from '../../lib/auth.js'
 import { query } from '../../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 
 export default async function handler(req, res) {
   // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Apply rate limiting (stricter for migration - one-time operation)
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, 'places:migrate')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
   }
 
   // Get authenticated user

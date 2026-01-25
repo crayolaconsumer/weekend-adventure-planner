@@ -20,6 +20,7 @@ import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
+import NotificationBell from './components/NotificationBell'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 
@@ -61,6 +62,30 @@ const CalendarIcon = () => (
   </svg>
 )
 
+// 404 Not Found component (M17)
+const NotFound = () => (
+  <div style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '60vh',
+    padding: '2rem',
+    textAlign: 'center'
+  }}>
+    <h1 style={{ fontSize: '4rem', margin: '0 0 1rem', opacity: 0.3 }}>404</h1>
+    <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem', opacity: 0.7 }}>Page not found</p>
+    <a href="/" style={{
+      padding: '0.75rem 1.5rem',
+      background: 'var(--color-primary, #007AFF)',
+      color: 'white',
+      borderRadius: '8px',
+      textDecoration: 'none',
+      fontWeight: '500'
+    }}>Back to Discover</a>
+  </div>
+)
+
 const LocationIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21,10c0,7-9,13-9,13S3,17,3,10a9,9,0,0,1,18,0Z"/>
@@ -90,6 +115,22 @@ function LocationBanner({ error, onRetry }) {
         &times;
       </button>
     </motion.div>
+  )
+}
+
+// App header with notification bell (for authenticated users)
+function AppHeader() {
+  const { isAuthenticated } = useAuth()
+
+  if (!isAuthenticated) return null
+
+  return (
+    <header className="app-header">
+      <div className="app-header-content">
+        <span className="app-header-logo">ROAM</span>
+        <NotificationBell />
+      </div>
+    </header>
   )
 }
 
@@ -312,6 +353,9 @@ function App() {
                 )}
               </AnimatePresence>
 
+              {/* App Header with Notification Bell */}
+              {!showOnboarding && <AppHeader />}
+
               {/* Auth Modal */}
               <AuthModal
                 isOpen={showAuthModal}
@@ -343,6 +387,8 @@ function App() {
                       <Route path="/place/:id" element={<Place />} />
                       <Route path="/plan/share/:code" element={<SharedPlan />} />
                       <Route path="/pricing" element={<Pricing />} />
+                      {/* M17: 404 catch-all route */}
+                      <Route path="*" element={<NotFound />} />
                     </Routes>
                   </AnimatePresence>
                 </Suspense>

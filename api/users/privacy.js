@@ -9,8 +9,16 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Apply rate limiting
+  const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
+  const rateLimitError = applyRateLimit(req, res, rateLimit, 'users:privacy')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   try {
     const user = await getUserFromRequest(req)
     if (!user) {
@@ -128,12 +136,16 @@ async function updatePrivacySettings(req, res, user) {
     )
   }
 
+  // Track auto-approved count for response
+  let autoApprovedCount = 0
+
   // If going from private to public, auto-approve all pending requests
   if (goingPublic) {
     const pendingRequests = await query(
       'SELECT requester_id FROM follow_requests WHERE target_id = ? AND status = ?',
       [user.id, 'pending']
     )
+    autoApprovedCount = pendingRequests.length
 
     // Convert pending requests to actual follows
     for (const request of pendingRequests) {
@@ -172,6 +184,6 @@ async function updatePrivacySettings(req, res, user) {
       hideFollowersList: !!settings.hide_followers_list,
       hideFollowingList: !!settings.hide_following_list
     },
-    autoApprovedRequests: goingPublic ? pendingRequests?.length || 0 : 0
+    autoApprovedRequests: autoApprovedCount
   })
 }

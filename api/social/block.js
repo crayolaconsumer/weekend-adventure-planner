@@ -8,9 +8,17 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, insert, update } from '../lib/db.js'
+import { query, queryOne, insert, update, transaction } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Apply rate limiting
+  const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
+  const rateLimitError = applyRateLimit(req, res, rateLimit, 'social:block')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   try {
     const user = await getUserFromRequest(req)
     if (!user) {
@@ -37,6 +45,10 @@ export default async function handler(req, res) {
 async function getBlockedUsers(req, res, user) {
   const { limit = 50, offset = 0 } = req.query
 
+  // Validate pagination bounds
+  const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 50), 100)
+  const safeOffset = Math.max(0, parseInt(offset, 10) || 0)
+
   const blockedUsers = await query(
     `SELECT
       bu.id as block_id,
@@ -50,7 +62,7 @@ async function getBlockedUsers(req, res, user) {
     WHERE bu.blocker_id = ?
     ORDER BY bu.created_at DESC
     LIMIT ? OFFSET ?`,
-    [user.id, parseInt(limit), parseInt(offset)]
+    [user.id, safeLimit, safeOffset]
   )
 
   const countResult = await queryOne(
@@ -70,7 +82,7 @@ async function getBlockedUsers(req, res, user) {
       }
     })),
     total: countResult?.total || 0,
-    hasMore: parseInt(offset) + blockedUsers.length < (countResult?.total || 0)
+    hasMore: safeOffset + blockedUsers.length < (countResult?.total || 0)
   })
 }
 
@@ -88,7 +100,7 @@ async function handleBlockAction(req, res, user) {
     return res.status(400).json({ error: 'action must be "block" or "unblock"' })
   }
 
-  const targetUserId = parseInt(userId)
+  const targetUserId = parseInt(userId, 10)
 
   if (targetUserId === user.id) {
     return res.status(400).json({ error: 'Cannot block yourself' })
@@ -111,23 +123,21 @@ async function handleBlockAction(req, res, user) {
       return res.status(200).json({ success: true, message: 'User already blocked' })
     }
 
-    // Create block
-    await insert(
-      'INSERT INTO blocked_users (blocker_id, blocked_id) VALUES (?, ?)',
-      [user.id, targetUserId]
-    )
-
-    // Remove any follow relationships in both directions
-    await update(
-      'DELETE FROM follows WHERE (follower_id = ? AND following_id = ?) OR (follower_id = ? AND following_id = ?)',
-      [user.id, targetUserId, targetUserId, user.id]
-    )
-
-    // Remove any pending follow requests in both directions
-    await update(
-      'DELETE FROM follow_requests WHERE (requester_id = ? AND target_id = ?) OR (requester_id = ? AND target_id = ?)',
-      [user.id, targetUserId, targetUserId, user.id]
-    )
+    // Block user and remove all relationships atomically
+    await transaction(async (conn) => {
+      await conn.query(
+        'INSERT INTO blocked_users (blocker_id, blocked_id) VALUES (?, ?)',
+        [user.id, targetUserId]
+      )
+      await conn.query(
+        'DELETE FROM follows WHERE (follower_id = ? AND following_id = ?) OR (follower_id = ? AND following_id = ?)',
+        [user.id, targetUserId, targetUserId, user.id]
+      )
+      await conn.query(
+        'DELETE FROM follow_requests WHERE (requester_id = ? AND target_id = ?) OR (requester_id = ? AND target_id = ?)',
+        [user.id, targetUserId, targetUserId, user.id]
+      )
+    })
 
     return res.status(200).json({
       success: true,

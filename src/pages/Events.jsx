@@ -27,12 +27,7 @@ import {
   formatPriceRange,
   getSourceInfo
 } from '../utils/eventsApi'
-import {
-  getSavedEvents,
-  saveEvent,
-  unsaveEvent,
-  isEventSaved as checkEventSaved
-} from '../utils/savedEvents'
+import { useSavedEvents } from '../hooks/useSavedEvents'
 import './Events.css'
 
 // Filter options
@@ -407,7 +402,8 @@ export default function Events({ location }) {
   const [viewMode, setViewMode] = useState(VIEW_MODES.SWIPE)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedEvent, setSelectedEvent] = useState(null)
-  const [savedCount, setSavedCount] = useState(() => getSavedEvents().length)
+  const { events: savedEventsList, saveEvent, unsaveEvent, isEventSaved: checkEventSaved } = useSavedEvents()
+  const savedCount = savedEventsList.length
   const [apiStatus, setApiStatus] = useState({ hasEvents: false, sources: [] })
   // Server-side pagination state
   const [hasMoreFromServer, setHasMoreFromServer] = useState(false)
@@ -673,9 +669,8 @@ export default function Events({ location }) {
   // Handle swipe - matches SwipeCard behavior
   const handleSwipe = useCallback((action, event) => {
     if (action === 'like') {
-      // Save event using utility
+      // Save event using hook
       saveEvent(event)
-      setSavedCount(getSavedEvents().length)
     } else if (action === 'go' && event.ticketUrl) {
       // Open tickets in new tab
       window.open(event.ticketUrl, '_blank', 'noopener,noreferrer')
@@ -684,7 +679,7 @@ export default function Events({ location }) {
     if (!hideSeen) {
       setCurrentIndex(prev => prev + 1)
     }
-  }, [markEventSeen, hideSeen])
+  }, [markEventSeen, hideSeen, saveEvent])
 
   // Toggle save event
   const toggleSaveEvent = useCallback((event) => {
@@ -693,13 +688,12 @@ export default function Events({ location }) {
     } else {
       saveEvent(event)
     }
-    setSavedCount(getSavedEvents().length)
-  }, [])
+  }, [checkEventSaved, unsaveEvent, saveEvent])
 
   // Check if event is saved
   const isEventSaved = useCallback((eventId) => {
     return checkEventSaved(eventId)
-  }, [])
+  }, [checkEventSaved])
 
   // Get visible cards for swipe view
   const visibleCards = filteredEvents.slice(currentIndex, currentIndex + 3)

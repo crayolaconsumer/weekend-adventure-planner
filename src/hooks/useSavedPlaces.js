@@ -17,9 +17,17 @@ export function useSavedPlaces() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const loadedRef = useRef(false)
+  // M14: AbortController ref for request cancellation
+  const abortControllerRef = useRef(null)
 
   // Define loadPlaces before useEffect that uses it
   const loadPlaces = useCallback(async () => {
+    // M14: Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+
     setLoading(true)
     setError(null)
 
@@ -31,7 +39,8 @@ export function useSavedPlaces() {
 
         const response = await fetch('/api/places/saved', {
           credentials: 'include',
-          headers
+          headers,
+          signal: abortControllerRef.current.signal
         })
 
         if (!response.ok) {
@@ -45,7 +54,9 @@ export function useSavedPlaces() {
         const saved = localStorage.getItem(STORAGE_KEY)
         setPlaces(saved ? JSON.parse(saved) : [])
       }
-    } catch {
+    } catch (err) {
+      // M14: Ignore abort errors
+      if (err.name === 'AbortError') return
       // Silently fall back to localStorage (API might not be configured)
       const saved = localStorage.getItem(STORAGE_KEY)
       setPlaces(saved ? JSON.parse(saved) : [])
@@ -61,6 +72,13 @@ export function useSavedPlaces() {
     if (authLoading) return
 
     loadPlaces()
+
+    // M14: Cleanup - cancel request on unmount
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [isAuthenticated, authLoading, loadPlaces])
 
   const savePlace = useCallback(async (place) => {
@@ -85,14 +103,18 @@ export function useSavedPlaces() {
         if (!response.ok) {
           throw new Error('Failed to save place')
         }
-      } catch {
-        // Silently revert - fall back to localStorage
+        return { success: true }
+      } catch (err) {
+        // Revert optimistic update
         setPlaces(prev => prev.filter(p => p.id !== place.id))
         // Save to localStorage as fallback
         const saved = localStorage.getItem(STORAGE_KEY)
         const current = saved ? JSON.parse(saved) : []
         const updated = [placeWithTimestamp, ...current.filter(p => p.id !== place.id)]
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+        // Re-add to state from localStorage fallback
+        setPlaces(updated)
+        return { success: false, error: err.message, fallback: true }
       }
     } else {
       // localStorage update
@@ -100,12 +122,13 @@ export function useSavedPlaces() {
       const current = saved ? JSON.parse(saved) : []
       const updated = [placeWithTimestamp, ...current.filter(p => p.id !== place.id)]
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      return { success: true }
     }
   }, [isAuthenticated])
 
   const removePlace = useCallback(async (placeId) => {
     // Store removed place for potential rollback
-    const _removed = places.find(p => p.id === placeId)
+    const removed = places.find(p => p.id === placeId)
 
     // Optimistic update
     setPlaces(prev => prev.filter(p => p.id !== placeId))
@@ -122,17 +145,20 @@ export function useSavedPlaces() {
         if (!response.ok) {
           throw new Error('Failed to remove place')
         }
-      } catch {
-        // Silently fall back to localStorage
-        const saved = localStorage.getItem(STORAGE_KEY)
-        const current = saved ? JSON.parse(saved) : []
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(current.filter(p => p.id !== placeId)))
+        return { success: true }
+      } catch (err) {
+        // Rollback - add place back
+        if (removed) {
+          setPlaces(prev => [removed, ...prev])
+        }
+        return { success: false, error: err.message }
       }
     } else {
       // localStorage update
       const saved = localStorage.getItem(STORAGE_KEY)
       const current = saved ? JSON.parse(saved) : []
       localStorage.setItem(STORAGE_KEY, JSON.stringify(current.filter(p => p.id !== placeId)))
+      return { success: true }
     }
   }, [isAuthenticated, places])
 

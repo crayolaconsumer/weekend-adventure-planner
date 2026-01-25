@@ -6,15 +6,10 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  getAllCollections,
-  createCollection,
-  addPlaceToCollection,
-  removePlaceFromCollection,
-  getCollectionsForPlace,
-  COLLECTION_EMOJIS
-} from '../utils/collections'
+import { useCollections } from '../hooks/useCollections'
+import { COLLECTION_EMOJIS } from '../utils/collections'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useToast } from '../hooks/useToast'
 import './CollectionManager.css'
 
 // Icons
@@ -39,8 +34,14 @@ const CloseIcon = () => (
 )
 
 export default function CollectionManager({ place, isOpen, onClose }) {
-  const [collections, setCollections] = useState([])
-  const [placeCollections, setPlaceCollections] = useState([])
+  const toast = useToast()
+  const {
+    collections,
+    createCollection,
+    addPlaceToCollection,
+    removePlaceFromCollection,
+    getCollectionsForPlace
+  } = useCollections()
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState('')
   const [selectedEmoji, setSelectedEmoji] = useState('📍')
@@ -48,6 +49,9 @@ export default function CollectionManager({ place, isOpen, onClose }) {
 
   // Focus trap for accessibility
   const focusTrapRef = useFocusTrap(isOpen)
+
+  // Get collections that contain this place
+  const placeCollections = getCollectionsForPlace(place.id).map(c => c.id)
 
   // Handle escape key to close
   useEffect(() => {
@@ -61,41 +65,32 @@ export default function CollectionManager({ place, isOpen, onClose }) {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  // Load collections when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Data loading when modal opens
-      setCollections(getAllCollections())
-      setPlaceCollections(getCollectionsForPlace(place.id).map(c => c.id))
-    }
-  }, [isOpen, place.id])
-
-  const handleToggleCollection = (collectionId) => {
+  const handleToggleCollection = async (collectionId) => {
+    const collection = collections.find(c => c.id === collectionId)
     if (placeCollections.includes(collectionId)) {
-      // Remove from collection
-      removePlaceFromCollection(collectionId, place.id)
-      setPlaceCollections(prev => prev.filter(id => id !== collectionId))
+      await removePlaceFromCollection(collectionId, place.id)
+      toast.success(`Removed from ${collection?.name || 'collection'}`)
     } else {
-      // Add to collection
-      addPlaceToCollection(collectionId, place.id)
-      setPlaceCollections(prev => [...prev, collectionId])
+      await addPlaceToCollection(collectionId, place.id, place)
+      toast.success(`Added to ${collection?.name || 'collection'}`)
     }
   }
 
-  const handleCreateCollection = () => {
+  const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) return
 
-    const newCollection = createCollection({
+    const newCollection = await createCollection({
       name: newCollectionName.trim(),
       emoji: selectedEmoji
     })
 
     // Add place to new collection
-    addPlaceToCollection(newCollection.id, place.id)
-
-    // Update state
-    setCollections(prev => [...prev, newCollection])
-    setPlaceCollections(prev => [...prev, newCollection.id])
+    if (newCollection) {
+      toast.success(`Created "${newCollectionName.trim()}"`)
+      await addPlaceToCollection(newCollection.id, place.id, place)
+    } else {
+      toast.error('Failed to create collection')
+    }
 
     // Reset form
     setNewCollectionName('')

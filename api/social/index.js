@@ -17,7 +17,10 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
+import { notifyNewFollower } from '../lib/pushNotifications.js'
 import { hasBlockBetween } from './block.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { validateId, validatePagination } from '../lib/validation.js'
 
 export default async function handler(req, res) {
   try {
@@ -39,18 +42,21 @@ export default async function handler(req, res) {
  * GET - Fetch social data
  */
 async function handleGet(req, res) {
-  const { action, userId, limit = 20, offset = 0 } = req.query
+  const { action, userId, limit: queryLimit, offset: queryOffset } = req.query
   const currentUser = await getUserFromRequest(req)
+
+  // Validate pagination
+  const { limit, offset } = validatePagination(queryLimit, queryOffset, 50)
 
   switch (action) {
     case 'followers':
-      return await getFollowers(req, res, userId, currentUser, parseInt(limit), parseInt(offset))
+      return await getFollowers(req, res, userId, currentUser, limit, offset)
     case 'following':
-      return await getFollowing(req, res, userId, currentUser, parseInt(limit), parseInt(offset))
+      return await getFollowing(req, res, userId, currentUser, limit, offset)
     case 'feed':
-      return await getActivityFeed(req, res, currentUser, parseInt(limit), parseInt(offset))
+      return await getActivityFeed(req, res, currentUser, limit, offset)
     case 'discover':
-      return await discoverUsers(req, res, currentUser, parseInt(limit))
+      return await discoverUsers(req, res, currentUser, limit)
     default:
       return res.status(400).json({ error: 'Invalid action. Use: followers, following, feed, or discover' })
   }
@@ -218,7 +224,7 @@ async function getActivityFeed(req, res, currentUser, limit, offset) {
     FROM contributions c
     JOIN users u ON c.user_id = u.id
     WHERE c.user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)
-    AND c.status IN ('approved', 'pending')
+    AND c.status = 'approved'
     ORDER BY c.created_at DESC
     LIMIT ? OFFSET ?
   `
@@ -229,7 +235,7 @@ async function getActivityFeed(req, res, currentUser, limit, offset) {
   const countResult = await queryOne(
     `SELECT COUNT(*) as total FROM contributions
      WHERE user_id IN (SELECT following_id FROM follows WHERE follower_id = ?)
-     AND status IN ('approved', 'pending')`,
+     AND status = 'approved'`,
     [currentUser.id]
   )
 
@@ -272,7 +278,7 @@ async function discoverUsers(req, res, currentUser, limit) {
         u.avatar_url,
         COUNT(c.id) as contribution_count
       FROM users u
-      LEFT JOIN contributions c ON u.id = c.user_id AND c.status IN ('approved', 'pending')
+      LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
       AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
@@ -306,7 +312,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       u.display_name,
       u.avatar_url,
       COUNT(DISTINCT sp2.place_id) as common_saves,
-      (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status IN ('approved', 'pending')) as contribution_count,
+      (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status = 'approved') as contribution_count,
       (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following,
       COALESCE(ups.is_private_account, FALSE) as is_private
     FROM users u
@@ -338,7 +344,7 @@ async function discoverUsers(req, res, currentUser, limit) {
         (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following,
         COALESCE(ups.is_private_account, FALSE) as is_private
       FROM users u
-      LEFT JOIN contributions c ON u.id = c.user_id AND c.status IN ('approved', 'pending')
+      LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.id NOT IN (${excludeIds.map(() => '?').join(',')})
       AND u.username IS NOT NULL
@@ -374,13 +380,21 @@ async function discoverUsers(req, res, currentUser, limit) {
  * Follow a user
  */
 async function followUser(req, res, user) {
-  const { userId } = req.body
-
-  if (!userId) {
-    return res.status(400).json({ error: 'userId is required' })
+  // Rate limit follow requests to prevent spam
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.FOLLOW, 'social:follow')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
   }
 
-  const targetUserId = parseInt(userId)
+  const { userId } = req.body
+
+  // Validate userId
+  const idValidation = validateId(userId)
+  if (!idValidation.valid) {
+    return res.status(400).json({ error: 'Invalid userId' })
+  }
+
+  const targetUserId = idValidation.id
 
   if (targetUserId === user.id) {
     return res.status(400).json({ error: 'Cannot follow yourself' })
@@ -481,6 +495,9 @@ async function followUser(req, res, user) {
     data: { followerUsername: followerInfo?.username }
   })
 
+  // Send push notification (non-blocking)
+  notifyNewFollower(user.id, targetUserId, followerInfo?.username).catch(() => {})
+
   // Get updated follower count for target user
   const countResult = await queryOne(
     'SELECT COUNT(*) as count FROM follows WHERE following_id = ?',
@@ -500,11 +517,13 @@ async function followUser(req, res, user) {
 async function unfollowUser(req, res, user) {
   const { userId } = req.body
 
-  if (!userId) {
-    return res.status(400).json({ error: 'userId is required' })
+  // Validate userId
+  const idValidation = validateId(userId)
+  if (!idValidation.valid) {
+    return res.status(400).json({ error: 'Invalid userId' })
   }
 
-  const targetUserId = parseInt(userId)
+  const targetUserId = idValidation.id
 
   // Delete follow relationship if exists
   await update(

@@ -11,8 +11,27 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+
+// Safe JSON parse helper
+const safeJsonParse = (data, defaultValue = null) => {
+  if (!data) return defaultValue
+  if (typeof data === 'object') return data
+  try {
+    return JSON.parse(data)
+  } catch {
+    return defaultValue
+  }
+}
 
 export default async function handler(req, res) {
+  // Apply rate limiting
+  const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
+  const rateLimitError = applyRateLimit(req, res, rateLimit, 'notifications')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   const user = await getUserFromRequest(req)
 
   if (!user) {
@@ -39,8 +58,8 @@ export default async function handler(req, res) {
  */
 async function getNotifications(req, res, user) {
   const { limit = 20, offset = 0, unread_only = 'false' } = req.query
-  const limitNum = Math.min(parseInt(limit), 50)
-  const offsetNum = parseInt(offset) || 0
+  const limitNum = Math.min(Math.max(1, parseInt(limit, 10) || 20), 50)
+  const offsetNum = Math.max(0, parseInt(offset, 10) || 0)
   const unreadOnly = unread_only === 'true'
 
   let sql = `
@@ -92,7 +111,7 @@ async function getNotifications(req, res, user) {
       type: n.type,
       title: n.title,
       message: n.message,
-      data: n.data ? JSON.parse(n.data) : null,
+      data: safeJsonParse(n.data),
       isRead: !!n.is_read,
       createdAt: n.created_at,
       actor: n.actor_id ? {
@@ -120,11 +139,26 @@ async function handleAction(req, res, user) {
         return res.status(400).json({ error: 'notificationIds array required' })
       }
 
+      // M11: Validate each ID is a valid integer
+      const validatedIds = []
+      for (const id of notificationIds) {
+        const parsed = parseInt(id, 10)
+        if (isNaN(parsed) || parsed < 1 || parsed > Number.MAX_SAFE_INTEGER) {
+          return res.status(400).json({ error: 'Invalid notification ID in array' })
+        }
+        validatedIds.push(parsed)
+      }
+
+      // Limit batch size to prevent abuse
+      if (validatedIds.length > 100) {
+        return res.status(400).json({ error: 'Maximum 100 notification IDs per request' })
+      }
+
       // Only mark notifications belonging to this user
-      const placeholders = notificationIds.map(() => '?').join(',')
+      const placeholders = validatedIds.map(() => '?').join(',')
       await update(
         `UPDATE notifications SET is_read = 1 WHERE id IN (${placeholders}) AND user_id = ?`,
-        [...notificationIds, user.id]
+        [...validatedIds, user.id]
       )
 
       return res.status(200).json({ success: true })

@@ -384,3 +384,8 @@
     font-size: 11px;
   }
 }
+
+/* Photo Upload in Share Step */
+.visited-photo-upload {
+  margin-top: var(--space-md, 12px);
+}

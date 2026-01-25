@@ -5,23 +5,46 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, update } from '../lib/db.js'
+import { query, queryOne, update, transaction } from '../lib/db.js'
+import { validateId } from '../lib/validation.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+
+// Safe JSON parse helper
+const safeJsonParse = (data, defaultValue = {}) => {
+  if (!data) return defaultValue
+  if (typeof data === 'object') return data
+  try {
+    return JSON.parse(data)
+  } catch {
+    return defaultValue
+  }
+}
 
 export default async function handler(req, res) {
+  // Apply rate limiting (stricter for write operations)
+  const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
+  const rateLimitError = applyRateLimit(req, res, rateLimit, 'plans:id')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   const { id } = req.query
 
-  if (!id) {
-    return res.status(400).json({ error: 'Plan ID required' })
+  // Validate plan ID format
+  const idValidation = validateId(id)
+  if (!idValidation.valid) {
+    return res.status(400).json({ error: 'Invalid plan ID' })
   }
+  const planId = idValidation.id
 
   try {
     switch (req.method) {
       case 'GET':
-        return await handleGet(req, res, id)
+        return await handleGet(req, res, planId)
       case 'PUT':
-        return await handlePut(req, res, id)
+        return await handlePut(req, res, planId)
       case 'DELETE':
-        return await handleDelete(req, res, id)
+        return await handleDelete(req, res, planId)
       default:
         return res.status(405).json({ error: 'Method not allowed' })
     }
@@ -69,7 +92,7 @@ async function handleGet(req, res, id) {
   const formattedStops = stops.map(s => ({
     id: s.id,
     placeId: s.place_id,
-    placeData: JSON.parse(s.place_data),
+    placeData: safeJsonParse(s.place_data),
     sortOrder: s.sort_order,
     scheduledTime: s.scheduled_time,
     durationMinutes: s.duration_minutes
@@ -136,27 +159,29 @@ async function handlePut(req, res, id) {
     }
   }
 
-  // Update stops if provided (replace all)
+  // Update stops if provided (replace all) - atomic operation
   if (stops && Array.isArray(stops)) {
-    // Delete existing stops
-    await update('DELETE FROM plan_stops WHERE plan_id = ?', [id])
+    await transaction(async (conn) => {
+      // Delete existing stops
+      await conn.query('DELETE FROM plan_stops WHERE plan_id = ?', [id])
 
-    // Insert new stops
-    for (let i = 0; i < stops.length; i++) {
-      const stop = stops[i]
-      await query(
-        `INSERT INTO plan_stops (plan_id, place_id, place_data, sort_order, scheduled_time, duration_minutes)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          stop.placeId || stop.id,
-          JSON.stringify(stop.placeData || stop),
-          i + 1,
-          stop.scheduledTime || null,
-          stop.durationMinutes || stop.duration || 60
-        ]
-      )
-    }
+      // Insert new stops
+      for (let i = 0; i < stops.length; i++) {
+        const stop = stops[i]
+        await conn.query(
+          `INSERT INTO plan_stops (plan_id, place_id, place_data, sort_order, scheduled_time, duration_minutes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            stop.placeId || stop.id,
+            JSON.stringify(stop.placeData || stop),
+            i + 1,
+            stop.scheduledTime || null,
+            stop.durationMinutes || stop.duration || 60
+          ]
+        )
+      }
+    })
   }
 
   return res.status(200).json({ success: true })

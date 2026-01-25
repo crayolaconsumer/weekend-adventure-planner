@@ -6,18 +6,9 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert } from '../lib/db.js'
-
-/**
- * Generate a unique share code
- */
-function generateShareCode() {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let code = ''
-  for (let i = 0; i < 12; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return code
-}
+import { generateShareCode } from '../lib/crypto.js'
+import { validatePlanTitle, validatePagination } from '../lib/validation.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
   try {
@@ -46,7 +37,8 @@ async function handleGet(req, res) {
     return res.status(401).json({ error: 'Authentication required' })
   }
 
-  const { limit = 20 } = req.query
+  const { limit: queryLimit } = req.query
+  const { limit } = validatePagination(queryLimit, 0, 50)
 
   const plans = await query(
     `SELECT
@@ -91,6 +83,12 @@ async function handleGet(req, res) {
  * }
  */
 async function handlePost(req, res) {
+  // Rate limit plan creation
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, 'plans:create')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' })
@@ -98,13 +96,45 @@ async function handlePost(req, res) {
 
   const { title, vibe, durationHours, defaultTransport = 'walk', stops, isPublic = false } = req.body
 
+  // Validate title
+  const titleValidation = validatePlanTitle(title)
+  if (!titleValidation.valid) {
+    return res.status(400).json({ error: titleValidation.message })
+  }
+
   // Validate required fields
-  if (!title || !vibe || !durationHours) {
-    return res.status(400).json({ error: 'title, vibe, and durationHours are required' })
+  if (!vibe || !durationHours) {
+    return res.status(400).json({ error: 'vibe and durationHours are required' })
+  }
+
+  // Validate vibe
+  const validVibes = ['chill', 'adventure', 'romantic', 'family', 'cultural', 'foodie', 'mix']
+  if (!validVibes.includes(vibe)) {
+    return res.status(400).json({ error: 'Invalid vibe' })
+  }
+
+  // Validate durationHours
+  const hours = parseFloat(durationHours)
+  if (isNaN(hours) || hours < 0.5 || hours > 24) {
+    return res.status(400).json({ error: 'durationHours must be between 0.5 and 24' })
   }
 
   if (!stops || !Array.isArray(stops) || stops.length === 0) {
     return res.status(400).json({ error: 'At least one stop is required' })
+  }
+
+  if (stops.length > 20) {
+    return res.status(400).json({ error: 'Maximum 20 stops allowed' })
+  }
+
+  // Validate stop data sizes (10KB max per stop)
+  const MAX_JSON_SIZE = 10 * 1024
+  for (const stop of stops) {
+    const stopData = stop.placeData || stop
+    const stopDataJson = JSON.stringify(stopData)
+    if (stopDataJson.length > MAX_JSON_SIZE) {
+      return res.status(400).json({ error: 'Stop data too large (max 10KB per stop)' })
+    }
   }
 
   // Validate transport mode
@@ -113,14 +143,20 @@ async function handlePost(req, res) {
     return res.status(400).json({ error: 'defaultTransport must be walk, transit, or drive' })
   }
 
-  // Generate unique share code
+  // Generate unique share code with cryptographically secure generator
+  // 16 chars with 36^16 possibilities - effectively impossible to collide
   let shareCode = generateShareCode()
   let attempts = 0
-  while (attempts < 5) {
+  while (attempts < 10) {
     const existing = await queryOne('SELECT id FROM plans WHERE share_code = ?', [shareCode])
     if (!existing) break
     shareCode = generateShareCode()
     attempts++
+  }
+
+  if (attempts >= 10) {
+    console.error('Failed to generate unique share code after 10 attempts')
+    return res.status(500).json({ error: 'Failed to create plan. Please try again.' })
   }
 
   // Create plan

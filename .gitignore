@@ -33,3 +33,6 @@ dist-ssr
 database/
 docs/
 **/screenshots/
+
+# Claude local settings (contains credentials)
+.claude/settings.local.json

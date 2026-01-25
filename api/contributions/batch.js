@@ -6,10 +6,17 @@
  */
 
 import { query } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Apply rate limiting
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'contrib:batch')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
   }
 
   try {
@@ -48,12 +55,12 @@ export default async function handler(req, res) {
         u.username,
         u.display_name,
         u.avatar_url,
-        (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status IN ('approved', 'pending')) as user_contribution_count,
-        (SELECT COALESCE(AVG(upvotes - downvotes), 0) FROM contributions WHERE user_id = u.id AND status IN ('approved', 'pending')) as user_avg_score
+        (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status = 'approved') as user_contribution_count,
+        (SELECT COALESCE(AVG(upvotes - downvotes), 0) FROM contributions WHERE user_id = u.id AND status = 'approved') as user_avg_score
       FROM contributions c
       JOIN users u ON c.user_id = u.id
       WHERE c.place_id IN (${placeholders})
-        AND (c.status = 'approved' OR c.status = 'pending')
+        AND c.status = 'approved'
         AND c.contribution_type = 'tip'
       ORDER BY c.place_id, (c.upvotes - c.downvotes) DESC, c.created_at DESC
     `

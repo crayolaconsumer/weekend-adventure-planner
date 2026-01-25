@@ -7,6 +7,9 @@
 
 /* global process */
 
+import { validateCoordinates } from '../lib/validation.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+
 const ORS_BASE_URL = 'https://api.openrouteservice.org/v2/directions'
 
 const PROFILE_MAP = {
@@ -52,6 +55,12 @@ function calculateFallback(from, to, mode) {
 }
 
 export default async function handler(req, res) {
+  // Rate limit routing requests
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'routing')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -61,6 +70,23 @@ export default async function handler(req, res) {
   // Validate input
   if (!from?.lat || !from?.lng || !to?.lat || !to?.lng) {
     return res.status(400).json({ error: 'Invalid coordinates' })
+  }
+
+  // Validate coordinate values
+  const fromValidation = validateCoordinates(parseFloat(from.lat), parseFloat(from.lng))
+  if (!fromValidation.valid) {
+    return res.status(400).json({ error: `Invalid 'from' coordinates: ${fromValidation.message}` })
+  }
+
+  const toValidation = validateCoordinates(parseFloat(to.lat), parseFloat(to.lng))
+  if (!toValidation.valid) {
+    return res.status(400).json({ error: `Invalid 'to' coordinates: ${toValidation.message}` })
+  }
+
+  // Validate mode
+  const validModes = ['walk', 'transit', 'drive']
+  if (!validModes.includes(mode)) {
+    return res.status(400).json({ error: 'mode must be walk, transit, or drive' })
   }
 
   const ORS_API_KEY = process.env.ORS_API_KEY

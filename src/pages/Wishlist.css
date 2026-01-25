@@ -551,3 +551,95 @@
 .wishlist-error button:hover {
   background: var(--roam-forest-light);
 }
+
+/* ═══════════════════════════════════════════════════════
+   ADVENTURES TAB
+   ═══════════════════════════════════════════════════════ */
+
+.wishlist-adventures-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.wishlist-adventure-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.wishlist-adventure-info h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 4px 0;
+}
+
+.wishlist-adventure-meta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.wishlist-adventure-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.wishlist-adventure-view {
+  padding: 8px 16px;
+  background: var(--roam-forest);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--duration-fast);
+}
+
+.wishlist-adventure-view:hover {
+  background: var(--roam-forest-light);
+}
+
+.wishlist-adventure-delete {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.wishlist-adventure-delete:hover {
+  background: var(--roam-terracotta);
+  border-color: var(--roam-terracotta);
+  color: white;
+}
+
+/* Empty state icon for adventures */
+.wishlist-empty-icon.adventures {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 58, 47, 0.1);
+  border-radius: var(--radius-full);
+  color: var(--roam-forest);
+}
+
+.wishlist-empty-icon.adventures svg {
+  width: 36px;
+  height: 36px;
+}

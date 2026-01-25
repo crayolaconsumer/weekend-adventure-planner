@@ -7,8 +7,15 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Rate limit search requests to prevent enumeration attacks
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'users:search')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -23,8 +30,8 @@ export default async function handler(req, res) {
 
     const searchTerm = q.trim()
     const likePattern = `%${searchTerm}%`
-    const limitNum = Math.min(parseInt(limit), 50)
-    const offsetNum = parseInt(offset) || 0
+    const limitNum = Math.min(Math.max(1, parseInt(limit, 10) || 20), 50)
+    const offsetNum = Math.max(0, parseInt(offset, 10) || 0)
     const startsWith = `${searchTerm}%`
 
     // Search for users by username or display_name
@@ -35,7 +42,7 @@ export default async function handler(req, res) {
         u.username,
         u.display_name,
         u.avatar_url,
-        (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status IN ('approved', 'pending')) as contribution_count,
+        (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status = 'approved') as contribution_count,
         (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as follower_count,
         COALESCE(ups.is_private_account, FALSE) as is_private
     `

@@ -27,6 +27,7 @@ import {
   extractToken,
   verifyToken
 } from '../lib/auth.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 
@@ -65,29 +66,11 @@ export default async function handler(req, res) {
  * GET - Get current authenticated user
  */
 async function handleGetMe(req, res) {
-  const cookieHeader = req.headers.cookie
-  const token = extractToken(req)
-  const payload = token ? verifyToken(token) : null
-
-  console.log('Auth debug:', {
-    hasCookieHeader: !!cookieHeader,
-    cookieHeaderLength: cookieHeader?.length,
-    hasRoamToken: cookieHeader?.includes('roam_token='),
-    extractedTokenLength: token?.length,
-    tokenValid: !!payload,
-    payloadUserId: payload?.userId
-  })
-
   const user = await getUserFromRequest(req)
 
   if (!user) {
     return res.status(401).json({
-      error: 'Not authenticated',
-      debug: {
-        hasCookie: !!cookieHeader,
-        hasToken: !!token,
-        tokenValid: !!payload
-      }
+      error: 'Not authenticated'
     })
   }
 
@@ -113,6 +96,12 @@ async function handleGetMe(req, res) {
  * POST action=login - Email/password login
  */
 async function handleLogin(req, res) {
+  // Rate limit login attempts
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.AUTH_LOGIN, 'login')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   const { email, password, remember = false } = req.body
 
   if (!email || !password) {
@@ -173,6 +162,12 @@ async function handleLogin(req, res) {
  * POST action=register - Create new account
  */
 async function handleRegister(req, res) {
+  // Rate limit registration attempts
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.AUTH_REGISTER, 'register')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   const { email, password, displayName } = req.body
 
   if (!email || !password) {
@@ -188,13 +183,29 @@ async function handleRegister(req, res) {
     return res.status(400).json({ error: passwordValidation.message })
   }
 
+  // M4: Validate displayName length on register
+  if (displayName !== undefined && displayName !== null) {
+    if (typeof displayName !== 'string') {
+      return res.status(400).json({ error: 'Display name must be a string' })
+    }
+    if (displayName.length > 50) {
+      return res.status(400).json({ error: 'Display name must be 50 characters or less' })
+    }
+    // Check for potentially malicious content
+    if (/<script|javascript:|data:/i.test(displayName)) {
+      return res.status(400).json({ error: 'Display name contains invalid characters' })
+    }
+  }
+
   const existingUser = await queryOne(
     'SELECT id FROM users WHERE email = ?',
     [email.toLowerCase()]
   )
 
   if (existingUser) {
-    return res.status(409).json({ error: 'An account with this email already exists' })
+    // Generic message to prevent email enumeration
+    // In production, consider sending a "someone tried to register" email to the existing user
+    return res.status(400).json({ error: 'Unable to create account. Please try signing in instead.' })
   }
 
   const passwordHash = await hashPassword(password)
@@ -236,15 +247,22 @@ async function handleRegister(req, res) {
  * POST action=google - Google OAuth
  */
 async function handleGoogle(req, res) {
+  // Rate limit Google auth attempts
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.AUTH_GOOGLE, 'google')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   if (!GOOGLE_CLIENT_ID) {
     return res.status(501).json({ error: 'Google sign-in is not configured' })
   }
 
-  const { credential, accessToken, userInfo } = req.body
+  const { credential, accessToken } = req.body
 
   let googleId, email, emailVerified, displayName, avatarUrl
 
   if (credential && typeof credential === 'string') {
+    // ID Token flow - verify with Google
     const client = new OAuth2Client(GOOGLE_CLIENT_ID)
     let ticket
     try {
@@ -262,18 +280,34 @@ async function handleGoogle(req, res) {
     emailVerified = payload.email_verified
     displayName = payload.name
     avatarUrl = payload.picture
-  } else if (accessToken && userInfo) {
-    if (!userInfo.sub || !userInfo.email) {
-      return res.status(400).json({ error: 'Invalid Google user info' })
-    }
+  } else if (accessToken && typeof accessToken === 'string') {
+    // Access Token flow - MUST validate with Google's userinfo API
+    // NEVER trust client-provided userInfo
+    try {
+      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
 
-    googleId = userInfo.sub
-    email = userInfo.email
-    emailVerified = userInfo.email_verified ?? true
-    displayName = userInfo.name
-    avatarUrl = userInfo.picture
+      if (!response.ok) {
+        return res.status(401).json({ error: 'Invalid Google access token' })
+      }
+
+      const userInfo = await response.json()
+
+      if (!userInfo.sub || !userInfo.email) {
+        return res.status(401).json({ error: 'Invalid Google user info' })
+      }
+
+      googleId = userInfo.sub
+      email = userInfo.email
+      emailVerified = userInfo.email_verified ?? false
+      displayName = userInfo.name
+      avatarUrl = userInfo.picture
+    } catch {
+      return res.status(401).json({ error: 'Failed to verify Google access token' })
+    }
   } else {
-    return res.status(400).json({ error: 'Google credential is required' })
+    return res.status(400).json({ error: 'Google credential or access token is required' })
   }
 
   let user = await queryOne(
@@ -330,15 +364,9 @@ async function handleGoogle(req, res) {
 
   const token = generateToken(user)
   const cookie = createAuthCookie(token, true)
-  console.log('Setting cookie:', cookie.substring(0, 50) + '...')
   res.setHeader('Set-Cookie', cookie)
 
   return res.status(200).json({
-    debug: {
-      cookieSet: true,
-      cookieLength: cookie.length,
-      tokenLength: token.length
-    },
     user: {
       id: user.id,
       email: user.email,
@@ -375,7 +403,16 @@ async function handleUpdateProfile(req, res) {
     return res.status(401).json({ error: 'Not authenticated' })
   }
 
-  const { displayName, username, avatarUrl } = req.body
+  // SECURITY: Whitelist allowed fields to prevent SQL injection via dynamic field names
+  const ALLOWED_FIELDS = ['displayName', 'username', 'avatarUrl']
+  const sanitizedBody = {}
+  for (const field of ALLOWED_FIELDS) {
+    if (req.body[field] !== undefined) {
+      sanitizedBody[field] = req.body[field]
+    }
+  }
+
+  const { displayName, username, avatarUrl } = sanitizedBody
 
   // Validate username if provided
   if (username !== undefined) {
@@ -420,7 +457,24 @@ async function handleUpdateProfile(req, res) {
     values.push(username.toLowerCase())
   }
 
+  // M5: Validate avatarUrl format and length
   if (avatarUrl !== undefined) {
+    if (avatarUrl !== null && avatarUrl !== '') {
+      if (typeof avatarUrl !== 'string') {
+        return res.status(400).json({ error: 'Avatar URL must be a string' })
+      }
+      if (avatarUrl.length > 500) {
+        return res.status(400).json({ error: 'Avatar URL must be 500 characters or less' })
+      }
+      // Only allow http/https URLs
+      if (!/^https?:\/\//i.test(avatarUrl)) {
+        return res.status(400).json({ error: 'Avatar URL must be a valid HTTP/HTTPS URL' })
+      }
+      // Block javascript: and data: URLs
+      if (/^(javascript|data):/i.test(avatarUrl)) {
+        return res.status(400).json({ error: 'Invalid avatar URL format' })
+      }
+    }
     updates.push('avatar_url = ?')
     values.push(avatarUrl || null)
   }

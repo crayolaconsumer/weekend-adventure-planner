@@ -6,16 +6,27 @@
  */
 
 import { query } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Apply rate limiting
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'places:trending')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   try {
     const { limit = 10, days = 7 } = req.query
 
-    // Get places with recent activity
+    // Apply bounds to prevent abuse
+    const safeLimit = Math.min(Math.max(1, parseInt(limit) || 10), 50)
+    const safeDays = Math.min(Math.max(1, parseInt(days) || 7), 30)
+
+    // Get places with recent activity (only approved contributions)
     // Score = contributions + plan inclusions (weighted)
     const sql = `
       SELECT
@@ -28,14 +39,14 @@ export default async function handler(req, res) {
       LEFT JOIN plan_stops ps ON c.place_id = ps.place_id
         AND ps.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
       WHERE c.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
-        AND c.status IN ('approved', 'pending')
+        AND c.status = 'approved'
       GROUP BY c.place_id
       HAVING popularity_score > 0
       ORDER BY popularity_score DESC, last_activity DESC
       LIMIT ?
     `
 
-    const trending = await query(sql, [parseInt(days), parseInt(days), parseInt(limit)])
+    const trending = await query(sql, [safeDays, safeDays, safeLimit])
 
     // Get top contribution content for each trending place
     const placeIds = trending.map(t => t.place_id)

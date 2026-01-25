@@ -9,7 +9,15 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import { queryOne } from './db.js'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret-change-me'
+// CRITICAL: JWT_SECRET must be set in production
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set')
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be configured in production')
+  }
+}
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'dev-only-secret-not-for-production'
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
 const SALT_ROUNDS = 10
 
@@ -44,7 +52,7 @@ export function generateToken(user) {
       email: user.email,
       username: user.username
     },
-    JWT_SECRET,
+    EFFECTIVE_JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   )
 }
@@ -56,7 +64,7 @@ export function generateToken(user) {
  */
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET)
+    return jwt.verify(token, EFFECTIVE_JWT_SECRET)
   } catch {
     return null
   }

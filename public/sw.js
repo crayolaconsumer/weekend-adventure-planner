@@ -18,6 +18,10 @@ const IMAGE_CACHE = 'roam-images-v2'
 const MAP_TILE_CACHE = 'roam-map-tiles-v1'
 const IS_LOCALHOST = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
+// L14: Debug logging - only enabled in development
+const DEBUG = IS_LOCALHOST
+const log = (...args) => { if (DEBUG) console.log(...args) }
+
 // Map tile providers to cache for offline use
 const MAP_TILE_HOSTS = [
   'tile.openstreetmap.org',
@@ -42,12 +46,12 @@ const PRECACHE_FILES = [
 
 // Install event - cache app shell
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...')
+  log('Service Worker: Installing...')
 
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('Service Worker: Precaching app shell')
+        log('Service Worker: Precaching app shell')
         return cache.addAll(PRECACHE_FILES)
       })
       .then(() => {
@@ -59,7 +63,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...')
+  log('Service Worker: Activating...')
 
   event.waitUntil(
     caches.keys()
@@ -72,7 +76,7 @@ self.addEventListener('activate', (event) => {
                 cacheName !== STATIC_CACHE &&
                 cacheName !== IMAGE_CACHE &&
                 cacheName !== MAP_TILE_CACHE) {
-              console.log('Service Worker: Deleting old cache:', cacheName)
+              log('Service Worker: Deleting old cache:', cacheName)
               return caches.delete(cacheName)
             }
           })
@@ -178,7 +182,7 @@ async function networkFirst(request) {
     // Network failed, try cache
     const cachedResponse = await caches.match(request)
     if (cachedResponse) {
-      console.log('Service Worker: Serving from cache (offline):', request.url)
+      log('Service Worker: Serving from cache (offline):', request.url)
       return cachedResponse
     }
 
@@ -196,7 +200,7 @@ async function cacheFirst(request, cacheName) {
   const cachedResponse = await caches.match(request)
 
   if (cachedResponse) {
-    console.log('Service Worker: Serving static file from cache:', request.url)
+    log('Service Worker: Serving static file from cache:', request.url)
     return cachedResponse
   }
 
@@ -254,7 +258,7 @@ async function cacheMapTile(request) {
     }
 
     // Return a placeholder tile for offline (transparent 256x256 PNG)
-    console.log('Service Worker: Map tile unavailable offline:', request.url)
+    log('Service Worker: Map tile unavailable offline:', request.url)
     return new Response(
       // Minimal transparent PNG (1x1, will be stretched)
       Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), c => c.charCodeAt(0)),
@@ -274,7 +278,7 @@ async function trimMapTileCache() {
   if (keys.length > MAX_MAP_TILES) {
     // Delete oldest tiles (first in cache = oldest)
     const deleteCount = keys.length - MAX_MAP_TILES
-    console.log(`Service Worker: Trimming ${deleteCount} old map tiles`)
+    log(`Service Worker: Trimming ${deleteCount} old map tiles`)
 
     for (let i = 0; i < deleteCount; i++) {
       await cache.delete(keys[i])
@@ -299,14 +303,14 @@ self.addEventListener('message', (event) => {
   // Clear map tile cache
   if (event.data && event.data.type === 'CLEAR_MAP_CACHE') {
     caches.delete(MAP_TILE_CACHE).then(() => {
-      console.log('Service Worker: Map tile cache cleared')
+      log('Service Worker: Map tile cache cleared')
     })
   }
 })
 
 // Prefetch map tiles in background
 async function prefetchMapTiles(tileUrls) {
-  console.log(`Service Worker: Prefetching ${tileUrls.length} map tiles`)
+  log(`Service Worker: Prefetching ${tileUrls.length} map tiles`)
   const cache = await caches.open(MAP_TILE_CACHE)
 
   for (const url of tileUrls) {
@@ -325,7 +329,7 @@ async function prefetchMapTiles(tileUrls) {
 
   // Trim after prefetch
   await trimMapTileCache()
-  console.log('Service Worker: Map tile prefetch complete')
+  log('Service Worker: Map tile prefetch complete')
 }
 
 // ═══════════════════════════════════════════════════════
@@ -334,13 +338,14 @@ async function prefetchMapTiles(tileUrls) {
 
 // Handle push notifications
 self.addEventListener('push', (event) => {
-  console.log('Service Worker: Push received')
+  // L14: Removed console.log for production
 
   let data = {
     title: 'ROAM',
     body: 'You have a new notification',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-72x72.png',
+    // L13: Use correct icon path matching manifest.json
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     tag: 'roam-notification',
     data: {}
   }
@@ -375,7 +380,7 @@ self.addEventListener('push', (event) => {
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('Service Worker: Notification clicked', event.action)
+  log('Service Worker: Notification clicked', event.action)
 
   event.notification.close()
 
@@ -409,5 +414,5 @@ self.addEventListener('notificationclick', (event) => {
 
 // Handle notification close
 self.addEventListener('notificationclose', (event) => {
-  console.log('Service Worker: Notification closed')
+  log('Service Worker: Notification closed')
 })

@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { saveVisitedPlace } from '../utils/statsUtils'
-import { saveRating, VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
+import { VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateContribution } from '../hooks/useContributions'
+import { useUserStats } from '../hooks/useUserStats'
+import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
+import { usePlaceRatings } from '../hooks/usePlaceRatings'
+import PhotoUpload from './PhotoUpload'
 import './VisitedPrompt.css'
 
 // Pre-generated confetti particles (random values computed once at module load)
@@ -70,8 +73,12 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   // Auth & contribution
   const { isAuthenticated } = useAuth()
   const { createContribution, loading: contributionLoading } = useCreateContribution()
+  const { incrementStat } = useUserStats()
+  const { markVisited } = useVisitedPlaces()
+  const { ratePlace } = usePlaceRatings()
   const [tipText, setTipText] = useState('')
   const [tipError, setTipError] = useState(null)
+  const [photoUrl, setPhotoUrl] = useState(null)
 
   // Rating state
   const [recommended, setRecommended] = useState(null)
@@ -116,16 +123,17 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   }
 
   const handleShareTip = async () => {
-    if (!tipText.trim()) {
-      setTipError('Please write a tip to share')
+    if (!tipText.trim() && !photoUrl) {
+      setTipError('Please write a tip or add a photo')
       return
     }
 
     setTipError(null)
     const result = await createContribution({
       placeId: place.id,
-      type: 'tip',
-      content: tipText.trim()
+      type: photoUrl ? 'photo' : 'tip',
+      content: tipText.trim() || 'Photo contribution',
+      metadata: photoUrl ? { photoUrl } : undefined
     })
 
     if (result.success) {
@@ -140,27 +148,24 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   }
 
   const finishRating = () => {
-    // Save visited place with full data
-    saveVisitedPlace(place, userLocation, recommended)
+    // Save visited place via hook (syncs to API when authenticated)
+    markVisited(place, recommended, userLocation)
 
-    // Save enhanced rating
-    saveRating(place.id, {
+    // Save rating via hook (syncs to API when authenticated)
+    ratePlace(place.id, {
       recommended: recommended === true,
       vibe: selectedVibe,
       noiseLevel: selectedNoise,
       valueForMoney: selectedValue,
       review: reviewText.trim() || null,
-      visitedAt: Date.now(),
       categoryKey: place.category?.key || null
     })
 
-    // Update stats
-    const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-    stats.placesVisited = (stats.placesVisited || 0) + 1
+    // Update stats via hook (syncs to API when authenticated)
+    incrementStat('placesVisited')
     if (recommended) {
-      stats.placesLiked = (stats.placesLiked || 0) + 1
+      incrementStat('placesRated')
     }
-    localStorage.setItem('roam_stats', JSON.stringify(stats))
 
     // Show celebration
     setStep('success')
@@ -174,13 +179,11 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   }
 
   const handleSkipRating = () => {
-    // Save visited place with full data (location, distance, category)
-    saveVisitedPlace(place, userLocation, null)
+    // Save visited place via hook (syncs to API when authenticated)
+    markVisited(place, null, userLocation)
 
-    // Still count as visited
-    const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-    stats.placesVisited = (stats.placesVisited || 0) + 1
-    localStorage.setItem('roam_stats', JSON.stringify(stats))
+    // Update stats via hook (syncs to API when authenticated)
+    incrementStat('placesVisited')
 
     setStep('success')
     setShowConfetti(true)
@@ -459,6 +462,15 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                   <span id="tip-char-count" className="review-char-count" aria-live="polite">{280 - tipText.length} characters remaining</span>
                 </div>
 
+                <div className="visited-photo-upload">
+                  <PhotoUpload
+                    currentUrl={photoUrl}
+                    onUpload={setPhotoUrl}
+                    onRemove={() => setPhotoUrl(null)}
+                    disabled={contributionLoading}
+                  />
+                </div>
+
                 {tipError && (
                   <p className="visited-error">{tipError}</p>
                 )}
@@ -471,7 +483,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    {contributionLoading ? 'Sharing...' : 'Share Tip'}
+                    {contributionLoading ? 'Sharing...' : 'Share'}
                   </motion.button>
                   <button className="visited-skip" onClick={handleShareSkip}>
                     Skip

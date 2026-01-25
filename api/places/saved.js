@@ -6,6 +6,7 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 const parsePlaceData = (raw, placeId) => {
   if (!raw) return {}
@@ -33,6 +34,13 @@ const parsePlaceData = (raw, placeId) => {
 }
 
 export default async function handler(req, res) {
+  // Apply rate limiting based on method
+  const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
+  const rateLimitError = applyRateLimit(req, res, rateLimit, 'places:saved')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   // Get authenticated user
   const user = await getUserFromRequest(req)
   if (!user) {
@@ -62,13 +70,17 @@ export default async function handler(req, res) {
 async function handleGet(req, res, user) {
   const { limit = 100, offset = 0 } = req.query
 
+  // Enforce max limit to prevent resource exhaustion
+  const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 100), 100)
+  const safeOffset = Math.max(0, parseInt(offset, 10) || 0)
+
   const places = await query(
     `SELECT place_id, place_data, saved_at, visited, visited_at, notes
      FROM saved_places
      WHERE user_id = ?
      ORDER BY saved_at DESC
      LIMIT ? OFFSET ?`,
-    [user.id, parseInt(limit, 10), parseInt(offset, 10)]
+    [user.id, safeLimit, safeOffset]
   )
 
   // Parse place_data JSON and merge with metadata
@@ -96,6 +108,9 @@ async function handleGet(req, res, user) {
 /**
  * POST - Save a place
  */
+// Maximum JSON data size (10KB)
+const MAX_JSON_SIZE = 10 * 1024
+
 async function handlePost(req, res, user) {
   const { place } = req.body
 
@@ -108,6 +123,12 @@ async function handlePost(req, res, user) {
   const placeData = { ...place }
   delete placeData.savedAt // Don't store savedAt in place_data, it's a separate column
 
+  // Validate JSON size
+  const placeDataJson = JSON.stringify(placeData)
+  if (placeDataJson.length > MAX_JSON_SIZE) {
+    return res.status(400).json({ error: 'Place data too large (max 10KB)' })
+  }
+
   // Upsert: insert or update if exists
   await query(
     `INSERT INTO saved_places (user_id, place_id, place_data, saved_at)
@@ -118,7 +139,7 @@ async function handlePost(req, res, user) {
     [user.id, placeId, JSON.stringify(placeData)]
   )
 
-  return res.status(200).json({
+  return res.status(201).json({
     success: true,
     place: {
       ...placeData,

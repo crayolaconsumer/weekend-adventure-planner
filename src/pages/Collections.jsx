@@ -7,14 +7,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  getAllCollections,
-  deleteCollection,
-  removePlaceFromCollection,
-  COLLECTION_EMOJIS
-} from '../utils/collections'
+import { useCollections } from '../hooks/useCollections'
+import { COLLECTION_EMOJIS } from '../utils/collections'
 import CreateCollectionForm from '../components/CreateCollectionForm'
 import { useSubscription } from '../hooks/useSubscription'
+import { useToast } from '../hooks/useToast'
 import UpgradePrompt from '../components/UpgradePrompt'
 import './Collections.css'
 
@@ -50,7 +47,8 @@ const PAGE_SIZE = 15
 
 export default function Collections() {
   const navigate = useNavigate()
-  const [collections, setCollections] = useState([])
+  const toast = useToast()
+  const { collections, deleteCollection, removePlaceFromCollection, refresh: loadCollections } = useCollections()
   const [selectedCollection, setSelectedCollection] = useState(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
@@ -58,39 +56,36 @@ export default function Collections() {
   const [placesDisplayLimit, setPlacesDisplayLimit] = useState(PAGE_SIZE)
   const { isPremium } = useSubscription()
 
-  const loadCollections = () => {
-    const allCollections = getAllCollections()
-    setCollections(allCollections)
-  }
-
-  // Load collections on mount
+  // Update selectedCollection when collections change
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial data load
-    loadCollections()
-  }, [])
+    if (selectedCollection) {
+      const updated = collections.find(c => c.id === selectedCollection.id)
+      if (updated) {
+        setSelectedCollection(updated)
+      } else {
+        setSelectedCollection(null)
+      }
+    }
+  }, [collections, selectedCollection?.id])
 
   const handleCreateCollection = () => {
-    loadCollections()
     setShowCreateForm(false)
+    toast.success('Collection created')
   }
 
-  const handleDeleteCollection = (collectionId) => {
-    deleteCollection(collectionId)
-    loadCollections()
+  const handleDeleteCollection = async (collectionId) => {
+    const collection = collections.find(c => c.id === collectionId)
+    await deleteCollection(collectionId)
     setShowDeleteConfirm(null)
     if (selectedCollection?.id === collectionId) {
       setSelectedCollection(null)
     }
+    toast.success(`Deleted "${collection?.name || 'collection'}"`)
   }
 
-  const handleRemovePlace = (collectionId, placeId) => {
-    removePlaceFromCollection(collectionId, placeId)
-    loadCollections()
-    // Update selected collection if viewing it
-    if (selectedCollection?.id === collectionId) {
-      const updated = getAllCollections().find(c => c.id === collectionId)
-      setSelectedCollection(updated)
-    }
+  const handleRemovePlace = async (collectionId, placeId, placeName) => {
+    await removePlaceFromCollection(collectionId, placeId)
+    toast.success(`Removed ${placeName || 'place'} from collection`)
   }
 
   // Paginated places
@@ -156,7 +151,7 @@ export default function Collections() {
                     </div>
                     <button
                       className="collections-remove-btn"
-                      onClick={() => handleRemovePlace(selectedCollection.id, item.placeId)}
+                      onClick={() => handleRemovePlace(selectedCollection.id, item.placeId, item.placeData?.name)}
                     >
                       <TrashIcon />
                     </button>

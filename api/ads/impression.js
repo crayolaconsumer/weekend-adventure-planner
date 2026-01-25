@@ -7,8 +7,17 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, insert, update } from '../lib/db.js'
+import { parseCoordinates, validateId } from '../lib/validation.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Rate limit impression tracking to prevent abuse
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'ads:impression')
+  if (rateLimitError) {
+    // Return 200 to not break client - but don't track
+    return res.status(200).json({ success: false, rateLimited: true })
+  }
+
   // Only POST is allowed
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -22,9 +31,31 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
+    // Validate sponsored_place_id
+    const idValidation = validateId(sponsored_place_id)
+    if (!idValidation.valid) {
+      return res.status(400).json({ error: 'Invalid sponsored_place_id' })
+    }
+
+    // Validate session_id format (should be a reasonable string, not just whitespace)
+    if (typeof session_id !== 'string' || session_id.trim().length < 10 || session_id.length > 100) {
+      return res.status(400).json({ error: 'Invalid session_id' })
+    }
+
     // Validate action type
     if (!['impression', 'click', 'save'].includes(action)) {
       return res.status(400).json({ error: 'Invalid action type' })
+    }
+
+    // Validate and parse coordinates if provided
+    let validatedLat = null
+    let validatedLng = null
+    if (user_lat && user_lng) {
+      const coords = parseCoordinates(user_lat, user_lng)
+      if (coords.valid) {
+        validatedLat = coords.lat
+        validatedLng = coords.lng
+      }
     }
 
     // Get user ID if authenticated (optional)
@@ -49,7 +80,7 @@ export default async function handler(req, res) {
         `INSERT INTO ad_impressions
          (sponsored_place_id, user_id, session_id, user_lat, user_lng)
          VALUES (?, ?, ?, ?, ?)`,
-        [sponsored_place_id, userId, session_id, user_lat || null, user_lng || null]
+        [idValidation.id, userId, session_id, validatedLat, validatedLng]
       )
 
       // Update budget spent on the sponsored place (increment by 1 impression worth)

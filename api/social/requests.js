@@ -8,10 +8,19 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, insert, update } from '../lib/db.js'
+import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
+import { notifyFollowRequestApproved } from '../lib/pushNotifications.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 export default async function handler(req, res) {
+  // Apply rate limiting
+  const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
+  const rateLimitError = applyRateLimit(req, res, rateLimit, 'social:requests')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   try {
     const user = await getUserFromRequest(req)
     if (!user) {
@@ -37,6 +46,10 @@ export default async function handler(req, res) {
  */
 async function getFollowRequests(req, res, user) {
   const { status = 'pending', limit = 50, offset = 0 } = req.query
+
+  // Validate pagination bounds
+  const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 50), 100)
+  const safeOffset = Math.max(0, parseInt(offset, 10) || 0)
 
   // Validate status
   const validStatuses = ['pending', 'approved', 'rejected', 'all']
@@ -64,7 +77,7 @@ async function getFollowRequests(req, res, user) {
   }
 
   sql += ' ORDER BY fr.created_at DESC LIMIT ? OFFSET ?'
-  params.push(parseInt(limit), parseInt(offset))
+  params.push(safeLimit, safeOffset)
 
   const requests = await query(sql, params)
 
@@ -92,7 +105,7 @@ async function getFollowRequests(req, res, user) {
       }
     })),
     total: countResult?.total || 0,
-    hasMore: parseInt(offset) + requests.length < (countResult?.total || 0)
+    hasMore: safeOffset + requests.length < (countResult?.total || 0)
   })
 }
 
@@ -131,19 +144,19 @@ async function handleFollowRequest(req, res, user) {
       [request.requester_id, user.id]
     )
 
-    if (!existingFollow) {
-      // Create the follow relationship
-      await insert(
-        'INSERT INTO follows (follower_id, following_id) VALUES (?, ?)',
-        [request.requester_id, user.id]
+    // Create follow and update request atomically
+    await transaction(async (conn) => {
+      if (!existingFollow) {
+        await conn.query(
+          'INSERT INTO follows (follower_id, following_id) VALUES (?, ?)',
+          [request.requester_id, user.id]
+        )
+      }
+      await conn.query(
+        'UPDATE follow_requests SET status = ? WHERE id = ?',
+        ['approved', requestId]
       )
-    }
-
-    // Update request status
-    await update(
-      'UPDATE follow_requests SET status = ? WHERE id = ?',
-      ['approved', requestId]
-    )
+    })
 
     // Get target user info for notification
     const targetUserInfo = await queryOne(
@@ -161,6 +174,9 @@ async function handleFollowRequest(req, res, user) {
       message: `${targetName} accepted your follow request`,
       data: { targetUsername: targetUserInfo?.username }
     })
+
+    // Send push notification (non-blocking)
+    notifyFollowRequestApproved(request.requester_id, targetUserInfo?.username).catch(() => {})
 
     return res.status(200).json({
       success: true,

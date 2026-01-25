@@ -3,9 +3,11 @@ import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
 import CollectionManager from '../components/CollectionManager'
-import { getSavedEvents, unsaveEvent } from '../utils/savedEvents'
+import { useSavedEvents } from '../hooks/useSavedEvents'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
+import { useUserPlans } from '../hooks/useUserPlans'
 import { useSubscription } from '../hooks/useSubscription'
+import { useToast } from '../hooks/useToast'
 import { openDirections } from '../utils/navigation'
 import './Wishlist.css'
 
@@ -73,6 +75,14 @@ const ExternalLinkIcon = () => (
   </svg>
 )
 
+const MapIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+    <line x1="8" y1="2" x2="8" y2="18"/>
+    <line x1="16" y1="6" x2="16" y2="22"/>
+  </svg>
+)
+
 // Placeholder images
 const IMAGES = [
   'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80',
@@ -89,7 +99,8 @@ function getPlaceholderImage(id) {
 // Tab options
 const TABS = {
   PLACES: 'places',
-  EVENTS: 'events'
+  EVENTS: 'events',
+  ADVENTURES: 'adventures'
 }
 
 // Pagination constants
@@ -97,9 +108,10 @@ const PAGE_SIZE = 12
 
 export default function Wishlist() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { places: wishlist, removePlace, loading: placesLoading } = useSavedPlaces()
-  const [savedEvents, setSavedEvents] = useState(() => getSavedEvents())
-  const [eventsError, setEventsError] = useState(null)
+  const { plans: adventures, loading: adventuresLoading, deletePlan } = useUserPlans()
+  const { events: savedEvents, loading: eventsLoading, unsaveEvent } = useSavedEvents()
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
   const { isPremium } = useSubscription()
@@ -117,18 +129,22 @@ export default function Wishlist() {
     setShowCollectionManager(true)
   }
 
-  const removeFromWishlist = (placeId) => {
+  const removeFromWishlist = (placeId, placeName) => {
     removePlace(placeId)
+    toast.success(`Removed ${placeName || 'place'} from saved`)
   }
 
-  const removeEvent = (eventId) => {
-    try {
-      unsaveEvent(eventId)
-      setSavedEvents(getSavedEvents())
-      setEventsError(null)
-    } catch (error) {
-      console.error('Failed to remove event:', error)
-      setEventsError('Failed to remove event. Please try again.')
+  const removeEvent = (eventId, eventName) => {
+    unsaveEvent(eventId)
+    toast.success(`Removed ${eventName || 'event'} from saved`)
+  }
+
+  const handleDeletePlan = async (planId, planName) => {
+    const success = await deletePlan(planId)
+    if (success) {
+      toast.success(`Deleted ${planName || 'adventure'}`)
+    } else {
+      toast.error('Failed to delete adventure')
     }
   }
 
@@ -163,7 +179,7 @@ export default function Wishlist() {
   const hasMoreEvents = savedEvents.length > eventsDisplayLimit
 
   // Total saved count
-  const totalSaved = wishlist.length + savedEvents.length
+  const totalSaved = wishlist.length + savedEvents.length + adventures.length
 
   return (
     <div className="page wishlist-page">
@@ -216,6 +232,16 @@ export default function Wishlist() {
           <CalendarIcon />
           Events
           {savedEvents.length > 0 && <span className="wishlist-tab-count">{savedEvents.length}</span>}
+        </button>
+        <button
+          className={`wishlist-tab ${activeTab === TABS.ADVENTURES ? 'active' : ''}`}
+          onClick={() => setActiveTab(TABS.ADVENTURES)}
+        >
+          <MapIcon />
+          <span>Adventures</span>
+          {adventures.length > 0 && (
+            <span className="wishlist-tab-count">{adventures.length}</span>
+          )}
         </button>
       </div>
 
@@ -326,7 +352,7 @@ export default function Wishlist() {
                           </button>
                           <button
                             className="wishlist-card-btn remove"
-                            onClick={() => removeFromWishlist(place.id)}
+                            onClick={() => removeFromWishlist(place.id, place.name)}
                             aria-label={`Remove ${place.name} from wishlist`}
                           >
                             <TrashIcon />
@@ -367,16 +393,10 @@ export default function Wishlist() {
 
         {/* EVENTS TAB */}
         {activeTab === TABS.EVENTS && (
-          eventsError ? (
-            <div className="wishlist-error">
-              <p>{eventsError}</p>
-              <button onClick={() => {
-                setEventsError(null)
-                setSavedEvents(getSavedEvents())
-                setEventsDisplayLimit(PAGE_SIZE)
-              }}>
-                Retry
-              </button>
+          eventsLoading ? (
+            <div className="wishlist-loading">
+              <div className="wishlist-loading-spinner" />
+              <p>Loading saved events...</p>
             </div>
           ) : savedEvents.length > 0 ? (
             <>
@@ -409,7 +429,7 @@ export default function Wishlist() {
                         )}
                         <button
                           className="wishlist-event-btn remove"
-                          onClick={() => removeEvent(event.id)}
+                          onClick={() => removeEvent(event.id, event.name)}
                         >
                           <TrashIcon />
                         </button>
@@ -444,6 +464,65 @@ export default function Wishlist() {
               </button>
             </div>
           )
+        )}
+
+        {/* ADVENTURES TAB */}
+        {activeTab === TABS.ADVENTURES && (
+          <motion.div
+            className="wishlist-section"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {adventuresLoading ? (
+              <div className="wishlist-loading">
+                <div className="wishlist-loading-spinner" />
+                <p>Loading adventures...</p>
+              </div>
+            ) : adventures.length === 0 ? (
+              <div className="wishlist-empty">
+                <div className="wishlist-empty-icon adventures">
+                  <MapIcon />
+                </div>
+                <h3>No saved adventures</h3>
+                <p>Create an itinerary on the Plan page and save it!</p>
+                <Link to="/plan" className="wishlist-empty-cta">
+                  Plan an Adventure
+                </Link>
+              </div>
+            ) : (
+              <div className="wishlist-adventures-list">
+                {adventures.map(plan => (
+                  <motion.div
+                    key={plan.id}
+                    className="wishlist-adventure-card"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                  >
+                    <div className="wishlist-adventure-info">
+                      <h3>{plan.title}</h3>
+                      <span className="wishlist-adventure-meta">
+                        {plan.stopCount} stops · {plan.vibe || 'Mix'}
+                      </span>
+                    </div>
+                    <div className="wishlist-adventure-actions">
+                      <button
+                        className="wishlist-adventure-view"
+                        onClick={() => navigate(`/plan/share/${plan.shareCode}`)}
+                      >
+                        View
+                      </button>
+                      <button
+                        className="wishlist-adventure-delete"
+                        onClick={() => handleDeletePlan(plan.id, plan.name || 'Adventure')}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
         )}
       </div>
 

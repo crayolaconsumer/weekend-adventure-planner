@@ -1405,3 +1405,131 @@
 .unified-profile-stat.hidden .unified-profile-stat-value {
   color: var(--roam-ink-muted, #6b6b6b);
 }
+
+/* ═══════════════════════════════════════════════════════
+   NOTIFICATIONS & OFFLINE MAPS SETTINGS
+   ═══════════════════════════════════════════════════════ */
+
+.unified-profile-settings-unsupported,
+.unified-profile-settings-blocked {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  margin: 0;
+  padding: var(--space-md, 12px);
+  background: var(--roam-parchment, #e8e0d0);
+  border-radius: var(--radius-md, 8px);
+  text-align: center;
+}
+
+.unified-profile-settings-desc {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  margin: 0 0 var(--space-md, 12px);
+  line-height: 1.5;
+}
+
+.unified-profile-settings-error-inline {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-xs, 12px);
+  color: var(--roam-terracotta, #c45c3e);
+  margin: var(--space-sm, 8px) 0 0;
+}
+
+/* Offline Maps Storage Info */
+.unified-profile-settings-storage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  background: rgba(26, 58, 47, 0.08);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: var(--space-md, 12px);
+}
+
+.unified-profile-settings-storage .storage-icon {
+  font-size: 16px;
+}
+
+.unified-profile-settings-storage .storage-text {
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  color: var(--roam-forest, #1a3a2f);
+}
+
+/* Offline Maps Actions */
+.unified-profile-settings-map-actions {
+  display: flex;
+  gap: var(--space-sm, 8px);
+}
+
+.unified-profile-settings-download-btn {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-md, 12px) var(--space-lg, 16px);
+  background: var(--roam-forest, #1a3a2f);
+  border: none;
+  border-radius: var(--radius-lg, 12px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.unified-profile-settings-download-btn:hover:not(:disabled) {
+  background: var(--roam-forest-light, #2d5a3d);
+}
+
+.unified-profile-settings-download-btn:disabled {
+  opacity: 0.8;
+  cursor: wait;
+}
+
+.unified-profile-settings-download-btn .download-icon {
+  font-size: 16px;
+}
+
+.unified-profile-settings-download-btn .download-progress-text {
+  position: relative;
+  z-index: 1;
+}
+
+.unified-profile-settings-download-btn .download-progress-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: width 0.3s ease;
+}
+
+.unified-profile-settings-clear-btn {
+  padding: var(--space-md, 12px) var(--space-lg, 16px);
+  background: transparent;
+  border: 2px solid var(--roam-parchment, #e8e0d0);
+  border-radius: var(--radius-lg, 12px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  font-weight: 600;
+  color: var(--roam-ink-muted, #6b6b6b);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unified-profile-settings-clear-btn:hover:not(:disabled) {
+  border-color: var(--roam-terracotta, #c45c3e);
+  color: var(--roam-terracotta, #c45c3e);
+}
+
+.unified-profile-settings-clear-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
