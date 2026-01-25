@@ -51,6 +51,14 @@ const RADIUS_OPTIONS = [
   { key: 'daytrip', label: 'Day Trip', radius: 50000, description: '50km' },
 ]
 
+// Vibe icons for the summary card
+const VIBE_ICONS = {
+  mixed: '🎲',
+  foodie: '🍽️',
+  culture: '🏛️',
+  nature: '🌲'
+}
+
 // Icons
 const DragIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -97,6 +105,13 @@ const PlusIcon = () => (
 const ChevronIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 18 15 12 9 6"/>
+  </svg>
+)
+
+const SettingsIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
   </svg>
 )
 
@@ -204,6 +219,7 @@ export default function Plan({ location }) {
   const [shareCode, setShareCode] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   // Check for pending places from Discover
   useEffect(() => {
@@ -657,6 +673,10 @@ export default function Plan({ location }) {
 
   const vibeName = VIBES.find(v => v.key === selectedVibe)?.label
 
+  const durationLabel = DURATIONS.find(d => d.hours === selectedDuration)?.label
+  const transportData = TRANSPORT_MODES.find(t => t.key === selectedTransport)
+  const radiusData = RADIUS_OPTIONS.find(r => r.key === selectedRadius)
+
   return (
     <div className="plan-page">
       {/* Share Modal */}
@@ -668,78 +688,111 @@ export default function Plan({ location }) {
         shareCode={shareCode}
       />
 
-      {/* Header */}
-      <header className="plan-header">
-        <h1 className="plan-title">Plan Your Adventure</h1>
-      </header>
+      {/* Settings Bottom Sheet */}
+      <AnimatePresence>
+        {showSettings && (
+          <>
+            <motion.div
+              className="plan-settings-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+            />
+            <motion.div
+              className="plan-settings-sheet"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            >
+              <div className="plan-settings-handle" />
+              <h3 className="plan-settings-title">Adventure Settings</h3>
+
+              <div className="plan-settings-section">
+                <span className="plan-settings-label">Vibe</span>
+                <div className="plan-settings-options">
+                  {VIBES.map(v => (
+                    <button
+                      key={v.key}
+                      className={`plan-settings-option ${selectedVibe === v.key ? 'active' : ''}`}
+                      onClick={() => setSelectedVibe(v.key)}
+                    >
+                      <span className="plan-settings-option-icon">{VIBE_ICONS[v.key]}</span>
+                      <span>{v.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="plan-settings-section">
+                <span className="plan-settings-label">Duration</span>
+                <div className="plan-settings-options">
+                  {DURATIONS.map(d => (
+                    <button
+                      key={d.hours}
+                      className={`plan-settings-option ${selectedDuration === d.hours ? 'active' : ''}`}
+                      onClick={() => setSelectedDuration(d.hours)}
+                    >
+                      <span>{d.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="plan-settings-section">
+                <span className="plan-settings-label">Travel By</span>
+                <div className="plan-settings-options">
+                  {TRANSPORT_MODES.map(t => (
+                    <button
+                      key={t.key}
+                      className={`plan-settings-option ${selectedTransport === t.key ? 'active' : ''}`}
+                      onClick={() => setSelectedTransport(t.key)}
+                    >
+                      <span className="plan-settings-option-icon">{t.icon}</span>
+                      <span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="plan-settings-section">
+                <span className="plan-settings-label">Search Radius</span>
+                <div className="plan-settings-options">
+                  {RADIUS_OPTIONS.map(r => (
+                    <button
+                      key={r.key}
+                      className={`plan-settings-option ${selectedRadius === r.key ? 'active' : ''}`}
+                      onClick={() => setSelectedRadius(r.key)}
+                    >
+                      <span>{r.label}</span>
+                      <span className="plan-settings-option-sub">{r.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button className="plan-settings-done" onClick={() => setShowSettings(false)}>
+                Done
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <div className="plan-body">
-        {/* VIBE: [chips] - inline */}
-        <div className="plan-row">
-          <span className="plan-label">VIBE:</span>
-          <div className="plan-chips">
-            {VIBES.map(v => (
-              <button
-                key={v.key}
-                className={`plan-chip ${selectedVibe === v.key ? 'active' : ''}`}
-                onClick={() => setSelectedVibe(v.key)}
-                aria-pressed={selectedVibe === v.key}
-              >
-                {v.label}
-              </button>
-            ))}
+        {/* Adventure Summary Card */}
+        <div className="plan-adventure-card" onClick={() => setShowSettings(true)}>
+          <div className="plan-adventure-icon">{VIBE_ICONS[selectedVibe]}</div>
+          <div className="plan-adventure-info">
+            <div className="plan-adventure-title">{vibeName} Adventure</div>
+            <div className="plan-adventure-details">
+              {durationLabel} · {transportData?.icon} {transportData?.label} · {radiusData?.description}
+            </div>
           </div>
-        </div>
-
-        {/* DURATION: [chips] - inline */}
-        <div className="plan-row">
-          <span className="plan-label">DURATION:</span>
-          <div className="plan-chips">
-            {DURATIONS.map(d => (
-              <button
-                key={d.hours}
-                className={`plan-chip ${selectedDuration === d.hours ? 'active' : ''}`}
-                onClick={() => setSelectedDuration(d.hours)}
-                aria-pressed={selectedDuration === d.hours}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* TRANSPORT: [chips] - inline */}
-        <div className="plan-row">
-          <span className="plan-label">TRAVEL BY:</span>
-          <div className="plan-chips">
-            {TRANSPORT_MODES.map(t => (
-              <button
-                key={t.key}
-                className={`plan-chip ${selectedTransport === t.key ? 'active' : ''}`}
-                onClick={() => setSelectedTransport(t.key)}
-                aria-pressed={selectedTransport === t.key}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* RADIUS: [chips] - inline */}
-        <div className="plan-row">
-          <span className="plan-label">RADIUS:</span>
-          <div className="plan-chips">
-            {RADIUS_OPTIONS.map(r => (
-              <button
-                key={r.key}
-                className={`plan-chip ${selectedRadius === r.key ? 'active' : ''}`}
-                onClick={() => setSelectedRadius(r.key)}
-                aria-pressed={selectedRadius === r.key}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          <button className="plan-adventure-edit" aria-label="Edit settings">
+            <SettingsIcon />
+          </button>
         </div>
 
         {/* Generate button */}
@@ -750,60 +803,11 @@ export default function Plan({ location }) {
               Finding places...
             </>
           ) : (
-            'Generate Itinerary'
+            '✨ Generate Itinerary'
           )}
         </button>
 
-        {/* FROM YOUR WISHLIST - Always show */}
-        <section className="plan-section plan-wishlist-section">
-          <div className="plan-section-header">
-            <span className="plan-section-title">
-              <span className="plan-section-icon">💾</span>
-              FROM YOUR WISHLIST
-            </span>
-            {wishlist.length > 0 && (
-              <button className="plan-section-link" onClick={() => navigate('/wishlist')}>
-                View All ({wishlist.length}) <ChevronIcon />
-              </button>
-            )}
-          </div>
-          {availableWishlist.length > 0 ? (
-            <div className="plan-wishlist">
-              {availableWishlist.slice(0, 6).map(item => (
-                <button
-                  key={item.id}
-                  className="plan-wishlist-item"
-                  onClick={() => addStop(item)}
-                  disabled={!item.lat || !item.lng}
-                  title={!item.lat || !item.lng ? 'Missing location data' : `Add ${item.name} to itinerary`}
-                >
-                  <span className="plan-wishlist-name">{item.name}</span>
-                  <span className="plan-wishlist-type">{item.type?.replace(/_/g, ' ')}</span>
-                  <span className="plan-wishlist-add"><PlusIcon /></span>
-                </button>
-              ))}
-              {availableWishlist.length > 6 && (
-                <button className="plan-wishlist-more" onClick={() => navigate('/wishlist')}>
-                  +{availableWishlist.length - 6} more
-                </button>
-              )}
-            </div>
-          ) : wishlist.length > 0 ? (
-            <div className="plan-wishlist-empty">
-              <span className="plan-wishlist-empty-icon">✅</span>
-              <p>All your saved places are in the itinerary!</p>
-            </div>
-          ) : (
-            <div className="plan-wishlist-empty">
-              <span className="plan-wishlist-empty-icon">📍</span>
-              <p>Save places while exploring to add them here</p>
-              <button className="plan-wishlist-cta" onClick={() => navigate('/')}>
-                Discover Places
-              </button>
-            </div>
-          )}</section>
-
-        {/* YOUR ITINERARY */}
+        {/* YOUR ITINERARY - Main content */}
         <section className="plan-section plan-itinerary-section">
           <div className="plan-section-header">
             <span className="plan-section-title">YOUR ITINERARY</span>
@@ -947,6 +951,56 @@ export default function Plan({ location }) {
               </button>
             )}
           </div>
+        </section>
+
+        {/* FROM YOUR WISHLIST - Quick-add section */}
+        <section className="plan-section plan-wishlist-section">
+          <div className="plan-section-header">
+            <span className="plan-section-title">
+              <span className="plan-section-icon">💾</span>
+              FROM YOUR WISHLIST
+            </span>
+            {wishlist.length > 0 && (
+              <button className="plan-section-link" onClick={() => navigate('/wishlist')}>
+                View All ({wishlist.length}) <ChevronIcon />
+              </button>
+            )}
+          </div>
+          {availableWishlist.length > 0 ? (
+            <div className="plan-wishlist">
+              {availableWishlist.slice(0, 6).map(item => (
+                <button
+                  key={item.id}
+                  className="plan-wishlist-item"
+                  onClick={() => addStop(item)}
+                  disabled={!item.lat || !item.lng}
+                  title={!item.lat || !item.lng ? 'Missing location data' : `Add ${item.name} to itinerary`}
+                >
+                  <span className="plan-wishlist-name">{item.name}</span>
+                  <span className="plan-wishlist-type">{item.type?.replace(/_/g, ' ')}</span>
+                  <span className="plan-wishlist-add"><PlusIcon /></span>
+                </button>
+              ))}
+              {availableWishlist.length > 6 && (
+                <button className="plan-wishlist-more" onClick={() => navigate('/wishlist')}>
+                  +{availableWishlist.length - 6} more
+                </button>
+              )}
+            </div>
+          ) : wishlist.length > 0 ? (
+            <div className="plan-wishlist-empty">
+              <span className="plan-wishlist-empty-icon">✅</span>
+              <p>All your saved places are in the itinerary!</p>
+            </div>
+          ) : (
+            <div className="plan-wishlist-empty">
+              <span className="plan-wishlist-empty-icon">📍</span>
+              <p>Save places while exploring to add them here</p>
+              <button className="plan-wishlist-cta" onClick={() => navigate('/')}>
+                Discover Places
+              </button>
+            </div>
+          )}
         </section>
       </div>
     </div>

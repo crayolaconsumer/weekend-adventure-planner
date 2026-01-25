@@ -178,9 +178,14 @@
   font-size: var(--text-xl, 24px);
   font-weight: 600;
   color: var(--roam-forest, #1a3a2f);
-  /* Use tabular figures for proper number alignment */
-  font-variant-numeric: tabular-nums;
-  min-width: 2ch; /* Ensure consistent minimum width */
+  /* Use lining + tabular figures for consistent baseline and width */
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5ch;
+  line-height: 1;
 }
 
 .unified-profile-stat-label {

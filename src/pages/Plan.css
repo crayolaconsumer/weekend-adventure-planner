@@ -30,36 +30,203 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HEADER - Compact on mobile
+   ADVENTURE SUMMARY CARD - The hero element
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.plan-header {
-  padding: var(--space-sm) var(--space-md);
-  text-align: center;
+.plan-adventure-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: linear-gradient(135deg, var(--roam-forest) 0%, #1e4a3a 100%);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow:
+    0 4px 12px rgba(26, 58, 47, 0.25),
+    0 8px 24px rgba(26, 58, 47, 0.15);
   flex-shrink: 0;
 }
 
-.plan-title {
+.plan-adventure-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 6px 16px rgba(26, 58, 47, 0.3),
+    0 12px 32px rgba(26, 58, 47, 0.2);
+}
+
+.plan-adventure-card:active {
+  transform: translateY(0);
+}
+
+.plan-adventure-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.plan-adventure-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.plan-adventure-title {
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 500;
-  color: var(--roam-forest);
-  margin: 0;
-  letter-spacing: -0.02em;
+  color: white;
+  margin-bottom: 2px;
 }
 
-@media (min-width: 768px) {
-  .plan-header {
-    padding: var(--space-xl) var(--space-lg) var(--space-md);
-  }
+.plan-adventure-details {
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.75);
+}
 
-  .plan-title {
-    font-size: var(--text-2xl);
-  }
+.plan-adventure-edit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  border-radius: var(--radius-full);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.plan-adventure-edit:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BODY - Scrollable on mobile
+   SETTINGS BOTTOM SHEET
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.plan-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 58, 47, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+}
+
+.plan-settings-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, var(--roam-cream) 0%, var(--roam-paper) 100%);
+  border-radius: 24px 24px 0 0;
+  padding: var(--space-md) var(--space-lg);
+  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0));
+  max-height: 85vh;
+  overflow-y: auto;
+  z-index: 1001;
+  box-shadow: 0 -8px 40px rgba(26, 58, 47, 0.25);
+}
+
+.plan-settings-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--roam-stone);
+  border-radius: 2px;
+  margin: 0 auto var(--space-md);
+  opacity: 0.4;
+}
+
+.plan-settings-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--roam-forest);
+  text-align: center;
+  margin: 0 0 var(--space-lg);
+}
+
+.plan-settings-section {
+  margin-bottom: var(--space-lg);
+}
+
+.plan-settings-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-sm);
+}
+
+.plan-settings-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: var(--space-sm);
+}
+
+.plan-settings-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: var(--space-md);
+  background: white;
+  border: 2px solid var(--roam-parchment);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.plan-settings-option:hover {
+  border-color: var(--roam-stone);
+  background: var(--roam-paper);
+}
+
+.plan-settings-option.active {
+  background: var(--roam-forest);
+  border-color: var(--roam-forest);
+  color: white;
+}
+
+.plan-settings-option-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.plan-settings-option-sub {
+  font-size: var(--text-xs);
+  opacity: 0.7;
+}
+
+.plan-settings-done {
+  width: 100%;
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  background: var(--roam-forest);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.plan-settings-done:hover {
+  background: var(--roam-forest-light);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BODY - Clean scrollable layout
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-body {
@@ -68,10 +235,10 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 0 var(--space-md) var(--space-md);
+  padding: var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   max-width: 540px;
   margin: 0 auto;
   width: 100%;
@@ -79,106 +246,9 @@
 
 @media (min-width: 768px) {
   .plan-body {
-    overflow: visible;
-    padding: 0 var(--space-lg) var(--space-lg);
+    padding: var(--space-lg);
     padding-bottom: calc(var(--space-2xl) + 80px);
-    gap: var(--space-xl);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SELECTOR ROWS (Vibe, Duration) - Compact inline layout on mobile
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.plan-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-
-.plan-label {
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-  min-width: 52px;
-}
-
-.plan-chips {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  padding: 2px 0;
-}
-
-.plan-chips::-webkit-scrollbar {
-  display: none;
-}
-
-.plan-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: var(--radius-full);
-  background: var(--roam-paper);
-  border: 1.5px solid var(--roam-parchment);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all var(--duration-fast);
-  user-select: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.plan-chip:hover {
-  background: var(--roam-parchment);
-  border-color: var(--roam-stone);
-}
-
-.plan-chip:active {
-  transform: scale(0.97);
-}
-
-.plan-chip.active {
-  background: var(--roam-forest);
-  border-color: var(--roam-forest);
-  color: white;
-}
-
-@media (min-width: 768px) {
-  .plan-row {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-md);
-  }
-
-  .plan-label {
-    font-size: var(--text-xs);
-    min-width: 80px;
-  }
-
-  .plan-chips {
-    flex-wrap: wrap;
-    gap: var(--space-sm);
-    overflow-x: visible;
-  }
-
-  .plan-chip {
-    padding: 12px 18px;
-    font-size: var(--text-sm);
-    gap: 8px;
+    gap: var(--space-lg);
   }
 }
 
@@ -1057,17 +1127,15 @@
 
 /* Small mobile - extra compact */
 @media (max-width: 380px) {
-  .plan-label {
-    min-width: 44px;
-    font-size: 9px;
-  }
-
-  .plan-chip {
-    padding: 6px 10px;
-    font-size: 11px;
-  }
-
   .plan-wishlist-name {
     font-size: 11px;
+  }
+
+  .plan-adventure-title {
+    font-size: var(--text-base);
+  }
+
+  .plan-adventure-details {
+    font-size: var(--text-xs);
   }
 }
