@@ -292,7 +292,6 @@ export default function Plan({ location }) {
         fetchEnrichedPlaces(location.lat, location.lng, radiusConfig.radius, null),
         timeoutPromise
       ])
-      console.log('[Plan] Raw places:', raw.length)
 
       // If no API places found, fallback to wishlist
       if (raw.length === 0 && wishlist.length > 0) {
@@ -324,7 +323,6 @@ export default function Plan({ location }) {
       }
 
       const enhanced = raw.map(p => enhancePlace(p, location))
-      console.log('[Plan] Enhanced:', enhanced.length)
 
       // Filter places - vibe categories applied as BOOST (not hard filter)
       // Places matching vibe rank higher, but variety is preserved
@@ -334,14 +332,11 @@ export default function Plan({ location }) {
         maxResults: 50,
         ensureDiversity: true
       })
-      console.log('[Plan] Filtered:', filtered.length)
-
       setAvailablePlaces(filtered)
 
       // Select stops with category diversity (strict for mixed mode)
       const isMixed = selectedVibe === 'mixed'
       const stops = selectDiverseStops(filtered, duration.stops, isMixed)
-      console.log('[Plan] Stops:', stops.length, isMixed ? '(mixed mode - diverse)' : '')
 
       const optimized = optimizeRoute(stops, location)
 

@@ -73,7 +73,6 @@ export default async function handler(req, res) {
     )
 
     if (existingEvent?.processed) {
-      console.log(`Event ${event.id} already processed, skipping`)
       return res.status(200).json({ received: true, duplicate: true })
     }
 
@@ -111,7 +110,7 @@ export default async function handler(req, res) {
           break
 
         default:
-          console.log(`Unhandled event type: ${event.type}`)
+          // Unhandled event types are silently ignored
       }
 
       // Mark event as processed WITHIN the transaction
@@ -186,8 +185,6 @@ async function handleCheckoutCompleted(session, conn) {
       subscription.current_period_end
     ]
   )
-
-  console.log(`User ${user.id} upgraded to premium`)
 }
 
 /**
@@ -245,8 +242,6 @@ async function handleSubscriptionUpdated(subscription, conn) {
       subscriptionId
     ]
   )
-
-  console.log(`Subscription ${subscriptionId} updated: ${subscription.status}`)
 }
 
 /**
@@ -287,8 +282,6 @@ async function handleSubscriptionDeleted(subscription, conn) {
      WHERE stripe_subscription_id = ?`,
     [subscription.id]
   )
-
-  console.log(`User ${user.id} downgraded to free tier`)
 }
 
 /**
@@ -319,8 +312,6 @@ async function handlePaymentFailed(invoice, conn) {
      WHERE stripe_subscription_id = ?`,
     [subscriptionId]
   )
-
-  console.log(`Payment failed for user ${user.id} (${user.email})`)
 
   // Send email notification about failed payment (non-blocking)
   sendPaymentFailedEmail(user.email, user.display_name).catch(err => {
@@ -355,6 +346,4 @@ async function handleInvoicePaid(invoice, conn) {
     `UPDATE users SET tier = 'premium' WHERE id = ? AND tier != 'premium'`,
     [user.id]
   )
-
-  console.log(`Invoice paid for user ${user.id}`)
 }

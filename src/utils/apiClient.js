@@ -478,7 +478,6 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
     return fetchNearbyPlaces(lat, lng, radius, category, signal)
   }
 
-  console.log(`[API] Progressive load: ${tiles.length} samples, center first`)
 
   const seen = new Set()
   const addUnique = (places) => {
@@ -498,7 +497,6 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
   try {
     centerPlaces = await fetchNearbyPlaces(centerTile.lat, centerTile.lng, centerTile.radius, category, signal)
     centerPlaces = addUnique(centerPlaces)
-    console.log(`[API] Center tile: ${centerPlaces.length} places (returning immediately)`)
   } catch (err) {
     if (err.name === 'AbortError') throw err
     console.warn('Center tile failed:', err)
@@ -520,7 +518,6 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
         try {
           const places = await fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal)
           const newPlaces = addUnique(places)
-          console.log(`[API] Outer tile ${i + 1}/${outerTiles.length}: +${newPlaces.length} places`)
 
           // Notify caller of new places
           if (newPlaces.length > 0 && onProgress) {
@@ -528,10 +525,9 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
           }
         } catch (err) {
           if (err.name === 'AbortError') break
-          console.warn(`Outer tile ${i + 1} failed:`, err)
+          // Outer tile failures are non-critical, continue with next tile
         }
       }
-      console.log(`[API] Progressive load complete: ${seen.size} total places`)
     })()
   }
 
@@ -1065,14 +1061,6 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
 
   // Merge all wiki results
   const wikiPlaces = wikiResults.flat()
-
-  // Log source counts for debugging
-  console.log(`[API] Sources: OSM=${osmPlaces.length}, OTM=${otmPlaces.length}, Wiki=${wikiPlaces.length}`)
-
-  // If all sources returned empty for large radius, log a warning
-  if (isLargeRadius && osmPlaces.length === 0 && otmPlaces.length === 0 && wikiPlaces.length === 0) {
-    console.warn(`[API] No places found for large radius (${radius}m) at ${lat}, ${lng}`)
-  }
 
   // Merge and deduplicate all sources
   return mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces)

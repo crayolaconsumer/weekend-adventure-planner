@@ -77,7 +77,6 @@ export function isCircuitOpen(source) {
     if (Date.now() >= breaker.disabledUntil) {
       breaker.state = CircuitState.HALF_OPEN
       breaker.halfOpenAttempts = 0
-      console.log(`[RequestManager] ${source} circuit transitioning to half-open`)
       return false
     }
     return true
@@ -99,7 +98,6 @@ export function recordSuccess(source) {
 
   if (breaker.state === CircuitState.HALF_OPEN) {
     // Success in half-open → close circuit
-    console.log(`[RequestManager] ${source} circuit closed (recovered)`)
     breaker.state = CircuitState.CLOSED
     breaker.failures = 0
     breaker.tripCount = 0
@@ -126,9 +124,6 @@ export function recordFailure(source, isAuthError = false) {
 
     const timeout = CIRCUIT_CONFIG.resetTimeout[breaker.tripCount - 1]
     breaker.disabledUntil = Date.now() + timeout
-
-    const minutes = Math.round(timeout / 60000)
-    console.warn(`[RequestManager] ${source} circuit OPEN - disabled for ${minutes} minutes (trip #${breaker.tripCount})`)
   }
 }
 
@@ -170,7 +165,6 @@ export async function managedFetch(source, cacheKey, fetchFn, options = {}) {
 
   // 1. Check circuit breaker
   if (isCircuitOpen(source)) {
-    console.log(`[RequestManager] ${source} circuit open - skipping request`)
     return null
   }
 
@@ -247,7 +241,6 @@ export function resetCircuit(source) {
   breaker.failures = 0
   breaker.tripCount = 0
   breaker.disabledUntil = 0
-  console.log(`[RequestManager] ${source} circuit manually reset`)
 }
 
 /**

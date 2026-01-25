@@ -153,7 +153,6 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options =
       }
 
       recordSuccess(API_NAME)
-      console.log(`Ticketmaster: Fetched ${uniqueEvents.length} events from ${pagesToFetch} pages (${firstPagination?.totalElements || 'unknown'} total available)`)
       return responseData
     } catch {
       recordFailure(API_NAME)

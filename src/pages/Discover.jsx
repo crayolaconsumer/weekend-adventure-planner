@@ -350,7 +350,6 @@ export default function Discover({ location }) {
               const existingIds = new Set(prev.map(p => p.id))
               const unique = enhanced.filter(p => !existingIds.has(p.id))
               if (unique.length === 0) return prev
-              console.log(`[Discover] +${unique.length} places from outer tiles`)
               return [...prev, ...unique]
             })
           }
@@ -370,10 +369,7 @@ export default function Discover({ location }) {
       // Set basePlaces - the memoized filteredPlaces and useEffect will handle the rest
       setBasePlaces(enhanced)
 
-      // If we served stale data, indicate refresh is happening
-      if (stale) {
-        console.log('[Discover] Served stale cache, refreshing in background...')
-      }
+      // If we served stale data, refresh happens in background automatically
     } catch (error) {
       if (requestId === latestLoadRequestRef.current) {
         console.error('Failed to load places:', error)

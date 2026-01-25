@@ -102,8 +102,6 @@ export function useOfflineMaps() {
       const bounds = getBoundsFromCenter(lat, lng, radiusKm)
       const tileUrls = generateTileUrls(bounds, minZoom, maxZoom)
 
-      console.log(`Prefetching ${tileUrls.length} map tiles for offline use`)
-
       // Send tile URLs to service worker
       navigator.serviceWorker.controller.postMessage({
         type: 'PREFETCH_MAP_TILES',

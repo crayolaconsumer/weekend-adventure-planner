@@ -43,15 +43,9 @@ export async function sendEmail({ to, subject, text, html }) {
     }
   }
 
-  // Placeholder: log email to console
-  console.log('═══════════════════════════════════════')
-  console.log('EMAIL (no provider configured)')
-  console.log('═══════════════════════════════════════')
-  console.log(`To: ${to}`)
-  console.log(`Subject: ${subject}`)
-  console.log('───────────────────────────────────────')
-  console.log(text)
-  console.log('═══════════════════════════════════════')
+  // No email provider configured - silently succeed in production
+  // In development, uncomment the logs below to debug email content
+  // console.log('EMAIL (no provider configured)', { to, subject })
 
   return { sent: true, provider: 'console' }
 }

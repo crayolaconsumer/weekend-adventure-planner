@@ -75,7 +75,6 @@ export function AuthProvider({ children }) {
         // Clear localStorage after successful migration
         localStorage.removeItem(WISHLIST_KEY)
         localStorage.setItem(MIGRATION_KEY, 'true')
-        console.log('Migrated saved places to database')
       }
     } catch (err) {
       console.error('Migration failed:', err)
