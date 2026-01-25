@@ -21,6 +21,7 @@ import { notifyNewFollower } from '../lib/pushNotifications.js'
 import { hasBlockBetween } from './block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateId, validatePagination } from '../lib/validation.js'
+import { awardBadge } from '../users/badges.js'
 
 export default async function handler(req, res) {
   try {
@@ -503,6 +504,14 @@ async function followUser(req, res, user) {
     'SELECT COUNT(*) as count FROM follows WHERE following_id = ?',
     [targetUserId]
   )
+
+  // Award follower milestone badges to the person being followed (non-blocking)
+  const followerCountForBadge = countResult?.count || 1
+  if (followerCountForBadge === 10) {
+    awardBadge(targetUserId, 'followers_10', 'Rising Star').catch(() => {})
+  } else if (followerCountForBadge === 100) {
+    awardBadge(targetUserId, 'followers_100', 'Influencer').catch(() => {})
+  }
 
   return res.status(200).json({
     success: true,

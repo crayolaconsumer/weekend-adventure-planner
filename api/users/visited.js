@@ -7,6 +7,7 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { awardBadge } from './badges.js'
 
 export default async function handler(req, res) {
   // Apply rate limiting before method validation (M2 fix)
@@ -127,6 +128,25 @@ async function handlePost(req, res, user) {
       )
     }
   })
+
+  // Award visit badges (non-blocking)
+  if (isNewVisit) {
+    const visitCount = await queryOne(
+      'SELECT places_visited FROM user_stats WHERE user_id = ?',
+      [user.id]
+    )
+    const count = visitCount?.places_visited || 1
+
+    if (count === 1) {
+      awardBadge(user.id, 'first_visit', 'Explorer').catch(() => {})
+    } else if (count === 10) {
+      awardBadge(user.id, 'visits_10', 'Adventurer').catch(() => {})
+    } else if (count === 50) {
+      awardBadge(user.id, 'visits_50', 'Seasoned Traveler').catch(() => {})
+    } else if (count === 100) {
+      awardBadge(user.id, 'visits_100', 'World Wanderer').catch(() => {})
+    }
+  }
 
   return res.status(201).json({ success: true })
 }

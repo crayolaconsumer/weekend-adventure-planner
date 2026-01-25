@@ -9,6 +9,7 @@ import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateContent, validateId } from '../lib/validation.js'
 import { notifyContributionUpvote } from '../lib/pushNotifications.js'
+import { awardBadge } from '../users/badges.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -190,6 +191,21 @@ async function handlePost(req, res) {
      VALUES (?, ?, ?, ?, ?, 'pending')`,
     [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null]
   )
+
+  // Award contribution badges (non-blocking)
+  const contributionCount = await queryOne(
+    'SELECT COUNT(*) as count FROM contributions WHERE user_id = ?',
+    [user.id]
+  )
+  const count = contributionCount?.count || 1
+
+  if (count === 1) {
+    awardBadge(user.id, 'first_contribution', 'First Steps').catch(() => {})
+  } else if (count === 10) {
+    awardBadge(user.id, 'contributor_10', 'Local Expert').catch(() => {})
+  } else if (count === 50) {
+    awardBadge(user.id, 'contributor_50', 'Community Pillar').catch(() => {})
+  }
 
   return res.status(201).json({
     success: true,
