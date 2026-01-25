@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } fro
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import CardStack from '../components/CardStack'
-import BoredomBuster from '../components/BoredomBuster'
 import PlaceDetail from '../components/PlaceDetail'
 import VisitedPrompt from '../components/VisitedPrompt'
 import PlanPrompt from '../components/PlanPrompt'
@@ -18,7 +17,7 @@ import { useSubscription } from '../hooks/useSubscription'
 import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
 import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
-import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
+import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
 import { getTopRecommendations } from '../utils/tasteProfile'
@@ -107,9 +106,6 @@ export default function Discover({ location }) {
     const saved = localStorage.getItem('roam_interests')
     return saved ? JSON.parse(saved) : []
   })
-  const [showBoredomBuster, setShowBoredomBuster] = useState(false)
-  const [boredomPlace, setBoredomPlace] = useState(null)
-  const [boredomLoading, setBoredomLoading] = useState(false)
   const [showFilterModal, setShowFilterModal] = useState(false)
   const [showJustGo, setShowJustGo] = useState(false)
   const [viewMode, setViewMode] = useState('swipe') // 'swipe' | 'map' | 'list'
@@ -699,99 +695,6 @@ export default function Discover({ location }) {
     }
   }
 
-  // Helper: fetch with timeout for BoredomBuster
-  const fetchWithTimeout = async (fetchFn, timeoutMs = 15000) => {
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out')), timeoutMs)
-    )
-    return Promise.race([fetchFn(), timeoutPromise])
-  }
-
-  // Boredom Buster - pick a random quality place
-  const triggerBoredomBuster = async () => {
-    setShowBoredomBuster(true)
-    setBoredomLoading(true)
-    setBoredomPlace(null)
-
-    // For boredom buster, use closer radius based on mode
-    const radius = travelMode === 'driving' ? 15000 : travelMode === 'transit' ? 8000 : 3000
-
-    try {
-      const rawPlaces = await fetchWithTimeout(() =>
-        fetchEnrichedPlaces(location.lat, location.lng, radius, null)
-      )
-
-      let enhanced = rawPlaces.map(p => enhancePlace(p, location))
-
-      // Apply same filters
-      if (showFreeOnly) {
-        enhanced = enhanced.filter(p =>
-          !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
-        )
-      }
-      if (accessibilityMode) {
-        enhanced = enhanced.filter(p =>
-          p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-        )
-      }
-
-      const quality = getRandomQualityPlaces(enhanced, 1, { minScore: 35 })
-
-      if (quality.length > 0) {
-        setBoredomPlace(quality[0])
-      }
-    } catch (error) {
-      console.error('Boredom buster failed:', error)
-      if (error.message === 'Request timed out') {
-        toast.error("Taking too long. Please try again!")
-      } else {
-        toast.error("Surprise me failed. Try again!")
-      }
-    }
-
-    setBoredomLoading(false)
-  }
-
-  const refreshBoredomBuster = async () => {
-    setBoredomLoading(true)
-
-    const radius = travelMode === 'driving' ? 15000 : travelMode === 'transit' ? 8000 : 3000
-
-    try {
-      const rawPlaces = await fetchWithTimeout(() =>
-        fetchEnrichedPlaces(location.lat, location.lng, radius, null)
-      )
-
-      let enhanced = rawPlaces.map(p => enhancePlace(p, location))
-
-      if (showFreeOnly) {
-        enhanced = enhanced.filter(p =>
-          !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
-        )
-      }
-      if (accessibilityMode) {
-        enhanced = enhanced.filter(p =>
-          p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-        )
-      }
-
-      const quality = getRandomQualityPlaces(enhanced, 1, { minScore: 35 })
-
-      if (quality.length > 0) {
-        setBoredomPlace(quality[0])
-      }
-    } catch (error) {
-      console.error('Refresh failed:', error)
-      if (error.message === 'Request timed out') {
-        toast.error("Taking too long. Please try again!")
-      } else {
-        toast.error("Couldn't refresh. Try again!")
-      }
-    }
-
-    setBoredomLoading(false)
-  }
-
   // Handle clicking a trending place
   const handleViewTrending = async (placeId) => {
     try {
@@ -862,11 +765,11 @@ export default function Discover({ location }) {
           <SettingsIcon />
         </button>
 
-        {/* Boredom Buster Button - THE HERO */}
+        {/* I'm Bored Button - opens personalized recommendations */}
         <motion.button
           className="boredom-btn"
-          onClick={triggerBoredomBuster}
-          disabled={!location}
+          onClick={() => setShowJustGo(true)}
+          disabled={!location || places.length === 0}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           whileHover={{ scale: 1.03, y: -2 }}
@@ -965,23 +868,6 @@ export default function Discover({ location }) {
         </div>
       )}
 
-      {/* Just Go Button - prominent CTA for instant recommendations */}
-      <motion.button
-        className="just-go-btn"
-        onClick={() => setShowJustGo(true)}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <span className="just-go-icon">🎯</span>
-        <div className="just-go-text">
-          <span className="just-go-title">Just Go</span>
-          <span className="just-go-subtitle">Find me something now</span>
-        </div>
-      </motion.button>
-
       {/* Main Content Area - conditionally render based on view mode */}
       <div className={`discover-content ${isDesktop ? `view-${viewMode}` : ''}`}>
         {/* Error Recovery UI */}
@@ -1055,42 +941,6 @@ export default function Discover({ location }) {
           </Suspense>
         )}
       </div>
-
-      {/* Boredom Buster Overlay */}
-      {showBoredomBuster && (
-        <BoredomBuster
-          place={boredomPlace}
-          weather={weather}
-          loading={boredomLoading}
-          travelMode={travelMode}
-          onRefresh={refreshBoredomBuster}
-          onGo={() => {
-            // Track it via hook (syncs to API)
-            const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-            const today = new Date().toDateString()
-            const lastDate = stats.lastStreakDate
-            let currentStreak = stats.currentStreak || 0
-            let bestStreak = stats.bestStreak || 0
-
-            if (lastDate !== today) {
-              const yesterday = new Date()
-              yesterday.setDate(yesterday.getDate() - 1)
-              currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
-              bestStreak = Math.max(bestStreak, currentStreak)
-            }
-
-            updateStats({
-              boredomBusts: (stats.boredomBusts || 0) + 1,
-              timesWentOut: (stats.timesWentOut || 0) + 1,
-              lastActivityDate: new Date().toISOString(),
-              currentStreak,
-              bestStreak,
-              lastStreakDate: today
-            })
-          }}
-          onClose={() => setShowBoredomBuster(false)}
-        />
-      )}
 
       {/* Place Detail Modal */}
       <AnimatePresence>
