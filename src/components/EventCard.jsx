@@ -4,7 +4,6 @@
  * Displays event information in compact or full variants.
  */
 
-import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { formatEventDate, formatPriceRange } from '../utils/eventsApi'
 import './EventCard.css'
@@ -76,8 +75,6 @@ const ExternalLinkIcon = () => (
 )
 
 export default function EventCard({ event, variant = 'compact' }) {
-  const [imageLoaded, setImageLoaded] = useState(false)
-
   if (!event) return null
 
   const handleClick = () => {
@@ -110,15 +107,7 @@ export default function EventCard({ event, variant = 'compact' }) {
         aria-label={`${event.name} on ${dateLabel}${event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view tickets.`}
       >
         <div className="event-card-image">
-          {!imageLoaded && <div className="event-card-image-placeholder" />}
-          <img
-            src={imageUrl}
-            alt={event.name}
-            loading="lazy"
-            className={imageLoaded ? 'loaded' : ''}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageLoaded(true)}
-          />
+          <img src={imageUrl} alt={event.name} loading="lazy" />
         </div>
 
         <div className="event-card-content">
@@ -155,15 +144,7 @@ export default function EventCard({ event, variant = 'compact' }) {
       animate={{ opacity: 1, y: 0 }}
     >
       <div className="event-card-image">
-        {!imageLoaded && <div className="event-card-image-placeholder" />}
-        <img
-          src={imageUrl}
-          alt={event.name}
-          loading="lazy"
-          className={imageLoaded ? 'loaded' : ''}
-          onLoad={() => setImageLoaded(true)}
-          onError={() => setImageLoaded(true)}
-        />
+        <img src={imageUrl} alt={event.name} loading="lazy" />
         {event.isSoldOut && (
           <div className="event-card-sold-out-badge">Sold Out</div>
         )}

@@ -68,25 +68,36 @@ export default function CardStack({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [sponsoredCount, setSponsoredCount] = useState(0)
+  const [enrichedImages, setEnrichedImages] = useState({}) // Track fetched images by place ID
   const { isPremium } = useSubscription()
 
   // Merge regular places with sponsored places at intervals
+  // Also apply enriched images from background fetches
   const mergedPlaces = useMemo(() => {
+    // Helper to apply enriched image to a place
+    const applyEnrichedImage = (place) => {
+      const enriched = enrichedImages[place.id]
+      if (enriched && !place.photo && !place.image) {
+        return { ...place, image: enriched.url, imageSource: enriched.source }
+      }
+      return place
+    }
+
     if (!sponsoredPlaces || sponsoredPlaces.length === 0) {
-      return places.map(p => ({ place: p, isSponsored: false }))
+      return places.map(p => ({ place: applyEnrichedImage(p), isSponsored: false }))
     }
 
     const result = []
     let sponsoredIndex = 0
 
     for (let i = 0; i < places.length; i++) {
-      result.push({ place: places[i], isSponsored: false })
+      result.push({ place: applyEnrichedImage(places[i]), isSponsored: false })
 
       // Insert sponsored card after every SPONSORED_INTERVAL regular cards
       if ((i + 1) % SPONSORED_INTERVAL === 0 && sponsoredIndex < sponsoredPlaces.length) {
         const sponsored = sponsoredPlaces[sponsoredIndex]
         result.push({
-          place: sponsored.place,
+          place: applyEnrichedImage(sponsored.place),
           isSponsored: true,
           sponsoredData: sponsored
         })
@@ -95,7 +106,7 @@ export default function CardStack({
     }
 
     return result
-  }, [places, sponsoredPlaces])
+  }, [places, sponsoredPlaces, enrichedImages])
 
   // Reset index when places change - legitimate pattern for syncing state to props
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -132,8 +143,11 @@ export default function CardStack({
           : place.wikipedia
         const imageUrl = await fetchWikipediaImage(title)
         if (imageUrl) {
-          place.image = imageUrl
-          place.imageSource = 'wikipedia'
+          // Update state to trigger re-render with new image
+          setEnrichedImages(prev => ({
+            ...prev,
+            [place.id]: { url: imageUrl, source: 'wikipedia' }
+          }))
           // Pre-cache it
           fetchAndCacheImage(imageUrl, place.id).catch(() => {})
           return imageUrl
@@ -144,8 +158,11 @@ export default function CardStack({
       if (place.wikidata) {
         const imageUrl = await fetchWikidataImage(place.wikidata)
         if (imageUrl) {
-          place.image = imageUrl
-          place.imageSource = 'wikidata'
+          // Update state to trigger re-render with new image
+          setEnrichedImages(prev => ({
+            ...prev,
+            [place.id]: { url: imageUrl, source: 'wikidata' }
+          }))
           fetchAndCacheImage(imageUrl, place.id).catch(() => {})
           return imageUrl
         }
