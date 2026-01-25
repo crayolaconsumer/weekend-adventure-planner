@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
-import { fetchWikipediaImage, fetchWikidataImage } from '../utils/apiClient'
+import { fetchWikipediaImage, fetchWikidataImage, fetchOpenTripMapDetails } from '../utils/apiClient'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
 import { openDirections } from '../utils/navigation'
@@ -127,7 +127,7 @@ export default function CardStack({
   // Track places we've already tried to fetch images for
   const [fetchedImageIds] = useState(() => new Set())
 
-  // Fetch image for a place from Wikipedia/Wikidata if it doesn't have one
+  // Fetch image for a place from various sources if it doesn't have one
   const fetchPlaceImage = useCallback(async (place) => {
     if (!place || fetchedImageIds.has(place.id)) return null
     fetchedImageIds.add(place.id)
@@ -136,19 +136,30 @@ export default function CardStack({
     if (place.photo || place.image) return null
 
     try {
-      // Try Wikipedia first (better quality images)
+      // Try OpenTripMap first (has curated images)
+      if (place.xid) {
+        const details = await fetchOpenTripMapDetails(place.xid)
+        if (details?.image) {
+          setEnrichedImages(prev => ({
+            ...prev,
+            [place.id]: { url: details.image, source: 'opentripmap' }
+          }))
+          fetchAndCacheImage(details.image, place.id).catch(() => {})
+          return details.image
+        }
+      }
+
+      // Try Wikipedia (better quality images)
       if (place.wikipedia) {
         const title = place.wikipedia.includes(':')
           ? place.wikipedia.split(':')[1]
           : place.wikipedia
         const imageUrl = await fetchWikipediaImage(title)
         if (imageUrl) {
-          // Update state to trigger re-render with new image
           setEnrichedImages(prev => ({
             ...prev,
             [place.id]: { url: imageUrl, source: 'wikipedia' }
           }))
-          // Pre-cache it
           fetchAndCacheImage(imageUrl, place.id).catch(() => {})
           return imageUrl
         }
@@ -158,7 +169,6 @@ export default function CardStack({
       if (place.wikidata) {
         const imageUrl = await fetchWikidataImage(place.wikidata)
         if (imageUrl) {
-          // Update state to trigger re-render with new image
           setEnrichedImages(prev => ({
             ...prev,
             [place.id]: { url: imageUrl, source: 'wikidata' }
@@ -191,8 +201,8 @@ export default function CardStack({
       if (imageUrl) {
         // Already has image - just cache it
         fetchAndCacheImage(imageUrl, place.id).catch(() => {})
-      } else if (place.wikipedia || place.wikidata) {
-        // No image but has wiki data - try to fetch one
+      } else if (place.xid || place.wikipedia || place.wikidata) {
+        // No image but has enrichment data - try to fetch one
         fetchPlaceImage(place)
       }
     }

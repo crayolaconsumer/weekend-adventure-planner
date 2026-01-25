@@ -29,12 +29,9 @@ const OVERPASS_ENDPOINTS = [
 const WIKIPEDIA_API = 'https://en.wikipedia.org/api/rest_v1'
 const WIKIPEDIA_ACTION_API = 'https://en.wikipedia.org/w/api.php'
 const NOMINATIM_API = 'https://nominatim.openstreetmap.org'
-const OPENTRIPMAP_API = 'https://api.opentripmap.com/0.1'
 
-// OpenTripMap API key - free tier allows 5000 requests/day
-// Configure VITE_OPENTRIPMAP_KEY in .env.local for local dev
-// For production, this should be proxied through a backend API route
-const OTM_API_KEY = import.meta.env.VITE_OPENTRIPMAP_KEY || null
+// OpenTripMap is now proxied through our API routes for security
+// See /api/places/opentripmap/nearby.js and /api/places/opentripmap/details.js
 
 /**
  * Build Overpass query for places
@@ -787,11 +784,6 @@ const OTM_KIND_MAPPING = {
  * @returns {Promise<Array>} Array of places
  */
 export async function fetchOpenTripMapPlaces(lat, lng, radius = 5000, kinds = null) {
-  // Skip if no API key
-  if (!OTM_API_KEY) {
-    return []
-  }
-
   // Check circuit breaker before making request
   if (isCircuitOpen('opentripmap')) {
     return []
@@ -800,39 +792,32 @@ export async function fetchOpenTripMapPlaces(lat, lng, radius = 5000, kinds = nu
   const cacheKey = makeKey('otm', lat, lng, radius, kinds)
 
   const result = await managedFetch('opentripmap', cacheKey, async () => {
-    let url = `${OPENTRIPMAP_API}/en/places/radius?lat=${lat}&lon=${lng}&radius=${radius}&limit=100&apikey=${OTM_API_KEY}`
+    let url = `/api/places/opentripmap/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
 
     if (kinds) {
       url += `&kinds=${kinds}`
     }
 
-    // Request places with at least some rating (filters out low-quality entries)
-    url += '&rate=2'
-
     const response = await fetch(url)
 
     if (!response.ok) {
-      // Create an error with status for circuit breaker to detect auth failures
+      // 503 means OTM not configured - don't treat as error
+      if (response.status === 503) {
+        return []
+      }
       const error = new Error(`OpenTripMap request failed: ${response.status}`)
       error.status = response.status
       throw error
     }
 
     const data = await response.json()
+    const places = data.places || []
 
-    if (!Array.isArray(data)) return []
-
-    return data.map(place => ({
-      id: `otm_${place.xid}`,
-      xid: place.xid,
-      name: place.name,
-      lat: place.point?.lat,
-      lng: place.point?.lon,
-      type: mapOtmKind(place.kinds),
-      kinds: place.kinds,
-      rating: place.rate,
-      source: 'opentripmap'
-    })).filter(p => p.name && p.lat && p.lng)
+    // Map to our format with category
+    return places.map(place => ({
+      ...place,
+      type: mapOtmKind(place.kinds)
+    }))
   }, { ttl: 10 * 60 * 1000 }) // 10 minute cache
 
   return result || []
@@ -867,37 +852,27 @@ function mapOtmKind(kinds) {
  * @returns {Promise<Object|null>} Place details
  */
 export async function fetchOpenTripMapDetails(xid) {
-  // Skip if no API key or circuit is open
-  if (!OTM_API_KEY || isCircuitOpen('opentripmap')) {
+  // Skip if circuit is open
+  if (isCircuitOpen('opentripmap')) {
     return null
   }
 
   const cacheKey = makeKey('otm_detail', xid)
 
   const result = await managedFetch('opentripmap', cacheKey, async () => {
-    const response = await fetch(
-      `${OPENTRIPMAP_API}/en/places/xid/${xid}?apikey=${OTM_API_KEY}`
-    )
+    const response = await fetch(`/api/places/opentripmap/details?xid=${xid}`)
 
     if (!response.ok) {
+      // 503 means OTM not configured
+      if (response.status === 503) {
+        return null
+      }
       const error = new Error(`OpenTripMap details failed: ${response.status}`)
       error.status = response.status
       throw error
     }
 
-    const data = await response.json()
-
-    return {
-      name: data.name,
-      description: data.wikipedia_extracts?.text || data.info?.descr || null,
-      image: data.preview?.source || data.image || null,
-      wikipedia: data.wikipedia || null,
-      wikidata: data.wikidata || null,
-      address: formatOtmAddress(data.address),
-      website: data.url || null,
-      kinds: data.kinds,
-      rating: data.rate
-    }
+    return await response.json()
   }, { ttl: 30 * 60 * 1000 }) // 30 minute cache for details
 
   return result
@@ -906,17 +881,6 @@ export async function fetchOpenTripMapDetails(xid) {
 /**
  * Format OpenTripMap address
  */
-function formatOtmAddress(address) {
-  if (!address) return null
-  const parts = [
-    address.house_number,
-    address.road,
-    address.city || address.town || address.village,
-    address.postcode
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(', ') : null
-}
-
 // ═══════════════════════════════════════════════════════
 // WIKIPEDIA API - Descriptions and images
 // ═══════════════════════════════════════════════════════
