@@ -29,6 +29,7 @@ import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
 import { useOfflineMaps } from '../hooks/useOfflineMaps'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+import { useDistance } from '../contexts/DistanceContext'
 import { formatDate } from '../utils/dateUtils'
 import './UnifiedProfile.css'
 
@@ -691,6 +692,7 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
 function SettingsTab({ user, onLogout }) {
   const { updateProfile } = useAuth()
   const { isPremium, manageSubscription, loading: subLoading, error: subError, expiresAt, isCancelled } = useSubscription()
+  const { distanceUnit, setDistanceUnit } = useDistance()
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -919,6 +921,27 @@ function SettingsTab({ user, onLogout }) {
                 <span className="mode-desc">{mode.desc}</span>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Distance Units */}
+        <div className="unified-profile-settings-field">
+          <span className="unified-profile-settings-label">Distance Units</span>
+          <div className="unified-profile-settings-segment">
+            <button
+              className={`unified-profile-settings-segment-btn ${distanceUnit === 'km' ? 'active' : ''}`}
+              onClick={() => setDistanceUnit('km')}
+              disabled={isSaving}
+            >
+              Kilometers
+            </button>
+            <button
+              className={`unified-profile-settings-segment-btn ${distanceUnit === 'mi' ? 'active' : ''}`}
+              onClick={() => setDistanceUnit('mi')}
+              disabled={isSaving}
+            >
+              Miles
+            </button>
           </div>
         </div>
 

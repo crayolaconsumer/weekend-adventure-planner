@@ -9,6 +9,7 @@ import CollectionManager from './CollectionManager'
 import { ContributionList } from './ContributionDisplay'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import './PlaceDetail.css'
 
@@ -103,6 +104,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [failedSrc, setFailedSrc] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
+  const formatDistance = useFormatDistance()
 
   // Fetch contributions on mount
   useEffect(() => {
@@ -175,12 +177,6 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const imageError = failedSrc === resolvedImageUrl
   const imageUrl = imageError ? getPlaceholderImage() : resolvedImageUrl
   const imageLoaded = loadedSrc === imageUrl
-
-  const formatDistance = (km) => {
-    if (!km) return null
-    if (km < 1) return `${Math.round(km * 1000)}m away`
-    return `${km.toFixed(1)}km away`
-  }
 
   const handleDirections = () => {
     openDirections(enrichedPlace.lat, enrichedPlace.lng, enrichedPlace.name)
@@ -302,7 +298,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                 {enrichedPlace.distance && (
                   <span className="place-detail-pill">
                     <MapPinIcon />
-                    {formatDistance(enrichedPlace.distance)}
+                    {formatDistance(enrichedPlace.distance, { withSuffix: true })}
                   </span>
                 )}
                 {enrichedPlace.isOpen !== null && (

@@ -23,6 +23,7 @@ import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { DistanceProvider } from './contexts/DistanceContext'
 
 // Icons as components
 const CompassIcon = () => (
@@ -318,8 +319,9 @@ function App() {
 
   return (
     <AuthProvider>
-      <ToastProvider>
-        <BrowserRouter>
+      <DistanceProvider>
+        <ToastProvider>
+          <BrowserRouter>
           <ErrorBoundary>
             {/* Skip link for keyboard users */}
             <a href="#main-content" className="skip-link">Skip to main content</a>
@@ -402,8 +404,9 @@ function App() {
               </nav>
             </div>
           </ErrorBoundary>
-        </BrowserRouter>
-      </ToastProvider>
+          </BrowserRouter>
+        </ToastProvider>
+      </DistanceProvider>
     </AuthProvider>
   )
 }

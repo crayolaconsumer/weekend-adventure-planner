@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
-import { formatDistance, calculateStatsSummary } from '../../utils/statsUtils'
+import { calculateStatsSummary } from '../../utils/statsUtils'
+import { useFormatDistance } from '../../contexts/DistanceContext'
 import './stats.css'
 
 const MapPinIcon = () => (
@@ -38,6 +39,7 @@ const AvgIcon = () => (
 
 export default function DistanceStats({ places }) {
   const stats = calculateStatsSummary(places)
+  const formatDistance = useFormatDistance()
 
   const hasData = stats.totalDistanceKm > 0
 

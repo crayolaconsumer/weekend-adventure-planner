@@ -4,6 +4,7 @@ import { useDrag } from '@use-gesture/react'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
 import { ContributionBadge } from './ContributionDisplay'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import './SwipeCard.css'
@@ -124,6 +125,7 @@ export default function SwipeCard({
   const [isDragging, setIsDragging] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
+  const formatDistance = useFormatDistance()
 
   const topTip = topContribution
 
@@ -266,12 +268,6 @@ export default function SwipeCard({
   const openingState = useMemo(() => {
     return getOpeningState(place.openingHours || place.opening_hours, place)
   }, [place])
-
-  const formatDistance = (km) => {
-    if (!km) return null
-    if (km < 1) return `${Math.round(km * 1000)}m`
-    return `${km.toFixed(1)}km`
-  }
 
   return (
     <motion.div

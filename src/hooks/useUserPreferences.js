@@ -21,7 +21,8 @@ const STORAGE_KEYS = {
   eventsSort: 'roam_events_sort',
   eventsHideSoldOut: 'roam_events_hide_sold_out',
   eventsHideSeen: 'roam_events_hide_seen',
-  interests: 'roam_interests'
+  interests: 'roam_interests',
+  distanceUnit: 'roam_distance_unit'
 }
 
 function getAuthToken() {
@@ -40,7 +41,8 @@ function loadLocalPreferences() {
     eventsSort: localStorage.getItem(STORAGE_KEYS.eventsSort) || 'recommended',
     eventsHideSoldOut: localStorage.getItem(STORAGE_KEYS.eventsHideSoldOut) === 'true',
     eventsHideSeen: localStorage.getItem(STORAGE_KEYS.eventsHideSeen) === 'true',
-    interests: JSON.parse(localStorage.getItem(STORAGE_KEYS.interests) || '[]')
+    interests: JSON.parse(localStorage.getItem(STORAGE_KEYS.interests) || '[]'),
+    distanceUnit: localStorage.getItem(STORAGE_KEYS.distanceUnit) || 'km'
   }
 }
 

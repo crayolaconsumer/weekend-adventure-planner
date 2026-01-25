@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import { getOpeningState } from '../utils/openingHours'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import './DiscoverList.css'
 
 // Icons
@@ -32,7 +33,7 @@ const MapPinIcon = () => (
 )
 
 // List item component
-function ListItem({ place, isSelected, onSelect, onSave, onGo, index }) {
+function ListItem({ place, isSelected, onSelect, onSave, onGo, index, formatDistance }) {
   const itemRef = useRef(null)
   const category = place.category || GOOD_CATEGORIES[place.categoryKey]
   const openingState = getOpeningState(place.openingHours || place.opening_hours, place)
@@ -43,12 +44,6 @@ function ListItem({ place, isSelected, onSelect, onSave, onGo, index }) {
       itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }
   }, [isSelected])
-
-  const formatDistance = (km) => {
-    if (!km) return null
-    if (km < 1) return `${Math.round(km * 1000)}m`
-    return `${km.toFixed(1)}km`
-  }
 
   return (
     <motion.div
@@ -150,6 +145,7 @@ export default function DiscoverList({
 }) {
   const [focusedIndex, setFocusedIndex] = useState(0)
   const listRef = useRef(null)
+  const formatDistance = useFormatDistance()
 
   // Keyboard navigation
   const handleKeyDown = useCallback((e) => {
@@ -202,6 +198,7 @@ export default function DiscoverList({
               onSave={onSavePlace}
               onGo={onGoPlace}
               index={index}
+              formatDistance={formatDistance}
             />
           ))}
         </AnimatePresence>

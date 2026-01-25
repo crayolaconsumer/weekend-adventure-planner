@@ -4,6 +4,8 @@
  * Creates downloadable calendar events for Google/Apple Calendar
  */
 
+import { formatDistance as formatDistanceUtil } from '../../utils/distanceUtils'
+
 /**
  * Format date to iCalendar format: YYYYMMDDTHHMMSS
  */
@@ -39,7 +41,7 @@ function generateUID() {
 /**
  * Generate .ics file content for a single stop
  */
-function generateStopEvent(stop, index) {
+function generateStopEvent(stop, index, distanceUnit = 'km') {
   const startDate = new Date(stop.scheduledTime)
   const endDate = new Date(startDate)
   endDate.setMinutes(endDate.getMinutes() + (stop.duration || 60))
@@ -47,7 +49,7 @@ function generateStopEvent(stop, index) {
   const location = stop.address || `${stop.lat}, ${stop.lng}`
   const description = [
     stop.type ? `Type: ${stop.type.replace(/_/g, ' ')}` : null,
-    stop.distance ? `Distance: ${stop.distance < 1 ? Math.round(stop.distance * 1000) + 'm' : stop.distance.toFixed(1) + 'km'}` : null,
+    stop.distance ? `Distance: ${formatDistanceUtil(stop.distance, distanceUnit)}` : null,
     stop.lat && stop.lng ? `Maps: https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}` : null
   ].filter(Boolean).join('\\n')
 
@@ -69,12 +71,12 @@ function generateStopEvent(stop, index) {
 /**
  * Generate complete .ics file content for an adventure plan
  */
-export function generateICS(itinerary, planTitle = 'ROAM Adventure') {
+export function generateICS(itinerary, planTitle = 'ROAM Adventure', distanceUnit = 'km') {
   if (!itinerary || itinerary.length === 0) {
     return null
   }
 
-  const events = itinerary.map((stop, i) => generateStopEvent(stop, i)).join('\r\n')
+  const events = itinerary.map((stop, i) => generateStopEvent(stop, i, distanceUnit)).join('\r\n')
 
   const icsContent = [
     'BEGIN:VCALENDAR',
@@ -93,8 +95,8 @@ export function generateICS(itinerary, planTitle = 'ROAM Adventure') {
 /**
  * Download .ics file
  */
-export function downloadICS(itinerary, planTitle = 'ROAM Adventure') {
-  const icsContent = generateICS(itinerary, planTitle)
+export function downloadICS(itinerary, planTitle = 'ROAM Adventure', distanceUnit = 'km') {
+  const icsContent = generateICS(itinerary, planTitle, distanceUnit)
 
   if (!icsContent) {
     return false

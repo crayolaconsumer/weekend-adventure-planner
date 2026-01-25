@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { openDirections } from '../utils/navigation'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import './BoredomBuster.css'
 
 const NavigationIcon = () => (
@@ -45,6 +46,8 @@ export default function BoredomBuster({
   onGo,
   onClose
 }) {
+  const formatDistance = useFormatDistance()
+
   // Prevent body scroll when modal is open
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -159,7 +162,7 @@ export default function BoredomBuster({
 
               <div className="boredom-buster-meta">
                 {place.distance && (
-                  <span>{place.distance < 1 ? `${Math.round(place.distance * 1000)}m` : `${place.distance.toFixed(1)}km`} away</span>
+                  <span>{formatDistance(place.distance, { withSuffix: true })}</span>
                 )}
                 {place.type && (
                   <span className="boredom-buster-type">{place.type.replace(/_/g, ' ')}</span>

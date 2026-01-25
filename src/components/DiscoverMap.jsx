@@ -10,6 +10,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 're
 import L from 'leaflet'
 import { motion } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import 'leaflet/dist/leaflet.css'
 import './DiscoverMap.css'
 
@@ -101,7 +102,7 @@ function MapController({ center, onBoundsChange, onReady }) {
 }
 
 // Place popup content
-function PlacePopup({ place, onSelect }) {
+function PlacePopup({ place, onSelect, formatDistance }) {
   const category = place.category || GOOD_CATEGORIES[place.categoryKey]
 
   return (
@@ -120,7 +121,7 @@ function PlacePopup({ place, onSelect }) {
         <h4 className="map-popup-name">{place.name}</h4>
         {place.distance && (
           <span className="map-popup-distance">
-            {place.distance < 1 ? `${Math.round(place.distance * 1000)}m` : `${place.distance.toFixed(1)}km`}
+            {formatDistance(place.distance)}
           </span>
         )}
         <button className="map-popup-btn" onClick={() => onSelect(place)}>
@@ -141,6 +142,7 @@ export default function DiscoverMap({
   const mapRef = useRef(null)
   const markersRef = useRef({})
   const mapInstanceRef = useRef(null)
+  const formatDistance = useFormatDistance()
   const [tileUrl, setTileUrl] = useState(
     'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
   )
@@ -238,7 +240,7 @@ export default function DiscoverMap({
               }}
             >
               <Popup className="discover-map-popup">
-                <PlacePopup place={place} onSelect={onSelectPlace} />
+                <PlacePopup place={place} onSelect={onSelectPlace} formatDistance={formatDistance} />
               </Popup>
             </Marker>
           )

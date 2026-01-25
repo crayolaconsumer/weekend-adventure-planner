@@ -23,12 +23,14 @@ const ALLOWED_FIELDS = [
   'eventsSort',
   'eventsHideSoldOut',
   'eventsHideSeen',
-  'interests'
+  'interests',
+  'distanceUnit'
 ]
 
 // Valid values for enum fields
 const VALID_TRAVEL_MODES = ['walking', 'driving', 'transit', 'dayTrip', 'explorer']
 const VALID_EVENTS_SORT = ['recommended', 'date', 'distance', 'popularity']
+const VALID_DISTANCE_UNITS = ['km', 'mi']
 
 export default async function handler(req, res) {
   const user = await getUserFromRequest(req)
@@ -97,7 +99,8 @@ async function handleGet(req, res, user) {
       eventsSort: prefs.events_sort || 'recommended',
       eventsHideSoldOut: Boolean(prefs.events_hide_sold_out),
       eventsHideSeen: Boolean(prefs.events_hide_seen),
-      interests: prefs.interests || []
+      interests: prefs.interests || [],
+      distanceUnit: prefs.distance_unit || 'km'
     }
   })
 }
@@ -128,7 +131,8 @@ async function handlePut(req, res, user) {
     eventsSort,
     eventsHideSoldOut,
     eventsHideSeen,
-    interests
+    interests,
+    distanceUnit
   } = sanitizedBody
 
   // Validate enum fields
@@ -137,6 +141,9 @@ async function handlePut(req, res, user) {
   }
   if (eventsSort !== undefined && !VALID_EVENTS_SORT.includes(eventsSort)) {
     return res.status(400).json({ error: 'Invalid events sort option' })
+  }
+  if (distanceUnit !== undefined && !VALID_DISTANCE_UNITS.includes(distanceUnit)) {
+    return res.status(400).json({ error: 'Invalid distance unit' })
   }
 
   // Validate numeric fields
@@ -241,6 +248,11 @@ async function handlePut(req, res, user) {
   if (interests !== undefined) {
     updates.push('interests = ?')
     params.push(JSON.stringify(interests))
+  }
+
+  if (distanceUnit !== undefined) {
+    updates.push('distance_unit = ?')
+    params.push(distanceUnit)
   }
 
   if (updates.length === 0) {

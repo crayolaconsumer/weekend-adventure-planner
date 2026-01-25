@@ -18,6 +18,7 @@ import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
 import { useRouting } from '../hooks/useRouting'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import ShareModal from '../components/plan/ShareModal'
 import './Plan.css'
 
@@ -204,6 +205,7 @@ export default function Plan({ location }) {
   const { user } = useAuth()
   const { getTravelTime: fetchTravelTime } = useRouting()
   const { places: wishlist } = useSavedPlaces()
+  const formatDistance = useFormatDistance()
 
   // State
   const [selectedVibe, setSelectedVibe] = useState('mixed')
@@ -881,7 +883,7 @@ export default function Plan({ location }) {
                           <div className="plan-stop-name">{stop.name}</div>
                           <div className="plan-stop-meta">
                             {stop.type?.replace(/_/g, ' ')}
-                            {stop.distance && ` · ${stop.distance < 1 ? Math.round(stop.distance * 1000) + 'm' : stop.distance.toFixed(1) + 'km'}`}
+                            {stop.distance && ` · ${formatDistance(stop.distance)}`}
                           </div>
                         </div>
                         <div className="plan-stop-actions">

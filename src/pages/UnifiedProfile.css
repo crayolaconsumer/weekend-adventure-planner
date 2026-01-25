@@ -1183,6 +1183,44 @@
   color: white;
 }
 
+/* Segmented Control (km/mi toggle) */
+.unified-profile-settings-segment {
+  display: flex;
+  background: var(--roam-parchment, #e8e0d0);
+  border-radius: var(--radius-md, 8px);
+  padding: 4px;
+  margin-top: var(--space-sm, 8px);
+}
+
+.unified-profile-settings-segment-btn {
+  flex: 1;
+  padding: var(--space-sm, 8px) var(--space-md, 16px);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  font-weight: 500;
+  color: var(--roam-ink-muted, #6b6359);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.unified-profile-settings-segment-btn:hover:not(:disabled):not(.active) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.unified-profile-settings-segment-btn.active {
+  background: var(--roam-forest, #2d5a27);
+  color: white;
+  font-weight: 600;
+}
+
+.unified-profile-settings-segment-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Toggle Preferences */
 .unified-profile-settings-toggles {
   display: flex;

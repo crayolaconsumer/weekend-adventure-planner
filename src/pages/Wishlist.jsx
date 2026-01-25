@@ -8,6 +8,7 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useUserPlans } from '../hooks/useUserPlans'
 import { useSubscription } from '../hooks/useSubscription'
 import { useToast } from '../hooks/useToast'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections } from '../utils/navigation'
 import './Wishlist.css'
 
@@ -115,6 +116,7 @@ export default function Wishlist() {
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
   const { isPremium } = useSubscription()
+  const formatDistance = useFormatDistance()
 
   // Pagination state
   const [placesDisplayLimit, setPlacesDisplayLimit] = useState(PAGE_SIZE)
@@ -323,10 +325,7 @@ export default function Wishlist() {
                           {place.distance && (
                             <span className="wishlist-card-distance">
                               <MapPinIcon />
-                              {place.distance < 1
-                                ? `${Math.round(place.distance * 1000)}m`
-                                : `${place.distance.toFixed(1)}km`
-                              }
+                              {formatDistance(place.distance)}
                             </span>
                           )}
                         </div>
