@@ -509,10 +509,79 @@ export function hasEnoughDataForPersonalization() {
   return profile.dataQuality >= 20
 }
 
+/**
+ * Score a place for the current user based on their taste profile
+ * Returns a score where higher = better match for user
+ * @param {Object} place - Place object to score
+ * @returns {number} Score value (base 50 + personalization boost)
+ */
+export function scorePlaceForUser(place) {
+  if (!place) return 0
+
+  const profile = buildTasteProfile()
+
+  // Base score of 50 (neutral)
+  let score = 50
+
+  // Add personalization boost (-10 to +15)
+  score += getPersonalizationBoost(place, profile)
+
+  // Boost for higher ratings
+  if (place.rating) {
+    score += Math.min(place.rating * 2, 10) // Up to +10 for 5-star rating
+  }
+
+  // Boost for popularity/reviews
+  if (place.reviewCount || place.user_ratings_total) {
+    const reviews = place.reviewCount || place.user_ratings_total
+    score += Math.min(Math.log10(reviews + 1) * 3, 8) // Up to +8 for popular places
+  }
+
+  return Math.round(score * 100) / 100
+}
+
+/**
+ * Get top N personalized recommendations
+ * @param {Array} places - Array of place objects to score
+ * @param {number} count - Number of recommendations to return (default 5)
+ * @returns {Array} Top N places sorted by personalization score
+ */
+export function getTopRecommendations(places, count = 5) {
+  if (!places || places.length === 0) return []
+
+  // Get visited places to filter out
+  const visitedRaw = localStorage.getItem('roam_visited_places')
+  const visited = visitedRaw ? JSON.parse(visitedRaw) : []
+  const visitedIds = new Set(visited.map(v => v.id || v.placeId))
+
+  // Get not-interested places to filter out
+  const notInterestedRaw = localStorage.getItem('roam_not_interested')
+  const notInterested = notInterestedRaw ? JSON.parse(notInterestedRaw) : []
+  const notInterestedIds = new Set(notInterested.map(n => n.id || n.placeId))
+
+  // Filter and score places
+  const scored = places
+    .filter(place => {
+      const id = place.id || place.placeId
+      return !visitedIds.has(id) && !notInterestedIds.has(id)
+    })
+    .map(place => ({
+      ...place,
+      _score: scorePlaceForUser(place)
+    }))
+    .sort((a, b) => b._score - a._score)
+    .slice(0, count)
+
+  // Remove internal _score property before returning
+  return scored.map(({ _score, ...place }) => place)
+}
+
 export default {
   buildTasteProfile,
   getPersonalizationBoost,
   getMatchReason,
   hasEnoughDataForPersonalization,
+  scorePlaceForUser,
+  getTopRecommendations,
   DEFAULT_PROFILE
 }
