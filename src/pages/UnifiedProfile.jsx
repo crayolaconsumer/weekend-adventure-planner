@@ -82,7 +82,7 @@ const BADGES = [
   { id: 'streak_3', name: 'Getting Into It', icon: '🔥', description: '3 day streak', requirement: (s) => s.bestStreak >= 3 },
   { id: 'streak_7', name: 'Week Warrior', icon: '⚡', description: '7 day streak', requirement: (s) => s.bestStreak >= 7 },
   { id: 'streak_30', name: 'Unstoppable', icon: '💪', description: '30 day streak', requirement: (s) => s.bestStreak >= 30 },
-  { id: 'boredom_buster', name: 'Spontaneous', icon: '🎲', description: 'Used Boredom Buster 10 times', requirement: (s) => s.boredomBusts >= 10 },
+  { id: 'just_go', name: 'Spontaneous', icon: '🎯', description: 'Used Just Go 10 times', requirement: (s) => (s.justGoUses || 0) + (s.boredomBusts || 0) >= 10 },
   { id: 'curator', name: 'Curator', icon: '📚', description: 'Saved 20 places to wishlist', requirement: (s) => s.wishlistCount >= 20 },
   { id: 'planner', name: 'Planner', icon: '📋', description: 'Created 5 adventures', requirement: (s) => s.adventuresCreated >= 5 },
 ]
