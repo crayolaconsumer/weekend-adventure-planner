@@ -79,6 +79,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   const [tipText, setTipText] = useState('')
   const [tipError, setTipError] = useState(null)
   const [photoUrl, setPhotoUrl] = useState(null)
+  const [visibility, setVisibility] = useState('public')
 
   // Rating state
   const [recommended, setRecommended] = useState(null)
@@ -133,7 +134,8 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
       placeId: place.id,
       type: photoUrl ? 'photo' : 'tip',
       content: tipText.trim() || 'Photo contribution',
-      metadata: photoUrl ? { photoUrl } : undefined
+      metadata: photoUrl ? { photoUrl } : undefined,
+      visibility
     })
 
     if (result.success) {
@@ -446,6 +448,27 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
 
                 <h3 className="visited-title">Share a tip</h3>
                 <p className="visited-subtitle">Help others discover what makes this place special</p>
+
+                {/* Visibility selector */}
+                <div className="tip-visibility">
+                  <span className="tip-visibility-label">Who can see this?</span>
+                  <div className="tip-visibility-options">
+                    <button
+                      type="button"
+                      className={`tip-visibility-btn ${visibility === 'public' ? 'selected' : ''}`}
+                      onClick={() => setVisibility('public')}
+                    >
+                      Everyone
+                    </button>
+                    <button
+                      type="button"
+                      className={`tip-visibility-btn ${visibility === 'followers_only' ? 'selected' : ''}`}
+                      onClick={() => setVisibility('followers_only')}
+                    >
+                      Followers
+                    </button>
+                  </div>
+                </div>
 
                 <div className="review-input-wrapper">
                   <label htmlFor="tip-textarea" className="visually-hidden">Share a tip about this place</label>

@@ -389,3 +389,44 @@
 .visited-photo-upload {
   margin-top: var(--space-md, 12px);
 }
+
+/* Tip visibility selector */
+.tip-visibility {
+  width: 100%;
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.tip-visibility-label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.tip-visibility-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tip-visibility-btn {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid var(--roam-parchment);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--color-text-secondary);
+}
+
+.tip-visibility-btn:hover {
+  border-color: var(--roam-forest-light);
+}
+
+.tip-visibility-btn.selected {
+  background: var(--roam-forest);
+  color: white;
+  border-color: var(--roam-forest);
+}
