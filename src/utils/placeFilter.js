@@ -218,13 +218,20 @@ export function filterPlaces(places, options = {}) {
     .filter(place => !isBlacklisted(place.type || ''))
     // Remove boring names
     .filter(place => !hasBoringName(place.name))
-    // NOTE: Categories now applied as BOOST in scorePlace(), not hard filter
-    // This ensures vibe-matching places rank higher while maintaining diversity
-    // Add scores with context (including vibe boost)
+    // Add category info first so we can filter by it
     .map(place => ({
       ...place,
-      score: scorePlace(place, context),
       category: getCategoryForType(place.type)
+    }))
+    // Hard filter by selected categories (if any selected)
+    .filter(place => {
+      if (!categories || categories.length === 0) return true
+      return place.category && categories.includes(place.category.key)
+    })
+    // Add scores with context
+    .map(place => ({
+      ...place,
+      score: scorePlace(place, context)
     }))
     // Filter by minimum score
     .filter(place => place.score >= minScore)
