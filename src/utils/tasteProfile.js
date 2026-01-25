@@ -547,33 +547,75 @@ export function scorePlaceForUser(place) {
  * @returns {Array} Top N places sorted by personalization score
  */
 export function getTopRecommendations(places, count = 5) {
-  if (!places || places.length === 0) return []
+  if (!Array.isArray(places) || places.length === 0) return []
+  if (typeof count !== 'number' || count < 1) count = 5
 
-  // Get visited places to filter out
-  const visitedRaw = localStorage.getItem('roam_visited_places')
-  const visited = visitedRaw ? JSON.parse(visitedRaw) : []
-  const visitedIds = new Set(visited.map(v => v.id || v.placeId))
+  // Build profile once for all scoring (performance optimization)
+  const profile = buildTasteProfile()
+
+  // Get visited places to filter out (with error handling for corrupted data)
+  let visitedIds = new Set()
+  try {
+    const visitedRaw = localStorage.getItem('roam_visited_places')
+    const visited = visitedRaw ? JSON.parse(visitedRaw) : []
+    visitedIds = new Set(visited.map(v => v.id || v.placeId).filter(Boolean))
+  } catch {
+    // Ignore corrupted data
+  }
 
   // Get not-interested places to filter out
-  const notInterestedRaw = localStorage.getItem('roam_not_interested')
-  const notInterested = notInterestedRaw ? JSON.parse(notInterestedRaw) : []
-  const notInterestedIds = new Set(notInterested.map(n => n.id || n.placeId))
+  let notInterestedIds = new Set()
+  try {
+    const notInterestedRaw = localStorage.getItem('roam_not_interested')
+    const notInterested = notInterestedRaw ? JSON.parse(notInterestedRaw) : []
+    notInterestedIds = new Set(notInterested.map(n => n.id || n.placeId).filter(Boolean))
+  } catch {
+    // Ignore corrupted data
+  }
 
   // Filter and score places
   const scored = places
     .filter(place => {
-      const id = place.id || place.placeId
+      const id = place?.id || place?.placeId
+      if (!id) return true // Include places without ID (can't filter them)
       return !visitedIds.has(id) && !notInterestedIds.has(id)
     })
     .map(place => ({
       ...place,
-      _score: scorePlaceForUser(place)
+      _score: scorePlaceForUserWithProfile(place, profile)
     }))
     .sort((a, b) => b._score - a._score)
     .slice(0, count)
 
   // Remove internal _score property before returning
   return scored.map(({ _score, ...place }) => place)
+}
+
+/**
+ * Score a place using a pre-built profile (more efficient for batch scoring)
+ * @param {Object} place - Place object to score
+ * @param {Object} profile - Pre-built taste profile
+ * @returns {number} Score value
+ */
+function scorePlaceForUserWithProfile(place, profile) {
+  if (!place) return 0
+
+  let score = 50
+  score += getPersonalizationBoost(place, profile)
+
+  // Boost for higher ratings (with type validation)
+  const rating = typeof place.rating === 'number' ? place.rating : parseFloat(place.rating)
+  if (!isNaN(rating) && rating > 0) {
+    score += Math.min(rating * 2, 10)
+  }
+
+  // Boost for popularity
+  const reviews = place.reviewCount || place.user_ratings_total || 0
+  if (reviews > 0) {
+    score += Math.min(Math.log10(reviews + 1) * 3, 8)
+  }
+
+  return Math.round(score * 100) / 100
 }
 
 export default {
