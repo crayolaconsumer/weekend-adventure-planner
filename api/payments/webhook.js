@@ -13,6 +13,7 @@
 
 import Stripe from 'stripe'
 import { query, queryOne, insert, update, transaction } from '../lib/db.js'
+import { sendPaymentFailedEmail } from '../lib/email.js'
 
 // Validate required environment variables at module load
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -301,7 +302,7 @@ async function handlePaymentFailed(invoice, conn) {
 
   // Get user by Stripe customer ID
   const [users] = await conn.query(
-    'SELECT id, email FROM users WHERE stripe_customer_id = ?',
+    'SELECT id, email, display_name FROM users WHERE stripe_customer_id = ?',
     [customerId]
   )
   const user = users[0]
@@ -319,8 +320,12 @@ async function handlePaymentFailed(invoice, conn) {
     [subscriptionId]
   )
 
-  // TODO: Send email notification about failed payment
   console.log(`Payment failed for user ${user.id} (${user.email})`)
+
+  // Send email notification about failed payment (non-blocking)
+  sendPaymentFailedEmail(user.email, user.display_name).catch(err => {
+    console.error('Failed to send payment failure email:', err)
+  })
 }
 
 /**
