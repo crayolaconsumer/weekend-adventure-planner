@@ -264,6 +264,11 @@ export default function Discover({ location }) {
     return applyFilters(basePlaces, weather)
   }, [basePlaces, applyFilters, weather])
 
+  // Memoized recommendations for Just Go - only recalculates when places change
+  const justGoRecommendations = useMemo(() => {
+    return getTopRecommendations(places, 5)
+  }, [places])
+
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('roam_travel_mode', travelMode)
@@ -1191,7 +1196,7 @@ export default function Discover({ location }) {
       <JustGoModal
         isOpen={showJustGo}
         onClose={() => setShowJustGo(false)}
-        recommendations={getTopRecommendations(places, 5)}
+        recommendations={justGoRecommendations}
         weather={weather}
         onGo={(place) => {
           // Save as pending visit for later prompt
