@@ -3,12 +3,16 @@
 
    Matches ROAM's field-journal aesthetic.
    Warm, tactile, inviting. Not a form. An adventure taking shape.
+
+   Mobile: Viewport-constrained with scrollable content area
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-page {
-  min-height: calc(var(--stable-vh, 100vh) - 70px);
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 70px);
+  height: calc(100dvh - 70px);
+  overflow: hidden;
   background: linear-gradient(
     180deg,
     var(--roam-cream) 0%,
@@ -17,72 +21,114 @@
   );
 }
 
+@media (min-width: 768px) {
+  .plan-page {
+    height: auto;
+    min-height: calc(100vh - 70px);
+    overflow: visible;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   HEADER - Simple, elegant, like Discover
+   HEADER - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-header {
-  padding: var(--space-xl) var(--space-lg) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   text-align: center;
+  flex-shrink: 0;
 }
 
 .plan-title {
   font-family: var(--font-display);
-  font-size: var(--text-2xl);
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--roam-forest);
   margin: 0;
   letter-spacing: -0.02em;
 }
 
+@media (min-width: 768px) {
+  .plan-header {
+    padding: var(--space-xl) var(--space-lg) var(--space-md);
+  }
+
+  .plan-title {
+    font-size: var(--text-2xl);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   BODY
+   BODY - Scrollable on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-body {
   flex: 1;
-  padding: 0 var(--space-lg) var(--space-lg);
-  padding-bottom: calc(var(--space-2xl) + 80px);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 var(--space-md) var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  gap: var(--space-sm);
   max-width: 540px;
   margin: 0 auto;
   width: 100%;
 }
 
+@media (min-width: 768px) {
+  .plan-body {
+    overflow: visible;
+    padding: 0 var(--space-lg) var(--space-lg);
+    padding-bottom: calc(var(--space-2xl) + 80px);
+    gap: var(--space-xl);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   SELECTOR ROWS (Vibe, Duration)
+   SELECTOR ROWS (Vibe, Duration) - Compact inline layout on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-row {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
 .plan-label {
   font-family: var(--font-body);
-  font-size: var(--text-xs);
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+  flex-shrink: 0;
+  min-width: 52px;
 }
 
 .plan-chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 2px 0;
+}
+
+.plan-chips::-webkit-scrollbar {
+  display: none;
 }
 
 .plan-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 18px;
+  gap: 4px;
+  padding: 8px 12px;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: 12px;
   font-weight: 500;
   border-radius: var(--radius-full);
   background: var(--roam-paper);
@@ -91,6 +137,8 @@
   cursor: pointer;
   transition: all var(--duration-fast);
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -109,18 +157,43 @@
   color: white;
 }
 
+@media (min-width: 768px) {
+  .plan-row {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-md);
+  }
+
+  .plan-label {
+    font-size: var(--text-xs);
+    min-width: 80px;
+  }
+
+  .plan-chips {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    overflow-x: visible;
+  }
+
+  .plan-chip {
+    padding: 12px 18px;
+    font-size: var(--text-sm);
+    gap: 8px;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   GENERATE BUTTON - The Boredom Buster's sibling
+   GENERATE BUTTON - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-generate {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   width: 100%;
-  padding: 16px 28px;
-  margin-top: var(--space-sm);
+  padding: 12px 20px;
+  margin-top: var(--space-xs);
   background: linear-gradient(
     135deg,
     var(--roam-terracotta-light) 0%,
@@ -130,15 +203,25 @@
   border: none;
   border-radius: var(--radius-full);
   font-family: var(--font-display);
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: 500;
   letter-spacing: -0.01em;
   cursor: pointer;
+  flex-shrink: 0;
   transition: box-shadow 0.3s var(--ease-out-expo);
   box-shadow:
     0 2px 8px rgba(196, 92, 62, 0.3),
     0 4px 20px rgba(196, 92, 62, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+@media (min-width: 768px) {
+  .plan-generate {
+    padding: 16px 28px;
+    margin-top: var(--space-sm);
+    font-size: var(--text-base);
+    gap: var(--space-sm);
+  }
 }
 
 .plan-generate:hover:not(:disabled) {
@@ -171,38 +254,40 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTIONS (Wishlist, Itinerary)
+   SECTIONS (Wishlist, Itinerary) - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
-  margin-top: var(--space-md);
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
 }
 
 .plan-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs);
   border-bottom: 1px solid var(--roam-parchment);
 }
 
 .plan-section-title {
   font-family: var(--font-body);
-  font-size: var(--text-xs);
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
 }
 
 .plan-section-link {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: var(--text-sm);
+  gap: 2px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--roam-terracotta);
   background: none;
@@ -215,30 +300,67 @@
   text-decoration: underline;
 }
 
+@media (min-width: 768px) {
+  .plan-section {
+    gap: var(--space-md);
+    margin-top: var(--space-md);
+  }
+
+  .plan-section-header {
+    padding-bottom: var(--space-sm);
+  }
+
+  .plan-section-title {
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+  }
+
+  .plan-section-link {
+    font-size: var(--text-sm);
+    gap: 4px;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   WISHLIST ITEMS
+   WISHLIST ITEMS - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-wishlist {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
 }
 
 .plan-wishlist-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-md);
-  padding: 14px 16px;
+  gap: var(--space-sm);
+  padding: 10px 12px;
   background: var(--color-surface-elevated);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: all var(--duration-fast);
   border: none;
   width: 100%;
   text-align: left;
+}
+
+@media (min-width: 768px) {
+  .plan-wishlist {
+    gap: var(--space-sm);
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .plan-wishlist-item {
+    padding: 14px 16px;
+    gap: var(--space-md);
+    border-radius: var(--radius-lg);
+  }
 }
 
 .plan-wishlist-item:hover {
@@ -251,7 +373,7 @@
 
 .plan-wishlist-name {
   flex: 1;
-  font-size: var(--text-sm);
+  font-size: 12px;
   font-weight: 500;
   color: var(--color-text-primary);
   overflow: hidden;
@@ -263,13 +385,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-full);
   background: var(--roam-parchment);
   color: var(--color-text-muted);
   flex-shrink: 0;
   transition: all var(--duration-fast);
+}
+
+@media (min-width: 768px) {
+  .plan-wishlist-name {
+    font-size: var(--text-sm);
+  }
+
+  .plan-wishlist-add {
+    width: 28px;
+    height: 28px;
+  }
 }
 
 .plan-wishlist-item:hover .plan-wishlist-add {
@@ -292,14 +425,21 @@
 }
 
 .plan-wishlist-type {
-  font-size: var(--text-xs);
+  font-size: 10px;
   color: var(--color-text-muted);
   text-transform: capitalize;
   flex-shrink: 0;
-  max-width: 80px;
+  max-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .plan-wishlist-type {
+    font-size: var(--text-xs);
+    max-width: 80px;
+  }
 }
 
 .plan-wishlist-more {
@@ -325,31 +465,32 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-xl) var(--space-lg);
+  padding: var(--space-md) var(--space-sm);
   background: var(--roam-paper);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
 .plan-wishlist-empty-icon {
-  font-size: 2rem;
-  margin-bottom: var(--space-sm);
+  font-size: 1.5rem;
+  margin-bottom: var(--space-xs);
 }
 
 .plan-wishlist-empty p {
-  font-size: var(--text-sm);
+  font-size: 11px;
   color: var(--color-text-muted);
   margin: 0;
-  max-width: 240px;
+  max-width: 200px;
+  line-height: 1.4;
 }
 
 .plan-wishlist-cta {
-  margin-top: var(--space-md);
-  padding: var(--space-sm) var(--space-lg);
+  margin-top: var(--space-sm);
+  padding: 6px 14px;
   background: var(--roam-forest);
   border: none;
   border-radius: var(--radius-full);
-  font-size: var(--text-sm);
+  font-size: 11px;
   font-weight: 500;
   color: white;
   cursor: pointer;
@@ -362,15 +503,49 @@
 }
 
 .plan-section-icon {
-  margin-right: var(--space-xs);
+  margin-right: 4px;
+  font-size: 14px;
 }
 
 .plan-wishlist-section {
   background: linear-gradient(135deg, rgba(212, 168, 85, 0.08) 0%, rgba(212, 168, 85, 0.03) 100%);
-  border-radius: var(--radius-lg);
-  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
   border: 1px solid rgba(212, 168, 85, 0.15);
-  overflow: hidden; /* Prevent grid items from breaking out */
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .plan-wishlist-empty {
+    padding: var(--space-xl) var(--space-lg);
+    border-radius: var(--radius-lg);
+  }
+
+  .plan-wishlist-empty-icon {
+    font-size: 2rem;
+    margin-bottom: var(--space-sm);
+  }
+
+  .plan-wishlist-empty p {
+    font-size: var(--text-sm);
+    max-width: 240px;
+  }
+
+  .plan-wishlist-cta {
+    margin-top: var(--space-md);
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--text-sm);
+  }
+
+  .plan-section-icon {
+    margin-right: var(--space-xs);
+    font-size: inherit;
+  }
+
+  .plan-wishlist-section {
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+  }
 }
 
 .plan-wishlist-section .plan-section-header {
@@ -383,22 +558,27 @@
 
 .plan-itinerary-actions {
   display: flex;
-  gap: var(--space-sm);
+  gap: 4px;
 }
 
 .plan-action {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: var(--space-sm) var(--space-md);
+  gap: 4px;
+  padding: 6px 10px;
   background: var(--color-surface-elevated);
   border: 1.5px solid var(--roam-parchment);
   border-radius: var(--radius-full);
-  font-size: var(--text-xs);
+  font-size: 10px;
   font-weight: 500;
   color: var(--color-text-secondary);
   cursor: pointer;
   transition: all var(--duration-fast);
+}
+
+.plan-action svg {
+  width: 12px;
+  height: 12px;
 }
 
 .plan-action:hover {
@@ -421,8 +601,25 @@
   cursor: not-allowed;
 }
 
+@media (min-width: 768px) {
+  .plan-itinerary-actions {
+    gap: var(--space-sm);
+  }
+
+  .plan-action {
+    gap: 6px;
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--text-xs);
+  }
+
+  .plan-action svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   TIMELINE
+   TIMELINE - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-timeline {
@@ -449,20 +646,20 @@
 .plan-stop {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-xs) 0;
+  gap: var(--space-sm);
+  padding: 2px 0;
 }
 
 .plan-stop-time-wrapper {
-  width: 52px;
+  width: 42px;
   flex-shrink: 0;
 }
 
 .plan-stop-time {
   width: 100%;
-  padding: 4px 6px;
+  padding: 3px 4px;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--roam-forest);
@@ -481,9 +678,9 @@
 
 .plan-stop-time-input {
   width: 100%;
-  padding: 4px 2px;
+  padding: 3px 2px;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: 11px;
   font-weight: 600;
   color: var(--roam-forest);
   text-align: center;
@@ -498,10 +695,10 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: 14px 16px;
+  gap: var(--space-xs);
+  padding: 10px 12px;
   background: var(--color-surface-elevated);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   cursor: grab;
   transition: box-shadow var(--duration-fast), transform var(--duration-fast);
@@ -515,11 +712,43 @@
   cursor: grabbing;
 }
 
+@media (min-width: 768px) {
+  .plan-stop {
+    gap: var(--space-md);
+    padding: var(--space-xs) 0;
+  }
+
+  .plan-stop-time-wrapper {
+    width: 52px;
+  }
+
+  .plan-stop-time {
+    padding: 4px 6px;
+    font-size: var(--text-sm);
+  }
+
+  .plan-stop-time-input {
+    padding: 4px 2px;
+    font-size: var(--text-sm);
+  }
+
+  .plan-stop-card {
+    padding: 14px 16px;
+    gap: var(--space-sm);
+    border-radius: var(--radius-lg);
+  }
+}
+
 .plan-stop-drag {
   color: var(--roam-stone);
   opacity: 0.4;
   transition: opacity var(--duration-fast);
   flex-shrink: 0;
+}
+
+.plan-stop-drag svg {
+  width: 12px;
+  height: 12px;
 }
 
 .plan-stop-card:hover .plan-stop-drag {
@@ -532,7 +761,7 @@
 }
 
 .plan-stop-name {
-  font-size: var(--text-sm);
+  font-size: 12px;
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 0;
@@ -542,21 +771,21 @@
 }
 
 .plan-stop-meta {
-  font-size: var(--text-xs);
+  font-size: 10px;
   color: var(--color-text-muted);
   text-transform: capitalize;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .plan-stop-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .plan-stop-actions button {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -577,24 +806,49 @@
   color: var(--roam-terracotta);
 }
 
+@media (min-width: 768px) {
+  .plan-stop-drag svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .plan-stop-name {
+    font-size: var(--text-sm);
+  }
+
+  .plan-stop-meta {
+    font-size: var(--text-xs);
+    margin-top: 2px;
+  }
+
+  .plan-stop-actions {
+    gap: 4px;
+  }
+
+  .plan-stop-actions button {
+    width: 32px;
+    height: 32px;
+  }
+}
+
 /* Travel Time Between Stops */
 .plan-travel {
   display: flex;
   align-items: center;
-  margin-left: calc(48px + var(--space-md));
-  padding: var(--space-xs) 0;
+  margin-left: calc(42px + var(--space-sm));
+  padding: 2px 0;
   position: relative;
 }
 
 .plan-travel-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 4px;
+  padding: 4px 10px;
   background: var(--roam-parchment);
   border: 1.5px solid transparent;
   border-radius: var(--radius-full);
-  font-size: var(--text-xs);
+  font-size: 10px;
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--duration-fast);
@@ -611,12 +865,29 @@
 }
 
 .plan-travel-icon {
-  font-size: var(--text-sm);
+  font-size: 12px;
   line-height: 1;
 }
 
 .plan-travel-duration {
   font-weight: 500;
+}
+
+@media (min-width: 768px) {
+  .plan-travel {
+    margin-left: calc(52px + var(--space-md));
+    padding: var(--space-xs) 0;
+  }
+
+  .plan-travel-btn {
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: var(--text-xs);
+  }
+
+  .plan-travel-icon {
+    font-size: var(--text-sm);
+  }
 }
 
 /* Mode Picker Dropdown */
@@ -664,42 +935,53 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   EMPTY STATE
+   EMPTY STATE - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-2xl) var(--space-lg);
+  padding: var(--space-lg) var(--space-md);
   text-align: center;
   border: 1.5px dashed var(--roam-parchment);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--roam-paper);
 }
 
 .plan-empty p {
-  font-size: var(--text-sm);
+  font-size: 11px;
   color: var(--color-text-muted);
   margin: 0;
 }
 
+@media (min-width: 768px) {
+  .plan-empty {
+    padding: var(--space-2xl) var(--space-lg);
+    border-radius: var(--radius-lg);
+  }
+
+  .plan-empty p {
+    font-size: var(--text-sm);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   ADD STOP BUTTON
+   ADD STOP BUTTON - Compact on mobile
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .plan-add-stop {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  margin-left: calc(48px + var(--space-md));
-  margin-top: var(--space-sm);
-  padding: var(--space-md);
+  gap: var(--space-xs);
+  margin-left: calc(42px + var(--space-sm));
+  margin-top: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
   background: transparent;
   border: 1.5px dashed var(--roam-stone);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -712,68 +994,20 @@
   color: var(--roam-forest);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-@media (max-width: 480px) {
-  .plan-header {
-    padding: var(--space-lg) var(--space-md) var(--space-sm);
-  }
-
-  .plan-title {
-    font-size: var(--text-xl);
-  }
-
-  .plan-body {
-    padding: 0 var(--space-md) var(--space-md);
-    padding-bottom: calc(var(--space-xl) + 70px);
-    gap: var(--space-lg);
-  }
-
-  .plan-chip {
-    padding: 10px 16px;
-    gap: 6px;
-  }
-
-  .plan-generate {
-    padding: 12px 24px;
+@media (min-width: 768px) {
+  .plan-add-stop {
+    gap: var(--space-sm);
+    margin-left: calc(52px + var(--space-md));
+    margin-top: var(--space-sm);
+    padding: var(--space-md);
+    border-radius: var(--radius-lg);
     font-size: var(--text-sm);
   }
-
-  .plan-stop-time-wrapper {
-    width: 46px;
-  }
-
-  .plan-stop-time,
-  .plan-stop-time-input {
-    font-size: var(--text-xs);
-    padding: 3px 4px;
-  }
-
-  .plan-stop-card {
-    padding: var(--space-sm) var(--space-md);
-  }
-
-  .plan-stop-name {
-    font-size: var(--text-xs);
-  }
-
-  .plan-stop-actions button {
-    width: 28px;
-    height: 28px;
-  }
-
-  .plan-travel {
-    margin-left: calc(44px + var(--space-md));
-  }
-
-  .plan-add-stop {
-    margin-left: calc(44px + var(--space-md));
-    padding: var(--space-sm) var(--space-md);
-    font-size: var(--text-xs);
-  }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE - Additional desktop enhancements
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (min-width: 768px) {
   .plan-header {
@@ -784,23 +1018,56 @@
     font-size: var(--text-3xl);
   }
 
-  .plan-row {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-md);
-  }
-
-  .plan-label {
-    min-width: 80px;
-  }
-
   .plan-wishlist {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
   }
 
-  /* Ensure grid items don't overflow */
   .plan-wishlist-item {
-    min-width: 0; /* Allow flex children to shrink below content size */
+    min-width: 0;
+  }
+
+  .plan-stop-time-wrapper {
+    width: 52px;
+  }
+
+  .plan-stop-card {
+    padding: 14px 16px;
+  }
+
+  .plan-stop-name {
+    font-size: var(--text-sm);
+  }
+
+  .plan-stop-actions button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .plan-travel {
+    margin-left: calc(48px + var(--space-md));
+  }
+
+  .plan-add-stop {
+    margin-left: calc(48px + var(--space-md));
+    padding: var(--space-md);
+    font-size: var(--text-sm);
+  }
+}
+
+/* Small mobile - extra compact */
+@media (max-width: 380px) {
+  .plan-label {
+    min-width: 44px;
+    font-size: 9px;
+  }
+
+  .plan-chip {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .plan-wishlist-name {
+    font-size: 11px;
   }
 }
