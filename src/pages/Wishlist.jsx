@@ -278,7 +278,7 @@ export default function Wishlist() {
                           setPlacesDisplayLimit(PAGE_SIZE)
                         }}
                       >
-                        {category?.icon} {category?.label}
+                        {category?.label}
                       </button>
                     )
                   })}
