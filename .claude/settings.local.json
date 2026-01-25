@@ -38,7 +38,11 @@
       "mcp__mysql-roam__mysql_query",
       "mcp__mysql-roam__mysql_connect",
       "Bash(find:*)",
-      "WebFetch(domain:wiki.openstreetmap.org)"
+      "WebFetch(domain:wiki.openstreetmap.org)",
+      "mcp__mysql-roam__mysql_list_tables",
+      "mcp__mysql-roam__mysql_show_indexes",
+      "mcp__mysql-roam__mysql_list_databases",
+      "Bash(ls:*)"
     ],
     "defaultMode": "acceptEdits"
   }

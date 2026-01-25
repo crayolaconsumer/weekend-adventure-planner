@@ -1,7 +1,9 @@
 /**
  * NotificationBell Component
  *
- * Floating notification bell with "Dispatches from the Trail" themed panel
+ * Floating notification bell with "Dispatches from the Trail" themed panel.
+ * Mobile: Full-screen bottom sheet (like FilterModal)
+ * Desktop: Dropdown panel from floating bell
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -73,6 +75,53 @@ const EnvelopeIllustration = () => (
   </svg>
 )
 
+// Animation variants matching FilterModal pattern
+const backdropVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1 }
+}
+
+const sheetVariants = {
+  hidden: { y: '100%' },
+  visible: {
+    y: 0,
+    transition: {
+      type: 'spring',
+      damping: 30,
+      stiffness: 300,
+      mass: 0.8
+    }
+  },
+  exit: {
+    y: '100%',
+    transition: {
+      type: 'spring',
+      damping: 35,
+      stiffness: 400
+    }
+  }
+}
+
+const desktopPanelVariants = {
+  hidden: { opacity: 0, y: 10, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: 'spring',
+      damping: 25,
+      stiffness: 300
+    }
+  },
+  exit: {
+    opacity: 0,
+    y: 10,
+    scale: 0.95,
+    transition: { duration: 0.15 }
+  }
+}
+
 export default function NotificationBell() {
   const { isAuthenticated } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
@@ -92,16 +141,39 @@ export default function NotificationBell() {
 
   // Check for mobile viewport
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 480)
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768)
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  // Close panel when clicking outside
+  // Handle body scroll lock for mobile (matching FilterModal pattern)
+  useEffect(() => {
+    if (isOpen && isMobile) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+      document.body.style.overflow = 'hidden'
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${window.scrollY}px`
+      document.body.style.width = '100%'
+
+      return () => {
+        const scrollY = document.body.style.top
+        document.body.style.overflow = ''
+        document.body.style.paddingRight = ''
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        window.scrollTo(0, parseInt(scrollY || '0') * -1)
+      }
+    }
+  }, [isOpen, isMobile])
+
+  // Close panel when clicking outside (desktop only)
   useEffect(() => {
     function handleClickOutside(e) {
       if (
+        !isMobile &&
         panelRef.current &&
         !panelRef.current.contains(e.target) &&
         buttonRef.current &&
@@ -111,9 +183,23 @@ export default function NotificationBell() {
       }
     }
 
-    if (isOpen) {
+    if (isOpen && !isMobile) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen, isMobile])
+
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen])
 
@@ -134,7 +220,7 @@ export default function NotificationBell() {
     }
   }, [isOpen, notifications, markAsRead])
 
-  // Handle drag end for mobile bottom sheet
+  // Handle drag for mobile bottom sheet
   const handleDragEnd = useCallback((_, info) => {
     if (info.offset.y > 100 || info.velocity.y > 500) {
       setIsOpen(false)
@@ -145,142 +231,155 @@ export default function NotificationBell() {
     setIsOpen(!isOpen)
   }
 
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      setIsOpen(false)
+    }
+  }
+
   // Only show for authenticated users
   if (!isAuthenticated) return null
 
-  // Panel animation variants
-  const panelVariants = isMobile
-    ? {
-        initial: { y: '100%', opacity: 0 },
-        animate: { y: 0, opacity: 1 },
-        exit: { y: '100%', opacity: 0 }
-      }
-    : {
-        initial: { opacity: 0, y: 10, scale: 0.95 },
-        animate: { opacity: 1, y: 0, scale: 1 },
-        exit: { opacity: 0, y: 10, scale: 0.95 }
-      }
+  // Panel content (shared between mobile and desktop)
+  const panelContent = (
+    <>
+      {/* Drag handle for mobile */}
+      {isMobile && (
+        <div
+          className="notification-drag-handle"
+          onPointerDown={(e) => dragControls.start(e)}
+        >
+          <div className="notification-drag-pill" />
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="notification-panel-header">
+        <div className="notification-panel-title">
+          <CompassIcon />
+          <h3>Dispatches</h3>
+        </div>
+        {unreadCount > 0 && (
+          <button
+            className="notification-mark-all"
+            onClick={markAllAsRead}
+          >
+            Mark all read
+          </button>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="notification-panel-content">
+        {loading && notifications.length === 0 ? (
+          <div className="notification-loading">
+            <SkeletonItem />
+            <SkeletonItem />
+            <SkeletonItem />
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="notification-empty">
+            <EnvelopeIllustration />
+            <p className="notification-empty-title">No dispatches yet</p>
+            <p className="notification-empty-subtitle">
+              When fellow explorers interact with you, you'll see it here
+            </p>
+          </div>
+        ) : (
+          <>
+            {notifications.map(notification => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                onClose={() => setIsOpen(false)}
+              />
+            ))}
+
+            {hasMore && (
+              <button
+                className="notification-load-more"
+                onClick={loadMore}
+                disabled={loading}
+              >
+                {loading ? 'Loading...' : 'Load more dispatches'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  )
 
   return (
-    <div className="notification-floating-container">
+    <>
       {/* Floating Bell Button */}
-      <button
-        ref={buttonRef}
-        className={`notification-bell-btn ${unreadCount > 0 ? 'has-unread' : ''}`}
-        onClick={handleToggle}
-        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
-        aria-expanded={isOpen}
-      >
-        <BellIcon />
-        {unreadCount > 0 && (
-          <span className="notification-badge">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-      </button>
+      <div className="notification-floating-container">
+        <button
+          ref={buttonRef}
+          className={`notification-bell-btn ${unreadCount > 0 ? 'has-unread' : ''}`}
+          onClick={handleToggle}
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+          aria-expanded={isOpen}
+        >
+          <BellIcon />
+          {unreadCount > 0 && (
+            <span className="notification-badge">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
 
-      {/* Mobile backdrop */}
+        {/* Desktop Panel - positioned relative to bell */}
+        <AnimatePresence>
+          {isOpen && !isMobile && (
+            <motion.div
+              ref={panelRef}
+              className="notification-panel desktop"
+              variants={desktopPanelVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              {panelContent}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Mobile Bottom Sheet - full screen overlay like FilterModal */}
       <AnimatePresence>
         {isOpen && isMobile && (
           <motion.div
             className="notification-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Notification Panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            ref={panelRef}
-            className={`notification-panel ${isMobile ? 'mobile' : ''}`}
-            variants={panelVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{
-              type: 'spring',
-              damping: 25,
-              stiffness: 300
-            }}
-            drag={isMobile ? 'y' : false}
-            dragControls={dragControls}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.5 }}
-            onDragEnd={handleDragEnd}
+            variants={backdropVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            onClick={handleBackdropClick}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Notifications"
           >
-            {/* Drag handle for mobile */}
-            {isMobile && (
-              <div
-                className="notification-drag-handle"
-                onPointerDown={(e) => dragControls.start(e)}
-              >
-                <div className="notification-drag-pill" />
-              </div>
-            )}
-
-            {/* Header */}
-            <div className="notification-panel-header">
-              <div className="notification-panel-title">
-                <CompassIcon />
-                <h3>Dispatches</h3>
-              </div>
-              {unreadCount > 0 && (
-                <button
-                  className="notification-mark-all"
-                  onClick={markAllAsRead}
-                >
-                  Mark all read
-                </button>
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="notification-panel-content">
-              {loading && notifications.length === 0 ? (
-                <div className="notification-loading">
-                  <SkeletonItem />
-                  <SkeletonItem />
-                  <SkeletonItem />
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="notification-empty">
-                  <EnvelopeIllustration />
-                  <p className="notification-empty-title">No dispatches yet</p>
-                  <p className="notification-empty-subtitle">
-                    When fellow explorers interact with you, you'll see it here
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {notifications.map(notification => (
-                    <NotificationItem
-                      key={notification.id}
-                      notification={notification}
-                      onClose={() => setIsOpen(false)}
-                    />
-                  ))}
-
-                  {hasMore && (
-                    <button
-                      className="notification-load-more"
-                      onClick={loadMore}
-                      disabled={loading}
-                    >
-                      {loading ? 'Loading...' : 'Load more dispatches'}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+            <motion.div
+              ref={panelRef}
+              className="notification-panel mobile"
+              variants={sheetVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              drag="y"
+              dragControls={dragControls}
+              dragListener={false}
+              dragConstraints={{ top: 0, bottom: 200 }}
+              dragElastic={0.2}
+              onDragEnd={handleDragEnd}
+            >
+              {panelContent}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   )
 }
 

@@ -1,10 +1,13 @@
 /* ═══════════════════════════════════════════════════════
    NOTIFICATION BELL - "Dispatches from the Trail"
    Field journal aesthetic with brass checkpoint marker
+
+   Mobile: Full-screen bottom sheet (like FilterModal)
+   Desktop: Floating bell with dropdown panel
    ═══════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════
-   FLOATING CONTAINER
+   FLOATING CONTAINER (Bell button holder)
    ═══════════════════════════════════════════════════════ */
 
 .notification-floating-container {
@@ -114,55 +117,72 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   BACKDROP (Mobile)
+   BACKDROP (Mobile only - matches FilterModal)
    ═══════════════════════════════════════════════════════ */
 
 .notification-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(26, 58, 47, 0.4);
+  z-index: 1000;
+  background: rgba(26, 58, 47, 0.6);
   backdrop-filter: blur(4px);
-  z-index: var(--z-modal, 300);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  touch-action: none;
+  overscroll-behavior: contain;
+  will-change: opacity;
+  transform: translateZ(0);
 }
 
 /* ═══════════════════════════════════════════════════════
-   NOTIFICATION PANEL - Parchment Field Notes
+   NOTIFICATION PANEL - Base styles
    ═══════════════════════════════════════════════════════ */
 
 .notification-panel {
-  position: absolute;
-  bottom: calc(100% + 12px);
-  right: 0;
-  width: 360px;
-  max-height: 480px;
   background: linear-gradient(
     180deg,
     var(--roam-cream, #faf8f5) 0%,
     var(--roam-paper, #f7f3ed) 100%
   );
   border: 1px solid var(--roam-parchment, #ede7dc);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Desktop Panel - Dropdown from bell */
+.notification-panel.desktop {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: 360px;
+  max-height: 480px;
   border-radius: 16px;
   box-shadow:
     0 4px 6px rgba(42, 37, 32, 0.05),
     0 12px 24px rgba(42, 37, 32, 0.1),
     0 24px 48px rgba(42, 37, 32, 0.1);
-  overflow: hidden;
   z-index: calc(var(--z-dropdown, 100) + 1);
 }
 
-/* Mobile bottom sheet */
+/* Mobile Panel - Bottom sheet (inside backdrop) */
 .notification-panel.mobile {
-  position: fixed;
-  top: auto;
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
-  left: 0;
-  right: 0;
+  position: relative;
   width: 100%;
-  max-height: calc(75vh - 70px);
-  border-radius: 20px 20px 0 0;
+  max-width: 500px;
+  max-height: 70vh;
+  max-height: 70dvh;
+  border-radius: 24px 24px 0 0;
   border-bottom: none;
-  touch-action: none;
-  z-index: var(--z-modal, 300);
+  box-shadow:
+    0 -8px 40px rgba(26, 58, 47, 0.25),
+    0 -2px 10px rgba(26, 58, 47, 0.1);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  will-change: transform;
+  transform: translateZ(0);
+  overscroll-behavior: contain;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -172,9 +192,10 @@
 .notification-drag-handle {
   display: flex;
   justify-content: center;
-  padding: 12px 0 4px;
+  padding: 12px 0 8px;
   cursor: grab;
   touch-action: none;
+  flex-shrink: 0;
 }
 
 .notification-drag-handle:active {
@@ -182,10 +203,10 @@
 }
 
 .notification-drag-pill {
-  width: 36px;
-  height: 4px;
-  background: var(--roam-stone, #d8d0c4);
-  border-radius: 2px;
+  width: 48px;
+  height: 6px;
+  background: var(--roam-parchment-dark, #d8d0c4);
+  border-radius: 3px;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -203,6 +224,7 @@
     transparent 0%,
     rgba(237, 231, 220, 0.3) 100%
   );
+  flex-shrink: 0;
 }
 
 .notification-panel-title {
@@ -246,13 +268,10 @@
    ═══════════════════════════════════════════════════════ */
 
 .notification-panel-content {
-  max-height: 380px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-
-.notification-panel.mobile .notification-panel-content {
-  max-height: calc(75vh - 170px);
 }
 
 /* Custom scrollbar */
@@ -376,7 +395,7 @@
 }
 
 /* Mobile: always show action text */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .notification-item-action {
     opacity: 1;
   }
