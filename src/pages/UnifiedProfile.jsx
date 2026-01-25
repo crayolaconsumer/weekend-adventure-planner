@@ -18,6 +18,7 @@ import { useUserContributions } from '../hooks/useContributions'
 import { getVisitedPlaces } from '../utils/statsUtils'
 import { useToast } from '../hooks/useToast'
 import { useSEO } from '../hooks/useSEO'
+import { useUserBadges } from '../hooks/useUserBadges'
 import FollowButton from '../components/FollowButton'
 import UserCard from '../components/UserCard'
 import { ContributionCard } from '../components/ContributionDisplay'
@@ -143,6 +144,9 @@ export default function UnifiedProfile() {
 
   // Own contributions (for owner view)
   const { contributions: ownContributions, loading: contribLoading, refresh: refreshContributions } = useUserContributions(currentUser?.id)
+
+  // Server-awarded badges (from API)
+  const { badges: serverBadges, loading: badgesLoading } = useUserBadges()
 
   // Tab state
   const [activeTab, setActiveTab] = useState('activity')
@@ -457,6 +461,8 @@ export default function UnifiedProfile() {
               totalActivity={totalActivity}
               earnedBadges={earnedBadges}
               lockedBadges={lockedBadges}
+              serverBadges={serverBadges}
+              badgesLoading={badgesLoading}
               visitedPlaces={visitedPlaces}
               isOwnProfile={isOwnProfile}
             />
@@ -568,10 +574,23 @@ function ActivityTab({ contributions, loading, user, isOwnProfile, isPrivateAcco
   )
 }
 
+// Server badge display config (maps badge_id to icon/name)
+const SERVER_BADGE_CONFIG = {
+  first_contribution: { icon: '✍️', name: 'First Steps', description: 'Made your first contribution' },
+  contributor_10: { icon: '📝', name: 'Local Expert', description: 'Made 10 contributions' },
+  contributor_50: { icon: '🏆', name: 'Community Pillar', description: 'Made 50 contributions' },
+  first_visit: { icon: '🧭', name: 'Explorer', description: 'Visited your first place' },
+  visits_10: { icon: '🗺️', name: 'Adventurer', description: 'Visited 10 places' },
+  visits_50: { icon: '🌍', name: 'Seasoned Traveler', description: 'Visited 50 places' },
+  visits_100: { icon: '🌟', name: 'World Wanderer', description: 'Visited 100 places' },
+  followers_10: { icon: '⭐', name: 'Rising Star', description: 'Gained 10 followers' },
+  followers_100: { icon: '👑', name: 'Influencer', description: 'Gained 100 followers' },
+}
+
 /**
  * Journey Tab - Gamification, Badges, Stats
  */
-function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalActivity, earnedBadges, lockedBadges, visitedPlaces, isOwnProfile }) {
+function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalActivity, earnedBadges, lockedBadges, serverBadges, badgesLoading, visitedPlaces, isOwnProfile }) {
   return (
     <div className="unified-profile-journey">
       {/* Level Card */}
@@ -623,21 +642,63 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
       <div className="unified-profile-badges-section">
         <h3 className="unified-profile-section-title">Badges</h3>
 
+        {/* Server-awarded badges (contributions, visits, followers) */}
+        {serverBadges && serverBadges.length > 0 && (
+          <>
+            <h4 className="unified-profile-subsection-title">Achievements</h4>
+            <div className="unified-profile-badges earned server-badges">
+              {serverBadges.map((badge, index) => {
+                const config = SERVER_BADGE_CONFIG[badge.badgeId] || {
+                  icon: '🏅',
+                  name: badge.badgeId.replace(/_/g, ' '),
+                  description: 'Achievement unlocked'
+                }
+                return (
+                  <motion.div
+                    key={badge.badgeId}
+                    className="unified-profile-badge server"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    title={`Earned ${new Date(badge.earnedAt).toLocaleDateString()}`}
+                  >
+                    <span className="unified-profile-badge-icon">{config.icon}</span>
+                    <span className="unified-profile-badge-name">{config.name}</span>
+                    <span className="unified-profile-badge-desc">{config.description}</span>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Client-side activity badges */}
         {earnedBadges.length > 0 && (
-          <div className="unified-profile-badges earned">
-            {earnedBadges.map((badge, index) => (
-              <motion.div
-                key={badge.id}
-                className="unified-profile-badge"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <span className="unified-profile-badge-icon">{badge.icon}</span>
-                <span className="unified-profile-badge-name">{badge.name}</span>
-                <span className="unified-profile-badge-desc">{badge.description}</span>
-              </motion.div>
-            ))}
+          <>
+            <h4 className="unified-profile-subsection-title">Activity</h4>
+            <div className="unified-profile-badges earned">
+              {earnedBadges.map((badge, index) => (
+                <motion.div
+                  key={badge.id}
+                  className="unified-profile-badge"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <span className="unified-profile-badge-icon">{badge.icon}</span>
+                  <span className="unified-profile-badge-name">{badge.name}</span>
+                  <span className="unified-profile-badge-desc">{badge.description}</span>
+                </motion.div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Loading state for server badges */}
+        {badgesLoading && (
+          <div className="unified-profile-badges-loading">
+            <span className="unified-profile-spinner-small" />
+            Loading badges...
           </div>
         )}
 

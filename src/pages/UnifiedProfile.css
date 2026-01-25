@@ -427,6 +427,29 @@
   background: var(--roam-parchment, #e8e0d0);
 }
 
+.unified-profile-badge.server {
+  background: linear-gradient(135deg, var(--roam-paper, #f8f6f1) 0%, rgba(196, 92, 62, 0.08) 100%);
+  border: 1px solid rgba(196, 92, 62, 0.15);
+}
+
+.unified-profile-badges-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-md, 12px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  font-size: var(--text-sm, 14px);
+}
+
+.unified-profile-spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--roam-parchment, #e8e0d0);
+  border-top-color: var(--roam-terracotta, #c45c3e);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 .unified-profile-badge-icon {
   font-size: var(--text-3xl, 32px);
   margin-bottom: var(--space-sm, 8px);
