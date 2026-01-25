@@ -7,6 +7,7 @@
 
 import { Component } from 'react'
 import { motion } from 'framer-motion'
+import { reportError } from '../utils/errorReporting'
 import './ErrorBoundary.css'
 
 const AlertIcon = () => (
@@ -45,12 +46,12 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo })
 
-    // Log error to console in development
-    if (import.meta.env.DEV) {
-      console.error('ErrorBoundary caught an error:', error, errorInfo)
-    }
-
-    // TODO: Send to error tracking service (Sentry, etc.) in production
+    // Report error to tracking service
+    reportError(error, {
+      componentStack: errorInfo?.componentStack,
+      url: window.location.href,
+      boundary: 'ErrorBoundary'
+    })
   }
 
   handleRefresh = () => {
