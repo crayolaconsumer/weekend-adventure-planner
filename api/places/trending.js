@@ -28,16 +28,21 @@ export default async function handler(req, res) {
 
     // Get places with recent activity (only approved contributions)
     // Score = contributions + plan inclusions (weighted)
+    // Note: plan_stops doesn't have created_at, so join through plans table
     const sql = `
       SELECT
         c.place_id,
         COUNT(DISTINCT c.id) as contribution_count,
-        COUNT(DISTINCT ps.id) as plan_inclusion_count,
-        (COUNT(DISTINCT c.id) * 2 + COUNT(DISTINCT ps.id)) as popularity_score,
+        COUNT(DISTINCT recent_ps.id) as plan_inclusion_count,
+        (COUNT(DISTINCT c.id) * 2 + COUNT(DISTINCT recent_ps.id)) as popularity_score,
         MAX(c.created_at) as last_activity
       FROM contributions c
-      LEFT JOIN plan_stops ps ON c.place_id = ps.place_id
-        AND ps.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+      LEFT JOIN (
+        SELECT ps.id, ps.place_id
+        FROM plan_stops ps
+        JOIN plans p ON ps.plan_id = p.id
+        WHERE p.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+      ) recent_ps ON c.place_id = recent_ps.place_id
       WHERE c.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
         AND c.status = 'approved'
       GROUP BY c.place_id
