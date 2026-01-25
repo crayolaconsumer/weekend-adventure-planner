@@ -702,20 +702,20 @@ export default function Events({ location }) {
   return (
     <div className="page events-page">
       <header className="page-header events-header">
-        <div className="events-title-section">
-          <CalendarIcon />
-          <div>
-            <h1 className="page-title">What's On</h1>
-            <p className="events-subtitle">
-              {apiStatus.hasEvents
-                ? `${filteredEvents.length} events${totalAvailable > events.length ? ` (${totalAvailable.toLocaleString()} available)` : ' near you'}`
-                : 'Local events near you'
-              }
-            </p>
+        {/* Row 1: Title + Filters */}
+        <div className="events-header-primary">
+          <div className="events-title-section">
+            <CalendarIcon />
+            <div>
+              <h1 className="page-title">What's On</h1>
+              <p className="events-subtitle">
+                {apiStatus.hasEvents
+                  ? `${filteredEvents.length} events${totalAvailable > events.length ? ` (${totalAvailable.toLocaleString()} available)` : ' near you'}`
+                  : 'Local events near you'
+                }
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="events-header-actions">
-          {/* Filters toggle button */}
           <button
             className={`events-filters-toggle ${filtersOpen ? 'active' : ''} ${activeFilterCount > 0 ? 'has-filters' : ''}`}
             onClick={() => setFiltersOpen(!filtersOpen)}
@@ -723,7 +723,15 @@ export default function Events({ location }) {
             <FilterIcon />
             <span>Filters</span>
             {activeFilterCount > 0 && (
-              <span className="events-filters-badge">{activeFilterCount}</span>
+              <motion.span
+                className="events-filters-badge"
+                key={activeFilterCount}
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+              >
+                {activeFilterCount}
+              </motion.span>
             )}
             <motion.span
               className="events-filters-chevron"
@@ -733,36 +741,56 @@ export default function Events({ location }) {
               <ChevronDownIcon />
             </motion.span>
           </button>
+        </div>
 
-          {/* Link to saved events in Wishlist */}
-          <Link to="/wishlist" className="events-saved-link" title="View saved events">
-            <BookmarkIcon filled={false} />
-            {savedCount > 0 && (
-              <span className="events-saved-badge">{savedCount}</span>
-            )}
-          </Link>
-
-          <button
-            className={`events-view-toggle ${viewMode === VIEW_MODES.SWIPE ? 'active' : ''}`}
-            onClick={() => setViewMode(VIEW_MODES.SWIPE)}
-            aria-label="Swipe view"
-            aria-pressed={viewMode === VIEW_MODES.SWIPE}
-          >
-            <StackIcon />
-          </button>
-          <button
-            className={`events-view-toggle ${viewMode === VIEW_MODES.GRID ? 'active' : ''}`}
-            onClick={() => setViewMode(VIEW_MODES.GRID)}
-            aria-label="Grid view"
-            aria-pressed={viewMode === VIEW_MODES.GRID}
-          >
-            <GridIcon />
-          </button>
-          {events.length > 0 && (
-            <button className="events-refresh-btn" onClick={loadEvents} disabled={loading} aria-label="Refresh events">
-              <RefreshIcon />
+        {/* Row 2: Toolbar - View toggle + secondary actions */}
+        <div className="events-header-toolbar">
+          <div className="events-view-segmented" role="group" aria-label="View mode">
+            <motion.div
+              className="events-view-indicator"
+              layout
+              initial={false}
+              animate={{ x: viewMode === VIEW_MODES.SWIPE ? 0 : '100%' }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            />
+            <button
+              className={`events-view-segment ${viewMode === VIEW_MODES.SWIPE ? 'active' : ''}`}
+              onClick={() => setViewMode(VIEW_MODES.SWIPE)}
+              aria-pressed={viewMode === VIEW_MODES.SWIPE}
+            >
+              <StackIcon />
+              <span>Cards</span>
             </button>
-          )}
+            <button
+              className={`events-view-segment ${viewMode === VIEW_MODES.GRID ? 'active' : ''}`}
+              onClick={() => setViewMode(VIEW_MODES.GRID)}
+              aria-pressed={viewMode === VIEW_MODES.GRID}
+            >
+              <GridIcon />
+              <span>Grid</span>
+            </button>
+          </div>
+
+          <div className="events-toolbar-actions">
+            <Link to="/wishlist" className="events-toolbar-btn" title="View saved events">
+              <BookmarkIcon filled={false} />
+              {savedCount > 0 && (
+                <span className="events-saved-badge">{savedCount}</span>
+              )}
+            </Link>
+            {events.length > 0 && (
+              <motion.button
+                className="events-toolbar-btn"
+                onClick={loadEvents}
+                disabled={loading}
+                aria-label="Refresh events"
+                animate={loading ? { rotate: 360 } : { rotate: 0 }}
+                transition={loading ? { duration: 1, repeat: Infinity, ease: 'linear' } : { duration: 0 }}
+              >
+                <RefreshIcon />
+              </motion.button>
+            )}
+          </div>
         </div>
       </header>
 
