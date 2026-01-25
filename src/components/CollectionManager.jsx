@@ -10,6 +10,8 @@ import { useCollections } from '../hooks/useCollections'
 import { COLLECTION_EMOJIS } from '../utils/collections'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useToast } from '../hooks/useToast'
+import { useSubscription } from '../hooks/useSubscription'
+import UpgradePrompt from './UpgradePrompt'
 import './CollectionManager.css'
 
 // Icons
@@ -33,8 +35,12 @@ const CloseIcon = () => (
   </svg>
 )
 
+// Free tier collection limit
+const FREE_COLLECTION_LIMIT = 3
+
 export default function CollectionManager({ place, isOpen, onClose }) {
   const toast = useToast()
+  const { isPremium } = useSubscription()
   const {
     collections,
     createCollection,
@@ -46,6 +52,10 @@ export default function CollectionManager({ place, isOpen, onClose }) {
   const [newCollectionName, setNewCollectionName] = useState('')
   const [selectedEmoji, setSelectedEmoji] = useState('📍')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
+
+  // Check if user can create more collections
+  const canCreateCollection = isPremium || collections.length < FREE_COLLECTION_LIMIT
 
   // Focus trap for accessibility
   const focusTrapRef = useFocusTrap(isOpen)
@@ -159,10 +169,19 @@ export default function CollectionManager({ place, isOpen, onClose }) {
             {!showCreateForm ? (
               <button
                 className="collection-manager-create-btn"
-                onClick={() => setShowCreateForm(true)}
+                onClick={() => {
+                  if (!canCreateCollection) {
+                    setShowUpgradePrompt(true)
+                    return
+                  }
+                  setShowCreateForm(true)
+                }}
               >
                 <PlusIcon />
                 <span>Create New Collection</span>
+                {!canCreateCollection && (
+                  <span className="collection-limit-badge">PRO</span>
+                )}
               </button>
             ) : (
               <div className="collection-manager-form">
@@ -232,6 +251,13 @@ export default function CollectionManager({ place, isOpen, onClose }) {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Upgrade prompt for collection limit */}
+      <UpgradePrompt
+        type="collections"
+        isOpen={showUpgradePrompt}
+        onClose={() => setShowUpgradePrompt(false)}
+      />
     </AnimatePresence>
   )
 }
