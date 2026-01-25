@@ -235,6 +235,7 @@ export default function JustGoModal({
                     onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                       e.target.src = 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80'
+                      setImageLoaded(true)
                     }}
                     className={imageLoaded ? 'loaded' : ''}
                   />
@@ -250,8 +251,8 @@ export default function JustGoModal({
 
                   {/* Recommendation reasons */}
                   <div className="just-go-reasons">
-                    {reasons.map((reason, i) => (
-                      <span key={i} className="just-go-reason">
+                    {reasons.map((reason) => (
+                      <span key={`${reason.icon}-${reason.text}`} className="just-go-reason">
                         <span className="just-go-reason-icon">{reason.icon}</span>
                         {reason.text}
                       </span>
@@ -324,7 +325,7 @@ export default function JustGoModal({
                 🎉
               </motion.div>
               <h2>Adventure awaits!</h2>
-              <p>Opening directions to {current.name}...</p>
+              <p>Opening directions to {current?.name || 'your destination'}...</p>
             </motion.div>
           )}
         </motion.div>

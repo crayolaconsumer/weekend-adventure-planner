@@ -50,7 +50,8 @@
       "Bash(do)",
       "Bash(echo:*)",
       "Bash(mysql:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "defaultMode": "acceptEdits"
   }
