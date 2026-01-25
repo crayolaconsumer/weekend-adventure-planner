@@ -124,6 +124,8 @@ export function recordFailure(source, isAuthError = false) {
 
     const timeout = CIRCUIT_CONFIG.resetTimeout[breaker.tripCount - 1]
     breaker.disabledUntil = Date.now() + timeout
+    const minutes = Math.round(timeout / 60000)
+    console.error(`[RequestManager] ${source} circuit OPEN - disabled for ${minutes} minutes (trip #${breaker.tripCount})`)
   }
 }
 
