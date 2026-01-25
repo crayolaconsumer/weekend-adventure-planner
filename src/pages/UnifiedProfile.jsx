@@ -28,7 +28,7 @@ import MonthlyTrends from '../components/stats/MonthlyTrends'
 import VisitedMap from '../components/stats/VisitedMap'
 import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
-import { useOfflineMaps } from '../hooks/useOfflineMaps'
+import OfflineMapsManager from '../components/OfflineMapsManager'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import { useDistance } from '../contexts/DistanceContext'
 import { formatDate } from '../utils/dateUtils'
@@ -1100,7 +1100,9 @@ function SettingsTab({ user, onLogout }) {
       <NotificationsSection />
 
       {/* Offline Maps Section */}
-      <OfflineMapsSection />
+      <div className="unified-profile-settings-section">
+        <OfflineMapsManager userLocation={null} />
+      </div>
 
       {/* Privacy Settings */}
       <div className="unified-profile-settings-section">
@@ -1191,150 +1193,6 @@ function NotificationsSection() {
       {error && (
         <p className="unified-profile-settings-error-inline">{error}</p>
       )}
-    </div>
-  )
-}
-
-/**
- * Offline Maps Section - Download maps for offline use
- */
-function OfflineMapsSection() {
-  const {
-    isSupported,
-    isPrefetching,
-    prefetchProgress,
-    prefetchArea,
-    clearCache,
-    estimateStorageUsed
-  } = useOfflineMaps()
-
-  const [storageInfo, setStorageInfo] = useState(null)
-  const [downloadStatus, setDownloadStatus] = useState(null)
-
-  // Check storage on mount
-  useEffect(() => {
-    if (isSupported) {
-      estimateStorageUsed().then(info => {
-        if (info) setStorageInfo(info)
-      })
-    }
-  }, [isSupported, estimateStorageUsed])
-
-  // Handle download for current location
-  const handleDownload = async () => {
-    setDownloadStatus('getting-location')
-
-    try {
-      // Get current location
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: false,
-          timeout: 10000
-        })
-      })
-
-      setDownloadStatus('downloading')
-
-      const result = await prefetchArea({
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        radiusKm: 5,
-        minZoom: 12,
-        maxZoom: 16
-      })
-
-      if (result.success) {
-        setDownloadStatus('complete')
-        // Refresh storage info
-        const info = await estimateStorageUsed()
-        if (info) setStorageInfo(info)
-        // Clear status after delay
-        setTimeout(() => setDownloadStatus(null), 3000)
-      } else {
-        setDownloadStatus('error')
-      }
-    } catch (err) {
-      console.error('Download failed:', err)
-      setDownloadStatus('error')
-    }
-  }
-
-  // Handle clear cache
-  const handleClear = async () => {
-    clearCache()
-    setStorageInfo({ tilesCount: 0, estimatedMB: '0' })
-  }
-
-  // Not supported
-  if (!isSupported) {
-    return (
-      <div className="unified-profile-settings-section">
-        <h3 className="unified-profile-settings-title">Offline Maps</h3>
-        <p className="unified-profile-settings-unsupported">
-          Offline maps are not supported in this browser.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="unified-profile-settings-section">
-      <h3 className="unified-profile-settings-title">Offline Maps</h3>
-      <p className="unified-profile-settings-desc">
-        Download map tiles for your current area to use ROAM offline.
-      </p>
-
-      {/* Storage info */}
-      {storageInfo && storageInfo.tilesCount > 0 && (
-        <div className="unified-profile-settings-storage">
-          <span className="storage-icon">💾</span>
-          <span className="storage-text">
-            {storageInfo.tilesCount} tiles cached (~{storageInfo.estimatedMB} MB)
-          </span>
-        </div>
-      )}
-
-      {/* Download button */}
-      <div className="unified-profile-settings-map-actions">
-        <button
-          className="unified-profile-settings-download-btn"
-          onClick={handleDownload}
-          disabled={isPrefetching || downloadStatus === 'getting-location'}
-        >
-          {isPrefetching ? (
-            <>
-              <span className="download-progress-text">
-                Downloading... {Math.round(prefetchProgress * 100)}%
-              </span>
-              <span
-                className="download-progress-bar"
-                style={{ width: `${prefetchProgress * 100}%` }}
-              />
-            </>
-          ) : downloadStatus === 'getting-location' ? (
-            'Getting location...'
-          ) : downloadStatus === 'complete' ? (
-            'Download complete!'
-          ) : downloadStatus === 'error' ? (
-            'Download failed - try again'
-          ) : (
-            <>
-              <span className="download-icon">📥</span>
-              Download Current Area
-            </>
-          )}
-        </button>
-
-        {storageInfo && storageInfo.tilesCount > 0 && (
-          <button
-            className="unified-profile-settings-clear-btn"
-            onClick={handleClear}
-            disabled={isPrefetching}
-          >
-            Clear Cache
-          </button>
-        )}
-      </div>
     </div>
   )
 }
