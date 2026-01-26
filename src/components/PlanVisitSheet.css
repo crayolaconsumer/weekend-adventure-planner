@@ -1,0 +1,292 @@
+/**
+ * PlanVisitSheet Styles
+ *
+ * Bottom sheet for scheduling visits. Warm, inviting, focused.
+ * Matches ROAM's organic aesthetic.
+ */
+
+.plan-visit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 58, 47, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.plan-visit-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  background: var(--roam-cream);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: var(--space-lg) var(--space-lg) var(--space-xl);
+  overflow-y: auto;
+  box-shadow:
+    0 -4px 20px rgba(26, 58, 47, 0.15),
+    0 -1px 3px rgba(26, 58, 47, 0.1);
+}
+
+/* Drag handle */
+.plan-visit-handle {
+  position: absolute;
+  top: var(--space-sm);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  background: var(--roam-ink-muted);
+  opacity: 0.3;
+  border-radius: var(--radius-full);
+}
+
+/* Header */
+.plan-visit-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+  padding-top: var(--space-sm);
+}
+
+.plan-visit-header-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.plan-visit-header-content svg {
+  color: var(--roam-forest);
+  flex-shrink: 0;
+}
+
+.plan-visit-header h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.plan-visit-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--roam-ink-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.plan-visit-close:hover {
+  background: var(--roam-parchment);
+  color: var(--roam-ink);
+}
+
+/* Place info */
+.plan-visit-place {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--roam-parchment);
+  border-radius: var(--radius-md);
+}
+
+.plan-visit-place-name {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--roam-ink);
+}
+
+/* Date options */
+.plan-visit-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.plan-visit-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-md) var(--space-sm);
+  background: var(--color-surface-elevated);
+  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.plan-visit-option:hover {
+  border-color: var(--roam-gold);
+  background: linear-gradient(
+    135deg,
+    rgba(212, 168, 85, 0.08) 0%,
+    transparent 100%
+  );
+}
+
+.plan-visit-option:focus-visible {
+  outline: 2px solid var(--roam-forest);
+  outline-offset: 2px;
+}
+
+.plan-visit-option-label {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--roam-forest);
+}
+
+.plan-visit-option-date {
+  font-size: var(--text-sm);
+  color: var(--roam-ink-muted);
+}
+
+/* Custom picker option */
+.plan-visit-option-custom {
+  grid-column: 1 / -1;
+  background: transparent;
+  border: 2px dashed var(--roam-ink-muted);
+  opacity: 0.7;
+}
+
+.plan-visit-option-custom:hover {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--roam-gold);
+}
+
+.plan-visit-option-custom .plan-visit-option-label {
+  color: var(--roam-ink-muted);
+}
+
+/* Custom date picker */
+.plan-visit-custom-picker {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.plan-visit-date-input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--roam-ink-muted);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--roam-ink);
+  background: var(--roam-cream);
+}
+
+.plan-visit-date-input:focus {
+  outline: none;
+  border-color: var(--roam-forest);
+}
+
+.plan-visit-confirm-date {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--roam-forest);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-display);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.plan-visit-confirm-date:hover:not(:disabled) {
+  background: #2d5a47;
+}
+
+.plan-visit-confirm-date:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Hint text */
+.plan-visit-hint {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--roam-ink-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+/* Confirmation state */
+.plan-visit-confirmation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-lg);
+  text-align: center;
+  min-height: 200px;
+}
+
+.plan-visit-confirmation-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, var(--roam-forest) 0%, #2d5a47 100%);
+  color: white;
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-md);
+}
+
+.plan-visit-confirmation h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-xs);
+}
+
+.plan-visit-confirmation p {
+  font-size: var(--text-base);
+  color: var(--roam-ink-muted);
+  margin: 0;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  .plan-visit-sheet {
+    padding: var(--space-md) var(--space-md) var(--space-lg);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .plan-visit-options {
+    gap: var(--space-xs);
+  }
+
+  .plan-visit-option {
+    padding: var(--space-sm);
+  }
+}
+
+/* Safe area for iOS */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .plan-visit-sheet {
+    padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom));
+  }
+}

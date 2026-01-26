@@ -210,10 +210,72 @@ export async function notifyPlanShared(userId, sharerUsername, planName, shareCo
   })
 }
 
+/**
+ * Send reminder notification for a planned visit
+ * @param {number} userId - ID of user to notify
+ * @param {string} placeName - Name of the place
+ * @param {string} placeId - ID of the place for the URL
+ */
+export async function notifyPlannedVisit(userId, placeName, placeId) {
+  // Check user preferences
+  if (!await isNotificationEnabled(userId, 'visit_reminder')) {
+    return false
+  }
+
+  return sendPushToUser(userId, {
+    title: `Ready for ${placeName}?`,
+    body: "You planned to visit today. Tap to get directions!",
+    url: `/wishlist?highlight=${encodeURIComponent(placeId)}`,
+    tag: 'visit-reminder'
+  })
+}
+
+/**
+ * Get all planned visits for today that need reminders
+ * @returns {Promise<Array>} List of planned visits with user and place info
+ */
+export async function getPlannedVisitsForToday() {
+  // Get visits planned for today (comparing just the date part)
+  // Only get visits that haven't been visited yet
+  const visits = await query(
+    `SELECT
+       sp.user_id,
+       sp.place_id,
+       sp.place_data,
+       sp.planned_date
+     FROM saved_places sp
+     WHERE DATE(sp.planned_date) = CURDATE()
+       AND (sp.visited = 0 OR sp.visited IS NULL)`,
+    []
+  )
+
+  return visits.map(row => {
+    let placeData = {}
+    try {
+      if (typeof row.place_data === 'string') {
+        placeData = JSON.parse(row.place_data)
+      } else if (row.place_data) {
+        placeData = row.place_data
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    return {
+      userId: row.user_id,
+      placeId: row.place_id,
+      placeName: placeData.name || 'your planned place',
+      plannedDate: row.planned_date
+    }
+  })
+}
+
 export default {
   sendPushToUser,
   notifyNewFollower,
   notifyContributionUpvote,
   notifyFollowRequestApproved,
-  notifyPlanShared
+  notifyPlanShared,
+  notifyPlannedVisit,
+  getPlannedVisitsForToday
 }

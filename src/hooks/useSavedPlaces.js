@@ -166,6 +166,51 @@ export function useSavedPlaces() {
     return places.some(p => p.id === placeId)
   }, [places])
 
+  const updatePlannedDate = useCallback(async (placeId, plannedDate) => {
+    // Optimistic update
+    setPlaces(prev => prev.map(p =>
+      p.id === placeId ? { ...p, plannedDate: plannedDate.toISOString() } : p
+    ))
+
+    if (isAuthenticated) {
+      try {
+        const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+        const response = await fetch('/api/places/saved', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            placeId,
+            plannedDate: plannedDate.toISOString()
+          })
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to update planned date')
+        }
+        return { success: true }
+      } catch (err) {
+        // Revert optimistic update
+        setPlaces(prev => prev.map(p =>
+          p.id === placeId ? { ...p, plannedDate: null } : p
+        ))
+        return { success: false, error: err.message }
+      }
+    } else {
+      // localStorage update
+      const saved = localStorage.getItem(STORAGE_KEY)
+      const current = saved ? JSON.parse(saved) : []
+      const updated = current.map(p =>
+        p.id === placeId ? { ...p, plannedDate: plannedDate.toISOString() } : p
+      )
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      return { success: true }
+    }
+  }, [isAuthenticated])
+
   return {
     places,
     loading: loading || authLoading,
@@ -173,6 +218,7 @@ export function useSavedPlaces() {
     savePlace,
     removePlace,
     isPlaceSaved,
+    updatePlannedDate,
     refresh: loadPlaces
   }
 }

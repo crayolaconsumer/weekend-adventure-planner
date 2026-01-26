@@ -373,6 +373,18 @@
   opacity: 0.7;
 }
 
+/* Plan Visit button - subtle gold accent */
+.place-detail-action-btn.plan-visit-btn {
+  background: linear-gradient(135deg, rgba(212, 168, 85, 0.08) 0%, rgba(212, 168, 85, 0.04) 100%);
+  border-color: rgba(212, 168, 85, 0.25);
+  color: var(--roam-forest);
+}
+
+.place-detail-action-btn.plan-visit-btn:hover {
+  background: linear-gradient(135deg, rgba(212, 168, 85, 0.15) 0%, rgba(212, 168, 85, 0.08) 100%);
+  border-color: var(--roam-gold);
+}
+
 /* Main GO button */
 .place-detail-go-btn {
   display: flex;

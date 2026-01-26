@@ -56,13 +56,14 @@ async function getPreferences(res, user) {
       newContribution: !!prefs.new_contribution,
       newFollower: !!prefs.new_follower,
       planShared: !!prefs.plan_shared,
-      weeklyDigest: !!prefs.weekly_digest
+      weeklyDigest: !!prefs.weekly_digest,
+      visitReminder: prefs.visit_reminder !== undefined ? !!prefs.visit_reminder : true
     }
   })
 }
 
 async function updatePreferences(req, res, user) {
-  const { newContribution, newFollower, planShared, weeklyDigest } = req.body
+  const { newContribution, newFollower, planShared, weeklyDigest, visitReminder } = req.body
 
   // Build update query dynamically based on provided fields
   const updates = []
@@ -83,6 +84,10 @@ async function updatePreferences(req, res, user) {
   if (typeof weeklyDigest === 'boolean') {
     updates.push('weekly_digest = ?')
     values.push(weeklyDigest ? 1 : 0)
+  }
+  if (typeof visitReminder === 'boolean') {
+    updates.push('visit_reminder = ?')
+    values.push(visitReminder ? 1 : 0)
   }
 
   if (updates.length === 0) {

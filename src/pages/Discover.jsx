@@ -8,6 +8,7 @@ import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
+import StreakIndicator from '../components/StreakIndicator'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -90,7 +91,7 @@ export default function Discover({ location }) {
   const { sponsoredPlaces } = useSponsoredPlaces(location)
   const { isPremium } = useSubscription()
   const { recordSwipe } = useSwipedPlaces()
-  const { incrementStat, updateStats } = useUserStats()
+  const { stats, incrementStat, updateStats } = useUserStats()
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [upgradePromptType, setUpgradePromptType] = useState('saves')
   const [places, setPlaces] = useState([])
@@ -754,6 +755,7 @@ export default function Discover({ location }) {
         >
           <h1 className="discover-wordmark">ROAM</h1>
           <p className="discover-tagline">Stop scrolling. Start roaming.</p>
+          <StreakIndicator streak={stats.currentStreak || 0} />
         </motion.div>
 
         {/* Filter Button */}

@@ -6,9 +6,11 @@ import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import ShareButton from './ShareButton'
 import CollectionManager from './CollectionManager'
+import PlanVisitSheet from './PlanVisitSheet'
 import { ContributionList } from './ContributionDisplay'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import './PlaceDetail.css'
@@ -83,6 +85,17 @@ const FolderPlusIcon = () => (
   </svg>
 )
 
+const CalendarPlusIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+    <line x1="12" y1="14" x2="12" y2="18"/>
+    <line x1="10" y1="16" x2="14" y2="16"/>
+  </svg>
+)
+
 // Category-specific placeholder images (same as SwipeCard)
 const CATEGORY_IMAGES = {
   food: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
@@ -103,7 +116,9 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [loadedSrc, setLoadedSrc] = useState(null)
   const [failedSrc, setFailedSrc] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
+  const [showPlanVisit, setShowPlanVisit] = useState(false)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
+  const { updatePlannedDate } = useSavedPlaces()
   const formatDistance = useFormatDistance()
 
   // Fetch contributions on mount
@@ -430,6 +445,10 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                 <FolderPlusIcon />
                 <span>Save</span>
               </button>
+              <button className="place-detail-action-btn plan-visit-btn" onClick={() => setShowPlanVisit(true)}>
+                <CalendarPlusIcon />
+                <span>Plan Visit</span>
+              </button>
             </motion.div>
 
             {/* User Review */}
@@ -478,6 +497,16 @@ export default function PlaceDetail({ place, onClose, onGo }) {
         isOpen={showCollectionManager}
         onClose={() => setShowCollectionManager(false)}
         place={enrichedPlace}
+      />
+
+      {/* Plan Visit Sheet */}
+      <PlanVisitSheet
+        isOpen={showPlanVisit}
+        onClose={() => setShowPlanVisit(false)}
+        place={enrichedPlace}
+        onPlanVisit={(place, date) => {
+          updatePlannedDate?.(place.id, date)
+        }}
       />
     </>
   )

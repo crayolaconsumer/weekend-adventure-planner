@@ -1,0 +1,81 @@
+/**
+ * StreakIndicator Styles
+ *
+ * Subtle, warm, encouraging - matches ROAM's organic aesthetic.
+ * Celebrates action without feeling gamified or manipulative.
+ */
+
+.streak-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  transition: all 0.3s ease;
+}
+
+/* Ready state - gentle invitation */
+.streak-ready {
+  color: var(--roam-ink-muted);
+  background: transparent;
+}
+
+.streak-ready .streak-emoji {
+  opacity: 0.8;
+}
+
+/* Active streak - warm celebration */
+.streak-active {
+  color: var(--roam-forest);
+  background: linear-gradient(
+    135deg,
+    rgba(212, 168, 85, 0.12) 0%,
+    rgba(212, 168, 85, 0.06) 100%
+  );
+}
+
+.streak-emoji {
+  font-style: normal;
+  line-height: 1;
+  filter: saturate(0.9);
+}
+
+.streak-active .streak-emoji {
+  filter: saturate(1.1);
+}
+
+.streak-text {
+  white-space: nowrap;
+}
+
+/* Subtle glow effect for high streaks */
+.streak-active::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(212, 168, 85, 0.2) 0%,
+    transparent 50%,
+    rgba(212, 168, 85, 0.1) 100%
+  );
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+/* Mobile refinements */
+@media (max-width: 480px) {
+  .streak-indicator {
+    font-size: 0.8125rem;
+    padding: var(--space-xs) var(--space-sm);
+  }
+}

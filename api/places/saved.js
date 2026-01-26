@@ -1,5 +1,5 @@
 /**
- * GET/POST/DELETE /api/places/saved
+ * GET/POST/PATCH/DELETE /api/places/saved
  *
  * Manage saved places for authenticated users.
  */
@@ -53,6 +53,8 @@ export default async function handler(req, res) {
         return await handleGet(req, res, user)
       case 'POST':
         return await handlePost(req, res, user)
+      case 'PATCH':
+        return await handlePatch(req, res, user)
       case 'DELETE':
         return await handleDelete(req, res, user)
       default:
@@ -75,7 +77,7 @@ async function handleGet(req, res, user) {
   const safeOffset = Math.max(0, parseInt(offset, 10) || 0)
 
   const places = await query(
-    `SELECT place_id, place_data, saved_at, visited, visited_at, notes
+    `SELECT place_id, place_data, saved_at, visited, visited_at, notes, planned_date
      FROM saved_places
      WHERE user_id = ?
      ORDER BY saved_at DESC
@@ -90,6 +92,7 @@ async function handleGet(req, res, user) {
     savedAt: new Date(row.saved_at).getTime(),
     visited: row.visited === 1,
     visitedAt: row.visited_at ? new Date(row.visited_at).getTime() : null,
+    plannedDate: row.planned_date ? new Date(row.planned_date).toISOString() : null,
     notes: row.notes
   }))
 
@@ -170,6 +173,50 @@ async function handlePost(req, res, user) {
       id: placeId,
       savedAt: Date.now()
     }
+  })
+}
+
+/**
+ * PATCH - Update a saved place (e.g., planned_date)
+ */
+async function handlePatch(req, res, user) {
+  const { placeId, plannedDate } = req.body
+
+  if (!placeId) {
+    return res.status(400).json({ error: 'placeId is required' })
+  }
+
+  // Check if place exists for this user
+  const existing = await queryOne(
+    'SELECT place_id FROM saved_places WHERE user_id = ? AND place_id = ?',
+    [user.id, placeId]
+  )
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Saved place not found' })
+  }
+
+  // Validate planned_date if provided
+  let parsedDate = null
+  if (plannedDate) {
+    parsedDate = new Date(plannedDate)
+    if (isNaN(parsedDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' })
+    }
+    // Don't allow dates in the past
+    if (parsedDate < new Date()) {
+      return res.status(400).json({ error: 'Planned date cannot be in the past' })
+    }
+  }
+
+  await update(
+    'UPDATE saved_places SET planned_date = ? WHERE user_id = ? AND place_id = ?',
+    [parsedDate, user.id, placeId]
+  )
+
+  return res.status(200).json({
+    success: true,
+    plannedDate: parsedDate ? parsedDate.toISOString() : null
   })
 }
 

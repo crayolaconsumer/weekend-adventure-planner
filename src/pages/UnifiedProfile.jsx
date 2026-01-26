@@ -1142,7 +1142,8 @@ function NotificationsSection() {
     newFollower: true,
     newContribution: true,
     planShared: true,
-    weeklyDigest: true
+    weeklyDigest: true,
+    visitReminder: true
   })
   const [prefsLoading, setPrefsLoading] = useState(true)
 
@@ -1316,6 +1317,21 @@ function NotificationsSection() {
                 <span className="toggle-desc">Weekly summary of activity</span>
               </span>
               <span className={`toggle-switch ${prefs.weeklyDigest ? 'on' : ''}`}>
+                <span className="toggle-knob" />
+              </span>
+            </button>
+
+            <button
+              className={`unified-profile-settings-toggle sub-toggle ${prefs.visitReminder ? 'active' : ''}`}
+              onClick={() => updatePref('visitReminder', !prefs.visitReminder)}
+              aria-pressed={prefs.visitReminder}
+            >
+              <span className="toggle-icon">📅</span>
+              <span className="toggle-text">
+                <span className="toggle-label">Visit Reminders</span>
+                <span className="toggle-desc">Reminder on your planned visit day</span>
+              </span>
+              <span className={`toggle-switch ${prefs.visitReminder ? 'on' : ''}`}>
                 <span className="toggle-knob" />
               </span>
             </button>
