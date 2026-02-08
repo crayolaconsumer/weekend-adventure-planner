@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import { getOpeningState } from '../utils/openingHours'
@@ -138,31 +138,37 @@ export default function SwipeCard({
   const category = place.category
   const sourceImageUrl = place.photo || place.image || getPlaceholderImage(place.id, category?.key)
 
+  // Track the last loaded source to detect enrichment updates
+  const lastLoadedSourceRef = useRef(null)
+
   // Load and cache image
-  const loadImage = useCallback(async () => {
-    if (!sourceImageUrl) return
+  const loadImage = useCallback(async (imageUrl) => {
+    if (!imageUrl) return
 
     try {
       // Check cache first for instant load
-      const cached = await getCachedImage(sourceImageUrl)
+      const cached = await getCachedImage(imageUrl)
       if (cached) {
         setCachedImageUrl(URL.createObjectURL(cached))
         setImageLoaded(true)
+        lastLoadedSourceRef.current = imageUrl
         return
       }
 
       // Fetch and cache the image
-      const objectUrl = await fetchAndCacheImage(sourceImageUrl, place.id)
+      const objectUrl = await fetchAndCacheImage(imageUrl, place.id)
       setCachedImageUrl(objectUrl)
+      lastLoadedSourceRef.current = imageUrl
     } catch {
       // Fall back to direct URL on error
-      setCachedImageUrl(sourceImageUrl)
+      setCachedImageUrl(imageUrl)
+      lastLoadedSourceRef.current = imageUrl
     }
-  }, [sourceImageUrl, place.id])
+  }, [place.id])
 
   // Load image on mount and when source changes
   useEffect(() => {
-    loadImage()
+    loadImage(sourceImageUrl)
 
     // Cleanup object URLs on unmount
     return () => {
@@ -171,7 +177,18 @@ export default function SwipeCard({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cachedImageUrl causes infinite loop
-  }, [loadImage])
+  }, [loadImage, sourceImageUrl])
+
+  // CRITICAL: Watch for enriched image updates from parent
+  // When CardStack fetches a real image and updates the place, reload it
+  useEffect(() => {
+    const enrichedImage = place.photo || place.image
+    if (enrichedImage && enrichedImage !== lastLoadedSourceRef.current) {
+      // A new enriched image arrived - reload
+      setImageLoaded(false)
+      loadImage(enrichedImage)
+    }
+  }, [place.photo, place.image, loadImage])
 
   // Transform values based on drag
   const rotate = useTransform(x, [-200, 200], [-15, 15])

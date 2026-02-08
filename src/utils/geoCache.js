@@ -52,6 +52,47 @@ function isExpired(entry) {
 }
 
 /**
+ * Check if usable cache exists (fresh or stale)
+ * Use this for synchronous checks before showing loading state
+ * @param {string} key - Cache key
+ * @returns {{exists: boolean, stale: boolean, data: any|null}}
+ */
+export function hasCacheSync(key) {
+  // Check memory first
+  let entry = memoryCache.get(key)
+
+  // Fall back to localStorage
+  if (!entry) {
+    try {
+      const stored = localStorage.getItem(STORAGE_PREFIX + key)
+      if (stored) {
+        entry = JSON.parse(stored)
+        // Restore to memory cache if usable
+        if (!isExpired(entry)) {
+          memoryCache.set(key, entry)
+        }
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }
+
+  if (!entry || isExpired(entry)) {
+    return { exists: false, stale: false, data: null }
+  }
+
+  if (isFresh(entry)) {
+    return { exists: true, stale: false, data: entry.data }
+  }
+
+  if (isStale(entry)) {
+    return { exists: true, stale: true, data: entry.data }
+  }
+
+  return { exists: false, stale: false, data: null }
+}
+
+/**
  * Get data from cache
  * @param {string} key - Cache key
  * @returns {any|null} - Cached data or null

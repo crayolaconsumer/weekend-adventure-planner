@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { enrichPlace } from '../utils/apiClient'
+import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
 import PlaceReviews from './PlaceReviews'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
@@ -102,6 +103,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [loading, setLoading] = useState(true)
   const [loadedSrc, setLoadedSrc] = useState(null)
   const [failedSrc, setFailedSrc] = useState(null)
+  const [cachedImageUrl, setCachedImageUrl] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
   const formatDistance = useFormatDistance()
@@ -114,10 +116,12 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   }, [place?.id, refreshContributions])
 
   // Fetch enriched data when modal opens
+  // Uses cached enrichPlace results for instant loads if CardStack prefetched
   useEffect(() => {
     const fetchDetails = async () => {
       setLoading(true)
       try {
+        // enrichPlace has 30-minute caching - will be instant if prefetched
         const enriched = await enrichPlace(place)
         setEnrichedPlace({ ...place, ...enriched })
       } catch (error) {
@@ -128,6 +132,66 @@ export default function PlaceDetail({ place, onClose, onGo }) {
 
     fetchDetails()
   }, [place])
+
+  // Track blob URLs for proper cleanup (prevents memory leaks)
+  const blobUrlRef = useRef(null)
+
+  // Helper to safely set cached image URL and revoke previous blob
+  const revokePreviousBlob = useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
+    }
+  }, [])
+
+  // Load cached image when enrichedPlace image changes
+  // Uses async IIFE pattern to avoid React Compiler warnings about setState in effects
+  useEffect(() => {
+    const imageUrl = enrichedPlace?.photo || enrichedPlace?.image
+    if (!imageUrl) return
+
+    let cancelled = false
+    const placeId = place?.id
+
+    const loadImage = async () => {
+      try {
+        // Check cache first for instant load
+        const cached = await getCachedImage(imageUrl)
+        if (cancelled) return
+
+        if (cached) {
+          revokePreviousBlob()
+          const blobUrl = URL.createObjectURL(cached)
+          blobUrlRef.current = blobUrl
+          setCachedImageUrl(blobUrl)
+          return
+        }
+
+        // Fetch and cache the image
+        const objectUrl = await fetchAndCacheImage(imageUrl, placeId)
+        if (cancelled) return
+
+        revokePreviousBlob()
+        if (objectUrl?.startsWith('blob:')) {
+          blobUrlRef.current = objectUrl
+        }
+        setCachedImageUrl(objectUrl)
+      } catch {
+        if (cancelled) return
+        // Fall back to direct URL on error
+        revokePreviousBlob()
+        setCachedImageUrl(imageUrl)
+      }
+    }
+
+    loadImage()
+
+    // Cleanup on unmount or when image changes
+    return () => {
+      cancelled = true
+      revokePreviousBlob()
+    }
+  }, [enrichedPlace?.photo, enrichedPlace?.image, place?.id, revokePreviousBlob])
 
   // Handle escape key
   useEffect(() => {
@@ -175,7 +239,8 @@ export default function PlaceDetail({ place, onClose, onGo }) {
     getPlaceholderImage()
 
   const imageError = failedSrc === resolvedImageUrl
-  const imageUrl = imageError ? getPlaceholderImage() : resolvedImageUrl
+  // Use cached blob URL if available for instant display (same image was cached by SwipeCard)
+  const imageUrl = imageError ? getPlaceholderImage() : (cachedImageUrl || resolvedImageUrl)
   const imageLoaded = loadedSrc === imageUrl
 
   const handleDirections = () => {

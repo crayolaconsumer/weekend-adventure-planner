@@ -18,6 +18,7 @@ import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
 import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
 import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
+import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
@@ -328,15 +329,39 @@ export default function Discover({ location }) {
     const requestKey = buildFilterKey()
     latestFilterKeyRef.current = requestKey
 
-    setLoading(true)
-    setLoadError(null)
     const mode = TRAVEL_MODES[travelMode]
     const resolvedWeather = currentWeather ?? weather
+
+    // OPTIMIZATION: Check cache synchronously BEFORE setting loading state
+    // If we have usable cache (fresh or stale), render it immediately without spinner
+    const cacheKey = makeCacheKey(location.lat, location.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
+    const cacheCheck = hasCacheSync(cacheKey)
+
+    if (cacheCheck.exists && cacheCheck.data?.length > 0) {
+      // Render cached data immediately - no loading spinner!
+      const enhanced = cacheCheck.data.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
+      setBasePlaces(enhanced)
+      // Only set loading for background refresh if cache is stale
+      if (cacheCheck.stale) {
+        // Don't set loading - just let background refresh happen silently
+        setLoadError(null)
+      } else {
+        // Fresh cache - we're done
+        setLoading(false)
+        return
+      }
+    } else {
+      // No usable cache - show loading spinner
+      setLoading(true)
+    }
+
+    setLoadError(null)
 
     try {
       // Use SWR pattern - returns cached data immediately if available
       // For large radii, onProgress streams places as outer tiles load
-      const { data: rawPlaces, stale } = await fetchPlacesWithSWR(
+      // Note: stale flag unused here since we check cache sync above
+      const { data: rawPlaces } = await fetchPlacesWithSWR(
         location.lat,
         location.lng,
         mode.maxRadius,
