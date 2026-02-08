@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
+import ActivityItem from '../components/ActivityItem'
 import { getVisitedPlaces } from '../utils/statsUtils'
 import { useToast } from '../hooks/useToast'
 import { useSEO } from '../hooks/useSEO'
@@ -373,8 +374,8 @@ export default function UnifiedProfile() {
         )}
 
         <div className="unified-profile-stat">
-          <span className="unified-profile-stat-value">{stats.contributions}</span>
-          <span className="unified-profile-stat-label">Tips</span>
+          <span className="unified-profile-stat-value">{stats.placesVisited || stats.contributions || 0}</span>
+          <span className="unified-profile-stat-label">Visited</span>
         </div>
 
         <div className="unified-profile-stat">
@@ -430,6 +431,7 @@ export default function UnifiedProfile() {
           >
             <ActivityTab
               contributions={isOwnProfile ? ownContributions : contributions}
+              activities={profile.activities}
               loading={isOwnProfile ? contribLoading : false}
               user={user}
               isOwnProfile={isOwnProfile}
@@ -505,9 +507,12 @@ export default function UnifiedProfile() {
 }
 
 /**
- * Activity Tab - Tips/Contributions
+ * Activity Tab - Unified Activity (Visits, Tips, Photos)
  */
-function ActivityTab({ contributions, loading, user, isOwnProfile, isPrivateAccount, canSeeFullProfile }) {
+function ActivityTab({ contributions, activities, loading, user, isOwnProfile, isPrivateAccount, canSeeFullProfile }) {
+  // Use activities if available, fallback to contributions
+  const activityList = activities && activities.length > 0 ? activities : contributions
+
   // Show private account message if user can't see full profile
   if (!isOwnProfile && isPrivateAccount && !canSeeFullProfile) {
     return (
@@ -528,16 +533,16 @@ function ActivityTab({ contributions, loading, user, isOwnProfile, isPrivateAcco
     return (
       <div className="unified-profile-loading">
         <div className="unified-profile-spinner" />
-        <span>Loading tips...</span>
+        <span>Loading activity...</span>
       </div>
     )
   }
 
-  if (!contributions || contributions.length === 0) {
+  if (!activityList || activityList.length === 0) {
     return (
       <div className="unified-profile-empty">
         <span className="unified-profile-empty-icon">💭</span>
-        <p>{isOwnProfile ? "You haven't shared any tips yet" : "No tips shared yet"}</p>
+        <p>{isOwnProfile ? "You haven't shared any activity yet" : "No activity yet"}</p>
         {isOwnProfile && (
           <p className="unified-profile-empty-hint">
             Visit a place and share what made it special!
@@ -547,23 +552,59 @@ function ActivityTab({ contributions, loading, user, isOwnProfile, isPrivateAcco
     )
   }
 
+  // Check if we have the new activity format (with activityType) or old format
+  const hasNewFormat = activityList.some(a => a.activityType)
+
   return (
-    <div className="unified-profile-contributions">
-      {contributions.map(contribution => (
-        <ContributionCard
-          key={contribution.id}
-          contribution={{
-            ...contribution,
-            user: {
-              id: user.id,
-              username: user.username,
-              displayName: user.displayName,
-              avatarUrl: user.avatarUrl
-            }
-          }}
-          showUser={false}
-        />
-      ))}
+    <div className="unified-profile-activities">
+      {hasNewFormat ? (
+        // New format: use ActivityItem for richer display
+        activityList.map((activity, index) => (
+          <ActivityItem
+            key={activity.id}
+            activity={{
+              id: activity.id,
+              type: activity.activityType,
+              createdAt: activity.createdAt,
+              content: activity.content,
+              rating: activity.rating,
+              upvotes: activity.upvotes,
+              downvotes: activity.downvotes,
+              score: activity.score,
+              metadata: activity.metadata,
+              place: activity.place || {
+                id: activity.placeId,
+                name: activity.placeName,
+                category: activity.placeCategory
+              },
+              user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl
+              }
+            }}
+            index={index}
+          />
+        ))
+      ) : (
+        // Legacy format: use ContributionCard
+        activityList.map(contribution => (
+          <ContributionCard
+            key={contribution.id}
+            contribution={{
+              ...contribution,
+              user: {
+                id: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                avatarUrl: user.avatarUrl
+              }
+            }}
+            showUser={false}
+          />
+        ))
+      )}
     </div>
   )
 }

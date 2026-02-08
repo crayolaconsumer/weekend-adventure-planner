@@ -98,12 +98,16 @@ export default async function handler(req, res) {
     // Determine if current user can see full profile
     const canSeeFullProfile = isOwnProfile || !isPrivateAccount || isFollowing
 
-    // Get stats
-    const [followerCount, followingCount, contributionCount, savedPlacesCount] = await Promise.all([
+    // Get stats (including places visited and pending contributions for own profile)
+    const contributionStatusFilter = isOwnProfile ? 'IN ("approved", "pending")' : '= "approved"'
+    const [followerCount, followingCount, contributionCount, savedPlacesCount, placesVisitedCount, placesRatedCount, userStats] = await Promise.all([
       queryOne('SELECT COUNT(*) as count FROM follows WHERE following_id = ?', [user.id]),
       queryOne('SELECT COUNT(*) as count FROM follows WHERE follower_id = ?', [user.id]),
-      queryOne('SELECT COUNT(*) as count FROM contributions WHERE user_id = ? AND status = "approved"', [user.id]),
-      queryOne('SELECT COUNT(*) as count FROM saved_places WHERE user_id = ?', [user.id])
+      queryOne(`SELECT COUNT(*) as count FROM contributions WHERE user_id = ? AND status ${contributionStatusFilter}`, [user.id]),
+      queryOne('SELECT COUNT(*) as count FROM saved_places WHERE user_id = ?', [user.id]),
+      queryOne('SELECT COUNT(*) as count FROM visited_places WHERE user_id = ?', [user.id]),
+      queryOne('SELECT COUNT(*) as count FROM place_ratings WHERE user_id = ?', [user.id]),
+      queryOne('SELECT places_visited, places_rated FROM user_stats WHERE user_id = ?', [user.id])
     ])
 
     // For private profiles that user can't see, return limited data
@@ -121,7 +125,9 @@ export default async function handler(req, res) {
           following: followingCount.count,
           contributions: 0,
           savedPlaces: 0,
-          helpfulVotes: 0
+          helpfulVotes: 0,
+          placesVisited: 0,
+          placesRated: 0
         },
         contributions: [],
         isFollowing,
@@ -134,10 +140,31 @@ export default async function handler(req, res) {
       })
     }
 
-    // Get recent contributions (respecting visibility settings)
-    let contributionSql = `
+    // Get unified activity: contributions + visits
+    // Build UNION query for unified activity feed
+    let activityParts = []
+    const activityParams = []
+
+    // Contributions query
+    let contributionVisibility = ''
+    if (isOwnProfile) {
+      contributionVisibility = `AND c.status IN ('approved', 'pending')`
+    } else {
+      contributionVisibility = `AND c.status = 'approved'`
+      if (isFollowing) {
+        contributionVisibility += ` AND c.visibility IN ('public', 'followers_only')`
+      } else {
+        contributionVisibility += ` AND c.visibility = 'public'`
+      }
+    }
+
+    activityParts.push(`
       SELECT
-        c.id,
+        CONCAT('contrib_', c.id) as id,
+        CASE c.contribution_type
+          WHEN 'photo' THEN 'photo'
+          ELSE 'tip'
+        END as activity_type,
         c.place_id,
         c.contribution_type,
         c.content,
@@ -145,34 +172,92 @@ export default async function handler(req, res) {
         c.downvotes,
         c.created_at,
         c.visibility,
-        c.status
+        c.status,
+        c.place_name,
+        c.place_category,
+        c.place_image_url,
+        NULL as rating,
+        NULL as place_data
       FROM contributions c
-      WHERE c.user_id = ?
+      WHERE c.user_id = ? ${contributionVisibility}
+    `)
+    activityParams.push(user.id)
+
+    // Visits query (only show if can see full profile)
+    activityParts.push(`
+      SELECT
+        CONCAT('visit_', vp.id) as id,
+        'visit' as activity_type,
+        vp.place_id,
+        NULL as contribution_type,
+        vp.notes as content,
+        0 as upvotes,
+        0 as downvotes,
+        vp.visited_at as created_at,
+        'public' as visibility,
+        'approved' as status,
+        NULL as place_name,
+        NULL as place_category,
+        NULL as place_image_url,
+        vp.rating,
+        vp.place_data
+      FROM visited_places vp
+      WHERE vp.user_id = ?
+    `)
+    activityParams.push(user.id)
+
+    const activitySql = `
+      SELECT * FROM (
+        ${activityParts.join(' UNION ALL ')}
+      ) AS combined
+      ORDER BY created_at DESC
+      LIMIT 15
     `
 
-    // Only show pending contributions to the profile owner
-    if (isOwnProfile) {
-      contributionSql += ` AND c.status IN ('approved', 'pending')`
-    } else {
-      contributionSql += ` AND c.status = 'approved'`
-      if (isFollowing) {
-        // Can see public and followers_only
-        contributionSql += ` AND c.visibility IN ('public', 'followers_only')`
-      } else {
-        // Can only see public
-        contributionSql += ` AND c.visibility = 'public'`
-      }
-    }
-
-    contributionSql += ` ORDER BY c.created_at DESC LIMIT 10`
-
-    const contributions = await query(contributionSql, [user.id])
+    const activities = await query(activitySql, activityParams)
 
     // Get helpful votes received (sum of upvotes on approved contributions only)
     const helpfulVotes = await queryOne(
       'SELECT COALESCE(SUM(upvotes), 0) as total FROM contributions WHERE user_id = ? AND status = "approved"',
       [user.id]
     )
+
+    // Safe JSON parse helper
+    const safeJsonParse = (data, defaultValue = null) => {
+      if (!data) return defaultValue
+      if (typeof data === 'object') return data
+      try {
+        return JSON.parse(data)
+      } catch {
+        return defaultValue
+      }
+    }
+
+    // Format activities for response
+    const formattedActivities = activities.map(a => {
+      const placeData = safeJsonParse(a.place_data)
+
+      return {
+        id: a.id,
+        activityType: a.activity_type,
+        placeId: a.place_id,
+        type: a.contribution_type,
+        content: a.content,
+        upvotes: a.upvotes || 0,
+        downvotes: a.downvotes || 0,
+        score: (a.upvotes || 0) - (a.downvotes || 0),
+        rating: a.rating,
+        createdAt: a.created_at,
+        visibility: a.visibility || 'public',
+        status: isOwnProfile ? a.status : 'approved',
+        place: {
+          id: a.place_id,
+          name: a.place_name || placeData?.name || null,
+          category: a.place_category || placeData?.category?.key || null,
+          imageUrl: a.place_image_url || placeData?.image || null
+        }
+      }
+    })
 
     return res.status(200).json({
       user: {
@@ -187,20 +272,25 @@ export default async function handler(req, res) {
         following: followingCount.count,
         contributions: contributionCount.count,
         savedPlaces: savedPlacesCount.count,
-        helpfulVotes: helpfulVotes.total
+        helpfulVotes: helpfulVotes.total,
+        placesVisited: placesVisitedCount?.count || userStats?.places_visited || 0,
+        placesRated: placesRatedCount?.count || userStats?.places_rated || 0
       },
-      contributions: contributions.map(c => ({
+      // Keep contributions for backwards compatibility
+      contributions: formattedActivities.filter(a => a.activityType !== 'visit').map(c => ({
         id: c.id,
-        placeId: c.place_id,
-        type: c.contribution_type,
+        placeId: c.placeId,
+        type: c.type,
         content: c.content,
         upvotes: c.upvotes,
         downvotes: c.downvotes,
-        score: c.upvotes - c.downvotes,
-        createdAt: c.created_at,
-        visibility: c.visibility || 'public',
-        status: isOwnProfile ? c.status : 'approved'
+        score: c.score,
+        createdAt: c.createdAt,
+        visibility: c.visibility,
+        status: c.status
       })),
+      // New unified activity feed
+      activities: formattedActivities,
       isFollowing,
       followStatus,
       isOwnProfile,

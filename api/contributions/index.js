@@ -67,6 +67,9 @@ async function handleGet(req, res) {
       c.upvotes,
       c.downvotes,
       c.created_at,
+      c.place_name,
+      c.place_category,
+      c.place_image_url,
       u.id as user_id,
       u.username,
       u.display_name,
@@ -122,6 +125,9 @@ async function handleGet(req, res) {
     downvotes: c.downvotes,
     score: c.upvotes - c.downvotes,
     createdAt: new Date(c.created_at).toISOString(),
+    placeName: c.place_name || null,
+    placeCategory: c.place_category || null,
+    placeImageUrl: c.place_image_url || null,
     user: {
       id: c.user_id,
       username: c.username,
@@ -136,7 +142,7 @@ async function handleGet(req, res) {
 
 /**
  * POST - Create a new contribution
- * Body: { placeId, type, content, metadata? }
+ * Body: { placeId, type, content, metadata?, placeName?, placeCategory?, placeImageUrl? }
  */
 async function handlePost(req, res) {
   // Rate limit contribution creation
@@ -151,7 +157,7 @@ async function handlePost(req, res) {
     return res.status(401).json({ error: 'Authentication required' })
   }
 
-  const { placeId, type, content, metadata } = req.body
+  const { placeId, type, content, metadata, placeName, placeCategory, placeImageUrl } = req.body
 
   // Validate required fields
   if (!placeId || !type || !content) {
@@ -171,6 +177,11 @@ async function handlePost(req, res) {
     return res.status(400).json({ error: contentValidation.message })
   }
 
+  // Sanitize place context fields
+  const sanitizedPlaceName = placeName ? String(placeName).slice(0, 255) : null
+  const sanitizedPlaceCategory = placeCategory ? String(placeCategory).slice(0, 100) : null
+  const sanitizedPlaceImageUrl = placeImageUrl ? String(placeImageUrl).slice(0, 500) : null
+
   // Check for duplicate contribution (same user, same place, within 24 hours)
   const existing = await queryOne(
     `SELECT id FROM contributions
@@ -184,21 +195,39 @@ async function handlePost(req, res) {
   }
 
   // Insert contribution with pending status for moderation
-  // New contributions require review before becoming visible
-  const id = await insert(
-    `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status)
-     VALUES (?, ?, ?, ?, ?, 'pending')`,
-    [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null]
-  )
+  // Include place context if columns exist (gracefully handle missing columns)
+  let insertId
+  try {
+    // Try with place context columns first
+    insertId = await insert(
+      `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status, place_name, place_category, place_image_url)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null, sanitizedPlaceName, sanitizedPlaceCategory, sanitizedPlaceImageUrl]
+    )
+  } catch (err) {
+    // Fallback: columns might not exist yet, insert without place context
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      insertId = await insert(
+        `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status)
+         VALUES (?, ?, ?, ?, ?, 'pending')`,
+        [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null]
+      )
+    } else {
+      throw err
+    }
+  }
 
   return res.status(201).json({
     success: true,
     contribution: {
-      id,
+      id: insertId,
       placeId,
       type,
       content,
       metadata: metadata || null,
+      placeName: sanitizedPlaceName,
+      placeCategory: sanitizedPlaceCategory,
+      placeImageUrl: sanitizedPlaceImageUrl,
       upvotes: 0,
       downvotes: 0,
       score: 0,

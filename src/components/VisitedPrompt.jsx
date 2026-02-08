@@ -133,7 +133,11 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
       placeId: place.id,
       type: photoUrl ? 'photo' : 'tip',
       content: tipText.trim() || 'Photo contribution',
-      metadata: photoUrl ? { photoUrl } : undefined
+      metadata: photoUrl ? { photoUrl } : undefined,
+      // Pass place context for richer activity feed
+      placeName: place.name || null,
+      placeCategory: place.category?.key || null,
+      placeImageUrl: place.image || place.imageUrl || null
     })
 
     if (result.success) {
