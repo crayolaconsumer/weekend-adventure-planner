@@ -117,7 +117,7 @@ export default async function handler(req, res) {
               WHERE follower_id = ? AND following_id = u.id
             )
         )
-      ORDER BY sp.created_at DESC
+      ORDER BY sp.saved_at DESC
     `, [...placeIdList, ...followingIds, currentUser.id])
 
     // Get friends who visited these places
