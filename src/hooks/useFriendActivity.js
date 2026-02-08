@@ -17,6 +17,7 @@ function getAuthHeaders() {
 // Cache for friend activity data
 const activityCache = new Map()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const BATCH_SIZE = 50 // API limit
 
 /**
  * Hook for fetching friend activity for multiple places
@@ -32,8 +33,8 @@ export function useFriendPlaceActivity(placeIds) {
   // Track the last fetch request to avoid race conditions
   const fetchIdRef = useRef(0)
 
-  // Create a stable key for the placeIds array
-  const placeIdsKey = placeIds?.join(',') || ''
+  // Create a stable key for the placeIds array (use first 50 for stability)
+  const placeIdsKey = placeIds?.slice(0, BATCH_SIZE).join(',') || ''
 
   const fetchActivity = useCallback(async () => {
     if (!isAuthenticated || !placeIds || placeIds.length === 0) {
@@ -46,7 +47,10 @@ export function useFriendPlaceActivity(placeIds) {
     const cachedData = {}
     const uncachedIds = []
 
-    placeIds.forEach(id => {
+    // Only process first BATCH_SIZE IDs to avoid huge requests
+    const idsToProcess = placeIds.slice(0, BATCH_SIZE)
+
+    idsToProcess.forEach(id => {
       const cached = activityCache.get(id)
       if (cached && cached.timestamp > now - CACHE_TTL) {
         cachedData[id] = cached.data

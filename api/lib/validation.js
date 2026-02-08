@@ -220,7 +220,7 @@ export function validateId(id) {
 }
 
 /**
- * Validate OSM-style place ID (e.g., "node/12345", "way/67890")
+ * Validate place ID in various formats
  * @param {any} placeId - Place ID value
  * @returns {{ valid: boolean, placeId?: string, message?: string }}
  */
@@ -229,12 +229,15 @@ export function validatePlaceId(placeId) {
     return { valid: false, message: 'Place ID must be a non-empty string' }
   }
 
-  // OSM-style IDs: node/12345, way/67890, relation/111
-  // Also allow plain numeric strings for compatibility
+  // Supported formats:
+  // - OSM-style: node/12345, way/67890, relation/111
+  // - Plain numeric: 12345
+  // - Wikipedia: wiki_12345678
   const osmPattern = /^(node|way|relation)\/\d+$/
   const numericPattern = /^\d+$/
+  const wikiPattern = /^wiki_\d+$/
 
-  if (!osmPattern.test(placeId) && !numericPattern.test(placeId)) {
+  if (!osmPattern.test(placeId) && !numericPattern.test(placeId) && !wikiPattern.test(placeId)) {
     return { valid: false, message: 'Invalid place ID format' }
   }
 
