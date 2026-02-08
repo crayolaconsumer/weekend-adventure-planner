@@ -89,12 +89,45 @@ async function handleGet(req, res, user) {
 }
 
 /**
- * POST - Record a swipe
- * Body: { placeId, action: 'like' | 'skip' }
+ * POST - Record swipe(s)
+ * Body: { placeId, action } for single swipe
+ * Body: { swipes: [{ placeId, action }, ...] } for batch (max 50)
  */
 async function handlePost(req, res, user) {
-  const { placeId, action } = req.body
+  const { placeId, action, swipes } = req.body
 
+  // Handle batch request
+  if (Array.isArray(swipes)) {
+    if (swipes.length === 0) {
+      return res.status(400).json({ error: 'swipes array cannot be empty' })
+    }
+    if (swipes.length > 50) {
+      return res.status(400).json({ error: 'Maximum 50 swipes per batch' })
+    }
+
+    // Validate all swipes
+    for (const swipe of swipes) {
+      if (!swipe.placeId || (swipe.action !== 'like' && swipe.action !== 'skip')) {
+        return res.status(400).json({ error: 'Each swipe must have placeId and action (like/skip)' })
+      }
+    }
+
+    // Process batch using INSERT ... ON DUPLICATE KEY UPDATE
+    const values = swipes.map(s => [user.id, s.placeId, s.action])
+    const placeholders = values.map(() => '(?, ?, ?, NOW())').join(', ')
+    const flatValues = values.flatMap(v => v)
+
+    await query(
+      `INSERT INTO swiped_places (user_id, place_id, action, swiped_at)
+       VALUES ${placeholders}
+       ON DUPLICATE KEY UPDATE action = VALUES(action), swiped_at = NOW()`,
+      flatValues
+    )
+
+    return res.status(200).json({ success: true, processed: swipes.length })
+  }
+
+  // Handle single swipe (backwards compatible)
   if (!placeId) {
     return res.status(400).json({ error: 'placeId is required' })
   }
