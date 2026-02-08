@@ -8,6 +8,33 @@
 import OpeningHours from 'opening_hours'
 
 /**
+ * Preprocess opening hours string to remove unsupported holiday references
+ * The opening_hours.js library only has school holiday (SH) data for Germany,
+ * so we strip these references to prevent parsing errors for other countries.
+ * @param {string} hoursString - OSM opening_hours format string
+ * @returns {string} - Cleaned opening hours string
+ */
+function preprocessHoursString(hoursString) {
+  if (!hoursString) return hoursString
+
+  // Remove standalone SH rules (e.g., "SH 11:00-16:00" or "SH off")
+  // but keep the rest of the string
+  let cleaned = hoursString
+    // Remove "SH time-time" patterns (school holiday specific hours)
+    .replace(/;?\s*SH\s+\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/gi, '')
+    // Remove "SH off" or "SH closed"
+    .replace(/;?\s*SH\s+(off|closed)/gi, '')
+    // Remove standalone "SH" with semicolons
+    .replace(/;?\s*SH\s*;/gi, ';')
+    // Clean up any double semicolons or trailing semicolons
+    .replace(/;+/g, ';')
+    .replace(/^;|;$/g, '')
+    .trim()
+
+  return cleaned || hoursString // Return original if we stripped everything
+}
+
+/**
  * Parse opening hours string with location context
  * @param {string} hoursString - OSM opening_hours format string
  * @param {Object} place - Place object with lat/lng
@@ -17,6 +44,9 @@ export function parseOpeningHours(hoursString, place) {
   if (!hoursString || typeof hoursString !== 'string') {
     return null
   }
+
+  // Preprocess to remove unsupported SH (school holiday) references
+  const cleanedHours = preprocessHoursString(hoursString)
 
   try {
     // Nominatim-style location data for holiday/timezone awareness
@@ -28,12 +58,12 @@ export function parseOpeningHours(hoursString, place) {
       }
     } : null
 
-    return new OpeningHours(hoursString, nominatim, {
+    return new OpeningHours(cleanedHours, nominatim, {
       locale: 'en-GB'
     })
   } catch (error) {
     // Many OSM entries have malformed hours - this is expected
-    console.debug('Could not parse opening hours:', hoursString, error.message)
+    // Silently fail - don't log as these are common and expected
     return null
   }
 }
