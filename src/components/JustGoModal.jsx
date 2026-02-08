@@ -78,7 +78,7 @@ function getRecommendationReasons(place, context, formatDistance) {
 
   // Category match (fallback)
   if (reasons.length < 2 && place.category) {
-    reasons.push({ icon: place.category.icon || '✨', text: `Popular ${place.category.label}` })
+    reasons.push({ icon: place.category.icon || null, text: `Popular ${place.category.label}` })
   }
 
   return reasons.slice(0, 3) // Max 3 reasons
@@ -176,7 +176,6 @@ export default function JustGoModal({
             <CloseIcon />
           </button>
           <div className="just-go-empty-content">
-            <span className="just-go-empty-icon">🔍</span>
             <h2>No recommendations yet</h2>
             <p>Keep swiping to help us learn your taste!</p>
           </div>
@@ -215,7 +214,6 @@ export default function JustGoModal({
 
               {/* Header */}
               <div className="just-go-header">
-                <span className="just-go-header-icon">🎯</span>
                 <h2 id="just-go-title">Perfect for right now</h2>
               </div>
 

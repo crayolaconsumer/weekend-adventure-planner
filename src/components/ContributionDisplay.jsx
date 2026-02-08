@@ -216,7 +216,6 @@ export function ContributionList({ contributions, loading, emptyMessage }) {
   if (!contributions || contributions.length === 0) {
     return (
       <div className="contributions-empty">
-        <span className="contributions-empty-icon">💡</span>
         <p>{emptyMessage || 'No tips yet. Be the first to share!'}</p>
       </div>
     )

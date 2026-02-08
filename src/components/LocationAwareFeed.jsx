@@ -165,7 +165,6 @@ export default function LocationAwareFeed({ location }) {
   if (activities.length === 0) {
     return (
       <div className="location-aware-feed-empty">
-        <div className="location-aware-feed-empty-icon">🗺️</div>
         <h3>No nearby activity</h3>
         <p>Follow more users to see their recommendations near you!</p>
         <button
@@ -187,10 +186,7 @@ export default function LocationAwareFeed({ location }) {
       {/* Near You section */}
       {hasNear && (
         <section className="location-aware-feed-section">
-          <h3 className="location-aware-feed-section-title">
-            <span className="location-aware-feed-section-icon">📍</span>
-            Near You
-          </h3>
+          <h3 className="location-aware-feed-section-title">Near You</h3>
           {groupedActivities.near.map((activity, index) => (
             <ActivityItem
               key={activity.id}
@@ -206,10 +202,7 @@ export default function LocationAwareFeed({ location }) {
       {/* Further Away section */}
       {hasFurther && (
         <section className="location-aware-feed-section">
-          <h3 className="location-aware-feed-section-title">
-            <span className="location-aware-feed-section-icon">🚗</span>
-            Further Away
-          </h3>
+          <h3 className="location-aware-feed-section-title">Further Away</h3>
           {groupedActivities.further.map((activity, index) => (
             <ActivityItem
               key={activity.id}
@@ -226,7 +219,6 @@ export default function LocationAwareFeed({ location }) {
       {hasEverywhere && (
         <section className="location-aware-feed-section">
           <h3 className="location-aware-feed-section-title">
-            <span className="location-aware-feed-section-icon">🌍</span>
             {hasNear || hasFurther ? 'Everywhere Else' : 'Recent Activity'}
           </h3>
           {groupedActivities.everywhere.map((activity, index) => (

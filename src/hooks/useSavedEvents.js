@@ -15,6 +15,24 @@ function getAuthToken() {
   return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
 }
 
+/**
+ * Parse date strings back to Date objects after JSON deserialization
+ */
+function parseEventDates(events) {
+  if (!Array.isArray(events)) return []
+  return events.map(event => {
+    if (!event.datetime) return event
+    return {
+      ...event,
+      datetime: {
+        ...event.datetime,
+        start: event.datetime.start ? new Date(event.datetime.start) : null,
+        end: event.datetime.end ? new Date(event.datetime.end) : null
+      }
+    }
+  })
+}
+
 export function useSavedEvents() {
   const { isAuthenticated, loading: authLoading } = useAuth()
   const [events, setEvents] = useState([])
@@ -39,16 +57,16 @@ export function useSavedEvents() {
         }
 
         const data = await response.json()
-        setEvents(data.events || [])
+        setEvents(parseEventDates(data.events || []))
       } else {
         const saved = localStorage.getItem(STORAGE_KEY)
-        setEvents(saved ? JSON.parse(saved) : [])
+        setEvents(saved ? parseEventDates(JSON.parse(saved)) : [])
       }
     } catch (err) {
       console.error('Error loading saved events:', err)
       // Fall back to localStorage
       const saved = localStorage.getItem(STORAGE_KEY)
-      setEvents(saved ? JSON.parse(saved) : [])
+      setEvents(saved ? parseEventDates(JSON.parse(saved)) : [])
     } finally {
       setLoading(false)
       loadedRef.current = true

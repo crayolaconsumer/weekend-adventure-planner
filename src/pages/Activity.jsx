@@ -195,7 +195,6 @@ export default function Activity() {
               <ActivityFeed />
             ) : (
               <div className="activity-login-prompt">
-                <div className="activity-login-prompt-icon">🔐</div>
                 <h2>Sign in to see your feed</h2>
                 <p>Follow other explorers to see their tips and discoveries here.</p>
                 <Link to="/profile" className="activity-login-prompt-btn">
@@ -237,7 +236,6 @@ function DiscoverSection({ users, loading, onRefresh, currentUserId }) {
     return (
       <div className="discover-section">
         <div className="discover-empty">
-          <span className="discover-empty-icon">👥</span>
           <h3>No recommendations yet</h3>
           <p>Start exploring and saving places to get personalized recommendations!</p>
         </div>

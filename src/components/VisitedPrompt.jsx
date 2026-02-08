@@ -441,15 +441,6 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <motion.div
-                  className="visited-icon-success"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                >
-                  💡
-                </motion.div>
-
                 <h3 className="visited-title">Share a tip</h3>
                 <p className="visited-subtitle">Help others discover what makes this place special</p>
 

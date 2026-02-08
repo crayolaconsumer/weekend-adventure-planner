@@ -536,10 +536,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.45 }}
               >
-                <h3 className="place-detail-section-title">
-                  <span style={{ marginRight: '4px' }}>💡</span>
-                  Community Tips
-                </h3>
+                <h3 className="place-detail-section-title">Community Tips</h3>
                 <ContributionList
                   contributions={contributions}
                   loading={contributionsLoading}

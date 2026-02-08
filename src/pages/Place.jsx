@@ -158,9 +158,6 @@ export default function Place() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <span className="place-page-error-icon">
-            {error?.type === 'network' ? '📡' : '🗺️'}
-          </span>
           <h2>{errorDetails.title}</h2>
           <p>{errorDetails.description}</p>
           <button className="place-page-error-btn" onClick={errorDetails.buttonAction}>

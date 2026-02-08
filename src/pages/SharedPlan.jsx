@@ -163,7 +163,6 @@ export default function SharedPlan() {
     return (
       <div className="shared-plan-page">
         <div className="shared-plan-error">
-          <span className="shared-plan-error-icon">🗺️</span>
           <h2>Adventure Not Found</h2>
           <p>{error}</p>
           <Link to="/" className="shared-plan-cta">Discover Places</Link>

@@ -62,7 +62,6 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
           onClick={e => e.stopPropagation()}
         >
           <div className="contribution-prompt-header">
-            <span className="contribution-prompt-icon">💡</span>
             <h2>Share Your Experience</h2>
           </div>
 
@@ -106,7 +105,6 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="contribution-prompt-header">
-          <span className="contribution-prompt-icon">✨</span>
           <h2>What made it special?</h2>
         </div>
 

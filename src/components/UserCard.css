@@ -109,10 +109,6 @@
   gap: 4px;
 }
 
-.user-card-reason::before {
-  content: '✨';
-  font-size: 10px;
-}
 
 .user-card-action {
   flex-shrink: 0;

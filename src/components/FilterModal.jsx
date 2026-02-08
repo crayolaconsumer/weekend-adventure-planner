@@ -398,7 +398,6 @@ export function FilterModal({
               {/* Premium Filters */}
               <div className="filter-modal-premium">
                 <div className="filter-premium-header">
-                  <span className="filter-premium-sparkle">✨</span>
                   <span>Premium Filters</span>
                 </div>
                 <button

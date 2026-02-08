@@ -429,7 +429,6 @@ export default function CardStack({
     } else if (emptyReason === 'filters') {
       // Filters are too restrictive
       emptyConfig = {
-        icon: '🔍',
         title: 'No matches found',
         subtitle: activeFiltersCount > 0
           ? `Your ${activeFiltersCount} active filter${activeFiltersCount !== 1 ? 's are' : ' is'} too restrictive for this area. Try removing some filters to see more places.`

@@ -89,7 +89,6 @@ export default function ActivityFeed() {
   if (activities.length === 0 && activeFilter === 'all') {
     return (
       <div className="activity-feed-empty">
-        <div className="activity-feed-empty-icon">👥</div>
         <h3>No activity yet</h3>
         <p>Follow some users to see their activity here!</p>
         <p className="activity-feed-empty-hint">

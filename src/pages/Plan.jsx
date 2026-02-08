@@ -837,7 +837,7 @@ export default function Plan({ location }) {
               Finding places...
             </>
           ) : (
-            '✨ Generate Itinerary'
+            'Generate Itinerary'
           )}
         </button>
 
@@ -990,10 +990,7 @@ export default function Plan({ location }) {
         {/* FROM YOUR WISHLIST - Quick-add section */}
         <section className="plan-section plan-wishlist-section">
           <div className="plan-section-header">
-            <span className="plan-section-title">
-              <span className="plan-section-icon">💾</span>
-              FROM YOUR WISHLIST
-            </span>
+            <span className="plan-section-title">FROM YOUR WISHLIST</span>
             {wishlist.length > 0 && (
               <button className="plan-section-link" onClick={() => navigate('/wishlist')}>
                 View All ({wishlist.length}) <ChevronIcon />

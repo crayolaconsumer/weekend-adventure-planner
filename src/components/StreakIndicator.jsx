@@ -16,7 +16,7 @@ import './StreakIndicator.css'
  */
 function getStreakMessage(streak) {
   if (streak === 0) {
-    return { emoji: '✨', text: 'Ready for your first adventure?' }
+    return { emoji: null, text: 'Ready for your first adventure?' }
   }
   if (streak === 1) {
     return { emoji: '🔥', text: '1 day · Great start!' }

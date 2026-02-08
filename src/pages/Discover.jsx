@@ -997,7 +997,6 @@ export default function Discover({ location }) {
           const isServerError = loadError.includes('500') || loadError.includes('502') || loadError.includes('503') || loadError.includes('server')
 
           let errorConfig = {
-            icon: '⚠️',
             title: 'Something went wrong',
             message: 'We couldn\'t load places near you. This might be a temporary issue.',
             primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
@@ -1006,7 +1005,6 @@ export default function Discover({ location }) {
 
           if (isNetworkError) {
             errorConfig = {
-              icon: '📡',
               title: 'Connection issue',
               message: 'Check your internet connection and try again. Make sure you\'re not in airplane mode.',
               primaryAction: { label: 'Retry Connection', onClick: () => loadPlaces(weather) },
@@ -1014,7 +1012,6 @@ export default function Discover({ location }) {
             }
           } else if (isTimeoutError) {
             errorConfig = {
-              icon: '⏱️',
               title: 'Taking too long',
               message: 'The request is taking longer than expected. Try reducing your travel radius or selecting fewer categories.',
               primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
@@ -1022,7 +1019,6 @@ export default function Discover({ location }) {
             }
           } else if (isRateLimitError) {
             errorConfig = {
-              icon: '🚦',
               title: 'Too many requests',
               message: 'You\'ve been exploring a lot! Please wait a moment before trying again.',
               primaryAction: { label: 'Wait & Retry', onClick: () => setTimeout(() => loadPlaces(weather), 3000) },
@@ -1030,7 +1026,6 @@ export default function Discover({ location }) {
             }
           } else if (isServerError) {
             errorConfig = {
-              icon: '🔧',
               title: 'Service temporarily unavailable',
               message: 'Our servers are having a moment. This usually resolves itself quickly.',
               primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
@@ -1044,7 +1039,6 @@ export default function Discover({ location }) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="discover-error-icon">{errorConfig.icon}</div>
               <h3>{errorConfig.title}</h3>
               <p>{errorConfig.message}</p>
               <div className="discover-error-actions">

@@ -68,7 +68,6 @@ export default function OfflineMapsManager({ userLocation }) {
   return (
     <div className="offline-maps-manager">
       <div className="offline-maps-header">
-        <span className="offline-maps-icon">🗺️</span>
         <div>
           <h3>Offline Maps</h3>
           <p>Download maps for use without internet</p>

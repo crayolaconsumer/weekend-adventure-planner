@@ -910,7 +910,6 @@ function SettingsTab({ user, onLogout }) {
       {!isPremium ? (
         <div className="unified-profile-settings-section premium-upgrade-section">
           <Link to="/pricing" className="profile-upgrade-btn">
-            <span className="upgrade-sparkle">✨</span>
             <span className="upgrade-text">Upgrade to ROAM+</span>
             <span className="upgrade-badge">7 days free</span>
           </Link>
@@ -1336,7 +1335,6 @@ function NotificationsSection() {
               onClick={() => updatePref('newFollower', !prefs.newFollower)}
               aria-pressed={prefs.newFollower}
             >
-              <span className="toggle-icon">👥</span>
               <span className="toggle-text">
                 <span className="toggle-label">New Followers</span>
                 <span className="toggle-desc">When someone follows you</span>

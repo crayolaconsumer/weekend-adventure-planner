@@ -208,7 +208,6 @@ function AuthPrompt({ message }) {
 
   return (
     <div className="social-hub-auth-prompt">
-      <div className="social-hub-auth-prompt-icon">👥</div>
       <h3>{message}</h3>
       <p>Connect with friends to see their discoveries and recommendations.</p>
       <div className="social-hub-auth-prompt-actions">

@@ -23,42 +23,36 @@ const CloseIcon = () => (
 // Prompt configurations for different friction points
 const PROMPT_CONFIGS = {
   saves: {
-    icon: '💾',
     title: 'Save limit reached',
     description: "You've saved 10 places! Upgrade to ROAM+ for unlimited saves.",
     cta: 'Unlock Unlimited Saves',
     benefit: 'Never lose a discovery again'
   },
   collections: {
-    icon: '📁',
     title: 'Collection limit reached',
     description: "You've created 3 collections. Upgrade to organize unlimited adventures.",
     cta: 'Unlock Unlimited Collections',
     benefit: 'Organize your world, your way'
   },
   offline: {
-    icon: '📴',
     title: 'Offline maps are a premium feature',
     description: 'Download maps to explore without internet. Perfect for adventures off the beaten path.',
     cta: 'Get Offline Maps',
     benefit: 'Explore anywhere, anytime'
   },
   export: {
-    icon: '📤',
     title: 'Export is a premium feature',
     description: 'Export your adventures as PDF or add to your calendar.',
     cta: 'Unlock Exports',
     benefit: 'Share and plan with ease'
   },
   filters: {
-    icon: '🔍',
     title: 'Advanced filters',
     description: 'Get access to all filtering options to find exactly what you want.',
     cta: 'Unlock All Filters',
     benefit: 'Find your perfect spot'
   },
   radius: {
-    icon: '🗺️',
     title: 'Explore further with ROAM+',
     description: 'Unlock Day Trip (75km) and Explorer (150km) modes for grand tours and weekend adventures.',
     cta: 'Unlock Extended Range',

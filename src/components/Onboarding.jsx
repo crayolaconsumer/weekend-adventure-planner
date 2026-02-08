@@ -286,14 +286,6 @@ export default function Onboarding({ onComplete }) {
               exit={{ opacity: 0, x: -50 }}
               transition={{ duration: 0.3 }}
             >
-              <motion.div
-                className="onboarding-icon"
-                animate={{ rotate: [0, 10, -10, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                ✨
-              </motion.div>
-
               <h1 className="onboarding-title">What excites you?</h1>
               <p className="onboarding-subtitle">Pick a few to personalize your experience</p>
 
@@ -337,14 +329,6 @@ export default function Onboarding({ onComplete }) {
               exit={{ opacity: 0, x: -50 }}
               transition={{ duration: 0.3 }}
             >
-              <motion.div
-                className="onboarding-icon"
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                💾
-              </motion.div>
-
               <h1 className="onboarding-title">Save your discoveries</h1>
               <p className="onboarding-subtitle">Create an account to sync across devices</p>
               <p className="onboarding-description">
