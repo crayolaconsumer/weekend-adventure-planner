@@ -333,9 +333,8 @@ async function handleVote(req, res) {
     [user.id, contributionId]
   )
 
-  let newUpvotes = contribution.upvotes
-  let newDownvotes = contribution.downvotes
-
+  // Use atomic SQL updates to prevent race conditions
+  // (two simultaneous votes would otherwise lose one)
   if (voteType === null) {
     // Remove vote
     if (existingVote) {
@@ -344,11 +343,17 @@ async function handleVote(req, res) {
         [user.id, contributionId]
       )
 
-      // Adjust counts
+      // Atomic decrement
       if (existingVote.vote_type === 'up') {
-        newUpvotes = Math.max(0, newUpvotes - 1)
+        await update(
+          'UPDATE contributions SET upvotes = GREATEST(0, upvotes - 1) WHERE id = ?',
+          [contributionId]
+        )
       } else {
-        newDownvotes = Math.max(0, newDownvotes - 1)
+        await update(
+          'UPDATE contributions SET downvotes = GREATEST(0, downvotes - 1) WHERE id = ?',
+          [contributionId]
+        )
       }
     }
   } else if (existingVote) {
@@ -359,13 +364,17 @@ async function handleVote(req, res) {
         [voteType, user.id, contributionId]
       )
 
-      // Swap vote counts
+      // Atomic swap vote counts
       if (voteType === 'up') {
-        newUpvotes += 1
-        newDownvotes = Math.max(0, newDownvotes - 1)
+        await update(
+          'UPDATE contributions SET upvotes = upvotes + 1, downvotes = GREATEST(0, downvotes - 1) WHERE id = ?',
+          [contributionId]
+        )
       } else {
-        newDownvotes += 1
-        newUpvotes = Math.max(0, newUpvotes - 1)
+        await update(
+          'UPDATE contributions SET downvotes = downvotes + 1, upvotes = GREATEST(0, upvotes - 1) WHERE id = ?',
+          [contributionId]
+        )
       }
     }
     // If same vote type, do nothing
@@ -376,18 +385,27 @@ async function handleVote(req, res) {
       [user.id, contributionId, voteType]
     )
 
+    // Atomic increment
     if (voteType === 'up') {
-      newUpvotes += 1
+      await update(
+        'UPDATE contributions SET upvotes = upvotes + 1 WHERE id = ?',
+        [contributionId]
+      )
     } else {
-      newDownvotes += 1
+      await update(
+        'UPDATE contributions SET downvotes = downvotes + 1 WHERE id = ?',
+        [contributionId]
+      )
     }
   }
 
-  // Update contribution vote counts
-  await update(
-    'UPDATE contributions SET upvotes = ?, downvotes = ? WHERE id = ?',
-    [newUpvotes, newDownvotes, contributionId]
+  // Re-read final counts for response (atomic reads are fine)
+  const updated = await queryOne(
+    'SELECT upvotes, downvotes FROM contributions WHERE id = ?',
+    [contributionId]
   )
+  const newUpvotes = updated?.upvotes || 0
+  const newDownvotes = updated?.downvotes || 0
 
   // Send push notification for upvotes (non-blocking)
   // Only notify on milestone upvote counts to avoid spam

@@ -139,25 +139,46 @@ export function useSwipedPlaces() {
     }
   }, [isAuthenticated, flushPendingSwipes])
 
-  // Flush pending swipes on unmount (e.g., page navigation)
+  // Flush pending swipes when page becomes hidden or on unmount
+  // Using visibilitychange is more reliable than unmount for page navigations
+  // Note: sendBeacon can't send Authorization headers, so we use fetch while page is still visible
   useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-      // Flush synchronously on unmount using sendBeacon for reliability
-      if (pendingSwipesRef.current.length > 0 && isAuthenticated) {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && pendingSwipesRef.current.length > 0) {
+        // Flush immediately when page becomes hidden (before potential unload)
+        // Use fetch with keepalive - works because we're still in the page lifecycle
         const token = getAuthToken()
-        if (token) {
-          const blob = new Blob(
-            [JSON.stringify({ swipes: pendingSwipesRef.current })],
-            { type: 'application/json' }
-          )
-          navigator.sendBeacon('/api/places/swiped', blob)
+        if (token && pendingSwipesRef.current.length > 0) {
+          const swipes = [...pendingSwipesRef.current]
+          pendingSwipesRef.current = []
+          fetch('/api/places/swiped', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            credentials: 'include',
+            body: JSON.stringify({ swipes }),
+            keepalive: true // Allows request to outlive page
+          }).catch(() => {}) // Best effort
         }
       }
     }
-  }, [isAuthenticated])
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      // Also try to flush on unmount (component unmount, not page unload)
+      // This handles in-app navigation where visibilitychange doesn't fire
+      if (pendingSwipesRef.current.length > 0 && isAuthenticated) {
+        flushPendingSwipes()
+      }
+    }
+  }, [isAuthenticated, flushPendingSwipes])
 
   return { recordSwipe }
 }

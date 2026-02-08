@@ -144,6 +144,8 @@ export default function SwipeCard({
   // Track the last loaded source to detect enrichment updates
   const lastLoadedSourceRef = useRef(null)
   const failedUrlsRef = useRef(new Set())
+  // Track blob URLs for proper cleanup (avoids stale closure in useEffect cleanup)
+  const blobUrlRef = useRef(null)
 
   // Load and cache image
   const loadImage = useCallback(async (imageUrl) => {
@@ -154,11 +156,19 @@ export default function SwipeCard({
       return
     }
 
+    // Revoke previous blob URL to prevent memory leaks
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
+    }
+
     try {
       // Check cache first for instant load
       const cached = await getCachedImage(imageUrl)
       if (cached) {
-        setCachedImageUrl(URL.createObjectURL(cached))
+        const newBlobUrl = URL.createObjectURL(cached)
+        blobUrlRef.current = newBlobUrl
+        setCachedImageUrl(newBlobUrl)
         setImageLoaded(true)
         lastLoadedSourceRef.current = imageUrl
         return
@@ -166,6 +176,10 @@ export default function SwipeCard({
 
       // Fetch and cache the image
       const objectUrl = await fetchAndCacheImage(imageUrl, place.id)
+      // Track if it's a blob URL
+      if (objectUrl?.startsWith('blob:')) {
+        blobUrlRef.current = objectUrl
+      }
       setCachedImageUrl(objectUrl)
       lastLoadedSourceRef.current = imageUrl
     } catch {
@@ -203,13 +217,13 @@ export default function SwipeCard({
   useEffect(() => {
     loadImage(sourceImageUrl)
 
-    // Cleanup object URLs on unmount
+    // Cleanup object URLs on unmount using ref (not state, to avoid stale closure)
     return () => {
-      if (cachedImageUrl && cachedImageUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(cachedImageUrl)
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cachedImageUrl causes infinite loop
   }, [loadImage, sourceImageUrl])
 
   // CRITICAL: Watch for enriched image updates from parent

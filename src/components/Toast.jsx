@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ToastContext } from '../contexts/ToastContext'
 import './Toast.css'
@@ -40,7 +40,7 @@ const ICONS = {
 }
 
 // Individual Toast component
-function ToastItem({ id, type, message, onDismiss }) {
+function ToastItem({ id, type, message, action, onDismiss }) {
   const Icon = ICONS[type] || InfoIcon
 
   return (
@@ -56,6 +56,17 @@ function ToastItem({ id, type, message, onDismiss }) {
         <Icon />
       </div>
       <span className="toast-message">{message}</span>
+      {action && (
+        <button
+          className="toast-action"
+          onClick={() => {
+            action.onClick()
+            onDismiss(id)
+          }}
+        >
+          {action.label}
+        </button>
+      )}
       <button className="toast-close" onClick={() => onDismiss(id)} aria-label="Dismiss notification">
         <CloseIcon />
       </button>
@@ -83,11 +94,14 @@ function ToastContainer({ toasts, onDismiss }) {
 // Toast Provider
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
+  const swUpdateShownRef = useRef(false)
 
-  const addToast = useCallback((message, type = 'info', duration = 4000) => {
+  const addToast = useCallback((message, type = 'info', options = {}) => {
     const id = Date.now() + Math.random()
+    const duration = typeof options === 'number' ? options : (options.duration ?? 4000)
+    const action = typeof options === 'object' ? options.action : undefined
 
-    setToasts(prev => [...prev, { id, message, type }])
+    setToasts(prev => [...prev, { id, message, type, action }])
 
     // Auto-dismiss
     if (duration > 0) {
@@ -102,6 +116,33 @@ export function ToastProvider({ children }) {
   const dismissToast = useCallback((id) => {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
+
+  // Listen for service worker updates and show toast
+  useEffect(() => {
+    const handleSwUpdate = (event) => {
+      // Only show once per session
+      if (swUpdateShownRef.current) return
+      swUpdateShownRef.current = true
+
+      const registration = event.detail?.registration
+      addToast('Update available', 'info', {
+        duration: 0, // Don't auto-dismiss
+        action: {
+          label: 'Refresh',
+          onClick: () => {
+            if (window.applySwUpdate) {
+              window.applySwUpdate(registration)
+            } else {
+              window.location.reload()
+            }
+          }
+        }
+      })
+    }
+
+    window.addEventListener('swUpdate', handleSwUpdate)
+    return () => window.removeEventListener('swUpdate', handleSwUpdate)
+  }, [addToast])
 
   // Memoize toast methods to prevent unnecessary re-renders
   const toast = useMemo(() => Object.assign(

@@ -332,18 +332,21 @@ async function cacheMapTile(request) {
 }
 
 // Trim map tile cache to prevent storage bloat
+// Note: Cache API doesn't guarantee order, so we can't do true LRU.
+// We delete tiles from the start of the returned array, which is effectively
+// random eviction. This is acceptable for map tiles since they're cheap to
+// re-fetch and users typically stay in similar geographic areas.
 async function trimMapTileCache() {
   const cache = await caches.open(MAP_TILE_CACHE)
   const keys = await cache.keys()
 
   if (keys.length > MAX_MAP_TILES) {
-    // Delete oldest tiles (first in cache = oldest)
     const deleteCount = keys.length - MAX_MAP_TILES
-    log(`Service Worker: Trimming ${deleteCount} old map tiles`)
+    log(`Service Worker: Trimming ${deleteCount} map tiles (random eviction)`)
 
-    for (let i = 0; i < deleteCount; i++) {
-      await cache.delete(keys[i])
-    }
+    // Delete in parallel for better performance
+    const deletePromises = keys.slice(0, deleteCount).map(key => cache.delete(key))
+    await Promise.all(deletePromises)
   }
 }
 
