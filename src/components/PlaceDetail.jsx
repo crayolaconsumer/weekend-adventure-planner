@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { enrichPlace } from '../utils/apiClient'
-import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
+import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import PlaceReviews from './PlaceReviews'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
@@ -319,6 +319,9 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               onError={() => {
                 if (imageUrl === resolvedImageUrl) {
                   setFailedSrc(resolvedImageUrl)
+                  // Invalidate from cache to prevent retrying bad URLs
+                  invalidateCachedImage(resolvedImageUrl).catch(() => {})
+                  console.warn(`[PlaceDetail] Image failed to load: ${resolvedImageUrl.substring(0, 80)}...`)
                 }
               }}
               initial={{ scale: 1.1 }}

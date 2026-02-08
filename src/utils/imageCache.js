@@ -189,6 +189,28 @@ export async function getPlaceImages(placeId) {
 }
 
 /**
+ * Remove a specific URL from the cache
+ * Use this when an image returns 404 to prevent retrying bad URLs
+ * @param {string} url - Image URL to invalidate
+ * @returns {Promise<void>}
+ */
+export async function invalidateCachedImage(url) {
+  try {
+    const db = await getDB()
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+
+    return new Promise((resolve, reject) => {
+      const request = store.delete(url)
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve()
+    })
+  } catch (error) {
+    console.debug('Invalidate cached image error:', error)
+  }
+}
+
+/**
  * Clear all cached images
  * @returns {Promise<void>}
  */

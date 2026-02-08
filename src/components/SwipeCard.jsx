@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import { getOpeningState } from '../utils/openingHours'
-import { fetchAndCacheImage, getCachedImage } from '../utils/imageCache'
+import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import { ContributionBadge } from './ContributionDisplay'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import SocialProof from './SocialProof'
@@ -127,6 +127,7 @@ export default function SwipeCard({
   const [isDragging, setIsDragging] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
+  const [usingFallback, setUsingFallback] = useState(false)
   const formatDistance = useFormatDistance()
 
   const topTip = topContribution
@@ -134,16 +135,24 @@ export default function SwipeCard({
   const x = useMotionValue(0)
   const y = useMotionValue(0)
 
-  // Get the source image URL
+  // Get the source image URL and fallback
   const category = place.category
-  const sourceImageUrl = place.photo || place.image || getPlaceholderImage(place.id, category?.key)
+  const enrichedImageUrl = place.photo || place.image
+  const placeholderUrl = getPlaceholderImage(place.id, category?.key)
+  const sourceImageUrl = enrichedImageUrl || placeholderUrl
 
   // Track the last loaded source to detect enrichment updates
   const lastLoadedSourceRef = useRef(null)
+  const failedUrlsRef = useRef(new Set())
 
   // Load and cache image
   const loadImage = useCallback(async (imageUrl) => {
     if (!imageUrl) return
+
+    // Skip URLs that have already failed
+    if (failedUrlsRef.current.has(imageUrl)) {
+      return
+    }
 
     try {
       // Check cache first for instant load
@@ -160,11 +169,35 @@ export default function SwipeCard({
       setCachedImageUrl(objectUrl)
       lastLoadedSourceRef.current = imageUrl
     } catch {
-      // Fall back to direct URL on error
+      // Fall back to direct URL on error (will trigger onError if it also fails)
       setCachedImageUrl(imageUrl)
       lastLoadedSourceRef.current = imageUrl
     }
   }, [place.id])
+
+  // Handle image load error - fall back to placeholder
+  const handleImageError = useCallback(() => {
+    const currentSrc = cachedImageUrl || sourceImageUrl
+
+    // If we're already using placeholder or this is a placeholder, just mark as loaded
+    if (usingFallback || currentSrc?.includes('unsplash.com')) {
+      setImageLoaded(true)
+      return
+    }
+
+    // Mark this URL as failed
+    if (currentSrc) {
+      failedUrlsRef.current.add(currentSrc)
+      // Invalidate from cache to prevent retrying
+      invalidateCachedImage(currentSrc).catch(() => {})
+      console.warn(`[SwipeCard] Image failed to load: ${currentSrc.substring(0, 80)}...`)
+    }
+
+    // Fall back to placeholder
+    setUsingFallback(true)
+    setCachedImageUrl(placeholderUrl)
+    setImageLoaded(true)
+  }, [cachedImageUrl, sourceImageUrl, usingFallback, placeholderUrl])
 
   // Load image on mount and when source changes
   useEffect(() => {
@@ -184,8 +217,13 @@ export default function SwipeCard({
   useEffect(() => {
     const enrichedImage = place.photo || place.image
     if (enrichedImage && enrichedImage !== lastLoadedSourceRef.current) {
+      // Skip if this URL already failed
+      if (failedUrlsRef.current.has(enrichedImage)) {
+        return
+      }
       // A new enriched image arrived - reload
       setImageLoaded(false)
+      setUsingFallback(false)
       loadImage(enrichedImage)
     }
   }, [place.photo, place.image, loadImage])
@@ -312,7 +350,7 @@ export default function SwipeCard({
           alt={place.name}
           className={`swipe-card-image ${imageLoaded ? 'loaded' : ''}`}
           onLoad={() => setImageLoaded(true)}
-          onError={() => setImageLoaded(true)}
+          onError={handleImageError}
         />
       </div>
 
