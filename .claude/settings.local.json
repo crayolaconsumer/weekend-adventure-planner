@@ -45,5 +45,9 @@
       "Bash(ls:*)"
     ],
     "defaultMode": "acceptEdits"
-  }
+  },
+  "enabledMcpjsonServers": [
+    "mysql-roam"
+  ],
+  "enableAllProjectMcpServers": true
 }
