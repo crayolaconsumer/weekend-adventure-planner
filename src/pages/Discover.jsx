@@ -85,12 +85,16 @@ const ListIcon = () => (
   </svg>
 )
 
+// Default fallback location (London, UK)
+const DEFAULT_LOCATION = { lat: 51.5074, lng: -0.1278 }
+const LOCATION_TIMEOUT_MS = 15000 // 15 seconds
+
 export default function Discover({ location }) {
   const navigate = useNavigate()
   const toast = useToast()
   const { savePlace, places: savedPlaces } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
-  const { sponsoredPlaces } = useSponsoredPlaces(location)
+  const { sponsoredPlaces } = useSponsoredPlaces(location || fallbackLocation)
   const { isPremium } = useSubscription()
   const { recordSwipe } = useSwipedPlaces()
   const { stats, incrementStat, updateStats } = useUserStats()
@@ -98,6 +102,11 @@ export default function Discover({ location }) {
   const [upgradePromptType, setUpgradePromptType] = useState('saves')
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
+
+  // Location timeout state - tracks if we've been waiting too long for geolocation
+  const [locationTimeout, setLocationTimeout] = useState(false)
+  const [usingFallbackLocation, setUsingFallbackLocation] = useState(false)
+  const [fallbackLocation, setFallbackLocation] = useState(null)
 
   // Get friend activity for places (for friend chips and boost scoring)
   const placeIds = useMemo(() => basePlaces.map(p => p.id), [basePlaces])
@@ -163,6 +172,39 @@ export default function Discover({ location }) {
   useEffect(() => {
     localStorage.setItem('roam_off_peak', showOffPeak.toString())
   }, [showOffPeak])
+
+  // Location timeout effect - show recovery options if location takes too long
+  useEffect(() => {
+    // Only run timeout when we don't have a location and aren't using fallback
+    if (location || usingFallbackLocation) {
+      setLocationTimeout(false)
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      setLocationTimeout(true)
+    }, LOCATION_TIMEOUT_MS)
+
+    return () => clearTimeout(timeoutId)
+  }, [location, usingFallbackLocation])
+
+  // Effective location: use prop, fallback, or null
+  const effectiveLocation = location || fallbackLocation
+
+  // Handler to use default location when geolocation fails/times out
+  const handleUseDefaultLocation = () => {
+    setFallbackLocation(DEFAULT_LOCATION)
+    setUsingFallbackLocation(true)
+    setLocationTimeout(false)
+    toast.success('Using London as default location')
+  }
+
+  // Handler to retry geolocation
+  const handleRetryLocation = () => {
+    setLocationTimeout(false)
+    // Trigger page reload to retry geolocation from App.jsx
+    window.location.reload()
+  }
 
   const buildFilterKey = useCallback(() => {
     const categoriesKey = [...selectedCategories].sort().join('|')
@@ -327,7 +369,7 @@ export default function Discover({ location }) {
   // Uses SWR pattern for faster initial loads
   // Now works with memoized filtering - only sets basePlaces, useMemo handles the rest
   const loadPlaces = useCallback(async (currentWeather = null) => {
-    if (!location) return
+    if (!effectiveLocation) return
 
     const requestId = ++latestLoadRequestRef.current
     const requestKey = buildFilterKey()
@@ -338,12 +380,12 @@ export default function Discover({ location }) {
 
     // OPTIMIZATION: Check cache synchronously BEFORE setting loading state
     // If we have usable cache (fresh or stale), render it immediately without spinner
-    const cacheKey = makeCacheKey(location.lat, location.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
+    const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
     const cacheCheck = hasCacheSync(cacheKey)
 
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
       // Render cached data immediately - no loading spinner!
-      const enhanced = cacheCheck.data.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
+      const enhanced = cacheCheck.data.map(p => enhancePlace(p, effectiveLocation, { weather: resolvedWeather }))
       setBasePlaces(enhanced)
       // Only set loading for background refresh if cache is stale
       if (cacheCheck.stale) {
@@ -366,21 +408,21 @@ export default function Discover({ location }) {
       // For large radii, onProgress streams places as outer tiles load
       // Note: stale flag unused here since we check cache sync above
       const { data: rawPlaces } = await fetchPlacesWithSWR(
-        location.lat,
-        location.lng,
+        effectiveLocation.lat,
+        effectiveLocation.lng,
         mode.maxRadius,
         selectedCategories.length === 1 ? selectedCategories[0] : null,
         // Background refresh callback - full refresh from cache
         (freshPlaces) => {
           if (requestId === latestLoadRequestRef.current) {
-            const enhanced = freshPlaces.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
+            const enhanced = freshPlaces.map(p => enhancePlace(p, effectiveLocation, { weather: resolvedWeather }))
             setBasePlaces(enhanced)
           }
         },
         // Progressive loading callback - append new places as outer tiles complete
         (newPlaces) => {
           if (requestId === latestLoadRequestRef.current && newPlaces.length > 0) {
-            const enhanced = newPlaces.map(p => enhancePlace(p, location, { weather: resolvedWeather }))
+            const enhanced = newPlaces.map(p => enhancePlace(p, effectiveLocation, { weather: resolvedWeather }))
             setBasePlaces(prev => {
               // Dedupe by ID
               const existingIds = new Set(prev.map(p => p.id))
@@ -396,7 +438,7 @@ export default function Discover({ location }) {
       const scoringContext = { weather: resolvedWeather }
 
       // Enhance places with context
-      const enhanced = rawPlaces.map(p => enhancePlace(p, location, scoringContext))
+      const enhanced = rawPlaces.map(p => enhancePlace(p, effectiveLocation, scoringContext))
 
       if (requestId !== latestLoadRequestRef.current || requestKey !== latestFilterKeyRef.current) {
         return
@@ -418,11 +460,11 @@ export default function Discover({ location }) {
     if (requestId === latestLoadRequestRef.current) {
       setLoading(false)
     }
-  }, [location, travelMode, selectedCategories, toast, buildFilterKey, weather])
+  }, [effectiveLocation, travelMode, selectedCategories, toast, buildFilterKey, weather])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
-    if (!location || loadingMore) return
+    if (!effectiveLocation || loadingMore) return
 
     const filterKeyAtStart = latestFilterKeyRef.current
     setLoadingMore(true)
@@ -435,14 +477,14 @@ export default function Discover({ location }) {
       const expandedRadius = Math.min(mode.maxRadius * 1.5, maxExpandedRadius)
 
       const rawPlaces = await fetchEnrichedPlaces(
-        location.lat,
-        location.lng,
+        effectiveLocation.lat,
+        effectiveLocation.lng,
         expandedRadius,
         selectedCategories.length === 1 ? selectedCategories[0] : null
       )
 
       // Enhance and filter
-      const enhanced = rawPlaces.map(p => enhancePlace(p, location, { weather }))
+      const enhanced = rawPlaces.map(p => enhancePlace(p, effectiveLocation, { weather }))
 
       let filtered = filterPlaces(enhanced, {
         categories: selectedCategories.length > 0 ? selectedCategories : null,
@@ -506,7 +548,7 @@ export default function Discover({ location }) {
     } finally {
       setLoadingMore(false)
     }
-  }, [location, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile, isPremium])
+  }, [effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile, isPremium])
 
   // Sync places state with memoized filtered results
   // This is more efficient than the old useEffect because filteredPlaces
@@ -533,19 +575,19 @@ export default function Discover({ location }) {
   // Category changes are handled by toggleCategory with debouncing
 
   useEffect(() => {
-    if (!location) return
+    if (!effectiveLocation) return
 
     // Load weather once, then load places
     // Weather is loaded independently to avoid cascading fetches
     let isCancelled = false
 
     const load = async () => {
-      const weatherKey = `${location.lat.toFixed(2)},${location.lng.toFixed(2)}`
+      const weatherKey = `${effectiveLocation.lat.toFixed(2)},${effectiveLocation.lng.toFixed(2)}`
       let currentWeather = weather
 
       if (weatherKeyRef.current !== weatherKey) {
         try {
-          currentWeather = await fetchWeather(location.lat, location.lng)
+          currentWeather = await fetchWeather(effectiveLocation.lat, effectiveLocation.lng)
           if (!isCancelled) {
             setWeather(currentWeather)
             weatherKeyRef.current = weatherKey
@@ -569,19 +611,19 @@ export default function Discover({ location }) {
       clearTimeout(categoryDebounceRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- category changes handled by debounced toggleCategory
-  }, [location?.lat, location?.lng, travelMode])
+  }, [effectiveLocation?.lat, effectiveLocation?.lng, travelMode])
 
   // Handle category changes with initial load
   // This effect ONLY runs on initial mount to load with saved categories
   // Subsequent category changes are handled by the debounced toggleCategory
   const initialCategoryLoadRef = useRef(false)
   useEffect(() => {
-    if (!location || initialCategoryLoadRef.current) return
+    if (!effectiveLocation || initialCategoryLoadRef.current) return
     if (selectedCategories.length > 0) {
       // Has saved categories from onboarding - load is already triggered by location effect
       initialCategoryLoadRef.current = true
     }
-  }, [location, selectedCategories.length])
+  }, [effectiveLocation, selectedCategories.length])
 
 
   // Handle category filter changes with debouncing
@@ -745,7 +787,7 @@ export default function Discover({ location }) {
   const currentMode = TRAVEL_MODES[travelMode]
 
   // Show a location-pending state when waiting for geolocation
-  if (!location) {
+  if (!effectiveLocation) {
     return (
       <div className="page discover-page">
         <header className="discover-header">
@@ -760,17 +802,45 @@ export default function Discover({ location }) {
           </motion.div>
         </header>
 
-        <div className="discover-location-pending">
-          <motion.div
-            className="location-pending-icon"
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            📍
-          </motion.div>
-          <h3>Getting your location...</h3>
-          <p>This helps us find places near you</p>
-        </div>
+        {locationTimeout ? (
+          // Timeout state - show recovery options
+          <div className="discover-error-recovery">
+            <div className="discover-error-icon">
+              <span role="img" aria-label="location">📍</span>
+            </div>
+            <h3>Location taking too long</h3>
+            <p>
+              We couldn&apos;t get your location. You can try again or use a default location to start exploring.
+            </p>
+            <div className="discover-error-actions">
+              <button
+                className="discover-error-retry"
+                onClick={handleRetryLocation}
+              >
+                Retry Location
+              </button>
+              <button
+                className="discover-error-settings"
+                onClick={handleUseDefaultLocation}
+              >
+                Use Default Location
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Normal pending state - still waiting for location
+          <div className="discover-location-pending">
+            <motion.div
+              className="location-pending-icon"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <span role="img" aria-label="location">📍</span>
+            </motion.div>
+            <h3>Getting your location...</h3>
+            <p>This helps us find places near you</p>
+          </div>
+        )}
       </div>
     )
   }
@@ -800,32 +870,46 @@ export default function Discover({ location }) {
         </button>
 
         {/* I'm Bored Button - opens personalized recommendations */}
-        <motion.button
-          className="boredom-btn"
-          onClick={() => setShowJustGo(true)}
-          disabled={!location || places.length === 0}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          whileHover={{ scale: 1.03, y: -2 }}
-          whileTap={{ scale: 0.97 }}
-          transition={{
-            delay: 0.2,
-            type: 'spring',
-            stiffness: 300,
-            damping: 20
-          }}
-        >
-          <div className="boredom-btn-content">
+        <div className="boredom-btn-wrapper">
+          <motion.button
+            className="boredom-btn"
+            onClick={() => setShowJustGo(true)}
+            disabled={!effectiveLocation || places.length === 0}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileHover={effectiveLocation && places.length > 0 ? { scale: 1.03, y: -2 } : {}}
+            whileTap={effectiveLocation && places.length > 0 ? { scale: 0.97 } : {}}
+            transition={{
+              delay: 0.2,
+              type: 'spring',
+              stiffness: 300,
+              damping: 20
+            }}
+            title={!effectiveLocation ? 'Waiting for location...' : places.length === 0 ? 'Loading places...' : 'Get a random recommendation!'}
+          >
+            <div className="boredom-btn-content">
+              <motion.span
+                className="boredom-btn-emoji"
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+              >
+                🎲
+              </motion.span>
+              <span className="boredom-btn-text">I'm Bored</span>
+            </div>
+          </motion.button>
+          {/* Tooltip explaining disabled state */}
+          {(!effectiveLocation || places.length === 0) && !loading && (
             <motion.span
-              className="boredom-btn-emoji"
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+              className="boredom-btn-tooltip"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
             >
-              🎲
+              {!effectiveLocation ? 'Getting your location...' : 'Finding places nearby...'}
             </motion.span>
-            <span className="boredom-btn-text">I'm Bored</span>
-          </div>
-        </motion.button>
+          )}
+        </div>
 
         {/* Weather & Mode indicator */}
         <div className="discover-status">
@@ -904,39 +988,91 @@ export default function Discover({ location }) {
 
       {/* Main Content Area - conditionally render based on view mode */}
       <div className={`discover-content ${isDesktop ? `view-${viewMode}` : ''}`}>
-        {/* Error Recovery UI */}
-        {loadError && !loading && places.length === 0 && (
-          <motion.div
-            className="discover-error-recovery"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="discover-error-icon">⚠️</div>
-            <h3>Something went wrong</h3>
-            <p>We couldn't load places near you. This might be a temporary issue.</p>
-            <div className="discover-error-actions">
-              <button
-                className="discover-error-retry"
-                onClick={() => loadPlaces(weather)}
-              >
-                Try Again
-              </button>
-              <button
-                className="discover-error-settings"
-                onClick={() => setShowFilterModal(true)}
-              >
-                Check Filters
-              </button>
-            </div>
-          </motion.div>
-        )}
+        {/* Error Recovery UI - with specific error types and recovery actions */}
+        {loadError && !loading && places.length === 0 && (() => {
+          // Determine error type and provide specific recovery guidance
+          const isNetworkError = loadError.includes('network') || loadError.includes('fetch') || loadError.includes('Failed to fetch')
+          const isTimeoutError = loadError.includes('timeout') || loadError.includes('Timeout')
+          const isRateLimitError = loadError.includes('429') || loadError.includes('rate limit') || loadError.includes('Too many')
+          const isServerError = loadError.includes('500') || loadError.includes('502') || loadError.includes('503') || loadError.includes('server')
+
+          let errorConfig = {
+            icon: '⚠️',
+            title: 'Something went wrong',
+            message: 'We couldn\'t load places near you. This might be a temporary issue.',
+            primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
+            secondaryAction: { label: 'Check Filters', onClick: () => setShowFilterModal(true) }
+          }
+
+          if (isNetworkError) {
+            errorConfig = {
+              icon: '📡',
+              title: 'Connection issue',
+              message: 'Check your internet connection and try again. Make sure you\'re not in airplane mode.',
+              primaryAction: { label: 'Retry Connection', onClick: () => loadPlaces(weather) },
+              secondaryAction: null
+            }
+          } else if (isTimeoutError) {
+            errorConfig = {
+              icon: '⏱️',
+              title: 'Taking too long',
+              message: 'The request is taking longer than expected. Try reducing your travel radius or selecting fewer categories.',
+              primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
+              secondaryAction: { label: 'Reduce Radius', onClick: () => setShowFilterModal(true) }
+            }
+          } else if (isRateLimitError) {
+            errorConfig = {
+              icon: '🚦',
+              title: 'Too many requests',
+              message: 'You\'ve been exploring a lot! Please wait a moment before trying again.',
+              primaryAction: { label: 'Wait & Retry', onClick: () => setTimeout(() => loadPlaces(weather), 3000) },
+              secondaryAction: null
+            }
+          } else if (isServerError) {
+            errorConfig = {
+              icon: '🔧',
+              title: 'Service temporarily unavailable',
+              message: 'Our servers are having a moment. This usually resolves itself quickly.',
+              primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
+              secondaryAction: null
+            }
+          }
+
+          return (
+            <motion.div
+              className="discover-error-recovery"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="discover-error-icon">{errorConfig.icon}</div>
+              <h3>{errorConfig.title}</h3>
+              <p>{errorConfig.message}</p>
+              <div className="discover-error-actions">
+                <button
+                  className="discover-error-retry"
+                  onClick={errorConfig.primaryAction.onClick}
+                >
+                  {errorConfig.primaryAction.label}
+                </button>
+                {errorConfig.secondaryAction && (
+                  <button
+                    className="discover-error-settings"
+                    onClick={errorConfig.secondaryAction.onClick}
+                  >
+                    {errorConfig.secondaryAction.label}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )
+        })()}
 
         {/* Card Stack (always on mobile, conditional on desktop) */}
         {(viewMode === 'swipe' || !isDesktop) && !loadError && (
           <CardStack
             places={places}
             sponsoredPlaces={sponsoredPlaces}
-            userLocation={location}
+            userLocation={effectiveLocation}
             onSwipe={handleSwipe}
             onExpand={(place) => setSelectedPlace(place)}
             onEmpty={() => {}}
@@ -946,6 +1082,21 @@ export default function Discover({ location }) {
             loading={loading}
             loadingMore={loadingMore}
             friendActivity={friendActivity}
+            emptyReason={
+              // Provide contextual reason for empty state
+              basePlaces.length === 0 ? 'no-places' :
+              selectedCategories.length > 0 || showFreeOnly || showOpenOnly || accessibilityMode ? 'filters' :
+              'swiped'
+            }
+            activeFiltersCount={
+              selectedCategories.length +
+              (showFreeOnly ? 1 : 0) +
+              (showOpenOnly ? 1 : 0) +
+              (accessibilityMode ? 1 : 0) +
+              (showLocalsPicks && isPremium ? 1 : 0) +
+              (showOffPeak && isPremium ? 1 : 0)
+            }
+            travelMode={travelMode}
           />
         )}
 
@@ -954,7 +1105,7 @@ export default function Discover({ location }) {
           <Suspense fallback={<div className="discover-view-loading">Loading map...</div>}>
             <DiscoverMap
               places={places}
-              userLocation={location}
+              userLocation={effectiveLocation}
               selectedPlace={selectedPlace}
               onSelectPlace={setSelectedPlace}
             />
@@ -1019,7 +1170,7 @@ export default function Discover({ location }) {
         {visitedPromptPlace && (
           <VisitedPrompt
             place={visitedPromptPlace}
-            userLocation={location}
+            userLocation={effectiveLocation}
             onConfirm={() => {
               clearPendingVisit()
             }}

@@ -106,10 +106,15 @@ export function FilterModal({
     }
   }, [isOpen])
 
-  // Focus trap
+  // Focus trap - focus first focusable element, or fall back to modal container
   useEffect(() => {
-    if (isOpen && firstFocusableRef.current) {
-      firstFocusableRef.current.focus()
+    if (isOpen) {
+      if (firstFocusableRef.current) {
+        firstFocusableRef.current.focus()
+      } else if (sheetRef.current) {
+        // Fallback: focus the modal container if first focusable doesn't exist
+        sheetRef.current.focus()
+      }
     }
   }, [isOpen])
 
@@ -225,6 +230,7 @@ export function FilterModal({
             dragConstraints={{ top: -120, bottom: 200 }}
             dragElastic={0.2}
             onDragEnd={handleDragEnd}
+            tabIndex={-1}
           >
             {/* Handle bar */}
             <div

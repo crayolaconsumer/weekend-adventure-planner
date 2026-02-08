@@ -146,6 +146,10 @@ export default function SwipeCard({
   const failedUrlsRef = useRef(new Set())
   // Track blob URLs for proper cleanup (avoids stale closure in useEffect cleanup)
   const blobUrlRef = useRef(null)
+  // Track pending blob URL - only swap when new image is fully loaded
+  const pendingBlobUrlRef = useRef(null)
+  // Track which URL is currently being loaded to handle race conditions
+  const loadingUrlRef = useRef(null)
 
   // Load and cache image
   const loadImage = useCallback(async (imageUrl) => {
@@ -156,38 +160,84 @@ export default function SwipeCard({
       return
     }
 
-    // Revoke previous blob URL to prevent memory leaks
-    if (blobUrlRef.current) {
-      URL.revokeObjectURL(blobUrlRef.current)
-      blobUrlRef.current = null
-    }
+    // Track which URL we're loading to detect stale completions
+    loadingUrlRef.current = imageUrl
+
+    // DO NOT revoke previous blob URL here - wait until new image is fully loaded
+    // This prevents the race condition where the old image disappears before new one is ready
 
     try {
       // Check cache first for instant load
       const cached = await getCachedImage(imageUrl)
+
+      // Check if this load is still the current one (not stale)
+      if (loadingUrlRef.current !== imageUrl) {
+        // A newer load was started, discard this result
+        return
+      }
+
       if (cached) {
         const newBlobUrl = URL.createObjectURL(cached)
-        blobUrlRef.current = newBlobUrl
+        // Store as pending - will be committed when img.onLoad fires
+        pendingBlobUrlRef.current = newBlobUrl
         setCachedImageUrl(newBlobUrl)
-        setImageLoaded(true)
+        // Don't set imageLoaded here - let onLoad handler do it
+        // This ensures the new image is actually displayed before we clean up
         lastLoadedSourceRef.current = imageUrl
         return
       }
 
       // Fetch and cache the image
       const objectUrl = await fetchAndCacheImage(imageUrl, place.id)
-      // Track if it's a blob URL
+
+      // Check again if this load is still current
+      if (loadingUrlRef.current !== imageUrl) {
+        // Stale load - revoke the fetched URL if it's a blob
+        if (objectUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(objectUrl)
+        }
+        return
+      }
+
+      // Track if it's a blob URL as pending
       if (objectUrl?.startsWith('blob:')) {
-        blobUrlRef.current = objectUrl
+        pendingBlobUrlRef.current = objectUrl
+      } else {
+        pendingBlobUrlRef.current = null
       }
       setCachedImageUrl(objectUrl)
       lastLoadedSourceRef.current = imageUrl
     } catch {
+      // Check if this load is still current
+      if (loadingUrlRef.current !== imageUrl) {
+        return
+      }
       // Fall back to direct URL on error (will trigger onError if it also fails)
+      pendingBlobUrlRef.current = null
       setCachedImageUrl(imageUrl)
       lastLoadedSourceRef.current = imageUrl
     }
   }, [place.id])
+
+  // Handle successful image load - commit pending blob URL and revoke old one
+  const handleImageLoad = useCallback(() => {
+    // Now that the new image is displayed, we can safely revoke the old blob URL
+    // and commit the pending one as the current blob URL
+    if (pendingBlobUrlRef.current) {
+      // Revoke the old blob URL now that new image is visible
+      if (blobUrlRef.current && blobUrlRef.current !== pendingBlobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+      }
+      // Commit the pending blob URL as the current one
+      blobUrlRef.current = pendingBlobUrlRef.current
+      pendingBlobUrlRef.current = null
+    } else if (blobUrlRef.current) {
+      // New image is not a blob URL, revoke the old blob URL
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
+    }
+    setImageLoaded(true)
+  }, [])
 
   // Handle image load error - fall back to placeholder
   const handleImageError = useCallback(() => {
@@ -207,6 +257,12 @@ export default function SwipeCard({
       console.warn(`[SwipeCard] Image failed to load: ${currentSrc.substring(0, 80)}...`)
     }
 
+    // Clean up pending blob URL if it failed
+    if (pendingBlobUrlRef.current) {
+      URL.revokeObjectURL(pendingBlobUrlRef.current)
+      pendingBlobUrlRef.current = null
+    }
+
     // Fall back to placeholder
     setUsingFallback(true)
     setCachedImageUrl(placeholderUrl)
@@ -222,6 +278,11 @@ export default function SwipeCard({
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current)
         blobUrlRef.current = null
+      }
+      // Also cleanup any pending blob URL that never got committed
+      if (pendingBlobUrlRef.current) {
+        URL.revokeObjectURL(pendingBlobUrlRef.current)
+        pendingBlobUrlRef.current = null
       }
     }
   }, [loadImage, sourceImageUrl])
@@ -363,7 +424,7 @@ export default function SwipeCard({
           src={cachedImageUrl || sourceImageUrl}
           alt={place.name}
           className={`swipe-card-image ${imageLoaded ? 'loaded' : ''}`}
-          onLoad={() => setImageLoaded(true)}
+          onLoad={handleImageLoad}
           onError={handleImageError}
         />
       </div>

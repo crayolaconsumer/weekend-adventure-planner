@@ -84,7 +84,7 @@ export function ContributionCard({ contribution, onVoteChange }) {
 
   const handleVote = async (voteType) => {
     if (!isAuthenticated) {
-      window.dispatchEvent(new CustomEvent('openAuthModal'))
+      window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'register' } }))
       return
     }
 

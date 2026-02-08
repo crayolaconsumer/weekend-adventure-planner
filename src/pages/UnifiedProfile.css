@@ -441,6 +441,18 @@
   font-size: var(--text-sm, 14px);
 }
 
+.unified-profile-settings-prefs-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-md, 12px) var(--space-lg, 16px);
+  color: var(--roam-ink-muted, #6b6b6b);
+  font-size: var(--text-sm, 14px);
+  background: var(--roam-paper, #f8f6f1);
+  border-radius: var(--radius-md, 8px);
+  margin-top: var(--space-sm, 8px);
+}
+
 .unified-profile-spinner-small {
   width: 16px;
   height: 16px;

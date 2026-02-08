@@ -4,7 +4,7 @@
  * Hooks for social features: following, activity feed, user discovery
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { clearFriendActivityCache } from './useFriendActivity'
 
@@ -330,6 +330,10 @@ export function useUnifiedActivityFeed(typeFilter = null) {
   const [error, setError] = useState(null)
   const [hasMore, setHasMore] = useState(false)
 
+  // Use ref to avoid recreating fetchActivities when typeFilter changes
+  const typeFilterRef = useRef(typeFilter)
+  typeFilterRef.current = typeFilter
+
   const fetchActivities = useCallback(async (offset = 0, isRefresh = false) => {
     if (!isAuthenticated) return
 
@@ -340,8 +344,8 @@ export function useUnifiedActivityFeed(typeFilter = null) {
 
     try {
       let url = `/api/activity/feed?limit=20&offset=${offset}`
-      if (typeFilter) {
-        url += `&type=${typeFilter}`
+      if (typeFilterRef.current) {
+        url += `&type=${typeFilterRef.current}`
       }
 
       const response = await fetch(url, {
@@ -366,7 +370,7 @@ export function useUnifiedActivityFeed(typeFilter = null) {
     } finally {
       setLoading(false)
     }
-  }, [isAuthenticated, typeFilter])
+  }, [isAuthenticated])
 
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {
@@ -383,7 +387,7 @@ export function useUnifiedActivityFeed(typeFilter = null) {
   useEffect(() => {
     setActivities([])
     fetchActivities(0, true)
-  }, [fetchActivities])
+  }, [typeFilter, fetchActivities])
 
   return { activities, loading, error, hasMore, loadMore, refresh }
 }

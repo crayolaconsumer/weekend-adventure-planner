@@ -29,10 +29,12 @@ export default async function handler(req, res) {
     }
 
     const searchTerm = q.trim()
-    const likePattern = `%${searchTerm}%`
+    // Escape special LIKE characters to prevent injection
+    const escapedTerm = searchTerm.replace(/[%_]/g, '\\$&')
+    const likePattern = `%${escapedTerm}%`
     const limitNum = Math.min(Math.max(1, parseInt(limit, 10) || 20), 50)
     const offsetNum = Math.max(0, parseInt(offset, 10) || 0)
-    const startsWith = `${searchTerm}%`
+    const startsWith = `${escapedTerm}%`
 
     // Search for users by username or display_name
     // Respect show_in_search privacy setting and exclude blocked users

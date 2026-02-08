@@ -18,6 +18,44 @@ function getAuthHeaders() {
 const activityCache = new Map()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 const BATCH_SIZE = 50 // API limit per request
+const MAX_CACHE_SIZE = 100 // Maximum cache entries before cleanup
+const CLEANUP_INTERVAL = 5 * 60 * 1000 // Run cleanup every 5 minutes
+const MAX_CONCURRENT_BATCHES = 2 // Limit concurrent batch requests
+const BATCH_DELAY_MS = 150 // Delay between batch groups (ms)
+
+// Cleanup stale cache entries
+function cleanupCache() {
+  const now = Date.now()
+  let deletedCount = 0
+
+  for (const [id, entry] of activityCache) {
+    if (entry.timestamp <= now - CACHE_TTL) {
+      activityCache.delete(id)
+      deletedCount++
+    }
+  }
+
+  return deletedCount
+}
+
+// Periodic cleanup interval (runs every 5 minutes)
+let cleanupIntervalId = null
+
+function startCacheCleanup() {
+  if (cleanupIntervalId === null) {
+    cleanupIntervalId = setInterval(cleanupCache, CLEANUP_INTERVAL)
+  }
+}
+
+function stopCacheCleanup() {
+  if (cleanupIntervalId !== null) {
+    clearInterval(cleanupIntervalId)
+    cleanupIntervalId = null
+  }
+}
+
+// Start cleanup when module loads
+startCacheCleanup()
 
 /**
  * Hook for fetching friend activity for multiple places
@@ -83,8 +121,8 @@ export function useFriendPlaceActivity(placeIds) {
         batches.push(uncachedIds.slice(i, i + BATCH_SIZE))
       }
 
-      // Fetch all batches in parallel
-      const batchPromises = batches.map(async (batchIds) => {
+      // Helper to fetch a single batch
+      const fetchBatch = async (batchIds) => {
         const response = await fetch(
           `/api/places/friend-activity?placeIds=${encodeURIComponent(batchIds.join(','))}`,
           {
@@ -98,9 +136,29 @@ export function useFriendPlaceActivity(placeIds) {
         }
 
         return response.json()
-      })
+      }
 
-      const batchResults = await Promise.all(batchPromises)
+      // Helper to add delay between batch groups
+      const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+      // Process batches with limited concurrency (MAX_CONCURRENT_BATCHES at a time)
+      const batchResults = []
+      for (let i = 0; i < batches.length; i += MAX_CONCURRENT_BATCHES) {
+        // Check if request is still current before each batch group
+        if (currentFetchId !== fetchIdRef.current) {
+          return
+        }
+
+        // Get the current group of batches (up to MAX_CONCURRENT_BATCHES)
+        const batchGroup = batches.slice(i, i + MAX_CONCURRENT_BATCHES)
+        const groupResults = await Promise.all(batchGroup.map(fetchBatch))
+        batchResults.push(...groupResults)
+
+        // Add delay before next batch group (if there are more batches)
+        if (i + MAX_CONCURRENT_BATCHES < batches.length) {
+          await delay(BATCH_DELAY_MS)
+        }
+      }
 
       // Check if this is still the latest request
       if (currentFetchId !== fetchIdRef.current) {
@@ -117,6 +175,11 @@ export function useFriendPlaceActivity(placeIds) {
       Object.entries(freshData).forEach(([id, data]) => {
         activityCache.set(id, { data, timestamp: Date.now() })
       })
+
+      // Trigger cleanup if cache exceeds max size
+      if (activityCache.size > MAX_CACHE_SIZE) {
+        cleanupCache()
+      }
 
       // Merge cached and fresh data
       const mergedData = { ...cachedData, ...freshData }

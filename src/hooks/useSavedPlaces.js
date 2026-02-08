@@ -11,6 +11,11 @@ import { useAuth } from '../contexts/AuthContext'
 
 const STORAGE_KEY = 'roam_wishlist'
 
+// Helper to get auth token from storage (checks localStorage first, then sessionStorage)
+const getToken = () => {
+  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+}
+
 export function useSavedPlaces() {
   const { isAuthenticated, loading: authLoading } = useAuth()
   const [places, setPlaces] = useState([])
@@ -34,7 +39,7 @@ export function useSavedPlaces() {
     try {
       if (isAuthenticated) {
         // Fetch from API
-        const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+        const token = getToken()
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined
 
         const response = await fetch('/api/places/saved', {
@@ -89,7 +94,7 @@ export function useSavedPlaces() {
 
     if (isAuthenticated) {
       try {
-        const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+        const token = getToken()
         const response = await fetch('/api/places/saved', {
           method: 'POST',
           headers: {
@@ -135,7 +140,7 @@ export function useSavedPlaces() {
 
     if (isAuthenticated) {
       try {
-        const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+        const token = getToken()
         const response = await fetch(`/api/places/saved?placeId=${encodeURIComponent(placeId)}`, {
           method: 'DELETE',
           credentials: 'include',
@@ -174,7 +179,7 @@ export function useSavedPlaces() {
 
     if (isAuthenticated) {
       try {
-        const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+        const token = getToken()
         const response = await fetch('/api/places/saved', {
           method: 'PATCH',
           headers: {

@@ -15,8 +15,19 @@ function getAuthToken() {
   return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
 }
 
+// Temp ID prefix for identifying local/offline-created collections
+const TEMP_ID_PREFIX = 'temp_col_'
+
 function generateLocalId() {
   return `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+function generateTempId() {
+  return `${TEMP_ID_PREFIX}${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+function isTempId(id) {
+  return typeof id === 'string' && id.startsWith(TEMP_ID_PREFIX)
 }
 
 export function useCollections() {
@@ -80,8 +91,12 @@ export function useCollections() {
   }, [isAuthenticated, authLoading, loadCollections])
 
   const createCollection = useCallback(async (data) => {
+    // Use temp ID for authenticated users (will be replaced by server ID)
+    // Use local ID for anonymous users (persists in localStorage)
+    const tempId = isAuthenticated ? generateTempId() : generateLocalId()
+
     const newCollection = {
-      id: generateLocalId(),
+      id: tempId,
       name: data.name || 'New Collection',
       description: data.description || '',
       emoji: data.emoji || '📍',
@@ -93,6 +108,9 @@ export function useCollections() {
     }
 
     if (isAuthenticated) {
+      // Optimistic update: add collection with temp ID immediately
+      setCollections(prev => [newCollection, ...prev])
+
       try {
         const token = getAuthToken()
         const response = await fetch('/api/collections', {
@@ -111,16 +129,24 @@ export function useCollections() {
 
         const result = await response.json()
         const created = result.collection
-        setCollections(prev => [created, ...prev])
+
+        // Replace temp ID with server-assigned real ID
+        setCollections(prev => prev.map(c =>
+          c.id === tempId ? { ...created } : c
+        ))
         return created
       } catch (err) {
         console.error('Error creating collection:', err)
-        // Fall back to localStorage
-        setCollections(prev => [newCollection, ...prev])
+        // On error, keep the temp collection but also save to localStorage as fallback
+        // Update the temp collection to use a local ID for localStorage persistence
+        const localCollection = { ...newCollection, id: generateLocalId() }
+        setCollections(prev => prev.map(c =>
+          c.id === tempId ? localCollection : c
+        ))
         const saved = localStorage.getItem(STORAGE_KEY)
         const current = saved ? JSON.parse(saved) : []
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([newCollection, ...current]))
-        return newCollection
+        localStorage.setItem(STORAGE_KEY, JSON.stringify([localCollection, ...current]))
+        return localCollection
       }
     } else {
       setCollections(prev => [newCollection, ...prev])
@@ -373,3 +399,6 @@ export function useCollections() {
 }
 
 export default useCollections
+
+// Export utility for checking temp IDs (useful for UI indicators)
+export { isTempId, TEMP_ID_PREFIX }

@@ -4,7 +4,7 @@
  * Manage follow requests for private accounts
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
@@ -23,6 +23,7 @@ export function useFollowRequests() {
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [processing, setProcessing] = useState(null) // ID of request being processed
+  const hasFetched = useRef(false)
 
   const fetchRequests = useCallback(async (offset = 0, status = 'pending') => {
     if (!isAuthenticated) return
@@ -142,8 +143,10 @@ export function useFollowRequests() {
   }, [loading, hasMore, requests.length, fetchRequests])
 
   useEffect(() => {
+    if (!isAuthenticated || hasFetched.current) return
+    hasFetched.current = true
     fetchRequests(0)
-  }, [fetchRequests])
+  }, [isAuthenticated, fetchRequests])
 
   return {
     requests,

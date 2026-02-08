@@ -152,7 +152,11 @@ export default function Activity() {
               <div className="activity-search-empty">
                 <p>No users found for "{searchQuery}"</p>
               </div>
-            ) : null}
+            ) : (
+              <div className="activity-search-hint">
+                <p>Type at least 2 characters to search</p>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -246,7 +250,12 @@ function DiscoverSection({ users, loading, onRefresh, currentUserId }) {
       <div className="discover-header">
         <h2>People to Follow</h2>
         <button className="discover-refresh" onClick={onRefresh} disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh'}
+          {loading ? (
+            <>
+              <span className="discover-refresh-spinner" aria-hidden="true" />
+              Refreshing...
+            </>
+          ) : 'Refresh'}
         </button>
       </div>
 

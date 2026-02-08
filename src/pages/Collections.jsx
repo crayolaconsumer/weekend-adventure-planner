@@ -54,7 +54,26 @@ export default function Collections() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [placesDisplayLimit, setPlacesDisplayLimit] = useState(PAGE_SIZE)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { isPremium } = useSubscription()
+
+  // Free tier collection limit
+  const FREE_COLLECTION_LIMIT = 3
+
+  // Check if user can create more collections
+  const canCreateCollection = () => {
+    if (isPremium) return true
+    return collections.length < FREE_COLLECTION_LIMIT
+  }
+
+  // Handle create collection button click with limit check
+  const handleCreateClick = () => {
+    if (!canCreateCollection()) {
+      setShowUpgradePrompt(true)
+      return
+    }
+    setShowCreateForm(true)
+  }
 
   // Update selectedCollection when collections change
   useEffect(() => {
@@ -74,13 +93,19 @@ export default function Collections() {
   }
 
   const handleDeleteCollection = async (collectionId) => {
-    const collection = collections.find(c => c.id === collectionId)
-    await deleteCollection(collectionId)
-    setShowDeleteConfirm(null)
-    if (selectedCollection?.id === collectionId) {
-      setSelectedCollection(null)
+    if (isDeleting) return
+    setIsDeleting(true)
+    try {
+      const collection = collections.find(c => c.id === collectionId)
+      await deleteCollection(collectionId)
+      setShowDeleteConfirm(null)
+      if (selectedCollection?.id === collectionId) {
+        setSelectedCollection(null)
+      }
+      toast.success(`Deleted "${collection?.name || 'collection'}"`)
+    } finally {
+      setIsDeleting(false)
     }
-    toast.success(`Deleted "${collection?.name || 'collection'}"`)
   }
 
   const handleRemovePlace = async (collectionId, placeId, placeName) => {
@@ -195,14 +220,16 @@ export default function Collections() {
                   <button
                     className="collections-confirm-cancel"
                     onClick={() => setShowDeleteConfirm(null)}
+                    disabled={isDeleting}
                   >
                     Cancel
                   </button>
                   <button
                     className="collections-confirm-delete"
                     onClick={() => handleDeleteCollection(showDeleteConfirm)}
+                    disabled={isDeleting}
                   >
-                    Delete
+                    {isDeleting ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </motion.div>
@@ -225,21 +252,15 @@ export default function Collections() {
           {!isPremium && (
             <Link
               to="/pricing"
-              className={`collections-limit ${collections.length >= 3 ? 'full' : ''}`}
+              className={`collections-limit ${collections.length >= FREE_COLLECTION_LIMIT ? 'full' : ''}`}
             >
-              {collections.length}/3
+              {collections.length}/{FREE_COLLECTION_LIMIT}
             </Link>
           )}
         </div>
         <button
           className="collections-add-btn"
-          onClick={() => {
-            if (!isPremium && collections.length >= 3) {
-              setShowUpgradePrompt(true)
-              return
-            }
-            setShowCreateForm(true)
-          }}
+          onClick={handleCreateClick}
         >
           <PlusIcon />
         </button>
@@ -252,13 +273,7 @@ export default function Collections() {
           <p>Create a collection to organize your favorite places</p>
           <button
             className="collections-create-btn"
-            onClick={() => {
-              if (!isPremium && collections.length >= 3) {
-                setShowUpgradePrompt(true)
-                return
-              }
-              setShowCreateForm(true)
-            }}
+            onClick={handleCreateClick}
           >
             <PlusIcon />
             Create Collection
@@ -297,13 +312,7 @@ export default function Collections() {
           {/* Add new collection button */}
           <motion.button
             className="collections-card collections-card-add"
-            onClick={() => {
-              if (!isPremium && collections.length >= 3) {
-                setShowUpgradePrompt(true)
-                return
-              }
-              setShowCreateForm(true)
-            }}
+            onClick={handleCreateClick}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: collections.length * 0.05 }}

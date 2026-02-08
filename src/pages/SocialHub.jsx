@@ -10,11 +10,12 @@
  * - User discovery section
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserSearch, useDiscoverUsers } from '../hooks/useSocial'
+import { useToast } from '../hooks/useToast'
 import LocationAwareFeed from '../components/LocationAwareFeed'
 import './SocialHub.css'
 
@@ -36,6 +37,13 @@ const ClearIcon = () => (
 const ChevronRightIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="9 18 15 12 9 6" />
+  </svg>
+)
+
+const LocationPinIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
   </svg>
 )
 
@@ -223,7 +231,9 @@ function AuthPrompt({ message }) {
 
 export default function SocialHub({ location }) {
   const { isAuthenticated, user, loading: authLoading } = useAuth()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState('feed')
+  const locationToastShown = useRef(false)
 
   // Track location and its source to avoid race conditions
   // Priority: prop > geolocation > default
@@ -265,13 +275,18 @@ export default function SocialHub({ location }) {
           setUserLocation(prev => {
             if (prev) return prev // Don't overwrite existing location
             setLocationSource('default')
+            // Show toast to inform user about the fallback (only once)
+            if (!locationToastShown.current) {
+              locationToastShown.current = true
+              toast.info("Couldn't get your location - showing London by default")
+            }
             return { lat: 51.5074, lng: -0.1278 }
           })
         },
         { enableHighAccuracy: true, timeout: 10000 }
       )
     }
-  }, [userLocation, locationSource])
+  }, [userLocation, locationSource, toast])
 
   if (authLoading) {
     return (
@@ -324,6 +339,18 @@ export default function SocialHub({ location }) {
           Find People
         </button>
       </div>
+
+      {/* Location indicator - shown only on feed tab when we have a location */}
+      {activeTab === 'feed' && locationSource && (
+        <div className="social-hub-location-indicator">
+          <LocationPinIcon />
+          <span>
+            {locationSource === 'geo' && 'Your location'}
+            {locationSource === 'prop' && 'Your location'}
+            {locationSource === 'default' && 'London (default)'}
+          </span>
+        </div>
+      )}
 
       {/* Tab content */}
       <div className="social-hub-content">

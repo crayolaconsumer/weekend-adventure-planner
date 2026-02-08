@@ -54,31 +54,38 @@ export default function FollowButton({
       return
     }
 
-    // Current status before action
-    const currentStatus = followStatus
+    // Capture rollback value at click time using functional setState
+    // This ensures we get the current state even on rapid clicks
+    let rollbackStatus
+    let isUnfollowAction
 
-    // Optimistic update based on current status
-    if (currentStatus === 'following' || currentStatus === 'requested') {
-      // Unfollow or cancel request
-      setFollowStatus('not_following')
+    setFollowStatus(prev => {
+      rollbackStatus = prev
+      isUnfollowAction = prev === 'following' || prev === 'requested'
+      // Optimistic update based on current status
+      if (isUnfollowAction) {
+        return 'not_following'
+      } else {
+        return isPrivateAccount ? 'requested' : 'following'
+      }
+    })
+
+    // Perform the API call based on the action determined above
+    if (isUnfollowAction) {
       const result = await unfollow(userId)
 
       if (!result.success) {
-        // Revert on error
-        setFollowStatus(currentStatus)
+        // Revert on error using the captured rollback value
+        setFollowStatus(rollbackStatus)
       } else {
         onFollowChange?.(result.followerCount, false, result.status || 'not_following')
       }
     } else {
-      // Follow or request to follow
-      // Optimistic: if private, show requested; else show following
-      setFollowStatus(isPrivateAccount ? 'requested' : 'following')
-
       const result = await follow(userId)
 
       if (!result.success) {
-        // Revert on error
-        setFollowStatus(currentStatus)
+        // Revert on error using the captured rollback value
+        setFollowStatus(rollbackStatus)
       } else {
         // Use server's returned status
         const newStatus = result.status || (isPrivateAccount ? 'requested' : 'following')
@@ -86,7 +93,7 @@ export default function FollowButton({
         onFollowChange?.(result.followerCount, newStatus === 'following', newStatus)
       }
     }
-  }, [isAuthenticated, followStatus, userId, follow, unfollow, onFollowChange, isPrivateAccount])
+  }, [isAuthenticated, userId, follow, unfollow, onFollowChange, isPrivateAccount])
 
   // Don't show button for own profile
   if (isOwnProfile) {

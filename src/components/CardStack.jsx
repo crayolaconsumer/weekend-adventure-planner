@@ -64,7 +64,9 @@ export default function CardStack({
   onLoadMore,
   loading = false,
   loadingMore = false,
-  emptyReason = 'swiped', // 'swiped' | 'no-places' | 'error'
+  emptyReason = 'swiped', // 'swiped' | 'no-places' | 'filters' | 'error'
+  activeFiltersCount = 0, // Number of active filters (for contextual messaging)
+  travelMode = 'walking', // Current travel mode (for contextual messaging)
   friendActivity = {} // Map of placeId -> friend activity data
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -127,12 +129,13 @@ export default function CardStack({
   }, [loading])
 
   // Track places we've already tried to fetch images for
-  const [fetchedImageIds] = useState(() => new Set())
+  // Using ref since this doesn't need to trigger re-renders
+  const fetchedImageIdsRef = useRef(new Set())
 
   // Fetch image for a place from various sources if it doesn't have one
   const fetchPlaceImage = useCallback(async (place) => {
-    if (!place || fetchedImageIds.has(place.id)) return null
-    fetchedImageIds.add(place.id)
+    if (!place || fetchedImageIdsRef.current.has(place.id)) return null
+    fetchedImageIdsRef.current.add(place.id)
 
     // Already has an image
     if (place.photo || place.image) return null
@@ -183,7 +186,7 @@ export default function CardStack({
       console.warn(`[CardStack] Image fetch failed for ${place.id}:`, err.message)
     }
     return null
-  }, [fetchedImageIds])
+  }, [])
 
   // Preload images for visible cards FIRST, then upcoming cards
   useEffect(() => {
@@ -409,24 +412,51 @@ export default function CardStack({
   }
 
   if (hasNoPlaces || isSwipedThrough) {
-    const emptyConfig = isSwipedThrough ? {
-      icon: '🎉',
-      title: 'All caught up!',
-      subtitle: "You've explored all nearby places. Try expanding your travel radius or adjusting filters.",
-      primaryAction: onRefresh ? { label: 'Discover More', icon: <RefreshIcon />, action: onRefresh } : null,
-      secondaryAction: onOpenSettings ? { label: 'Adjust Settings', icon: <SettingsIcon />, action: onOpenSettings } : null
-    } : emptyReason === 'error' ? {
-      icon: '😕',
-      title: 'Something went wrong',
-      subtitle: "We couldn't load places right now. Check your connection and try again.",
-      primaryAction: onRefresh ? { label: 'Try Again', icon: <RefreshIcon />, action: onRefresh } : null,
-      secondaryAction: null
-    } : {
-      icon: '🗺️',
-      title: 'No places nearby',
-      subtitle: "We couldn't find adventures in this area. Try increasing your travel radius or exploring a different location.",
-      primaryAction: onOpenSettings ? { label: 'Expand Radius', icon: <SettingsIcon />, action: onOpenSettings } : null,
-      secondaryAction: onRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: onRefresh } : null
+    // Build contextual empty state based on reason
+    let emptyConfig
+
+    if (isSwipedThrough) {
+      // User swiped through all cards
+      emptyConfig = {
+        icon: '🎉',
+        title: 'All caught up!',
+        subtitle: activeFiltersCount > 0
+          ? `You've seen all ${activeFiltersCount} filtered result${activeFiltersCount !== 1 ? 's' : ''}. Try removing some filters or expanding your search.`
+          : "You've explored all nearby places. Try expanding your travel radius or adjusting filters.",
+        primaryAction: onRefresh ? { label: 'Discover More', icon: <RefreshIcon />, action: onRefresh } : null,
+        secondaryAction: onOpenSettings ? { label: 'Adjust Filters', icon: <SettingsIcon />, action: onOpenSettings } : null
+      }
+    } else if (emptyReason === 'filters') {
+      // Filters are too restrictive
+      emptyConfig = {
+        icon: '🔍',
+        title: 'No matches found',
+        subtitle: activeFiltersCount > 0
+          ? `Your ${activeFiltersCount} active filter${activeFiltersCount !== 1 ? 's are' : ' is'} too restrictive for this area. Try removing some filters to see more places.`
+          : "Try adjusting your filters to see more places.",
+        primaryAction: onOpenSettings ? { label: 'Adjust Filters', icon: <SettingsIcon />, action: onOpenSettings } : null,
+        secondaryAction: onRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: onRefresh } : null
+      }
+    } else if (emptyReason === 'error') {
+      emptyConfig = {
+        icon: '😕',
+        title: 'Something went wrong',
+        subtitle: "We couldn't load places right now. Check your connection and try again.",
+        primaryAction: onRefresh ? { label: 'Try Again', icon: <RefreshIcon />, action: onRefresh } : null,
+        secondaryAction: null
+      }
+    } else {
+      // No places in area (no-places)
+      const radiusHint = travelMode === 'walking' ? 'Try switching to driving mode for a wider search area.' :
+                         travelMode === 'driving' ? 'This area seems quiet. Try a different location.' :
+                         'Try expanding your travel radius or exploring a different location.'
+      emptyConfig = {
+        icon: '🗺️',
+        title: 'No places nearby',
+        subtitle: `We couldn't find adventures in this area. ${radiusHint}`,
+        primaryAction: onOpenSettings ? { label: 'Expand Radius', icon: <SettingsIcon />, action: onOpenSettings } : null,
+        secondaryAction: onRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: onRefresh } : null
+      }
     }
 
     return (

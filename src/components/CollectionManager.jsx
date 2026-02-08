@@ -75,6 +75,18 @@ export default function CollectionManager({ place, isOpen, onClose }) {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return
+
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
   const handleToggleCollection = async (collectionId) => {
     const collection = collections.find(c => c.id === collectionId)
     if (placeCollections.includes(collectionId)) {

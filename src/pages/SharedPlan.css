@@ -306,6 +306,22 @@
   margin: 0 0 var(--space-xl);
 }
 
+/* Toast Notification */
+.shared-plan-toast {
+  position: fixed;
+  bottom: calc(80px + var(--space-lg));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 14px 24px;
+  background: var(--roam-forest);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
 /* Responsive */
 @media (min-width: 768px) {
   .shared-plan-header {

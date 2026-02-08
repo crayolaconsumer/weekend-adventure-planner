@@ -99,13 +99,45 @@
 /* Error message */
 .photo-upload-error {
   position: absolute;
-  bottom: -24px;
+  bottom: -32px;
   left: 0;
   right: 0;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm, 8px);
   font-family: var(--font-body, 'Outfit', sans-serif);
   font-size: var(--text-xs, 12px);
   color: var(--roam-terracotta, #c45c3e);
+}
+
+.photo-upload-error-text {
+  flex-shrink: 1;
+}
+
+/* Retry button */
+.photo-upload-retry {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid var(--roam-terracotta, #c45c3e);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--roam-terracotta, #c45c3e);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.photo-upload-retry:hover:not(:disabled) {
+  background: var(--roam-terracotta, #c45c3e);
+  color: white;
+}
+
+.photo-upload-retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Preview */

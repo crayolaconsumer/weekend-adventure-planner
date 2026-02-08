@@ -128,6 +128,7 @@ export default function NotificationBell() {
   const [isMobile, setIsMobile] = useState(false)
   const panelRef = useRef(null)
   const buttonRef = useRef(null)
+  const isMountedRef = useRef(true)
   const dragControls = useDragControls()
   const {
     notifications,
@@ -138,6 +139,14 @@ export default function NotificationBell() {
     markAsRead,
     markAllAsRead
   } = useNotifications()
+
+  // Track mounted state for cleanup
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Check for mobile viewport
   useEffect(() => {
@@ -213,7 +222,9 @@ export default function NotificationBell() {
 
       if (unreadIds.length > 0) {
         const timer = setTimeout(() => {
-          markAsRead(unreadIds)
+          if (isMountedRef.current) {
+            markAsRead(unreadIds)
+          }
         }, 2000)
         return () => clearTimeout(timer)
       }
@@ -223,6 +234,14 @@ export default function NotificationBell() {
   // Handle drag for mobile bottom sheet
   const handleDragEnd = useCallback((_, info) => {
     if (info.offset.y > 100 || info.velocity.y > 500) {
+      setIsOpen(false)
+    }
+  }, [])
+
+  // Handle keyboard interaction for drag handle
+  const handleDragHandleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
       setIsOpen(false)
     }
   }, [])
@@ -247,7 +266,11 @@ export default function NotificationBell() {
       {isMobile && (
         <div
           className="notification-drag-handle"
+          role="button"
+          tabIndex={0}
+          aria-label="Close notifications panel"
           onPointerDown={(e) => dragControls.start(e)}
+          onKeyDown={handleDragHandleKeyDown}
         >
           <div className="notification-drag-pill" />
         </div>

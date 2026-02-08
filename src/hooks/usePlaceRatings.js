@@ -66,20 +66,29 @@ export function usePlaceRatings() {
       if (Object.keys(local).length === 0) return
 
       try {
-        for (const [placeId, rating] of Object.entries(local)) {
-          await fetch('/api/places/ratings', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              placeId,
-              rating: rating.recommended ? 5 : 1,
-              review: rating.review
-            })
-          }).catch(() => {})
+        // Batch sync: process 10 ratings at a time for better performance
+        const entries = Object.entries(local)
+        const BATCH_SIZE = 10
+
+        for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+          const batch = entries.slice(i, i + BATCH_SIZE)
+          await Promise.all(
+            batch.map(([placeId, rating]) =>
+              fetch('/api/places/ratings', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  placeId,
+                  rating: rating.recommended ? 5 : 1,
+                  review: rating.review
+                })
+              }).catch(() => {}) // Ignore individual errors
+            )
+          )
         }
         syncedRef.current = true
       } catch (err) {

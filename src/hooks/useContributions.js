@@ -4,7 +4,7 @@
  * Fetch and manage contributions for places.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
@@ -49,6 +49,11 @@ export function useContributions(placeId) {
     }
   }, [placeId])
 
+  // Auto-fetch when placeId changes
+  useEffect(() => {
+    fetchContributions()
+  }, [fetchContributions])
+
   return {
     contributions,
     loading,
@@ -90,6 +95,11 @@ export function useUserContributions(userId) {
       setLoading(false)
     }
   }, [userId])
+
+  // Auto-fetch when userId changes
+  useEffect(() => {
+    fetchContributions()
+  }, [fetchContributions])
 
   return {
     contributions,

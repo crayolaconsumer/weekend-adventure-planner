@@ -306,6 +306,7 @@ async function discoverUsers(req, res, currentUser, limit) {
 
   // For logged in users, find users with similar saved places
   // Exclude blocked users in both directions
+  // Uses JOINs with aggregation instead of correlated subqueries for O(n) performance
   const sql = `
     SELECT
       u.id,
@@ -313,18 +314,20 @@ async function discoverUsers(req, res, currentUser, limit) {
       u.display_name,
       u.avatar_url,
       COUNT(DISTINCT sp2.place_id) as common_saves,
-      (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status = 'approved') as contribution_count,
-      (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following,
+      COUNT(DISTINCT CASE WHEN c.status = 'approved' THEN c.id END) as contribution_count,
+      MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
       COALESCE(ups.is_private_account, FALSE) as is_private
     FROM users u
     JOIN saved_places sp2 ON u.id = sp2.user_id
     LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
+    LEFT JOIN contributions c ON u.id = c.user_id
+    LEFT JOIN follows f_check ON f_check.follower_id = ? AND f_check.following_id = u.id
     WHERE sp2.place_id IN (SELECT place_id FROM saved_places WHERE user_id = ?)
     AND u.id != ?
     AND u.username IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
     AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
-    GROUP BY u.id
+    GROUP BY u.id, u.username, u.display_name, u.avatar_url, ups.is_private_account
     ORDER BY common_saves DESC, contribution_count DESC
     LIMIT ?
   `
@@ -332,6 +335,7 @@ async function discoverUsers(req, res, currentUser, limit) {
   const similarUsers = await query(sql, [currentUser.id, currentUser.id, currentUser.id, currentUser.id, currentUser.id, currentUser.id, limit])
 
   // If not enough similar users, fill with active contributors
+  // Uses JOINs with aggregation instead of correlated subqueries for O(n) performance
   if (similarUsers.length < limit) {
     const excludeIds = [currentUser.id, ...similarUsers.map(u => u.id)]
     const fillSql = `
@@ -342,16 +346,17 @@ async function discoverUsers(req, res, currentUser, limit) {
         u.avatar_url,
         0 as common_saves,
         COUNT(c.id) as contribution_count,
-        (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id) as is_following,
+        MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
         COALESCE(ups.is_private_account, FALSE) as is_private
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
+      LEFT JOIN follows f_check ON f_check.follower_id = ? AND f_check.following_id = u.id
       WHERE u.id NOT IN (${excludeIds.map(() => '?').join(',')})
       AND u.username IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
       AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
-      GROUP BY u.id
+      GROUP BY u.id, u.username, u.display_name, u.avatar_url, ups.is_private_account
       HAVING contribution_count > 0
       ORDER BY contribution_count DESC
       LIMIT ?

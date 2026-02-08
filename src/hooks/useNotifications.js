@@ -153,14 +153,22 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
     }
   }, [isAuthenticated])
 
-  // Fallback polling only if service worker is not available (reduced frequency)
+  // Fallback polling only if service worker is not available
+  // Re-checks SW status on each interval to stop when SW becomes active
   useEffect(() => {
     if (!isAuthenticated || !pollInterval) return
-    // Skip polling if service worker is active (push will handle updates)
-    if (navigator.serviceWorker?.controller) return
 
     pollingRef.current = setInterval(() => {
-      // Just refresh unread count
+      // Check if service worker is now active - if so, stop polling
+      if (navigator.serviceWorker?.controller) {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current)
+          pollingRef.current = null
+        }
+        return
+      }
+
+      // Only poll if no SW controller (fallback mode)
       fetch('/api/notifications?limit=1&unread_only=true', {
         credentials: 'include',
         headers: getAuthHeaders()
@@ -177,6 +185,7 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current)
+        pollingRef.current = null
       }
     }
   }, [isAuthenticated, pollInterval])

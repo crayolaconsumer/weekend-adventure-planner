@@ -209,9 +209,25 @@ export default function Wishlist() {
               <Link
                 to="/pricing"
                 className={`wishlist-limit ${wishlist.length >= 8 ? 'warning' : ''} ${wishlist.length >= 10 ? 'full' : ''}`}
+                aria-label={`${wishlist.length} of 10 places saved${wishlist.length >= 10 ? ', limit reached' : wishlist.length >= 8 ? ', approaching limit' : ''}`}
               >
+                {wishlist.length >= 10 && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                )}
+                {wishlist.length >= 8 && wishlist.length < 10 && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                )}
                 {wishlist.length}/10
-                {wishlist.length >= 8 && <span className="limit-upgrade-hint">Upgrade</span>}
+                {wishlist.length >= 10 && <span className="limit-upgrade-hint">Limit reached - Upgrade</span>}
+                {wishlist.length >= 8 && wishlist.length < 10 && <span className="limit-upgrade-hint">Upgrade</span>}
               </Link>
             )}
           </div>
@@ -391,7 +407,7 @@ export default function Wishlist() {
                   className="wishlist-load-more"
                   onClick={() => setPlacesDisplayLimit(prev => prev + PAGE_SIZE)}
                 >
-                  Load More ({filteredWishlist.length - placesDisplayLimit} remaining)
+                  Load {Math.min(PAGE_SIZE, filteredWishlist.length - placesDisplayLimit)} more ({filteredWishlist.length - placesDisplayLimit} total remaining)
                 </button>
               )}
             </>
@@ -466,7 +482,7 @@ export default function Wishlist() {
                   className="wishlist-load-more"
                   onClick={() => setEventsDisplayLimit(prev => prev + PAGE_SIZE)}
                 >
-                  Load More ({savedEvents.length - eventsDisplayLimit} remaining)
+                  Load {Math.min(PAGE_SIZE, savedEvents.length - eventsDisplayLimit)} more ({savedEvents.length - eventsDisplayLimit} total remaining)
                 </button>
               )}
             </>

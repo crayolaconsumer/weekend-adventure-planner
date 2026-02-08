@@ -62,6 +62,13 @@ export function useVisitedPlaces() {
     }
   }, [isAuthenticated])
 
+  // Reset syncedRef when user logs out so re-sync happens on next login
+  useEffect(() => {
+    if (!isAuthenticated) {
+      syncedRef.current = false
+    }
+  }, [isAuthenticated])
+
   // Sync local visited to API on login
   useEffect(() => {
     if (authLoading || !isAuthenticated || syncedRef.current) return
@@ -74,23 +81,29 @@ export function useVisitedPlaces() {
       if (local.length === 0) return
 
       try {
-        // Sync each local visited place to API
-        for (const item of local) {
-          if (item.placeId) {
-            await fetch('/api/users/visited', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              credentials: 'include',
-              body: JSON.stringify({
-                placeId: item.placeId,
-                placeData: item.placeData || item,
-                rating: item.rating
-              })
-            }).catch(() => {}) // Ignore individual errors
-          }
+        // Batch sync: process 10 visited places at a time for better performance
+        const validItems = local.filter(item => item.placeId)
+        const BATCH_SIZE = 10
+
+        for (let i = 0; i < validItems.length; i += BATCH_SIZE) {
+          const batch = validItems.slice(i, i + BATCH_SIZE)
+          await Promise.all(
+            batch.map(item =>
+              fetch('/api/users/visited', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  placeId: item.placeId,
+                  placeData: item.placeData || item,
+                  rating: item.rating
+                })
+              }).catch(() => {}) // Ignore individual errors
+            )
+          )
         }
         syncedRef.current = true
       } catch (err) {

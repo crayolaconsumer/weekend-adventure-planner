@@ -222,6 +222,7 @@ export default function Plan({ location }) {
   const [isSaving, setIsSaving] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [initialSettings, setInitialSettings] = useState(null) // Track settings when sheet opens
 
   // Check for pending places from Discover
   useEffect(() => {
@@ -295,7 +296,7 @@ export default function Plan({ location }) {
 
       // If no API places found, fallback to wishlist
       if (raw.length === 0 && wishlist.length > 0) {
-        toast.info('Using your saved places instead')
+        toast.info('No places found in this area - using your saved places instead')
         const wishlistStops = wishlist
           .filter(w => w.lat && w.lng)
           .slice(0, duration.stops)
@@ -373,7 +374,7 @@ export default function Plan({ location }) {
         }
         // If still timing out, use wishlist as fallback
         if (wishlist.length > 0) {
-          toast.info('Using your saved places instead')
+          toast.info('Search timed out - using your saved places instead')
           const wishlistStops = wishlist
             .filter(w => w.lat && w.lng)
             .slice(0, duration.stops)
@@ -451,7 +452,15 @@ export default function Plan({ location }) {
     const current = itinerary[index]
     const usedIds = itinerary.map(s => s.id)
     const candidates = availablePlaces.filter(p => !usedIds.includes(p.id))
-    if (!candidates.length) { toast.info('No alternatives'); return }
+    if (!candidates.length) {
+      // Explain why there are no alternatives
+      if (availablePlaces.length <= itinerary.length) {
+        toast.info('All available places are already in your itinerary. Try a wider search radius.')
+      } else {
+        toast.info('No alternatives match your current filters. Try changing the vibe.')
+      }
+      return
+    }
 
     const sameCategory = candidates.filter(p => p.category?.key === current.category?.key)
     const pool = sameCategory.length ? sameCategory : candidates
@@ -668,6 +677,34 @@ export default function Plan({ location }) {
     return wishlist.filter(w => !usedIds.includes(w.id))
   }, [wishlist, itinerary])
 
+  // Open settings sheet - save initial values for comparison
+  const openSettings = useCallback(() => {
+    setInitialSettings({
+      vibe: selectedVibe,
+      duration: selectedDuration,
+      transport: selectedTransport,
+      radius: selectedRadius
+    })
+    setShowSettings(true)
+  }, [selectedVibe, selectedDuration, selectedTransport, selectedRadius])
+
+  // Close settings sheet - warn if there are unsaved changes and itinerary exists
+  const closeSettings = useCallback((applyChanges = true) => {
+    if (initialSettings && itinerary.length > 0 && !applyChanges) {
+      const hasChanges =
+        initialSettings.vibe !== selectedVibe ||
+        initialSettings.duration !== selectedDuration ||
+        initialSettings.transport !== selectedTransport ||
+        initialSettings.radius !== selectedRadius
+
+      if (hasChanges) {
+        toast.info('Settings changed - regenerate to apply')
+      }
+    }
+    setShowSettings(false)
+    setInitialSettings(null)
+  }, [initialSettings, itinerary.length, selectedVibe, selectedDuration, selectedTransport, selectedRadius, toast])
+
   const vibeName = VIBES.find(v => v.key === selectedVibe)?.label
 
   const durationLabel = DURATIONS.find(d => d.hours === selectedDuration)?.label
@@ -694,7 +731,7 @@ export default function Plan({ location }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowSettings(false)}
+              onClick={() => closeSettings(false)}
             />
             <motion.div
               className="plan-settings-sheet"
@@ -769,7 +806,7 @@ export default function Plan({ location }) {
                 </div>
               </div>
 
-              <button className="plan-settings-done" onClick={() => setShowSettings(false)}>
+              <button className="plan-settings-done" onClick={() => closeSettings(true)}>
                 Done
               </button>
             </motion.div>
@@ -779,7 +816,7 @@ export default function Plan({ location }) {
 
       <div className="plan-body">
         {/* Adventure Summary Card */}
-        <div className="plan-adventure-card" onClick={() => setShowSettings(true)}>
+        <div className="plan-adventure-card" onClick={openSettings}>
           <div className="plan-adventure-icon">{VIBE_ICONS[selectedVibe]}</div>
           <div className="plan-adventure-info">
             <div className="plan-adventure-title">{vibeName} Adventure</div>

@@ -24,6 +24,7 @@ export function useSwipedPlaces() {
   const syncedRef = useRef(false)
   const pendingSwipesRef = useRef([]) // Queue for debounced swipes
   const debounceTimerRef = useRef(null)
+  const flushingRef = useRef(false) // Mutex to prevent concurrent flushes
 
   // Sync local swipes to API on login (using batch endpoint)
   useEffect(() => {
@@ -78,12 +79,27 @@ export function useSwipedPlaces() {
 
   // Flush pending swipes to API as a batch
   const flushPendingSwipes = useCallback(async () => {
+    // Mutex: prevent concurrent flushes that could cause race conditions
+    if (flushingRef.current) return
+
+    // Clear debounce timer inside flush to prevent race between timer and manual flush
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
+    }
+
     const swipes = pendingSwipesRef.current
     if (swipes.length === 0) return
 
-    pendingSwipesRef.current = [] // Clear queue
+    // Acquire lock and atomically clear queue
+    flushingRef.current = true
+    pendingSwipesRef.current = []
+
     const token = getAuthToken()
-    if (!token) return
+    if (!token) {
+      flushingRef.current = false
+      return
+    }
 
     try {
       await fetch('/api/places/swiped', {
@@ -97,6 +113,8 @@ export function useSwipedPlaces() {
       })
     } catch (err) {
       console.error('Error syncing swipes batch:', err)
+    } finally {
+      flushingRef.current = false
     }
   }, [])
 
@@ -125,16 +143,16 @@ export function useSwipedPlaces() {
         pendingSwipesRef.current.push({ placeId, action })
       }
 
-      // Debounce: flush after DEBOUNCE_DELAY of inactivity
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-      debounceTimerRef.current = setTimeout(flushPendingSwipes, DEBOUNCE_DELAY)
-
-      // Also flush immediately if batch is full
+      // Flush immediately if batch is full, otherwise debounce
       if (pendingSwipesRef.current.length >= BATCH_SIZE) {
-        clearTimeout(debounceTimerRef.current)
+        // flushPendingSwipes clears the debounce timer internally
         await flushPendingSwipes()
+      } else {
+        // Debounce: flush after DEBOUNCE_DELAY of inactivity
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current)
+        }
+        debounceTimerRef.current = setTimeout(flushPendingSwipes, DEBOUNCE_DELAY)
       }
     }
   }, [isAuthenticated, flushPendingSwipes])

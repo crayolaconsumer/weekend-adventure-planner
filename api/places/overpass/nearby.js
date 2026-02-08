@@ -69,6 +69,91 @@ function markEndpointHealthy(endpoint) {
   endpointHealth.delete(endpoint)
 }
 
+/**
+ * Validate Overpass QL query structure and complexity
+ * Returns null if valid, or an error message string if invalid
+ */
+function validateOverpassQuery(query) {
+  // Normalize whitespace for easier pattern matching
+  const normalizedQuery = query.trim()
+
+  // Check for required output format declaration
+  // Valid formats: [out:json], [out:xml], [out:csv], [out:custom], [out:popup]
+  const hasOutputFormat = /\[out:(json|xml|csv|custom|popup)\]/.test(normalizedQuery)
+
+  // Check for timeout setting (indicates well-formed query)
+  const hasTimeout = /\[timeout:\d+\]/.test(normalizedQuery)
+
+  // Check for essential Overpass QL statements
+  // Must have at least one query statement (node, way, relation, nwr, area) or a recursion/output
+  const hasQueryStatement = /(^|\s|;|\()(node|way|relation|nwr|area)\s*[[({]/.test(normalizedQuery)
+  const hasRecursion = /[<>]/.test(normalizedQuery) // Recurse up/down
+  const hasOutput = /\bout\b/.test(normalizedQuery) // Output statement
+
+  // Query must have output format OR be a bbox-style query
+  const hasBbox = /\[bbox[:[]/.test(normalizedQuery)
+
+  if (!hasOutputFormat && !hasBbox) {
+    return 'Invalid Overpass query: missing output format declaration (e.g., [out:json])'
+  }
+
+  // Must contain actual query content (not just settings)
+  if (!hasQueryStatement && !hasRecursion) {
+    return 'Invalid Overpass query: no query statements found (node, way, relation, area)'
+  }
+
+  // Must have output statement to return data
+  if (!hasOutput) {
+    return 'Invalid Overpass query: missing output statement (out)'
+  }
+
+  // Complexity checks to prevent resource-intensive queries
+
+  // Count the number of union/difference operations (semicolons typically separate statements)
+  const statementCount = (normalizedQuery.match(/;/g) || []).length
+  const MAX_STATEMENTS = 50
+  if (statementCount > MAX_STATEMENTS) {
+    return `Query too complex: ${statementCount} statements exceeds limit of ${MAX_STATEMENTS}`
+  }
+
+  // Check for potentially expensive global queries (no area/bbox constraint)
+  // These patterns suggest unbounded geographic scope
+  const hasGeographicConstraint =
+    /\(around:/.test(normalizedQuery) ||     // around filter
+    /\[bbox/.test(normalizedQuery) ||         // bbox setting
+    /area[[({]/.test(normalizedQuery) ||     // area filter
+    /\{\{bbox\}\}/.test(normalizedQuery) ||   // bbox placeholder
+    /poly:/.test(normalizedQuery)             // polygon filter
+
+  // If query uses node/way/relation without geographic bounds, it could be global
+  const hasUnboundedQuery = /\b(node|way|relation|nwr)\s*\[/.test(normalizedQuery)
+  if (hasUnboundedQuery && !hasGeographicConstraint) {
+    return 'Invalid Overpass query: queries must include geographic constraints (around, bbox, area, or poly)'
+  }
+
+  // Check for dangerous operations that could overload the server
+  const hasDangerousPattern =
+    /\(\s*\.\s*;\s*>\s*;\s*\)/.test(normalizedQuery) && // Recursive expansion without limits
+    !hasTimeout // Without timeout protection
+
+  if (hasDangerousPattern) {
+    return 'Invalid Overpass query: recursive expansions require timeout setting'
+  }
+
+  // Validate around radius isn't excessively large (max 50km = 50000m)
+  const aroundMatches = normalizedQuery.match(/around:(\d+)/g)
+  if (aroundMatches) {
+    for (const match of aroundMatches) {
+      const radius = parseInt(match.split(':')[1], 10)
+      if (radius > 50000) {
+        return `Invalid Overpass query: around radius ${radius}m exceeds maximum of 50000m (50km)`
+      }
+    }
+  }
+
+  return null // Query is valid
+}
+
 export default async function handler(request) {
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -96,17 +181,19 @@ export default async function handler(request) {
     })
   }
 
-  // Basic validation - query should look like Overpass QL
-  if (!query.includes('[out:json]') && !query.includes('[bbox')) {
-    return new Response(JSON.stringify({ error: 'Invalid Overpass query format' }), {
+  // Query size limit to prevent abuse (check early to avoid processing huge strings)
+  const MAX_QUERY_SIZE = 10000
+  if (query.length > MAX_QUERY_SIZE) {
+    return new Response(JSON.stringify({ error: 'Query too large', maxSize: MAX_QUERY_SIZE }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
     })
   }
 
-  // Limit query size to prevent abuse
-  if (query.length > 10000) {
-    return new Response(JSON.stringify({ error: 'Query too large' }), {
+  // Validate Overpass QL structure
+  const validationError = validateOverpassQuery(query)
+  if (validationError) {
+    return new Response(JSON.stringify({ error: validationError }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
     })

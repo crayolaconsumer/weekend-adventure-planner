@@ -34,7 +34,7 @@ export default function Place() {
   useEffect(() => {
     const loadPlace = async () => {
       if (!id) {
-        setError('No place ID provided')
+        setError({ type: 'not_found', message: 'No place ID provided' })
         setLoading(false)
         return
       }
@@ -53,7 +53,7 @@ export default function Place() {
         }
 
         if (!foundPlace) {
-          setError('Place not found')
+          setError({ type: 'not_found', message: 'Place not found' })
           setLoading(false)
           return
         }
@@ -63,7 +63,16 @@ export default function Place() {
         setPlace({ ...foundPlace, ...enriched })
       } catch (err) {
         console.error('Failed to load place:', err)
-        setError('Failed to load place details')
+        // Set specific error messages based on error type
+        if (err.message?.includes('404') || err.status === 404) {
+          setError({ type: 'not_found', message: 'Place not found' })
+        } else if (err.message?.includes('network') || err.name === 'TypeError' || !navigator.onLine) {
+          setError({ type: 'network', message: 'Network error' })
+        } else if (err.status === 429) {
+          setError({ type: 'rate_limit', message: 'Too many requests' })
+        } else {
+          setError({ type: 'unknown', message: 'Failed to load place details' })
+        }
       } finally {
         setLoading(false)
       }
@@ -74,9 +83,9 @@ export default function Place() {
 
   const handleClose = () => {
     // Navigate back or to discover page
-    if (window.history.length > 2) {
+    try {
       navigate(-1)
-    } else {
+    } catch {
       navigate('/')
     }
   }
@@ -97,6 +106,51 @@ export default function Place() {
   }
 
   if (error || !place) {
+    // Determine error details based on error type
+    const getErrorDetails = () => {
+      if (!error) {
+        return {
+          title: 'Place not found',
+          description: 'This place may have been removed or the link is incorrect.',
+          buttonText: 'Discover Places',
+          buttonAction: () => navigate('/')
+        }
+      }
+
+      switch (error.type) {
+        case 'not_found':
+          return {
+            title: 'Place not found',
+            description: 'This place may have been removed or the link is incorrect.',
+            buttonText: 'Discover Places',
+            buttonAction: () => navigate('/')
+          }
+        case 'network':
+          return {
+            title: 'Connection error',
+            description: 'Unable to connect. Please check your internet connection and try again.',
+            buttonText: 'Try Again',
+            buttonAction: () => window.location.reload()
+          }
+        case 'rate_limit':
+          return {
+            title: 'Too many requests',
+            description: 'Please wait a moment before trying again.',
+            buttonText: 'Try Again',
+            buttonAction: () => window.location.reload()
+          }
+        default:
+          return {
+            title: error.message || 'Something went wrong',
+            description: 'An unexpected error occurred. Please try again later.',
+            buttonText: 'Go Home',
+            buttonAction: () => navigate('/')
+          }
+      }
+    }
+
+    const errorDetails = getErrorDetails()
+
     return (
       <div className="place-page">
         <motion.div
@@ -104,11 +158,13 @@ export default function Place() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <span className="place-page-error-icon">🗺️</span>
-          <h2>{error || 'Place not found'}</h2>
-          <p>This place may have been removed or the link is incorrect.</p>
-          <button className="place-page-error-btn" onClick={() => navigate('/')}>
-            Discover Places
+          <span className="place-page-error-icon">
+            {error?.type === 'network' ? '📡' : '🗺️'}
+          </span>
+          <h2>{errorDetails.title}</h2>
+          <p>{errorDetails.description}</p>
+          <button className="place-page-error-btn" onClick={errorDetails.buttonAction}>
+            {errorDetails.buttonText}
           </button>
         </motion.div>
       </div>

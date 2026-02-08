@@ -335,7 +335,7 @@ export default function UnifiedProfile() {
         {isPrivateAccount && !isOwnProfile && !canSeeFullProfile && (
           <div className="unified-profile-private-notice">
             <LockIcon />
-            <span>This account is private</span>
+            <span>This account is private. Follow to see their activity.</span>
           </div>
         )}
       </motion.section>
@@ -831,6 +831,29 @@ function SettingsTab({ user, onLogout }) {
     setDisplayName(user?.displayName || '')
   }, [user?.displayName])
 
+  // Track if there are unsaved changes
+  const hasUnsavedChanges = isEditing && (
+    displayName !== (user?.displayName || '') ||
+    travelMode !== (localStorage.getItem('roam_travel_mode') || 'walking') ||
+    freeOnly !== (localStorage.getItem('roam_free_only') === 'true') ||
+    accessibilityMode !== (localStorage.getItem('roam_accessibility') === 'true') ||
+    openOnly !== (localStorage.getItem('roam_open_only') === 'true')
+  )
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?'
+        return e.returnValue
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
+
   // Save preferences to localStorage
   const savePreferences = useCallback(() => {
     localStorage.setItem('roam_travel_mode', travelMode)
@@ -1300,6 +1323,12 @@ function NotificationsSection() {
         </button>
 
         {/* Granular preferences - only show when subscribed */}
+        {isSubscribed && prefsLoading && (
+          <div className="unified-profile-settings-prefs-loading">
+            <span className="unified-profile-spinner-small" />
+            <span>Loading notification preferences...</span>
+          </div>
+        )}
         {isSubscribed && !prefsLoading && (
           <>
             <button

@@ -5,7 +5,7 @@
  * Uploads to /api/contributions/upload and returns the URL.
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import './PhotoUpload.css'
 
@@ -19,6 +19,13 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
   const [error, setError] = useState(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef(null)
+  const tokenRef = useRef(null)
+  const lastFileRef = useRef(null)
+
+  // Cache auth token on mount and when it might change
+  useEffect(() => {
+    tokenRef.current = getAuthToken()
+  }, [])
 
   const handleFile = async (file) => {
     if (!file) return
@@ -35,11 +42,15 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
       return
     }
 
+    // Store file reference for potential retry
+    lastFileRef.current = file
+
     setUploading(true)
     setError(null)
 
     try {
-      const token = getAuthToken()
+      // Use cached token, fallback to fresh read if needed
+      const token = tokenRef.current || getAuthToken()
       const response = await fetch('/api/contributions/upload', {
         method: 'POST',
         headers: {
@@ -94,6 +105,16 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
     onRemove?.()
     if (inputRef.current) {
       inputRef.current.value = ''
+    }
+  }
+
+  const handleRetry = (e) => {
+    e.stopPropagation() // Prevent triggering the parent click handler
+    if (lastFileRef.current) {
+      handleFile(lastFileRef.current)
+    } else {
+      // If no file stored, just reset error state to allow new selection
+      setError(null)
     }
   }
 
@@ -169,7 +190,15 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          {error}
+          <span className="photo-upload-error-text">{error}</span>
+          <button
+            type="button"
+            className="photo-upload-retry"
+            onClick={handleRetry}
+            disabled={disabled}
+          >
+            Retry
+          </button>
         </motion.div>
       )}
     </div>

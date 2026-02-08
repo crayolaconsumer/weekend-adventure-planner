@@ -4,7 +4,7 @@
  * Modal for login and registration with email/password and Google SSO.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useFocusTrap } from '../hooks/useFocusTrap'
@@ -108,6 +108,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     }
   }
 
+  // Use a ref to store the latest callback to avoid stale closures in Google SDK callbacks
+  const handleGoogleLoginRef = useRef()
+
   const handleGoogleLogin = useCallback(async (credential) => {
     if (!credential) {
       // Button clicked - use popup flow directly (avoids blocked popups after async callbacks)
@@ -172,7 +175,12 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     }
   }, [loginWithGoogle, onClose])
 
+  // Keep the ref updated with the latest callback
+  handleGoogleLoginRef.current = handleGoogleLogin
+
   // Initialize Google Sign-In
+  // Note: Script is intentionally left in DOM after load (standard for third-party SDKs).
+  // We use handleGoogleLoginRef to avoid stale closures and remove handleGoogleLogin from deps.
   useEffect(() => {
     if (!isOpen) return
 
@@ -180,20 +188,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     if (!clientId) return
 
     const initGoogleSignIn = () => {
-      // Initialize One Tap
+      // Initialize One Tap - use ref to always get latest callback
       if (window.google?.accounts?.id) {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response) => {
             if (response.credential) {
-              handleGoogleLogin(response.credential)
+              handleGoogleLoginRef.current?.(response.credential)
             }
           }
         })
       }
     }
 
-    // Load script if needed
+    // Load script if needed (script persists in DOM - this is intentional)
     if (!window.google && !document.getElementById('google-signin-script')) {
       const script = document.createElement('script')
       script.id = 'google-signin-script'
@@ -205,7 +213,14 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     } else if (window.google) {
       initGoogleSignIn()
     }
-  }, [isOpen, handleGoogleLogin])
+
+    // Cleanup: Cancel any pending One Tap prompts when modal closes
+    return () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.cancel()
+      }
+    }
+  }, [isOpen]) // handleGoogleLogin removed - using ref instead to avoid re-initialization
 
   const displayError = localError || authError
 

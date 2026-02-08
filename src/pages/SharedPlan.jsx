@@ -47,6 +47,7 @@ export default function SharedPlan() {
   const [plan, setPlan] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [toast, setToast] = useState(null)
 
   // Dynamic SEO for shared plans
   const planTitle = plan?.name || 'Shared Adventure'
@@ -64,7 +65,7 @@ export default function SharedPlan() {
         const res = await fetch(`/api/plans/share/${code}`)
         if (!res.ok) {
           if (res.status === 404) {
-            setError('Plan not found or no longer public')
+            setError('This adventure is no longer shared. Ask the owner to share it again.')
           } else {
             setError('Failed to load plan')
           }
@@ -135,6 +136,8 @@ export default function SharedPlan() {
       duration: s.durationMinutes
     }))
     downloadICS(stops, plan.title)
+    setToast('Added to calendar')
+    setTimeout(() => setToast(null), 3000)
   }
 
   const openDirections = (stop) => {
@@ -219,7 +222,7 @@ export default function SharedPlan() {
                   <div className="shared-plan-stop-info">
                     <div className="shared-plan-stop-icon">{data?.category?.icon || '📍'}</div>
                     <div className="shared-plan-stop-details">
-                      <h3 className="shared-plan-stop-name">{data?.name || 'Unknown place'}</h3>
+                      <h3 className="shared-plan-stop-name">{data?.name || 'Place details unavailable'}</h3>
                       <p className="shared-plan-stop-meta">
                         {data?.type?.replace(/_/g, ' ')}
                         {data?.address && ` · ${data.address}`}
@@ -247,6 +250,17 @@ export default function SharedPlan() {
           </Link>
         </div>
       </div>
+
+      {toast && (
+        <motion.div
+          className="shared-plan-toast"
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 50 }}
+        >
+          {toast}
+        </motion.div>
+      )}
     </div>
   )
 }

@@ -119,6 +119,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const [showPlanVisit, setShowPlanVisit] = useState(false)
+  const [animationComplete, setAnimationComplete] = useState(false)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
   const { updatePlannedDate } = useSavedPlaces()
   const formatDistance = useFormatDistance()
@@ -204,7 +205,11 @@ export default function PlaceDetail({ place, onClose, onGo }) {
     // Cleanup on unmount or when image changes
     return () => {
       cancelled = true
-      revokePreviousBlob()
+      // Only revoke if we haven't been cancelled mid-operation
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
     }
   }, [enrichedPlace?.photo, enrichedPlace?.image, place?.id, revokePreviousBlob])
 
@@ -282,8 +287,8 @@ export default function PlaceDetail({ place, onClose, onGo }) {
     }
   }
 
-  // Focus trap for accessibility
-  const focusTrapRef = useFocusTrap(true)
+  // Focus trap for accessibility - only activate after animation completes
+  const focusTrapRef = useFocusTrap(animationComplete)
 
   return (
     <>
@@ -321,6 +326,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
             damping: 30,
             mass: 0.8
           }}
+          onAnimationComplete={() => setAnimationComplete(true)}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Hero Image */}

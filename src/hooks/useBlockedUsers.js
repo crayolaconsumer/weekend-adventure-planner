@@ -4,7 +4,7 @@
  * Manage blocked users list
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
@@ -23,6 +23,7 @@ export function useBlockedUsers() {
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [processing, setProcessing] = useState(null) // ID of user being processed
+  const hasFetched = useRef(false)
 
   const fetchBlockedUsers = useCallback(async (offset = 0) => {
     if (!isAuthenticated) return
@@ -141,8 +142,10 @@ export function useBlockedUsers() {
   }, [loading, hasMore, blockedUsers.length, fetchBlockedUsers])
 
   useEffect(() => {
+    if (!isAuthenticated || hasFetched.current) return
+    hasFetched.current = true
     fetchBlockedUsers(0)
-  }, [fetchBlockedUsers])
+  }, [isAuthenticated, fetchBlockedUsers])
 
   return {
     blockedUsers,

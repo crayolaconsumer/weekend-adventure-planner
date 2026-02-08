@@ -204,6 +204,24 @@
   color: white;
 }
 
+/* Location indicator */
+.social-hub-location-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: var(--roam-cream);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--roam-ink-muted);
+}
+
+.social-hub-location-indicator svg {
+  color: var(--roam-forest);
+  flex-shrink: 0;
+}
+
 /* Content area */
 .social-hub-content {
   min-height: 300px;

@@ -26,6 +26,27 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid subscription data' })
     }
 
+    // Validate endpoint is a valid URL
+    try {
+      const url = new URL(endpoint)
+      if (!['https:', 'http:'].includes(url.protocol)) {
+        return res.status(400).json({ error: 'Invalid endpoint URL protocol' })
+      }
+    } catch {
+      return res.status(400).json({ error: 'Invalid endpoint URL' })
+    }
+
+    // Validate keys exist and are proper Base64 format
+    if (!keys.p256dh || !keys.auth) {
+      return res.status(400).json({ error: 'Missing required keys (p256dh and auth)' })
+    }
+
+    // Base64 URL-safe characters: A-Z, a-z, 0-9, -, _
+    const base64UrlRegex = /^[A-Za-z0-9_-]+$/
+    if (!base64UrlRegex.test(keys.p256dh) || !base64UrlRegex.test(keys.auth)) {
+      return res.status(400).json({ error: 'Invalid key format - must be Base64 URL-safe encoded' })
+    }
+
     // Get user if authenticated (optional - allow anonymous subscriptions)
     const user = await getUserFromRequest(req)
     const userId = user?.id || null

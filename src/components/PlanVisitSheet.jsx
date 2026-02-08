@@ -6,7 +6,7 @@
  * specifying when increases follow-through by 91%.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import './PlanVisitSheet.css'
@@ -112,6 +112,12 @@ export default function PlanVisitSheet({
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const focusTrapRef = useFocusTrap(isOpen)
 
+  // Use ref pattern to avoid stale closure issues with onPlanVisit callback
+  const onPlanVisitRef = useRef(onPlanVisit)
+  useEffect(() => {
+    onPlanVisitRef.current = onPlanVisit
+  }, [onPlanVisit])
+
   const dateOptions = getDateOptions()
 
   // Reset state when sheet opens
@@ -147,8 +153,8 @@ export default function PlanVisitSheet({
     setSelectedDate(option.date)
     setShowConfirmation(true)
 
-    // Trigger the callback
-    onPlanVisit?.(place, option.date)
+    // Trigger the callback (using ref to avoid stale closure)
+    onPlanVisitRef.current?.(place, option.date)
 
     // Auto-close after showing confirmation
     setTimeout(() => {
@@ -163,7 +169,8 @@ export default function PlanVisitSheet({
     setSelectedDate(date)
     setShowConfirmation(true)
 
-    onPlanVisit?.(place, date)
+    // Trigger the callback (using ref to avoid stale closure)
+    onPlanVisitRef.current?.(place, date)
 
     setTimeout(() => {
       onClose()

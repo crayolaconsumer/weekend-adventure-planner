@@ -78,8 +78,8 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
               className="contribution-btn-primary"
               onClick={() => {
                 onClose()
-                // Open auth modal - this will be handled by the parent
-                window.dispatchEvent(new CustomEvent('openAuthModal'))
+                // Open auth modal - this will be handled by App.jsx's event listener
+                window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'register' } }))
               }}
             >
               Sign Up Free
