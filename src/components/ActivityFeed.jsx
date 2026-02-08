@@ -1,24 +1,78 @@
 /**
  * ActivityFeed Component
  *
- * Shows activity from users you follow
+ * Shows rich activity from users you follow, including:
+ * - Visits with place context and ratings
+ * - Tips with helpful votes
+ * - Photos with thumbnails
  */
 
+import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { useActivityFeed } from '../hooks/useSocial'
-import { formatDistanceToNow } from '../utils/dateUtils'
+import { useUnifiedActivityFeed } from '../hooks/useSocial'
+import { useSavedPlaces } from '../hooks/useSavedPlaces'
+import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
+import ActivityItem, { ActivityItemSkeleton } from './ActivityItem'
 import './ActivityFeed.css'
 
+// Filter options for activity types
+const FILTER_OPTIONS = [
+  { key: 'all', label: 'All' },
+  { key: 'visit', label: 'Visits' },
+  { key: 'tip', label: 'Tips' },
+  { key: 'photo', label: 'Photos' }
+]
+
 export default function ActivityFeed() {
-  const { activities, loading, error, hasMore, loadMore } = useActivityFeed()
+  const [activeFilter, setActiveFilter] = useState('all')
+  const { activities, loading, error, hasMore, loadMore, refresh } = useUnifiedActivityFeed(activeFilter === 'all' ? null : activeFilter)
+
+  // Hooks for engagement features
+  const { savePlace } = useSavedPlaces()
+  const { visitedPlaces } = useVisitedPlaces()
+
+  // Check if user has visited a place
+  const hasVisited = useCallback((placeId) => {
+    if (!placeId || !visitedPlaces) return false
+    return visitedPlaces.some(vp => vp.placeId === placeId || vp.place_id === placeId)
+  }, [visitedPlaces])
+
+  // Handle saving a place from the feed
+  const handleSavePlace = useCallback(async (place) => {
+    if (place && place.id) {
+      await savePlace({
+        id: place.id,
+        name: place.name,
+        category: place.category ? { key: place.category } : null,
+        imageUrl: place.imageUrl
+      })
+    }
+  }, [savePlace])
+
+  // Handle filter change
+  const handleFilterChange = (filterKey) => {
+    setActiveFilter(filterKey)
+  }
 
   if (loading && activities.length === 0) {
     return (
       <div className="activity-feed">
-        {[...Array(3)].map((_, i) => (
-          <ActivityItemSkeleton key={i} />
-        ))}
+        <div className="activity-feed-filters">
+          {FILTER_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              className={`activity-feed-filter ${activeFilter === opt.key ? 'active' : ''}`}
+              disabled
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="activity-feed-list">
+          {[...Array(3)].map((_, i) => (
+            <ActivityItemSkeleton key={i} />
+          ))}
+        </div>
       </div>
     )
   }
@@ -27,12 +81,12 @@ export default function ActivityFeed() {
     return (
       <div className="activity-feed-error">
         <p>Failed to load activity feed</p>
-        <button onClick={() => window.location.reload()}>Try again</button>
+        <button onClick={refresh}>Try again</button>
       </div>
     )
   }
 
-  if (activities.length === 0) {
+  if (activities.length === 0 && activeFilter === 'all') {
     return (
       <div className="activity-feed-empty">
         <div className="activity-feed-empty-icon">👥</div>
@@ -47,11 +101,47 @@ export default function ActivityFeed() {
 
   return (
     <div className="activity-feed">
-      {activities.map((activity, index) => (
-        <ActivityItem key={activity.id} activity={activity} index={index} />
-      ))}
+      {/* Filter tabs */}
+      <div className="activity-feed-filters" role="tablist" aria-label="Activity type filter">
+        {FILTER_OPTIONS.map(opt => (
+          <button
+            key={opt.key}
+            className={`activity-feed-filter ${activeFilter === opt.key ? 'active' : ''}`}
+            onClick={() => handleFilterChange(opt.key)}
+            role="tab"
+            aria-selected={activeFilter === opt.key}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
 
-      {hasMore && (
+      {/* Activity list */}
+      <div className="activity-feed-list">
+        {activities.length === 0 ? (
+          <div className="activity-feed-empty-filtered">
+            <p>No {activeFilter} activities from people you follow</p>
+            <button
+              className="activity-feed-clear-filter"
+              onClick={() => setActiveFilter('all')}
+            >
+              View all activity
+            </button>
+          </div>
+        ) : (
+          activities.map((activity, index) => (
+            <ActivityItem
+              key={activity.id}
+              activity={activity}
+              index={index}
+              onSavePlace={handleSavePlace}
+              hasVisited={hasVisited(activity.place?.id)}
+            />
+          ))
+        )}
+      </div>
+
+      {hasMore && activities.length > 0 && (
         <button
           className="activity-feed-load-more"
           onClick={loadMore}
@@ -60,65 +150,6 @@ export default function ActivityFeed() {
           {loading ? 'Loading...' : 'Load more'}
         </button>
       )}
-    </div>
-  )
-}
-
-function ActivityItem({ activity, index }) {
-  const avatarUrl = activity.user.avatarUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(activity.user.displayName || activity.user.username)}&background=E07A5F&color=fff`
-
-  const timeAgo = formatDistanceToNow(new Date(activity.createdAt))
-
-  return (
-    <motion.div
-      className="activity-item"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-    >
-      <Link to={`/user/${activity.user.username}`} className="activity-item-avatar-link">
-        <img
-          src={avatarUrl}
-          alt={activity.user.displayName || activity.user.username}
-          className="activity-item-avatar"
-        />
-      </Link>
-
-      <div className="activity-item-content">
-        <div className="activity-item-header">
-          <Link to={`/user/${activity.user.username}`} className="activity-item-user">
-            {activity.user.displayName || activity.user.username}
-          </Link>
-          <span className="activity-item-action">
-            shared a {activity.contributionType}
-          </span>
-          <span className="activity-item-time">{timeAgo}</span>
-        </div>
-
-        <div className="activity-item-body">
-          <p className="activity-item-text">{activity.content}</p>
-        </div>
-
-        <div className="activity-item-footer">
-          <span className="activity-item-score">
-            {activity.score > 0 ? '+' : ''}{activity.score} helpful
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-function ActivityItemSkeleton() {
-  return (
-    <div className="activity-item activity-item--skeleton">
-      <div className="activity-item-avatar skeleton" />
-      <div className="activity-item-content">
-        <div className="skeleton" style={{ width: '60%', height: '16px', marginBottom: '8px' }} />
-        <div className="skeleton" style={{ width: '100%', height: '40px', marginBottom: '8px' }} />
-        <div className="skeleton" style={{ width: '80px', height: '14px' }} />
-      </div>
     </div>
   )
 }

@@ -89,7 +89,8 @@ async function handleGet(req, res, user) {
 }
 
 /**
- * POST - Create a new rating
+ * POST - Create or update a rating (UPSERT)
+ * This avoids 409 errors by automatically handling existing ratings
  */
 async function handlePost(req, res, user) {
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, 'ratings:create')
@@ -118,29 +119,31 @@ async function handlePost(req, res, user) {
   // Validate review
   const sanitizedReview = review ? String(review).slice(0, 500) : null
 
-  // Check for existing rating
+  // Check if this is a new rating (for stats update)
   const existing = await queryOne(
     'SELECT id FROM place_ratings WHERE user_id = ? AND place_id = ?',
     [user.id, placeId]
   )
+  const isNew = !existing
 
-  if (existing) {
-    return res.status(409).json({ error: 'Rating already exists, use PUT to update' })
-  }
-
-  await insert(
-    'INSERT INTO place_ratings (user_id, place_id, rating, review) VALUES (?, ?, ?, ?)',
+  // UPSERT: Insert or update on duplicate key
+  await query(
+    `INSERT INTO place_ratings (user_id, place_id, rating, review)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE rating = VALUES(rating), review = VALUES(review), updated_at = NOW()`,
     [user.id, placeId, normalizedRating, sanitizedReview]
   )
 
-  // Update stats
-  await query(
-    `INSERT INTO user_stats (user_id, places_rated) VALUES (?, 1)
-     ON DUPLICATE KEY UPDATE places_rated = places_rated + 1`,
-    [user.id]
-  )
+  // Only update stats for new ratings
+  if (isNew) {
+    await query(
+      `INSERT INTO user_stats (user_id, places_rated) VALUES (?, 1)
+       ON DUPLICATE KEY UPDATE places_rated = places_rated + 1`,
+      [user.id]
+    )
+  }
 
-  return res.status(201).json({ success: true })
+  return res.status(isNew ? 201 : 200).json({ success: true, created: isNew })
 }
 
 /**

@@ -107,7 +107,7 @@ export function useCreateContribution() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const createContribution = useCallback(async ({ placeId, type, content, metadata, visibility }) => {
+  const createContribution = useCallback(async ({ placeId, type, content, metadata, visibility, placeName, placeCategory, placeImageUrl }) => {
     if (!isAuthenticated) {
       return { success: false, error: 'Authentication required' }
     }
@@ -123,7 +123,16 @@ export function useCreateContribution() {
           ...getAuthHeaders()
         },
         credentials: 'include',
-        body: JSON.stringify({ placeId, type, content, metadata, visibility })
+        body: JSON.stringify({
+          placeId,
+          type,
+          content,
+          metadata,
+          visibility,
+          placeName,
+          placeCategory,
+          placeImageUrl
+        })
       })
 
       const data = await response.json()

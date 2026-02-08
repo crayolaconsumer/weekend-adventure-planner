@@ -1,0 +1,124 @@
+/**
+ * LocationAwareFeed Styles
+ *
+ * Styles for the location-grouped activity feed.
+ */
+
+.location-aware-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Section */
+.location-aware-feed-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.location-aware-feed-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  margin: 0 0 4px;
+}
+
+.location-aware-feed-section-icon {
+  font-size: 18px;
+}
+
+/* Empty state */
+.location-aware-feed-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.location-aware-feed-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.location-aware-feed-empty h3 {
+  font-family: var(--font-display, 'Fraunces', serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  margin: 0 0 8px;
+}
+
+.location-aware-feed-empty p {
+  font-size: 14px;
+  color: var(--roam-ink-muted);
+  margin: 0 0 20px;
+  max-width: 260px;
+}
+
+.location-aware-feed-empty-action {
+  padding: 10px 20px;
+  background: var(--roam-forest);
+  border: none;
+  border-radius: 20px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.location-aware-feed-empty-action:hover {
+  background: var(--roam-forest-dark);
+}
+
+/* Error state */
+.location-aware-feed-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  color: var(--roam-ink-muted);
+  text-align: center;
+}
+
+.location-aware-feed-error button {
+  padding: 8px 16px;
+  background: var(--roam-forest);
+  border: none;
+  border-radius: 20px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Load more button */
+.location-aware-feed-load-more {
+  align-self: center;
+  padding: 12px 24px;
+  background: var(--roam-cream);
+  border: 2px solid var(--roam-border);
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.location-aware-feed-load-more:hover:not(:disabled) {
+  background: var(--roam-parchment);
+  border-color: var(--roam-forest);
+}
+
+.location-aware-feed-load-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

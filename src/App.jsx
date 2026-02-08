@@ -10,6 +10,7 @@ const Wishlist = lazy(() => import('./pages/Wishlist'))
 const Collections = lazy(() => import('./pages/Collections'))
 const UnifiedProfile = lazy(() => import('./pages/UnifiedProfile'))
 const Activity = lazy(() => import('./pages/Activity'))
+const SocialHub = lazy(() => import('./pages/SocialHub'))
 const Place = lazy(() => import('./pages/Place'))
 const SharedPlan = lazy(() => import('./pages/SharedPlan'))
 const Pricing = lazy(() => import('./pages/Pricing'))
@@ -51,6 +52,15 @@ const UserIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20,21V19a4,4,0,0,0-4-4H8a4,4,0,0,0-4,4v2"/>
     <circle cx="12" cy="7" r="4"/>
+  </svg>
+)
+
+const UsersIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
   </svg>
 )
 
@@ -367,7 +377,8 @@ function App() {
                       <Route path="/plan" element={<Plan location={location} />} />
                       <Route path="/wishlist" element={<Wishlist />} />
                       <Route path="/collections" element={<Collections />} />
-                      <Route path="/profile" element={<ProfileRedirect onOpenAuth={openAuthModal} />} />
+                      <Route path="/social" element={<SocialHub location={location} />} />
+                      <Route path="/profile" element={<Navigate to="/social" replace />} />
                       <Route path="/user/:username" element={<UnifiedProfile />} />
                       <Route path="/activity" element={<Activity />} />
                       <Route path="/place/:id" element={<Place />} />
@@ -397,9 +408,9 @@ function App() {
                   <HeartIcon />
                   <span>Saved</span>
                 </NavLink>
-                <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <UserIcon />
-                  <span>Profile</span>
+                <NavLink to="/social" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <UsersIcon />
+                  <span>Social</span>
                 </NavLink>
               </nav>
             </div>

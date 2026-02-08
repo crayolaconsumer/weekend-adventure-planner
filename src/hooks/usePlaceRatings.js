@@ -124,11 +124,11 @@ export function usePlaceRatings() {
     }))
 
     // Sync to API if authenticated
+    // API uses UPSERT so no need to check for existing or handle 409
     if (isAuthenticated) {
       try {
         const token = getAuthToken()
-        // Try POST first, if conflict use PUT
-        const response = await fetch('/api/places/ratings', {
+        await fetch('/api/places/ratings', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -141,23 +141,6 @@ export function usePlaceRatings() {
             review: review || null
           })
         })
-
-        if (response.status === 409) {
-          // Already exists, update instead
-          await fetch('/api/places/ratings', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {})
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-              placeId,
-              rating: recommended ? 5 : 1,
-              review: review || null
-            })
-          })
-        }
       } catch (err) {
         console.error('Error saving rating:', err)
       }

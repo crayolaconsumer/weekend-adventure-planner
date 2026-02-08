@@ -18,7 +18,8 @@ import { useSubscription } from '../hooks/useSubscription'
 import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
 import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
-import { filterPlaces, enhancePlace } from '../utils/placeFilter'
+import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
+import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
 import { getTopRecommendations } from '../utils/tasteProfile'
@@ -96,6 +97,10 @@ export default function Discover({ location }) {
   const [upgradePromptType, setUpgradePromptType] = useState('saves')
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
+
+  // Get friend activity for places (for friend chips and boost scoring)
+  const placeIds = useMemo(() => basePlaces.map(p => p.id), [basePlaces])
+  const { activityMap: friendActivity } = useFriendPlaceActivity(placeIds)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState(null)
@@ -172,7 +177,7 @@ export default function Discover({ location }) {
   }, [basePlaces])
 
   // Memoized filter function - only recreated when absolutely necessary
-  const applyFilters = useCallback((list, currentWeather = weather) => {
+  const applyFilters = useCallback((list, currentWeather = weather, currentFriendActivity = friendActivity) => {
     if (!list || list.length === 0) return []
 
     // Early return if no filters active - just use filterPlaces
@@ -186,7 +191,8 @@ export default function Discover({ location }) {
       sortBy: 'smart',
       weather: currentWeather,
       ensureDiversity: true,
-      userProfile
+      userProfile,
+      friendActivity: currentFriendActivity // Pass friend activity for boost scoring
     })
 
     // Skip additional filtering if no filters active
@@ -253,13 +259,13 @@ export default function Discover({ location }) {
     }
 
     return filtered
-  }, [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather])
+  }, [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity])
 
   // Memoized filtered places - only recalculates when basePlaces or filter deps change
   const filteredPlaces = useMemo(() => {
     if (!basePlaces || basePlaces.length === 0) return []
-    return applyFilters(basePlaces, weather)
-  }, [basePlaces, applyFilters, weather])
+    return applyFilters(basePlaces, weather, friendActivity)
+  }, [basePlaces, applyFilters, weather, friendActivity])
 
   // Memoized recommendations for Just Go - only recalculates when places change
   const justGoRecommendations = useMemo(() => {
@@ -913,6 +919,7 @@ export default function Discover({ location }) {
             onLoadMore={loadMorePlaces}
             loading={loading}
             loadingMore={loadingMore}
+            friendActivity={friendActivity}
           />
         )}
 

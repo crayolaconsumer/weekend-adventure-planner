@@ -12,8 +12,8 @@ export function getPendingVisit() {
     const data = JSON.parse(pending)
     const elapsed = Date.now() - data.timestamp
 
-    // Only show if 5+ minutes have passed and less than 24 hours
-    if (elapsed > 5 * 60 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
+    // Only show if 30+ seconds have passed and less than 24 hours
+    if (elapsed > 30 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
       return data.place
     }
 
