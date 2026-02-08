@@ -65,8 +65,16 @@ export default async function handler(req, res) {
     const response = await fetch(url)
 
     if (!response.ok) {
-      console.error(`[OTM Proxy] API error: ${response.status}`)
-      return res.status(response.status).json({ error: 'OpenTripMap API error' })
+      const errorText = await response.text().catch(() => '')
+      console.error(`[OTM Proxy] API error: ${response.status} - ${errorText}`)
+
+      if (response.status === 401) {
+        return res.status(503).json({ error: 'OpenTripMap API key invalid or expired' })
+      }
+      if (response.status === 429) {
+        return res.status(429).json({ error: 'OpenTripMap rate limit exceeded' })
+      }
+      return res.status(response.status).json({ error: `OpenTripMap API error: ${response.status}` })
     }
 
     const data = await response.json()
