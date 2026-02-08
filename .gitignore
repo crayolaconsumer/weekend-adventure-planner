@@ -37,3 +37,4 @@ docs/
 # Claude local settings (contains credentials)
 .claude/settings.local.json
 .claude/mcp.json
+.mcp.json

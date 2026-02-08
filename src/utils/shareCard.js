@@ -4,6 +4,8 @@
  * Generates shareable images using Canvas API for places and adventures.
  */
 
+import { getCachedImage } from './imageCache'
+
 /**
  * Generate a shareable place card image
  * @param {Object} place - Place object
@@ -271,7 +273,36 @@ export function downloadBlob(blob, filename) {
 
 // Helper functions
 
-function loadImage(src) {
+/**
+ * Load image with cache support
+ * Checks the image cache first for instant loads (if SwipeCard already cached it)
+ * Falls back to direct fetch if not cached
+ */
+async function loadImage(src) {
+  // Try cache first for instant load
+  try {
+    const cachedBlob = await getCachedImage(src)
+    if (cachedBlob) {
+      // Convert blob to image element
+      const blobUrl = URL.createObjectURL(cachedBlob)
+      return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          URL.revokeObjectURL(blobUrl)
+          resolve(img)
+        }
+        img.onerror = () => {
+          URL.revokeObjectURL(blobUrl)
+          reject(new Error('Failed to load cached image'))
+        }
+        img.src = blobUrl
+      })
+    }
+  } catch {
+    // Cache miss or error - fall through to direct fetch
+  }
+
+  // Direct fetch (no cache hit)
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'

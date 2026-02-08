@@ -54,5 +54,9 @@
       "mcp__ide__getDiagnostics"
     ],
     "defaultMode": "acceptEdits"
-  }
+  },
+  "enabledMcpjsonServers": [
+    "mysql-roam"
+  ],
+  "enableAllProjectMcpServers": true
 }

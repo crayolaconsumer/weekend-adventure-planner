@@ -119,9 +119,16 @@ out center;`
 // Active request controller for cancellation
 let activeOverpassController = null
 
+// Overpass proxy endpoint for edge caching
+const OVERPASS_PROXY = '/api/places/overpass/nearby'
+
+// Track proxy health to avoid repeated failures
+let proxyLastFailed = 0
+const PROXY_RETRY_DELAY = 60000 // 1 minute before retrying proxy after failure
+
 /**
- * Fetch places from Overpass API with fallback and telemetry
- * Endpoints are ranked by performance - fastest/most reliable first
+ * Fetch places from Overpass API via proxy (for edge caching) with fallback to direct
+ * Proxy provides edge caching (1 hour) and better server-to-server network
  *
  * @param {string} query - Overpass QL query string
  * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
@@ -129,6 +136,62 @@ let activeOverpassController = null
  * @returns {Promise<Object>} Overpass response data
  */
 async function fetchFromOverpass(query, signal = null, meta = {}) {
+  // Try proxy first if it hasn't failed recently
+  const now = Date.now()
+  if (now - proxyLastFailed > PROXY_RETRY_DELAY) {
+    try {
+      const startTime = Date.now()
+      const response = await fetch(OVERPASS_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+        signal
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const duration = Date.now() - startTime
+
+        // Record successful proxy call
+        recordApiCall({
+          source: 'overpass_proxy',
+          endpoint: OVERPASS_PROXY,
+          duration,
+          status: 'success',
+          resultCount: data.elements?.length || 0,
+          querySize: meta.querySize,
+          clauseCount: meta.clauseCount
+        })
+
+        return data
+      }
+
+      // Proxy returned error - mark as failed and fall through to direct
+      proxyLastFailed = now
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw error // Re-throw cancellation
+      }
+      // Proxy failed - mark and fall through to direct fetch
+      proxyLastFailed = now
+      console.warn('[Overpass] Proxy failed, falling back to direct:', error.message)
+    }
+  }
+
+  // Direct Overpass fetch (fallback)
+  return fetchFromOverpassDirect(query, signal, meta)
+}
+
+/**
+ * Fetch places directly from Overpass API with fallback and telemetry
+ * Endpoints are ranked by performance - fastest/most reliable first
+ *
+ * @param {string} query - Overpass QL query string
+ * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
+ * @param {Object} [meta] - Query metadata for telemetry
+ * @returns {Promise<Object>} Overpass response data
+ */
+async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
   const { clauseCount, querySize } = meta
 
   // Rank endpoints by historical performance
@@ -1190,13 +1253,61 @@ export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = nul
   )
 }
 
+// Cache for enriched place data (30 minute TTL)
+const enrichPlaceCache = new Map()
+const ENRICH_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
+
+/**
+ * Get cached enriched place data
+ * @param {string} placeId - Place ID
+ * @returns {Object|null} - Cached data or null
+ */
+function getEnrichedFromCache(placeId) {
+  const entry = enrichPlaceCache.get(placeId)
+  if (!entry) return null
+  if (Date.now() > entry.expires) {
+    enrichPlaceCache.delete(placeId)
+    return null
+  }
+  return entry.data
+}
+
+/**
+ * Cache enriched place data
+ * @param {string} placeId - Place ID
+ * @param {Object} data - Enriched place data
+ */
+function cacheEnrichedPlace(placeId, data) {
+  // Limit cache size
+  if (enrichPlaceCache.size > 200) {
+    // Remove oldest 20%
+    const entries = Array.from(enrichPlaceCache.entries())
+      .sort((a, b) => a[1].expires - b[1].expires)
+    const toRemove = Math.ceil(entries.length * 0.2)
+    for (let i = 0; i < toRemove; i++) {
+      enrichPlaceCache.delete(entries[i][0])
+    }
+  }
+
+  enrichPlaceCache.set(placeId, {
+    data,
+    expires: Date.now() + ENRICH_CACHE_TTL
+  })
+}
+
 /**
  * Enrich a single place with additional data (Wikipedia, OTM details)
  * Call this for places shown in detail view, not for list view
+ * Uses caching with 30 minute TTL for fast subsequent loads
  * @param {Object} place - Place object
  * @returns {Promise<Object>} Enriched place
  */
 export async function enrichPlace(place) {
+  // Check cache first
+  const cached = getEnrichedFromCache(place.id)
+  if (cached) {
+    return cached
+  }
   const enriched = { ...place }
   const imagePromises = []
 
@@ -1279,6 +1390,9 @@ export async function enrichPlace(place) {
       enriched.imageSource = bestImage.source
     }
   }
+
+  // Cache the enriched result for fast subsequent loads
+  cacheEnrichedPlace(place.id, enriched)
 
   return enriched
 }

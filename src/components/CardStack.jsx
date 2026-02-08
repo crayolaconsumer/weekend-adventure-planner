@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
-import { fetchWikipediaImage, fetchWikidataImage, fetchOpenTripMapDetails } from '../utils/apiClient'
+import { fetchWikipediaImage, fetchWikidataImage, fetchOpenTripMapDetails, enrichPlace } from '../utils/apiClient'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
 import { openDirections } from '../utils/navigation'
+import { getCircuitStatus } from '../utils/apiProtection'
 import './CardStack.css'
 
 // Interval for inserting sponsored cards (every N regular cards)
@@ -179,24 +180,20 @@ export default function CardStack({
         }
       }
     } catch (err) {
-      // Silently ignore fetch errors
+      console.warn(`[CardStack] Image fetch failed for ${place.id}:`, err.message)
     }
     return null
   }, [fetchedImageIds])
 
-  // Preload images for upcoming cards (next 5 after visible ones)
+  // Preload images for visible cards FIRST, then upcoming cards
   useEffect(() => {
     if (loading || mergedPlaces.length === 0) return
 
-    // Visible cards are currentIndex to currentIndex + 2
-    // Preload currentIndex + 3 to currentIndex + 7
-    const preloadStart = currentIndex + 3
-    const preloadEnd = Math.min(preloadStart + 5, mergedPlaces.length)
-
-    for (let i = preloadStart; i < preloadEnd; i++) {
-      const item = mergedPlaces[i]
+    // Helper to preload a single card's image
+    const preloadCard = (index) => {
+      const item = mergedPlaces[index]
       const place = item?.place
-      if (!place) continue
+      if (!place) return
 
       const imageUrl = place?.photo || place?.image
       if (imageUrl) {
@@ -207,7 +204,85 @@ export default function CardStack({
         fetchPlaceImage(place)
       }
     }
+
+    // CRITICAL: Preload visible cards FIRST (high priority)
+    // These are the cards the user sees immediately
+    for (let i = currentIndex; i < Math.min(currentIndex + 3, mergedPlaces.length); i++) {
+      preloadCard(i)
+    }
+
+    // Preload upcoming cards with requestIdleCallback (low priority)
+    // This prevents blocking the main thread while the visible cards load
+    const preloadUpcoming = () => {
+      const upcomingStart = currentIndex + 3
+      const upcomingEnd = Math.min(currentIndex + 10, mergedPlaces.length)
+      for (let i = upcomingStart; i < upcomingEnd; i++) {
+        preloadCard(i)
+      }
+    }
+
+    // Use requestIdleCallback if available, otherwise setTimeout
+    if (typeof requestIdleCallback !== 'undefined') {
+      const idleId = requestIdleCallback(preloadUpcoming, { timeout: 2000 })
+      return () => cancelIdleCallback(idleId)
+    } else {
+      const timeoutId = setTimeout(preloadUpcoming, 100)
+      return () => clearTimeout(timeoutId)
+    }
   }, [currentIndex, mergedPlaces, loading, fetchPlaceImage])
+
+  // Debug: Check circuit breaker state on mount
+  useEffect(() => {
+    const otmStatus = getCircuitStatus('opentripmap')
+    if (otmStatus.state !== 'closed') {
+      console.warn(`[CardStack] OpenTripMap circuit breaker is ${otmStatus.state.toUpperCase()} - images may be disabled. Failures: ${otmStatus.failures}`)
+    }
+  }, [])
+
+  // Track places we've already tried to prefetch details for
+  // Using ref since this doesn't need to trigger re-renders
+  const prefetchedDetailIdsRef = useRef(new Set())
+
+  // Background detail enrichment - prefetch for visible cards and a few upcoming
+  // This makes PlaceDetail load instantly when user taps a card
+  useEffect(() => {
+    if (loading || mergedPlaces.length === 0) return
+
+    const prefetchDetails = async (index) => {
+      const item = mergedPlaces[index]
+      const place = item?.place
+      if (!place || prefetchedDetailIdsRef.current.has(place.id)) return
+
+      prefetchedDetailIdsRef.current.add(place.id)
+
+      try {
+        // enrichPlace has internal caching, so this just warms the cache
+        await enrichPlace(place)
+      } catch {
+        // Silently ignore prefetch errors
+      }
+    }
+
+    // Prefetch visible cards (high priority) - immediate
+    for (let i = currentIndex; i < Math.min(currentIndex + 3, mergedPlaces.length); i++) {
+      prefetchDetails(i)
+    }
+
+    // Prefetch upcoming cards (low priority) - with idle callback
+    const prefetchUpcoming = () => {
+      for (let i = currentIndex + 3; i < Math.min(currentIndex + 6, mergedPlaces.length); i++) {
+        prefetchDetails(i)
+      }
+    }
+
+    if (typeof requestIdleCallback !== 'undefined') {
+      const idleId = requestIdleCallback(prefetchUpcoming, { timeout: 3000 })
+      return () => cancelIdleCallback(idleId)
+    } else {
+      const timeoutId = setTimeout(prefetchUpcoming, 200)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [currentIndex, mergedPlaces, loading])
 
   // Load more places when getting close to the end (10 cards left)
   // Increased from 5 to reduce perceived loading lag
