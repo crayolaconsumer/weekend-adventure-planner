@@ -402,10 +402,8 @@ export default function Discover({ location }) {
       // Set basePlaces - the memoized filteredPlaces and useEffect will handle the rest
       setBasePlaces(enhanced)
 
-      // If we served stale data, indicate refresh is happening
-      if (stale) {
-        console.log('[Discover] Served stale cache, refreshing in background...')
-      }
+      // Note: stale data handling is done via sync cache check above
+      // Background refresh happens automatically via fetchPlacesWithSWR callback
     } catch (error) {
       if (requestId === latestLoadRequestRef.current) {
         console.error('Failed to load places:', error)
