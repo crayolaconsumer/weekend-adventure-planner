@@ -12,6 +12,7 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { pushNotificationBadge } from '../lib/pushNotifications.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -187,6 +188,15 @@ export async function createNotification({ userId, actorId, type, title, message
        VALUES (?, ?, ?, ?, ?, ?)`,
       [userId, actorId || null, type, title, message, data ? JSON.stringify(data) : null]
     )
+
+    // Get updated unread count and send silent push to update badge
+    const unreadResult = await queryOne(
+      'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+      [userId]
+    )
+    // Fire and forget - don't block on push notification
+    pushNotificationBadge(userId, unreadResult.count).catch(() => {})
+
     return true
   } catch (error) {
     console.error('Failed to create notification:', error)

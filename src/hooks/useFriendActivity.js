@@ -33,11 +33,16 @@ export function useFriendPlaceActivity(placeIds) {
   // Track the last fetch request to avoid race conditions
   const fetchIdRef = useRef(0)
 
+  // Use ref to avoid stale closure issues while keeping callback stable
+  const placeIdsRef = useRef(placeIds)
+  placeIdsRef.current = placeIds
+
   // Create a stable key for the placeIds array (use first 50 for stability)
   const placeIdsKey = placeIds?.slice(0, BATCH_SIZE).join(',') || ''
 
   const fetchActivity = useCallback(async () => {
-    if (!isAuthenticated || !placeIds || placeIds.length === 0) {
+    const currentPlaceIds = placeIdsRef.current
+    if (!isAuthenticated || !currentPlaceIds || currentPlaceIds.length === 0) {
       setActivityMap({})
       return
     }
@@ -48,7 +53,7 @@ export function useFriendPlaceActivity(placeIds) {
     const uncachedIds = []
 
     // Only process first BATCH_SIZE IDs to avoid huge requests
-    const idsToProcess = placeIds.slice(0, BATCH_SIZE)
+    const idsToProcess = currentPlaceIds.slice(0, BATCH_SIZE)
 
     idsToProcess.forEach(id => {
       const cached = activityCache.get(id)
@@ -129,7 +134,7 @@ export function useFriendPlaceActivity(placeIds) {
         setLoading(false)
       }
     }
-  }, [isAuthenticated, placeIds])
+  }, [isAuthenticated])  // placeIds accessed via ref to prevent callback recreation
 
   // Fetch when placeIds change
   useEffect(() => {

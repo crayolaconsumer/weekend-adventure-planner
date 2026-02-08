@@ -125,7 +125,8 @@ export default async function handler(request) {
 
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60s timeout
+      // Vercel Edge has ~30s limit, use 25s to leave buffer
+      const timeoutId = setTimeout(() => controller.abort(), 25000)
 
       const response = await fetch(endpoint, {
         method: 'POST',

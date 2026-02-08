@@ -70,10 +70,9 @@ function radiusToBbox(lat, lng, radius) {
 }
 
 function buildOverpassQuery(lat, lng, radius, types) {
-  // Scale timeout with radius
-  let timeout = 30
-  if (radius > 30000) timeout = 90
-  else if (radius > 10000) timeout = 60
+  // Vercel Edge functions have ~30s limit, so cap Overpass timeout at 20s
+  // (leaves buffer for network latency and Edge function overhead)
+  const timeout = 20
 
   // Only filter by name for VERY large radii (>50km) - Explorer mode
   const isVeryLargeRadius = radius > 50000
@@ -621,42 +620,41 @@ export async function fetchWikipediaImage(title) {
 
 /**
  * Fetch image from Wikimedia Commons via Wikidata
+ * Uses the Commons API to get the actual image URL (avoids MD5 hash issues)
  * @param {string} wikidataId - Wikidata ID (e.g., 'Q12345')
  * @returns {Promise<string|null>} Image URL or null
  */
 export async function fetchWikidataImage(wikidataId) {
   try {
+    // Step 1: Get filename from Wikidata
     const response = await fetch(
       `https://www.wikidata.org/wiki/Special:EntityData/${wikidataId}.json`
     )
+    if (!response.ok) return null
 
-    if (response.ok) {
-      const data = await response.json()
-      const entity = data.entities[wikidataId]
-      const imageClaim = entity?.claims?.P18?.[0]?.mainsnak?.datavalue?.value
+    const data = await response.json()
+    const entity = data.entities[wikidataId]
+    const imageClaim = entity?.claims?.P18?.[0]?.mainsnak?.datavalue?.value
+    if (!imageClaim) return null
 
-      if (imageClaim) {
-        // Convert filename to Commons URL
-        const filename = imageClaim.replace(/ /g, '_')
-        const hash = md5Hash(filename)
-        return `https://upload.wikimedia.org/wikipedia/commons/${hash[0]}/${hash.substring(0,2)}/${filename}`
-      }
-    }
+    // Step 2: Get actual URL from Wikimedia Commons API
+    const filename = imageClaim.replace(/ /g, '_')
+    const commonsResponse = await fetch(
+      `https://commons.wikimedia.org/w/api.php?` +
+      `action=query&titles=File:${encodeURIComponent(filename)}` +
+      `&prop=imageinfo&iiprop=url&format=json&origin=*`
+    )
+    if (!commonsResponse.ok) return null
+
+    const commonsData = await commonsResponse.json()
+    const pages = commonsData.query?.pages
+    const page = pages ? Object.values(pages)[0] : null
+    return page?.imageinfo?.[0]?.url || null
+
   } catch (error) {
     console.warn('Wikidata image fetch failed:', error)
+    return null
   }
-  return null
-}
-
-// Simple hash for Commons URLs (not cryptographic md5, just a placeholder)
-function md5Hash(str) {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0')
 }
 
 /**

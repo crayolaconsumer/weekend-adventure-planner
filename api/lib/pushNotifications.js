@@ -137,6 +137,27 @@ export async function sendPushToUser(userId, payload) {
 }
 
 /**
+ * Send silent push to update notification badge
+ * This sends a background message to the app to update the unread count
+ * without showing a visible notification to the user.
+ * @param {number} userId - User ID
+ * @param {number} unreadCount - Current unread count
+ * @returns {Promise<boolean>} Success status
+ */
+export async function pushNotificationBadge(userId, unreadCount) {
+  return sendPushToUser(userId, {
+    title: '',  // Silent - no visible notification
+    body: '',
+    tag: 'badge-update',
+    data: {
+      type: 'BADGE_UPDATE',
+      unreadCount,
+      silent: true
+    }
+  })
+}
+
+/**
  * Send notification when someone follows a user
  * @param {number} followerId - ID of the user who followed
  * @param {number} followeeId - ID of the user being followed
@@ -272,6 +293,7 @@ export async function getPlannedVisitsForToday() {
 
 export default {
   sendPushToUser,
+  pushNotificationBadge,
   notifyNewFollower,
   notifyContributionUpvote,
   notifyFollowRequestApproved,

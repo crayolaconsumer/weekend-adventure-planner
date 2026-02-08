@@ -135,9 +135,29 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
     }
   }, [isAuthenticated, fetchNotifications])
 
-  // Polling for new notifications
+  // Listen for badge updates from service worker (replaces polling)
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const handleMessage = (event) => {
+      if (event.data?.type === 'NOTIFICATION_COUNT') {
+        setUnreadCount(event.data.count)
+      }
+    }
+
+    // Add listener for service worker messages
+    navigator.serviceWorker?.addEventListener('message', handleMessage)
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleMessage)
+    }
+  }, [isAuthenticated])
+
+  // Fallback polling only if service worker is not available (reduced frequency)
   useEffect(() => {
     if (!isAuthenticated || !pollInterval) return
+    // Skip polling if service worker is active (push will handle updates)
+    if (navigator.serviceWorker?.controller) return
 
     pollingRef.current = setInterval(() => {
       // Just refresh unread count

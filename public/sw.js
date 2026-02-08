@@ -18,6 +18,42 @@ const IMAGE_CACHE = 'roam-images-v2'
 const MAP_TILE_CACHE = 'roam-map-tiles-v1'
 const IS_LOCALHOST = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
 
+// Request deduplication - coalesce simultaneous identical requests
+const pendingRequests = new Map()
+const DEDUP_TIMEOUT = 30000 // 30s timeout to prevent memory leaks
+
+async function deduplicatedFetch(request) {
+  const key = request.url + (request.method || 'GET')
+
+  // If this exact request is already in-flight, wait for it
+  if (pendingRequests.has(key)) {
+    const response = await pendingRequests.get(key)
+    return response.clone()
+  }
+
+  // Create abort controller for timeout
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+    pendingRequests.delete(key)
+  }, DEDUP_TIMEOUT)
+
+  // Start the fetch and store the promise
+  // Clone response before returning to avoid "body already read" race condition
+  const fetchPromise = fetch(request, { signal: controller.signal }).then(response => {
+    clearTimeout(timeoutId)
+    pendingRequests.delete(key)
+    return response.clone() // Return clone so original can be cloned by other waiters
+  }).catch(err => {
+    clearTimeout(timeoutId)
+    pendingRequests.delete(key)
+    throw err
+  })
+
+  pendingRequests.set(key, fetchPromise)
+  return fetchPromise
+}
+
 // L14: Debug logging - only enabled in development
 const DEBUG = IS_LOCALHOST
 const log = (...args) => { if (DEBUG) console.log(...args) }
@@ -119,8 +155,13 @@ self.addEventListener('fetch', (event) => {
     // Map tiles: Cache first with LRU eviction
     event.respondWith(cacheMapTile(request))
   } else if (isApiRequest(url)) {
-    // API requests: Network first, cache fallback
-    event.respondWith(networkFirst(request))
+    // Use stale-while-revalidate for user data APIs (instant loads + background refresh)
+    if (USER_DATA_APIS.some(api => url.pathname.startsWith(api))) {
+      event.respondWith(staleWhileRevalidate(request))
+    } else {
+      // Other API requests: Network first, cache fallback
+      event.respondWith(networkFirst(request))
+    }
   } else if (isImageRequest(url, request)) {
     // Images: Cache first, network fallback
     event.respondWith(cacheFirst(request, IMAGE_CACHE))
@@ -169,7 +210,7 @@ function isMapTileRequest(url) {
 // Network first strategy
 async function networkFirst(request) {
   try {
-    const networkResponse = await fetch(request)
+    const networkResponse = await deduplicatedFetch(request)
 
     // Cache successful responses
     if (networkResponse.ok) {
@@ -193,6 +234,26 @@ async function networkFirst(request) {
 
     throw error
   }
+}
+
+// User data APIs that benefit from stale-while-revalidate
+const USER_DATA_APIS = ['/api/places/saved', '/api/users/stats', '/api/collections']
+
+// Stale-while-revalidate strategy for user data APIs
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME)
+  const cachedResponse = await cache.match(request)
+
+  // Start network fetch in background
+  const fetchPromise = deduplicatedFetch(request).then(response => {
+    if (response.ok) {
+      cache.put(request, response.clone())
+    }
+    return response
+  }).catch(() => cachedResponse) // Fall back to cached on error
+
+  // Return cached immediately if available, otherwise wait for network
+  return cachedResponse || fetchPromise
 }
 
 // Cache first strategy
@@ -353,6 +414,22 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       const payload = event.data.json()
+
+      // Handle silent badge updates - send message to app instead of showing notification
+      if (payload.data?.type === 'BADGE_UPDATE') {
+        event.waitUntil(
+          clients.matchAll({ type: 'window' }).then(windowClients => {
+            windowClients.forEach(client => {
+              client.postMessage({
+                type: 'NOTIFICATION_COUNT',
+                count: payload.data.unreadCount
+              })
+            })
+          })
+        )
+        return // Don't show visible notification for badge updates
+      }
+
       data = { ...data, ...payload }
     } catch {
       data.body = event.data.text()
