@@ -17,6 +17,7 @@ function getAuthHeaders() {
 // Cache for friend activity data
 const activityCache = new Map()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const BATCH_SIZE = 50 // API limit per request
 
 /**
  * Hook for fetching friend activity for multiple places
@@ -68,24 +69,41 @@ export function useFriendPlaceActivity(placeIds) {
     setError(null)
 
     try {
-      const response = await fetch(
-        `/api/places/friend-activity?placeIds=${encodeURIComponent(uncachedIds.join(','))}`,
-        {
-          credentials: 'include',
-          headers: getAuthHeaders()
+      // Split uncached IDs into batches of BATCH_SIZE
+      const batches = []
+      for (let i = 0; i < uncachedIds.length; i += BATCH_SIZE) {
+        batches.push(uncachedIds.slice(i, i + BATCH_SIZE))
+      }
+
+      // Fetch all batches in parallel
+      const batchPromises = batches.map(async (batchIds) => {
+        const response = await fetch(
+          `/api/places/friend-activity?placeIds=${encodeURIComponent(batchIds.join(','))}`,
+          {
+            credentials: 'include',
+            headers: getAuthHeaders()
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch friend activity')
         }
-      )
+
+        return response.json()
+      })
+
+      const batchResults = await Promise.all(batchPromises)
 
       // Check if this is still the latest request
       if (currentFetchId !== fetchIdRef.current) {
         return
       }
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch friend activity')
-      }
-
-      const freshData = await response.json()
+      // Merge all batch results
+      const freshData = {}
+      batchResults.forEach(batchData => {
+        Object.assign(freshData, batchData)
+      })
 
       // Update cache with new data
       Object.entries(freshData).forEach(([id, data]) => {
