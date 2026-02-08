@@ -262,6 +262,20 @@
   background: rgba(212, 168, 85, 0.05);
 }
 
+.wishlist-card-btn.visited {
+  width: 36px;
+  padding: var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--roam-parchment);
+  color: var(--color-text-muted);
+}
+
+.wishlist-card-btn.visited:hover {
+  border-color: var(--roam-sage);
+  color: var(--roam-sage);
+  background: rgba(135, 162, 142, 0.1);
+}
+
 /* Empty State */
 .wishlist-empty {
   display: flex;
