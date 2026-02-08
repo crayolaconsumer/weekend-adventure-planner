@@ -404,7 +404,7 @@
   cursor: pointer;
 }
 
-/* Desktop adjustments */
+/* Tablet adjustments */
 @media (min-width: 768px) {
   .social-hub-page {
     padding-top: 32px;
@@ -412,5 +412,12 @@
 
   .social-hub-title {
     font-size: 32px;
+  }
+}
+
+/* Desktop adjustments - nav is at top */
+@media (min-width: 1024px) {
+  .social-hub-page {
+    padding-top: 96px;
   }
 }
