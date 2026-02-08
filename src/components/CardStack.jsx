@@ -63,7 +63,8 @@ export default function CardStack({
   onLoadMore,
   loading = false,
   loadingMore = false,
-  emptyReason = 'swiped' // 'swiped' | 'no-places' | 'error'
+  emptyReason = 'swiped', // 'swiped' | 'no-places' | 'error'
+  friendActivity = {} // Map of placeId -> friend activity data
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
@@ -457,6 +458,7 @@ export default function CardStack({
                     onExpand={isTop ? onExpand : undefined}
                     isTop={isTop}
                     topContribution={topContributions?.[place.id] || null}
+                    friendActivity={friendActivity?.[place.id] || null}
                   />
                 )}
               </motion.div>

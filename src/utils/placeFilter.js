@@ -171,6 +171,22 @@ export function scorePlace(place, context = {}) {
     }
   }
 
+  // FRIEND ACTIVITY BOOST (max +15)
+  // Invisible boost - places friends have saved/visited rank higher organically
+  // This makes friend recommendations feel natural, not forced
+  const { friendActivity = null } = context
+  if (friendActivity?.[place.id]) {
+    const activity = friendActivity[place.id]
+    // +3 per friend who saved (max 3 friends counted = 9 points)
+    const friendSaveBoost = Math.min(activity.friendsSaved?.length || 0, 3) * 3
+    // +5 per friend who visited and recommended (max 2 friends = 10 points)
+    const recommendedVisits = (activity.friendsVisited || []).filter(f => f.recommended).length
+    const friendVisitBoost = Math.min(recommendedVisits, 2) * 5
+    // Cap total friend boost at 15 to prevent overwhelming other signals
+    const friendBoost = Math.min(friendSaveBoost + friendVisitBoost, 15)
+    score += friendBoost
+  }
+
   return Math.max(0, Math.min(100, score))
 }
 

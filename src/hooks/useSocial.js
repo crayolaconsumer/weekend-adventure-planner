@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { clearFriendActivityCache } from './useFriendActivity'
 
 /**
  * Get auth headers for API requests
@@ -46,6 +47,9 @@ export function useFollow() {
         return { success: false, error: data.error }
       }
 
+      // Clear friend activity cache since social graph changed
+      clearFriendActivityCache()
+
       // status can be 'following' or 'requested' (for private accounts)
       return {
         success: true,
@@ -81,6 +85,9 @@ export function useFollow() {
       if (!response.ok) {
         return { success: false, error: data.error }
       }
+
+      // Clear friend activity cache since social graph changed
+      clearFriendActivityCache()
 
       return {
         success: true,
@@ -256,7 +263,7 @@ export function useFollowing(userId) {
 }
 
 /**
- * Hook for activity feed
+ * Hook for activity feed (legacy - contributions only)
  */
 export function useActivityFeed() {
   const { isAuthenticated } = useAuth()
@@ -310,6 +317,75 @@ export function useActivityFeed() {
   }, [fetchActivities])
 
   return { activities, loading, error, hasMore, loadMore, refresh: () => fetchActivities(0) }
+}
+
+/**
+ * Hook for unified activity feed (visits, tips, photos, ratings)
+ * Uses the new /api/activity/feed endpoint
+ */
+export function useUnifiedActivityFeed(typeFilter = null) {
+  const { isAuthenticated } = useAuth()
+  const [activities, setActivities] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+
+  const fetchActivities = useCallback(async (offset = 0, isRefresh = false) => {
+    if (!isAuthenticated) return
+
+    setLoading(true)
+    if (isRefresh) {
+      setError(null)
+    }
+
+    try {
+      let url = `/api/activity/feed?limit=20&offset=${offset}`
+      if (typeFilter) {
+        url += `&type=${typeFilter}`
+      }
+
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: getAuthHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load activity feed')
+      }
+
+      const data = await response.json()
+
+      if (offset === 0) {
+        setActivities(data.activities || [])
+      } else {
+        setActivities(prev => [...prev, ...(data.activities || [])])
+      }
+      setHasMore(data.hasMore || false)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [isAuthenticated, typeFilter])
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchActivities(activities.length, false)
+    }
+  }, [loading, hasMore, activities.length, fetchActivities])
+
+  const refresh = useCallback(() => {
+    setActivities([])
+    fetchActivities(0, true)
+  }, [fetchActivities])
+
+  // Refetch when typeFilter changes
+  useEffect(() => {
+    setActivities([])
+    fetchActivities(0, true)
+  }, [fetchActivities])
+
+  return { activities, loading, error, hasMore, loadMore, refresh }
 }
 
 /**
@@ -422,6 +498,7 @@ export default {
   useFollowers,
   useFollowing,
   useActivityFeed,
+  useUnifiedActivityFeed,
   useDiscoverUsers,
   useUserSearch
 }

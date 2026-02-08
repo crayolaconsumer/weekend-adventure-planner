@@ -7,6 +7,7 @@ import { ContributionBadge } from './ContributionDisplay'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
+import FriendChips from './FriendChips'
 import './SwipeCard.css'
 
 // Category-specific placeholder images
@@ -119,7 +120,8 @@ export default function SwipeCard({
   onExpand,
   isTop = false,
   style = {},
-  topContribution = null
+  topContribution = null,
+  friendActivity = null
 }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -322,6 +324,11 @@ export default function SwipeCard({
 
       {/* Content */}
       <div className="swipe-card-content">
+        {/* Friend chips - show if friends have engaged with this place */}
+        {friendActivity && friendActivity.friendCount > 0 && (
+          <FriendChips placeId={place.id} friendActivity={friendActivity} />
+        )}
+
         <div className="swipe-card-badges-row">
           {category && (
             <span

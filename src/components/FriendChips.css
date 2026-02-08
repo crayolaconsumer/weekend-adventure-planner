@@ -1,0 +1,83 @@
+/**
+ * FriendChips Styles
+ *
+ * Small, overlapping avatar stack for showing friend engagement on cards.
+ * Designed to blend with ROAM's existing card metadata style.
+ */
+
+.friend-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s ease;
+}
+
+.friend-chips:hover {
+  transform: scale(1.02);
+}
+
+/* Avatar stack */
+.friend-chips-avatars {
+  display: flex;
+  flex-direction: row;
+}
+
+.friend-chips-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid white;
+  margin-left: -6px;
+  object-fit: cover;
+  background: var(--roam-cream);
+}
+
+.friend-chips-avatar:first-child {
+  margin-left: 0;
+}
+
+/* Text label */
+.friend-chips-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--roam-forest);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Positioning context for card placement */
+.swipe-card-content .friend-chips {
+  position: absolute;
+  top: -40px;
+  left: 0;
+}
+
+/* Alternative placement: in badges row */
+.swipe-card-badges-row .friend-chips {
+  position: relative;
+  top: auto;
+  left: auto;
+}
+
+/* Mobile adjustments */
+@media (max-width: 400px) {
+  .friend-chips {
+    padding: 3px 8px 3px 3px;
+  }
+
+  .friend-chips-avatar {
+    width: 18px;
+    height: 18px;
+    margin-left: -5px;
+  }
+
+  .friend-chips-text {
+    font-size: 10px;
+  }
+}
