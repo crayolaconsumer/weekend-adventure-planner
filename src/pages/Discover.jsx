@@ -94,7 +94,6 @@ export default function Discover({ location }) {
   const toast = useToast()
   const { savePlace, places: savedPlaces } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
-  const { sponsoredPlaces } = useSponsoredPlaces(location || fallbackLocation)
   const { isPremium } = useSubscription()
   const { recordSwipe } = useSwipedPlaces()
   const { stats, incrementStat, updateStats } = useUserStats()
@@ -107,6 +106,9 @@ export default function Discover({ location }) {
   const [locationTimeout, setLocationTimeout] = useState(false)
   const [usingFallbackLocation, setUsingFallbackLocation] = useState(false)
   const [fallbackLocation, setFallbackLocation] = useState(null)
+
+  // Must be after fallbackLocation declaration
+  const { sponsoredPlaces } = useSponsoredPlaces(location || fallbackLocation)
 
   // Get friend activity for places (for friend chips and boost scoring)
   const placeIds = useMemo(() => basePlaces.map(p => p.id), [basePlaces])
