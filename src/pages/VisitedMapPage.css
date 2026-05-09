@@ -1,0 +1,123 @@
+.visited-map-page {
+  position: fixed;
+  inset: 0;
+  background: #f5f0e6;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.visited-map-page.loading,
+.visited-map-page.error {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+}
+
+.visited-map-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(26, 58, 47, 0.15);
+  border-top-color: #1a3a2f;
+  border-radius: 50%;
+  animation: visited-map-spin 0.8s linear infinite;
+}
+@keyframes visited-map-spin { to { transform: rotate(360deg); } }
+
+.visited-map-header {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 12px;
+  padding: env(safe-area-inset-top, 0) 12px 12px;
+  background: rgba(245, 240, 230, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(26, 58, 47, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.visited-map-back,
+.visited-map-share {
+  background: transparent;
+  border: none;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #1a3a2f;
+  border-radius: 50%;
+  transition: background 0.15s ease;
+}
+.visited-map-back:hover,
+.visited-map-share:hover {
+  background: rgba(26, 58, 47, 0.06);
+}
+
+.visited-map-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+.visited-map-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.visited-map-user-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.visited-map-user-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #1a3a2f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.visited-map-user-count {
+  font-size: 0.8rem;
+  color: rgba(26, 58, 47, 0.6);
+}
+
+.visited-map-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.visited-map-map-region {
+  flex: 0 0 55%;
+  min-height: 0;
+}
+.visited-map-list-region {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(26, 58, 47, 0.08);
+  background: #fafaf6;
+}
+
+.visited-map-placeholder,
+.visited-map-teaser-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  color: rgba(26, 58, 47, 0.7);
+  gap: 8px;
+}

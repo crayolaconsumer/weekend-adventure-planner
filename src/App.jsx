@@ -9,6 +9,7 @@ const Events = lazy(() => import('./pages/Events'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
 const Collections = lazy(() => import('./pages/Collections'))
 const UnifiedProfile = lazy(() => import('./pages/UnifiedProfile'))
+const VisitedMapPage = lazy(() => import('./pages/VisitedMapPage'))
 const Activity = lazy(() => import('./pages/Activity'))
 const SocialHub = lazy(() => import('./pages/SocialHub'))
 const Place = lazy(() => import('./pages/Place'))
@@ -380,6 +381,7 @@ function App() {
                       <Route path="/social" element={<SocialHub location={location} />} />
                       <Route path="/profile" element={<Navigate to="/social" replace />} />
                       <Route path="/user/:username" element={<UnifiedProfile />} />
+                      <Route path="/user/:username/map" element={<VisitedMapPage />} />
                       <Route path="/activity" element={<Activity />} />
                       <Route path="/place/:id" element={<Place />} />
                       <Route path="/plan/share/:code" element={<SharedPlan />} />
