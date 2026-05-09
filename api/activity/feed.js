@@ -10,7 +10,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne } from '../lib/db.js'
+import { query } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validatePagination, parseCoordinates } from '../lib/validation.js'
 
@@ -235,7 +235,7 @@ export default async function handler(req, res) {
           'rating' as activity_type,
           pr.created_at,
           pr.place_id,
-          NULL as place_data,
+          COALESCE(vp.place_data, sp.place_data) as place_data,
           pr.rating,
           pr.review as content,
           NULL as contribution_type,
@@ -249,6 +249,8 @@ export default async function handler(req, res) {
           NULL as distance_meters
         FROM place_ratings pr
         JOIN users u ON pr.user_id = u.id
+        LEFT JOIN visited_places vp ON vp.user_id = pr.user_id AND vp.place_id = pr.place_id
+        LEFT JOIN saved_places sp ON sp.user_id = pr.user_id AND sp.place_id = pr.place_id
         WHERE pr.user_id IN (${placeholders})
         ${privacyFilter}
       `)
