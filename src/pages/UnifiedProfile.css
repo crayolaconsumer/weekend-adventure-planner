@@ -155,6 +155,10 @@
   border-bottom: 1px solid var(--roam-parchment, #e8e0d0);
 }
 
+.unified-profile-stats--three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .unified-profile-stat {
   display: flex;
   flex-direction: column;

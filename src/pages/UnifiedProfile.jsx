@@ -26,7 +26,7 @@ import { ContributionCard } from '../components/ContributionDisplay'
 import CategoryChart from '../components/stats/CategoryChart'
 import DistanceStats from '../components/stats/DistanceStats'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
-import VisitedMap from '../components/stats/VisitedMap'
+import MapPreviewBand from '../components/profile/MapPreviewBand'
 import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
 import OfflineMapsManager from '../components/OfflineMapsManager'
@@ -340,9 +340,16 @@ export default function UnifiedProfile() {
         )}
       </motion.section>
 
-      {/* Stats Bar */}
+      {/* Map preview band — graduated from a stat tile to a profile-header element */}
+      <MapPreviewBand
+        places={visitedPlaces}
+        onClick={() => navigate(`/user/${user.username}/map`)}
+        label={`View ${user.displayName || user.username}'s map`}
+      />
+
+      {/* Stats Bar — Visited count graduated into the band above */}
       <motion.section
-        className="unified-profile-stats"
+        className="unified-profile-stats unified-profile-stats--three-col"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -376,11 +383,6 @@ export default function UnifiedProfile() {
             <span className="unified-profile-stat-label">Following</span>
           </button>
         )}
-
-        <div className="unified-profile-stat">
-          <span className="unified-profile-stat-value">{stats.placesVisited || stats.contributions || 0}</span>
-          <span className="unified-profile-stat-label">Visited</span>
-        </div>
 
         <div className="unified-profile-stat">
           <span className="unified-profile-stat-value">{stats.helpfulVotes}</span>
@@ -762,13 +764,11 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
       {/* Visual Stats - Owner Only */}
       {isOwnProfile && visitedPlaces.length > 0 && (
         <div className="unified-profile-viz-section">
-          <h3 className="unified-profile-section-title">Your Map</h3>
           <div className="unified-profile-viz-grid">
-            <VisitedMap places={visitedPlaces} />
             <CategoryChart places={visitedPlaces} />
+            <DistanceStats places={visitedPlaces} />
           </div>
           <div className="unified-profile-viz-grid">
-            <DistanceStats places={visitedPlaces} />
             <MonthlyTrends places={visitedPlaces} />
           </div>
         </div>
