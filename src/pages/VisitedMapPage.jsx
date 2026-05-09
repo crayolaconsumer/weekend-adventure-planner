@@ -99,7 +99,9 @@ export default function VisitedMapPage() {
   }, [username])
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/user/${encodeURIComponent(username)}/map`
+    // Use the share-prerender redirect URL so og:image meta tags fire
+    // for link unfurlers (iMessage/WhatsApp/Slack/Twitter).
+    const url = `${window.location.origin}/api/share/user-map/${encodeURIComponent(username)}`
     const title = `${data?.user?.displayName || username}'s ROAM map`
     const text = `Check out the places ${data?.user?.displayName || username} has visited on ROAM`
     if (navigator.share) {
