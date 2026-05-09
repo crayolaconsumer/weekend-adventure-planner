@@ -1,0 +1,129 @@
+.edit-review-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .edit-review-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+}
+
+.edit-review-modal {
+  position: relative;
+  background: #f5f0e6;
+  border-radius: 16px 16px 0 0;
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+@media (min-width: 640px) {
+  .edit-review-modal { border-radius: 16px; }
+}
+
+.edit-review-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  border: none; background: transparent;
+  font-size: 1.5rem; line-height: 1;
+  cursor: pointer; color: #1a3a2f;
+}
+
+.edit-review-title {
+  margin: 0 0 4px;
+  color: #1a3a2f;
+  font-family: 'Fraunces', serif;
+}
+.edit-review-place {
+  margin: 0 0 20px;
+  color: rgba(26, 58, 47, 0.65);
+}
+
+.edit-review-section { margin-bottom: 20px; }
+.edit-review-label {
+  display: block;
+  font-size: 0.85rem;
+  color: rgba(26, 58, 47, 0.75);
+  margin-bottom: 8px;
+}
+
+.edit-review-rec-btns { display: flex; gap: 8px; }
+.edit-review-rec {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(26, 58, 47, 0.2);
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #1a3a2f;
+}
+.edit-review-rec.active.positive {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: #16a34a;
+  color: #166534;
+}
+.edit-review-rec.active.negative {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+.edit-review-textarea {
+  width: 100%;
+  border: 1px solid rgba(26, 58, 47, 0.15);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  background: #fafaf6;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.edit-review-charcount {
+  display: block;
+  text-align: right;
+  font-size: 0.75rem;
+  color: rgba(26, 58, 47, 0.5);
+  margin-top: 4px;
+}
+
+.edit-review-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.edit-review-cancel,
+.edit-review-save {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(26, 58, 47, 0.2);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.edit-review-cancel {
+  background: transparent;
+  color: #1a3a2f;
+}
+.edit-review-save {
+  background: #1a3a2f;
+  color: #f5f0e6;
+  border-color: #1a3a2f;
+}
+.edit-review-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

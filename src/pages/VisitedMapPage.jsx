@@ -14,7 +14,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import VisitedMapLeaflet from '../components/visitedMap/VisitedMapLeaflet'
+import VisitedMapList from '../components/visitedMap/VisitedMapList'
+import EditReviewModal from '../components/visitedMap/EditReviewModal'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -49,6 +52,13 @@ export default function VisitedMapPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [focusedPlaceId, setFocusedPlaceId] = useState(null)
+  const [editingPlace, setEditingPlace] = useState(null)
+
+  // NOTE: usePlaceRatings returns the VIEWER's own ratings, not the
+  // target user's. So reviews appear on the list only when viewing
+  // your own profile. A public ratings endpoint is sub-project #2
+  // follow-up work to surface other users' reviews here.
+  const { ratings } = usePlaceRatings()
 
   // Read ?focus=:placeId to deep-link into a specific row (used by contextual hooks)
   useEffect(() => {
@@ -173,18 +183,24 @@ export default function VisitedMapPage() {
             />
           </div>
           <div className="visited-map-list-region">
-            {/* TODO Task 11: <VisitedMapList places={data.visited} canEdit={isOwner} focusedPlaceId={focusedPlaceId} onRowTap={setFocusedPlaceId} onEditClick={setEditingPlace} /> */}
-            <div className="visited-map-placeholder">
-              <p>List arrives in next task.</p>
-              {focusedPlaceId && (
-                <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>
-                  Focused: <code>{focusedPlaceId}</code>
-                </p>
-              )}
-              {isOwner && <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>(Owner — edit affordances coming.)</p>}
-            </div>
+            <VisitedMapList
+              places={data.visited || []}
+              ratings={ratings}
+              canEdit={isOwner}
+              focusedPlaceId={focusedPlaceId}
+              onRowTap={setFocusedPlaceId}
+              onEditClick={setEditingPlace}
+            />
           </div>
         </div>
+      )}
+
+      {editingPlace && (
+        <EditReviewModal
+          place={editingPlace}
+          onClose={() => setEditingPlace(null)}
+          onSaved={() => { /* optimistic update is handled by ratePlace */ }}
+        />
       )}
     </motion.div>
   )
