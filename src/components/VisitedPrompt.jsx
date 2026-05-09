@@ -154,8 +154,12 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   }
 
   const finishRating = () => {
+    // Convert binary recommend signal to numeric 1-5 rating used by visited_places
+    // (matches usePlaceRatings convention: 5 = thumbs up, 1 = thumbs down, null = skipped)
+    const numericRating = recommended === true ? 5 : recommended === false ? 1 : null
+
     // Save visited place via hook (syncs to API when authenticated)
-    markVisited(place, recommended, userLocation)
+    markVisited(place, numericRating, userLocation)
 
     // Save rating via hook (syncs to API when authenticated)
     ratePlace(place.id, {

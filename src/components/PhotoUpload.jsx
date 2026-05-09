@@ -7,6 +7,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { compressImage } from '../utils/compressImage'
 import './PhotoUpload.css'
 
 // Get auth token for upload
@@ -16,6 +17,7 @@ function getAuthToken() {
 
 export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }) {
   const [uploading, setUploading] = useState(false)
+  const [optimizing, setOptimizing] = useState(false)
   const [error, setError] = useState(null)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef(null)
@@ -36,29 +38,42 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
       return
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Image must be under 5MB')
+    // Hard ceiling — beyond this we risk browser OOM during decode
+    if (file.size > 25 * 1024 * 1024) {
+      setError('Image is too large (over 25MB). Try a smaller photo.')
       return
     }
 
-    // Store file reference for potential retry
+    // Store original file for retry — re-compression is cheap, no need to cache result
     lastFileRef.current = file
-
-    setUploading(true)
     setError(null)
 
+    let uploadFile = file
     try {
-      // Use cached token, fallback to fresh read if needed
+      // Compress oversized images before upload. Modern phone cameras (Pixel,
+      // iPhone) routinely produce 8-15MB photos, well over the 5MB server cap.
+      // Transparent compression keeps the user flow uninterrupted.
+      if (file.size > 4 * 1024 * 1024) {
+        setOptimizing(true)
+        uploadFile = await compressImage(file)
+        setOptimizing(false)
+
+        if (uploadFile.size > 5 * 1024 * 1024) {
+          throw new Error('Photo too large to upload even after optimisation. Try a smaller image.')
+        }
+      }
+
+      setUploading(true)
+
       const token = tokenRef.current || getAuthToken()
       const response = await fetch('/api/contributions/upload', {
         method: 'POST',
         headers: {
-          'Content-Type': file.type,
+          'Content-Type': uploadFile.type,
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         credentials: 'include',
-        body: file
+        body: uploadFile
       })
 
       const data = await response.json()
@@ -72,6 +87,7 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
       console.error('Upload error:', err)
       setError(err.message || 'Failed to upload photo')
     } finally {
+      setOptimizing(false)
       setUploading(false)
     }
   }
@@ -138,7 +154,7 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
 
   return (
     <div
-      className={`photo-upload ${dragOver ? 'drag-over' : ''} ${uploading ? 'uploading' : ''}`}
+      className={`photo-upload ${dragOver ? 'drag-over' : ''} ${(uploading || optimizing) ? 'uploading' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -153,12 +169,23 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
         type="file"
         accept="image/*"
         onChange={handleChange}
-        disabled={disabled || uploading}
+        disabled={disabled || uploading || optimizing}
         className="photo-upload-input"
       />
 
       <AnimatePresence mode="wait">
-        {uploading ? (
+        {optimizing ? (
+          <motion.div
+            key="optimizing"
+            className="photo-upload-content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="photo-upload-spinner" />
+            <span>Optimising photo...</span>
+          </motion.div>
+        ) : uploading ? (
           <motion.div
             key="uploading"
             className="photo-upload-content"

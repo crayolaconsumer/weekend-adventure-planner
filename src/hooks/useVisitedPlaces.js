@@ -23,6 +23,14 @@ function loadLocalVisited() {
   }
 }
 
+// visited_places.rating is a 1-5 TINYINT (CHECK 1-5). Older callers/cached data may
+// pass a boolean recommend signal — coerce it before any write so we don't end up
+// with rating=1 ("doesn't recommend") for what was actually a thumbs-up.
+function coerceRating(rating) {
+  if (typeof rating === 'boolean') return rating ? 5 : 1
+  return rating
+}
+
 export function useVisitedPlaces() {
   const { isAuthenticated, loading: authLoading } = useAuth()
   const [visitedPlaces, setVisitedPlaces] = useState(loadLocalVisited)
@@ -99,7 +107,7 @@ export function useVisitedPlaces() {
                 body: JSON.stringify({
                   placeId: item.placeId,
                   placeData: item.placeData || item,
-                  rating: item.rating
+                  rating: coerceRating(item.rating)
                 })
               }).catch(() => {}) // Ignore individual errors
             )
@@ -124,6 +132,8 @@ export function useVisitedPlaces() {
     // L8: Set saving state
     setSaving(true)
     const placeId = place.id || place.placeId
+
+    rating = coerceRating(rating)
 
     // Calculate distance if user location available
     let distance = null
