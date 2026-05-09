@@ -1,0 +1,82 @@
+.map-preview-band {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 20vh;
+  min-height: 140px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: linear-gradient(180deg, #f5f0e6 0%, #ebe2d2 100%);
+  cursor: pointer;
+  overflow: hidden;
+  transition: filter 0.15s ease;
+}
+
+.map-preview-band:hover { filter: brightness(0.97); }
+.map-preview-band:active { filter: brightness(0.93); }
+
+.map-preview-band-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-preview-grid {
+  position: absolute;
+  inset: 12px;
+  pointer-events: none;
+}
+.map-preview-grid-line {
+  position: absolute;
+  background: rgba(26, 58, 47, 0.06);
+}
+.map-preview-grid-line.horizontal { left: 0; right: 0; height: 1px; }
+.map-preview-grid-line.vertical { top: 0; bottom: 0; width: 1px; }
+
+.map-preview-dots {
+  position: absolute;
+  inset: 16px;
+}
+.map-preview-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px rgba(26, 58, 47, 0.25);
+}
+
+.map-preview-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(245, 240, 230, 0.6);
+}
+.map-preview-count {
+  font-family: 'Fraunces', serif;
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: #1a3a2f;
+  line-height: 1;
+}
+.map-preview-count-label {
+  font-size: 0.875rem;
+  color: rgba(26, 58, 47, 0.7);
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
+.map-preview-empty-hint {
+  font-size: 0.875rem;
+  color: rgba(26, 58, 47, 0.55);
+  text-align: center;
+  padding: 0 16px;
+}
+
+.map-preview-band.is-empty {
+  background: linear-gradient(180deg, #f5f0e6 0%, #efe8d9 100%);
+}
