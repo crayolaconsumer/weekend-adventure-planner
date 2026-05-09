@@ -23,6 +23,7 @@ import AuthModal from './components/AuthModal'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
+import IntentHandler from './components/IntentHandler'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
@@ -368,6 +369,8 @@ function App() {
 
               {/* PWA Install Banner */}
               <InstallBanner />
+
+              <IntentHandler />
 
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>

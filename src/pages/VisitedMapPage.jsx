@@ -18,6 +18,7 @@ import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import VisitedMapLeaflet from '../components/visitedMap/VisitedMapLeaflet'
 import VisitedMapList from '../components/visitedMap/VisitedMapList'
 import EditReviewModal from '../components/visitedMap/EditReviewModal'
+import TeaserLanding from '../components/visitedMap/TeaserLanding'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -170,11 +171,11 @@ export default function VisitedMapPage() {
       </header>
 
       {isTeaser ? (
-        <div className="visited-map-teaser-placeholder">
-          {/* Phase 9 Task 20 replaces this with the full teaser landing UI */}
-          <p>This map is for followers only.</p>
-          <p>Sign in to follow {data.user.displayName || data.user.username} and see the real map.</p>
-        </div>
+        <TeaserLanding
+          user={data.user}
+          placesAbstract={data.placesAbstract || []}
+          total={data.total}
+        />
       ) : (
         <div className="visited-map-body">
           <div className="visited-map-map-region">

@@ -1,0 +1,92 @@
+.teaser-landing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px 64px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #f5f0e6 0%, #efe8d9 100%);
+}
+.teaser-landing-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(26, 58, 47, 0.15);
+}
+.teaser-landing-title {
+  margin: 0 0 4px;
+  font-family: 'Fraunces', serif;
+  color: #1a3a2f;
+  font-size: 1.75rem;
+}
+.teaser-landing-count {
+  margin: 0 0 24px;
+  color: rgba(26, 58, 47, 0.6);
+}
+.teaser-landing-constellation {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  height: 200px;
+  background: rgba(26, 58, 47, 0.04);
+  border: 1px dashed rgba(26, 58, 47, 0.12);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+.teaser-landing-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a3a2f;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 8px rgba(26, 58, 47, 0.3);
+}
+.teaser-landing-explainer {
+  color: rgba(26, 58, 47, 0.7);
+  margin: 0 0 20px;
+  font-size: 0.95rem;
+}
+.teaser-landing-cta-primary,
+.teaser-landing-cta-secondary {
+  width: 100%;
+  max-width: 320px;
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.teaser-landing-cta-primary {
+  background: #1a3a2f;
+  color: #f5f0e6;
+  border: none;
+}
+.teaser-landing-cta-secondary {
+  background: transparent;
+  color: #1a3a2f;
+  border: 1px solid rgba(26, 58, 47, 0.2);
+}
+.teaser-landing-divider {
+  width: 60px;
+  border: none;
+  border-top: 1px solid rgba(26, 58, 47, 0.15);
+  margin: 32px 0 16px;
+}
+.teaser-landing-roam-title {
+  margin: 0 0 8px;
+  color: rgba(26, 58, 47, 0.7);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.teaser-landing-roam-blurb {
+  max-width: 380px;
+  margin: 0;
+  color: rgba(26, 58, 47, 0.8);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
