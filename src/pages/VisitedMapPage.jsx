@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import VisitedMapLeaflet from '../components/visitedMap/VisitedMapLeaflet'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -164,17 +165,24 @@ export default function VisitedMapPage() {
         </div>
       ) : (
         <div className="visited-map-body">
-          {/* TODO Task 9: <VisitedMapLeaflet places={data.visited} onPinTap={setFocusedPlaceId} focusedPlaceId={focusedPlaceId} /> */}
-          {/* TODO Task 11: <VisitedMapList places={data.visited} canEdit={isOwner} focusedPlaceId={focusedPlaceId} onRowTap={setFocusedPlaceId} /> */}
-          <div className="visited-map-placeholder">
-            <p>Loaded {data.visited?.length || 0} places for {data.user.username}.</p>
-            <p>Map and list arrive in the next phases.</p>
-            {focusedPlaceId && (
-              <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>
-                Focused place id: <code>{focusedPlaceId}</code>
-              </p>
-            )}
-            {isOwner && <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>(You're the owner — edit affordances will appear once the list lands.)</p>}
+          <div className="visited-map-map-region">
+            <VisitedMapLeaflet
+              places={data.visited || []}
+              onPinTap={setFocusedPlaceId}
+              focusedPlaceId={focusedPlaceId}
+            />
+          </div>
+          <div className="visited-map-list-region">
+            {/* TODO Task 11: <VisitedMapList places={data.visited} canEdit={isOwner} focusedPlaceId={focusedPlaceId} onRowTap={setFocusedPlaceId} onEditClick={setEditingPlace} /> */}
+            <div className="visited-map-placeholder">
+              <p>List arrives in next task.</p>
+              {focusedPlaceId && (
+                <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>
+                  Focused: <code>{focusedPlaceId}</code>
+                </p>
+              )}
+              {isOwner && <p style={{ opacity: 0.6, fontSize: '0.85rem' }}>(Owner — edit affordances coming.)</p>}
+            </div>
           </div>
         </div>
       )}
