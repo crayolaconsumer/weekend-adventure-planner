@@ -430,3 +430,25 @@
   color: white;
   border-color: var(--roam-forest);
 }
+
+/* Mini-map pin-drop animation in the success step (+1 on your map) */
+.visited-mini-map {
+  position: relative;
+  width: 120px;
+  height: 80px;
+  background: rgba(26, 58, 47, 0.06);
+  border-radius: 12px;
+  margin: 0 auto 16px;
+}
+.visited-mini-pin {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #16a34a;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 16px rgba(22, 163, 74, 0.5);
+  display: block;
+}

@@ -526,14 +526,15 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <motion.div
-                  className="visited-icon-celebration"
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 0.5, repeat: 2 }}
-                >
-                  🏆
-                </motion.div>
-                <h3 className="visited-title">Adventure Complete!</h3>
+                <div className="visited-mini-map" aria-hidden="true">
+                  <motion.span
+                    className="visited-mini-pin"
+                    initial={{ y: -40, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.15 }}
+                  />
+                </div>
+                <h3 className="visited-title">+1 on your map</h3>
                 <p className="visited-subtitle">Keep exploring to unlock badges</p>
               </motion.div>
             )}

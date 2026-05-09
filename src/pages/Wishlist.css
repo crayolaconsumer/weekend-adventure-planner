@@ -657,3 +657,50 @@
   width: 36px;
   height: 36px;
 }
+
+/* "You've been here recently" nudge above the wishlist grid */
+.wishlist-nearby-visited {
+  margin: 16px 0 24px;
+}
+.wishlist-nearby-title {
+  font-size: 0.95rem;
+  color: rgba(26, 58, 47, 0.7);
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+.wishlist-nearby-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+}
+.wishlist-nearby-row::-webkit-scrollbar { display: none; }
+.wishlist-nearby-card {
+  flex-shrink: 0;
+  width: 140px;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: #1a3a2f;
+}
+.wishlist-nearby-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+.wishlist-nearby-img-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 58, 47, 0.08);
+  font-size: 1.5rem;
+}
+.wishlist-nearby-name {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

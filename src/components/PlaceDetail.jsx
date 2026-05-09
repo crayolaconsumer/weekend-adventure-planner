@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { enrichPlace } from '../utils/apiClient'
+import { useAuth } from '../contexts/AuthContext'
+import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
+import { formatDistanceToNow } from '../utils/dateUtils'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import PlaceReviews from './PlaceReviews'
 import SocialProof from './SocialProof'
@@ -380,6 +384,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
+              <YouVisitedBanner placeId={enrichedPlace.id} />
               <h1 id="place-detail-title" className="place-detail-name">{enrichedPlace.name}</h1>
 
               {/* Quick info pills */}
@@ -580,5 +585,32 @@ export default function PlaceDetail({ place, onClose, onGo }) {
         }}
       />
     </>
+  )
+}
+
+/**
+ * YouVisitedBanner
+ * Shows above the place name on the place detail when the current user has
+ * previously visited this place. Tap → opens the user's visited map deep-
+ * linked to this place. Helps users build a sense of "this is something
+ * I've already done" and connects the place page to their map.
+ */
+function YouVisitedBanner({ placeId }) {
+  const { user, isAuthenticated } = useAuth()
+  const { visitedPlaces } = useVisitedPlaces()
+
+  if (!isAuthenticated || !user || !placeId) return null
+  const ownVisit = visitedPlaces.find(v => v.placeId === placeId)
+  if (!ownVisit) return null
+
+  const when = ownVisit.visitedAt ? formatDistanceToNow(new Date(ownVisit.visitedAt)) : ''
+  return (
+    <Link
+      to={`/user/${encodeURIComponent(user.username)}/map?focus=${encodeURIComponent(placeId)}`}
+      className="place-detail-visited-banner"
+    >
+      <span className="place-detail-visited-text">✓ You visited{when ? ` ${when}` : ''}</span>
+      <span className="place-detail-visited-cta">See on your map →</span>
+    </Link>
   )
 }

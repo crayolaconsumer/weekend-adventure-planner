@@ -286,6 +286,8 @@ export default function Wishlist() {
             </div>
           ) : wishlist.length > 0 ? (
             <>
+              <NearbyVisitedNudge wishlist={wishlist} />
+
               {/* Category Filters */}
               {categories.length > 1 && (
                 <div className="wishlist-filters">
@@ -589,5 +591,76 @@ export default function Wishlist() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * NearbyVisitedNudge
+ *
+ * Horizontal scroller of visited places near any wishlist place.
+ * Reinforces the "you've already done some of this" reward loop and
+ * connects Wishlist → visited map.
+ */
+function NearbyVisitedNudge({ wishlist }) {
+  const { visitedPlaces } = useVisitedPlaces()
+
+  const nearby = (() => {
+    if (!wishlist?.length || !visitedPlaces?.length) return []
+
+    const coordOf = (p) => {
+      const data = p.placeData || p
+      const lat = data?.lat
+      const lng = data?.lng ?? data?.lon
+      return (typeof lat === 'number' && typeof lng === 'number') ? { lat, lng } : null
+    }
+
+    const wishlistCoords = wishlist.map(coordOf).filter(Boolean)
+    if (wishlistCoords.length === 0) return []
+
+    const haversineKm = (a, b) => {
+      const R = 6371
+      const dLat = (b.lat - a.lat) * Math.PI / 180
+      const dLng = (b.lng - a.lng) * Math.PI / 180
+      const aa = Math.sin(dLat / 2) ** 2 +
+        Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) *
+        Math.sin(dLng / 2) ** 2
+      return 2 * R * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa))
+    }
+
+    return visitedPlaces
+      .filter(v => coordOf(v))
+      .filter(v => {
+        const c = coordOf(v)
+        return wishlistCoords.some(w => haversineKm(c, w) < 10)
+      })
+      .slice(0, 6)
+  })()
+
+  if (nearby.length === 0) return null
+
+  return (
+    <section className="wishlist-nearby-visited">
+      <h3 className="wishlist-nearby-title">You've been here recently</h3>
+      <div className="wishlist-nearby-row">
+        {nearby.map(v => {
+          const data = v.placeData || {}
+          const img = data.image || data.imageUrl
+          return (
+            <Link
+              key={v.placeId}
+              to={`/place/${v.placeId}`}
+              className="wishlist-nearby-card"
+            >
+              {img ? (
+                <img src={img} alt="" className="wishlist-nearby-img" loading="lazy" />
+              ) : (
+                <div className="wishlist-nearby-img wishlist-nearby-img-placeholder">📍</div>
+              )}
+              <span className="wishlist-nearby-name">{data.name || 'Place'}</span>
+            </Link>
+          )
+        })}
+      </div>
+    </section>
   )
 }

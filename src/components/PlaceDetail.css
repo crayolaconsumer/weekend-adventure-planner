@@ -490,3 +490,28 @@
 .place-detail-content::-webkit-scrollbar-thumb:hover {
   background: rgba(26, 58, 47, 0.3);
 }
+
+/* "You visited" banner above the place name (links to your map) */
+.place-detail-visited-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(26, 58, 47, 0.06);
+  color: #1a3a2f;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  transition: background 0.15s ease;
+}
+.place-detail-visited-banner:hover {
+  background: rgba(26, 58, 47, 0.1);
+}
+.place-detail-visited-text {
+  font-weight: 500;
+}
+.place-detail-visited-cta {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
