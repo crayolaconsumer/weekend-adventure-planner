@@ -73,7 +73,8 @@ async function getPrivacySettings(req, res, user) {
       isPrivateAccount: !!settings.is_private_account,
       showInSearch: !!settings.show_in_search,
       hideFollowersList: !!settings.hide_followers_list,
-      hideFollowingList: !!settings.hide_following_list
+      hideFollowingList: !!settings.hide_following_list,
+      isMapPublic: !!settings.is_map_public
     },
     pendingRequestCount: pendingCount?.count || 0
   })
@@ -87,7 +88,8 @@ async function updatePrivacySettings(req, res, user) {
     isPrivateAccount,
     showInSearch,
     hideFollowersList,
-    hideFollowingList
+    hideFollowingList,
+    isMapPublic
   } = req.body
 
   // Ensure settings row exists
@@ -126,6 +128,10 @@ async function updatePrivacySettings(req, res, user) {
   if (hideFollowingList !== undefined) {
     updates.push('hide_following_list = ?')
     params.push(hideFollowingList)
+  }
+  if (isMapPublic !== undefined) {
+    updates.push('is_map_public = ?')
+    params.push(isMapPublic)
   }
 
   if (updates.length > 0) {
@@ -182,7 +188,8 @@ async function updatePrivacySettings(req, res, user) {
       isPrivateAccount: !!settings.is_private_account,
       showInSearch: !!settings.show_in_search,
       hideFollowersList: !!settings.hide_followers_list,
-      hideFollowingList: !!settings.hide_following_list
+      hideFollowingList: !!settings.hide_following_list,
+      isMapPublic: !!settings.is_map_public
     },
     autoApprovedRequests: autoApprovedCount
   })
