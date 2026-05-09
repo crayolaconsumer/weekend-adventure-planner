@@ -117,6 +117,17 @@
   color: var(--roam-forest, #1a3a2f);
 }
 
+a.activity-item-place-name {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(26, 58, 47, 0.18);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s ease;
+}
+a.activity-item-place-name:hover {
+  text-decoration-color: currentColor;
+}
+
 .activity-item-time {
   display: block;
   margin-top: 2px;

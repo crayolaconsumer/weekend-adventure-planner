@@ -56,12 +56,6 @@ function getActivityVerb(type, rating) {
   }
 }
 
-// Placeholder images by category
-function getPlaceholderImage(category) {
-  // Return a subtle gradient placeholder based on category
-  return null // Let CSS handle placeholder styling
-}
-
 // Icons
 const ThumbsUpIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
@@ -152,7 +146,16 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
                 {activity.user?.displayName || activity.user?.username}
               </Link>
               <span className="activity-item-verb">{verb}</span>
-              {activity.place?.name && (
+              {activity.place?.name && activity.place?.id && (
+                <Link
+                  to={`/place/${activity.place.id}`}
+                  className="activity-item-place-name"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {activity.place.name}
+                </Link>
+              )}
+              {activity.place?.name && !activity.place?.id && (
                 <span className="activity-item-place-name">
                   {activity.place.name}
                 </span>
