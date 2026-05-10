@@ -1,0 +1,96 @@
+.premium-nudge {
+  display: flex;
+  align-items: center;
+  margin: 8px var(--space-md) 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f5f0e6 0%, #ebe2cf 100%);
+  border: 1px solid rgba(212, 168, 85, 0.4);
+  box-shadow: 0 2px 8px rgba(26, 58, 47, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle gold shimmer line across the background */
+.premium-nudge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(212, 168, 85, 0.12) 50%, transparent 70%);
+  animation: premium-nudge-shimmer 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes premium-nudge-shimmer {
+  0%, 100% { transform: translateX(-100%); opacity: 0; }
+  50% { transform: translateX(100%); opacity: 1; }
+}
+
+.premium-nudge-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.premium-nudge-badge {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.premium-nudge-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.premium-nudge-headline {
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 0.95rem;
+  color: #1a3a2f;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.premium-nudge-supporting {
+  font-size: 0.78rem;
+  color: rgba(26, 58, 47, 0.7);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.premium-nudge-arrow {
+  flex-shrink: 0;
+  color: #b88a3c;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-left: 2px;
+}
+
+.premium-nudge-dismiss {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(26, 58, 47, 0.5);
+  padding: 6px;
+  cursor: pointer;
+  margin-left: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.premium-nudge-dismiss:hover {
+  background: rgba(26, 58, 47, 0.08);
+  color: #1a3a2f;
+}

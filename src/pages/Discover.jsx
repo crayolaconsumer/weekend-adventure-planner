@@ -9,6 +9,7 @@ import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
 import StreakIndicator from '../components/StreakIndicator'
+import PremiumNudge from '../components/PremiumNudge'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -864,6 +865,15 @@ export default function Discover({ location }) {
           <p className="discover-tagline">Stop scrolling. Start roaming.</p>
           <StreakIndicator streak={stats.currentStreak || 0} />
         </motion.div>
+
+        {/* Premium nudge — surfaces after engagement signals (streak ≥3 OR
+            5+ saves). Subtle, dismissible. Solves the "ROAM+ is invisible"
+            problem without being pushy at first launch. */}
+        <PremiumNudge
+          streak={stats.currentStreak || 0}
+          savesCount={savedPlaces?.length || 0}
+        />
+
 
         {/* Filter Button */}
         <button
