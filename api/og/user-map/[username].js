@@ -19,6 +19,7 @@
 import { ImageResponse } from '@vercel/og'
 import { queryOne, query } from '../../lib/db.js'
 import { formatDisplayName } from '../../lib/displayName.js'
+import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 
 const TEASER_CELL_DEGREES = 0.5
 
@@ -41,10 +42,18 @@ const genericCard = (
 )
 
 export default async function handler(req, res) {
+  // Edge cache absorbs most legitimate traffic; rate limit catches
+  // cache-busting / scraping attempts before they hit the DB or
+  // ImageResponse render.
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'og:user-map')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   const { username } = req.query
   if (!username || typeof username !== 'string') {
     const img = new ImageResponse(genericCard, { width: 1200, height: 630 })
-    return forwardImageResponse(img, res, 300)
+    return forwardImageResponse(img, res, 3600)
   }
 
   try {
@@ -62,7 +71,7 @@ export default async function handler(req, res) {
 
     if (!target || isPrivateAccount) {
       const img = new ImageResponse(genericCard, { width: 1200, height: 630 })
-      return forwardImageResponse(img, res, 300)
+      return forwardImageResponse(img, res, 3600)
     }
 
     const isFull = !!target.is_map_public
@@ -177,7 +186,7 @@ export default async function handler(req, res) {
     )
 
     const img = new ImageResponse(card, { width: 1200, height: 630 })
-    return forwardImageResponse(img, res, 300)
+    return forwardImageResponse(img, res, 3600)
   } catch (err) {
     console.error('OG render error', err)
     const img = new ImageResponse(genericCard, { width: 1200, height: 630 })
@@ -189,6 +198,9 @@ export default async function handler(req, res) {
 async function forwardImageResponse(imageResponse, res, sMaxAge) {
   const buffer = Buffer.from(await imageResponse.arrayBuffer())
   res.setHeader('Content-Type', 'image/png')
-  res.setHeader('Cache-Control', `public, s-maxage=${sMaxAge}`)
+  // Long edge cache + stale-while-revalidate. The image only changes
+  // when the user adds/removes places; one render per hour at the
+  // edge is plenty.
+  res.setHeader('Cache-Control', `public, s-maxage=${sMaxAge}, stale-while-revalidate=86400`)
   return res.status(200).send(buffer)
 }

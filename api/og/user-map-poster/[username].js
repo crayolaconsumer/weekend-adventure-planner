@@ -17,10 +17,19 @@ import { queryOne, query } from '../../lib/db.js'
 import { formatDisplayName } from '../../lib/displayName.js'
 import { isPremiumRow } from '../../lib/premium.js'
 import { getUserFromRequest } from '../../lib/auth.js'
+import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Posters are CPU-intensive (1200x1700 PNG render) — tighter limit
+  // than the smaller OG card. Premium-gating provides additional
+  // natural throttle.
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, 'og:user-map-poster')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
   }
 
   const { username } = req.query

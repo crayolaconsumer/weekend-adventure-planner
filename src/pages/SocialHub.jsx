@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useUserSearch, useDiscoverUsers } from '../hooks/useSocial'
 import { useToast } from '../hooks/useToast'
 import LocationAwareFeed from '../components/LocationAwareFeed'
+import TrendingPlaces from '../components/TrendingPlaces'
 import { formatDisplayName } from '../utils/displayName'
 import PremiumBadge from '../components/PremiumBadge'
 import './SocialHub.css'
@@ -369,7 +370,13 @@ export default function SocialHub({ location }) {
               transition={{ duration: 0.2 }}
             >
               {isAuthenticated ? (
-                <LocationAwareFeed location={userLocation} />
+                <>
+                  <LocationAwareFeed location={userLocation} />
+                  {/* Community signal — what's popular right now. Sits
+                      below the friend feed: 'what people I follow are
+                      doing' first, 'what everyone's loving' second. */}
+                  <TrendingPlaces />
+                </>
               ) : (
                 <AuthPrompt message="Sign in to see what friends recommend" />
               )}

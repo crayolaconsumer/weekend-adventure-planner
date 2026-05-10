@@ -29,7 +29,6 @@ import './Discover.css'
 // Lazy load desktop-only components to keep mobile bundle small
 const DiscoverMap = lazy(() => import('../components/DiscoverMap'))
 const DiscoverList = lazy(() => import('../components/DiscoverList'))
-const TrendingPlaces = lazy(() => import('../components/TrendingPlaces'))
 
 // Travel mode configurations
 const TRAVEL_MODES = {
@@ -773,6 +772,10 @@ export default function Discover({ location }) {
   }
 
   // Handle clicking a trending place
+  // Kept exported in case Discover ever wants to surface a single
+  // trending place inline; SocialHub uses the TrendingPlaces component
+  // directly with navigation to /place/:id.
+  // eslint-disable-next-line no-unused-vars
   const handleViewTrending = async (placeId) => {
     try {
       const place = await fetchPlaceById(placeId)
@@ -1119,13 +1122,10 @@ export default function Discover({ location }) {
         )}
       </div>
 
-      {/* Trending Places — moved below the card stack so the swipe deck
-          remains the primary attention target. Hides itself when there's
-          no data, so this section only appears when there's something to
-          show. */}
-      <Suspense fallback={null}>
-        <TrendingPlaces onSelectPlace={handleViewTrending} />
-      </Suspense>
+      {/* Trending lives on the Social tab now — Discover is reserved for
+          the swipe deck. The translucent swipe-card glow visually bled
+          over the trending row when both shared this surface; community
+          signals belong in social context anyway. */}
 
       {/* Place Detail Modal */}
       <AnimatePresence>

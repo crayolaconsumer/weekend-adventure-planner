@@ -63,10 +63,11 @@ export default async function handler(req, res) {
 
     let contributions = []
     let placeData = []
+    let photoByPlace = {}
     if (placeIds.length > 0) {
       const placeholders = placeIds.map(() => '?').join(',')
 
-      // Fetch contributions
+      // Fetch top tip contributions (used for the card subtitle)
       contributions = await query(
         `SELECT
           c.place_id,
@@ -83,6 +84,29 @@ export default async function handler(req, res) {
         ORDER BY (c.upvotes - c.downvotes) DESC`,
         placeIds
       )
+
+      // Fetch top user-uploaded photo per place. Real user photos beat
+      // Wikipedia thumbnails which beat stylized placeholders. Picks
+      // the most-recent approved photo contribution per place.
+      const photoRows = await query(
+        `SELECT c.place_id, c.metadata, c.created_at
+         FROM contributions c
+         WHERE c.place_id IN (${placeholders})
+           AND c.contribution_type = 'photo'
+           AND c.status = 'approved'
+         ORDER BY c.created_at DESC`,
+        placeIds
+      )
+      for (const row of photoRows) {
+        if (photoByPlace[row.place_id]) continue // most recent first; skip rest
+        try {
+          const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+          const url = meta?.photoUrl || meta?.url
+          if (url) photoByPlace[row.place_id] = url
+        } catch {
+          // Skip rows with malformed metadata JSON
+        }
+      }
 
       // Fetch place data from saved_places OR visited_places — visits write
       // place_data too and might be the only source for a trending place
@@ -121,6 +145,14 @@ export default async function handler(req, res) {
 
     const result = trending.map(t => {
       const place = placeDataByPlace[t.place_id]
+      // Inject the top user-uploaded photo URL into placeData.image so
+      // PlaceImage's resolution chain picks it up first — real human
+      // photos take precedence over Wikipedia thumbnails over the
+      // stylized placeholder.
+      const userPhoto = photoByPlace[t.place_id]
+      const placeWithPhoto = (place || userPhoto)
+        ? { ...(place || {}), ...(userPhoto ? { image: userPhoto } : {}) }
+        : null
       return {
         placeId: t.place_id,
         placeName: place?.name || null,
@@ -128,7 +160,7 @@ export default async function handler(req, res) {
         // Full placeData so the client can render proper imagery
         // (PlaceImage needs the wikipedia/wikidata tags for the
         // Wikipedia thumbnail fallback chain).
-        placeData: place || null,
+        placeData: placeWithPhoto,
         contributionCount: Number(t.contribution_count) || 0,
         saveCount: Number(t.save_count) || 0,
         visitCount: Number(t.visit_count) || 0,
@@ -141,6 +173,11 @@ export default async function handler(req, res) {
       }
     })
 
+    // Cache trending at the edge for 10 minutes, with 1-hour stale-while-
+    // revalidate. The data is "places trending in last 30 days" — it
+    // barely changes minute-to-minute. Edge cache deduplicates the
+    // moderately-heavy UNION ALL query across the whole user base.
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600')
     return res.status(200).json({
       trending: result,
       period: `${days} days`

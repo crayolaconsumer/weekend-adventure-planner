@@ -96,23 +96,8 @@ export function resolvePlaceImageSync(place) {
   )
 }
 
-/**
- * Parse the OSM-style "wikipedia" tag into { lang, title }.
- * Examples:
- *   "en:Ivinghoe Beacon"        → { lang: 'en', title: 'Ivinghoe Beacon' }
- *   "de:Berliner Fernsehturm"   → { lang: 'de', title: 'Berliner Fernsehturm' }
- *   "Stony Hill"                → { lang: 'en', title: 'Stony Hill' }
- */
-function parseWikipediaTag(tag) {
-  if (typeof tag !== 'string' || tag.length === 0) return null
-  if (tag.includes(':')) {
-    const [lang, ...rest] = tag.split(':')
-    const title = rest.join(':')
-    if (!title) return null
-    return { lang: lang.toLowerCase(), title }
-  }
-  return { lang: 'en', title: tag }
-}
+// Tag parsing now lives server-side in api/wikipedia/summary.js since
+// the client only forwards the raw OSM-shaped tag to the proxy.
 
 /**
  * Fetch the full Wikipedia summary for a place's wikipedia tag.
@@ -132,30 +117,31 @@ export async function fetchWikipediaSummary(wikipediaTag) {
     return diskHit
   }
 
-  const parsed = parseWikipediaTag(wikipediaTag)
-  if (!parsed) return null
-
-  const url = `https://${parsed.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsed.title)}`
+  // Hit our server-side proxy, NOT Wikipedia directly. The proxy:
+  //   - shares one cache across all users (Vercel edge, 1-day s-maxage)
+  //   - rate-limits per IP so a misbehaving client can't blow our quota
+  //   - sends a polite User-Agent identifying us per Wikipedia's policy
+  // Net effect: from "every user fetches Wikipedia for every place they
+  // open" to "one Wikipedia fetch per place per day across all users."
+  const url = `/api/wikipedia/summary?tag=${encodeURIComponent(wikipediaTag)}`
   try {
     const res = await fetch(url, { redirect: 'follow' })
     if (!res.ok) {
       memoryCache.set(wikipediaTag, null)
-      saveDiskEntry(wikipediaTag, null)
+      // Don't disk-cache transient failures; an hour from now the proxy may be back
       return null
     }
-    const data = await res.json()
-    const result = {
-      thumbnail: pickFirstUrl(data.thumbnail, data.originalimage),
-      extract: typeof data.extract === 'string' ? data.extract : null,
-      title: typeof data.title === 'string' ? data.title : parsed.title,
-      contentUrl: data.content_urls?.desktop?.page || null
+    const result = await res.json()
+    if (!result || (typeof result.thumbnail !== 'string' && typeof result.extract !== 'string' && result.thumbnail !== null)) {
+      memoryCache.set(wikipediaTag, null)
+      saveDiskEntry(wikipediaTag, null)
+      return null
     }
     memoryCache.set(wikipediaTag, result)
     saveDiskEntry(wikipediaTag, result)
     return result
   } catch {
     memoryCache.set(wikipediaTag, null)
-    saveDiskEntry(wikipediaTag, null)
     return null
   }
 }

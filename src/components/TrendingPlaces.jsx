@@ -25,19 +25,15 @@ const TrendingIcon = () => (
   </svg>
 )
 
-// Format a single human activity stat per card. We don't show "5 fire"
-// because nobody knows what that means. Pick the strongest signal:
+// Format a single human activity stat per card. Threshold at 2+ — a
+// "1 person visited" subtitle reads as "the app is empty" and damages
+// social proof. Below threshold we show no stat; the card still has
+// place name + category. Pick the strongest signal at and above 2:
 //   visits > saves > contributions
 function formatActivity(item) {
-  if (item.visitCount > 0) {
-    return item.visitCount === 1 ? '1 person visited' : `${item.visitCount} people visited`
-  }
-  if (item.saveCount > 0) {
-    return item.saveCount === 1 ? '1 person saved' : `${item.saveCount} people saved`
-  }
-  if (item.contributionCount > 0) {
-    return item.contributionCount === 1 ? '1 tip shared' : `${item.contributionCount} tips shared`
-  }
+  if (item.visitCount >= 2) return `${item.visitCount} people visited`
+  if (item.saveCount >= 2) return `${item.saveCount} people saved`
+  if (item.contributionCount >= 2) return `${item.contributionCount} tips shared`
   return null
 }
 
