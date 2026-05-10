@@ -515,3 +515,33 @@
   font-size: 0.85rem;
   opacity: 0.8;
 }
+
+/* Wikipedia "About" block on place detail */
+.place-detail-wiki {
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  background: rgba(26, 58, 47, 0.04);
+  border-left: 3px solid var(--roam-gold, #d4a855);
+  border-radius: 0 8px 8px 0;
+}
+.place-detail-wiki-extract {
+  margin: 0;
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--roam-ink, #2c2c2c);
+}
+.place-detail-wiki-credit {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--roam-forest, #1a3a2f);
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(26, 58, 47, 0.25);
+  padding-bottom: 1px;
+  transition: border-color 0.15s ease;
+}
+.place-detail-wiki-credit:hover {
+  border-bottom-color: var(--roam-forest, #1a3a2f);
+}

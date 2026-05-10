@@ -19,6 +19,7 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
+import { fetchWikipediaSummary } from '../utils/placeImage'
 import './PlaceDetail.css'
 
 // Icons
@@ -116,6 +117,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [loadedSrc, setLoadedSrc] = useState(null)
   const [failedSrc, setFailedSrc] = useState(null)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
+  const [wikiSummary, setWikiSummary] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const [showPlanVisit, setShowPlanVisit] = useState(false)
   const [animationComplete, setAnimationComplete] = useState(false)
@@ -129,6 +131,21 @@ export default function PlaceDetail({ place, onClose, onGo }) {
       refreshContributions()
     }
   }, [place?.id, refreshContributions])
+
+  // Fetch Wikipedia summary when the place has a wikipedia/wikidata tag.
+  // Cached in localStorage by placeImage util — second view is instant.
+  useEffect(() => {
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when place changes; async fetch sets the new value
+    setWikiSummary(null)
+    const wikiTag = enrichedPlace?.wikipedia || enrichedPlace?.tags?.wikipedia
+    if (!wikiTag) return
+    fetchWikipediaSummary(wikiTag).then((summary) => {
+      if (cancelled) return
+      if (summary && summary.extract) setWikiSummary(summary)
+    })
+    return () => { cancelled = true }
+  }, [enrichedPlace?.wikipedia, enrichedPlace?.tags?.wikipedia])
 
   // Fetch enriched data when modal opens
   // Uses cached enrichPlace results for instant loads if CardStack prefetched
@@ -439,10 +456,33 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                 </div>
               ) : (
                 <>
+                  {/* Wikipedia summary — only when we got a real extract.
+                   * Reads as an "About" section authored by Wikipedia, with
+                   * an explicit attribution + link out so users can dive
+                   * deeper. Adds real content density for landmark places. */}
+                  {wikiSummary?.extract && (
+                    <div className="place-detail-wiki">
+                      <p className="place-detail-wiki-extract">{wikiSummary.extract}</p>
+                      {wikiSummary.contentUrl && (
+                        <a
+                          href={wikiSummary.contentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="place-detail-wiki-credit"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            openExternalLink(wikiSummary.contentUrl)
+                          }}
+                        >
+                          Read more on Wikipedia →
+                        </a>
+                      )}
+                    </div>
+                  )}
                   {enrichedPlace.description && (
                     <p className="place-detail-description">{enrichedPlace.description}</p>
                   )}
-                  {!enrichedPlace.description && enrichedPlace.type && (
+                  {!wikiSummary?.extract && !enrichedPlace.description && enrichedPlace.type && (
                     <p className="place-detail-type-info">
                       {enrichedPlace.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </p>

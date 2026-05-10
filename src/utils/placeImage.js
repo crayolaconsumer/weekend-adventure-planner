@@ -114,7 +114,15 @@ function parseWikipediaTag(tag) {
   return { lang: 'en', title: tag }
 }
 
-async function fetchWikipediaThumb(wikipediaTag) {
+/**
+ * Fetch the full Wikipedia summary for a place's wikipedia tag.
+ * Returns { thumbnail, extract, title, contentUrl } or null.
+ *
+ * One API call gives us both the thumbnail (used by PlaceImage) and
+ * the extract (used by PlaceDetail "About" section), so we cache the
+ * full object once.
+ */
+export async function fetchWikipediaSummary(wikipediaTag) {
   const memHit = memoryCache.get(wikipediaTag)
   if (memHit !== undefined) return memHit
 
@@ -136,15 +144,25 @@ async function fetchWikipediaThumb(wikipediaTag) {
       return null
     }
     const data = await res.json()
-    const thumb = pickFirstUrl(data.thumbnail, data.originalimage)
-    memoryCache.set(wikipediaTag, thumb)
-    saveDiskEntry(wikipediaTag, thumb)
-    return thumb
+    const result = {
+      thumbnail: pickFirstUrl(data.thumbnail, data.originalimage),
+      extract: typeof data.extract === 'string' ? data.extract : null,
+      title: typeof data.title === 'string' ? data.title : parsed.title,
+      contentUrl: data.content_urls?.desktop?.page || null
+    }
+    memoryCache.set(wikipediaTag, result)
+    saveDiskEntry(wikipediaTag, result)
+    return result
   } catch {
     memoryCache.set(wikipediaTag, null)
     saveDiskEntry(wikipediaTag, null)
     return null
   }
+}
+
+async function fetchWikipediaThumb(wikipediaTag) {
+  const summary = await fetchWikipediaSummary(wikipediaTag)
+  return summary?.thumbnail || null
 }
 
 /**
