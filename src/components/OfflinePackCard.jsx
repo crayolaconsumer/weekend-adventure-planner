@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import PremiumBadge from './PremiumBadge'
+import ConfirmModal from './ConfirmModal'
 import { useSubscription } from '../hooks/useSubscription'
 import { useOfflinePack } from '../hooks/useOfflinePack'
 import {
@@ -70,6 +71,7 @@ function PremiumVariant() {
   const [progress, setProgress] = useState(null) // { phase, current, total }
   const [error, setError] = useState(null)
   const [abortController, setAbortController] = useState(null)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   const requestLocation = useCallback(() => new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
@@ -114,8 +116,10 @@ function PremiumVariant() {
     await refresh()
   }
 
-  const handleClear = async () => {
-    if (!confirm('Clear your offline pack? You can download a new one any time.')) return
+  const handleClear = () => setShowClearConfirm(true)
+
+  const confirmClear = async () => {
+    setShowClearConfirm(false)
     await clearPack()
     await refresh()
   }
@@ -160,6 +164,7 @@ function PremiumVariant() {
     const m = status.manifest
     const ageMs = Date.now() - (m.downloadedAt || 0)
     return (
+      <>
       <div className="offline-pack-card offline-pack-card--active">
         <div className="offline-pack-card-header">
           <span className="offline-pack-card-eyebrow">ROAM+ · Offline pack</span>
@@ -188,6 +193,16 @@ function PremiumVariant() {
           </button>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Clear your offline pack?"
+        message="You can download a new one any time."
+        confirmLabel="Clear"
+        destructive
+        onConfirm={confirmClear}
+        onCancel={() => setShowClearConfirm(false)}
+      />
+      </>
     )
   }
 

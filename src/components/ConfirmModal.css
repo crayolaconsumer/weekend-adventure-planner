@@ -1,0 +1,83 @@
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .confirm-modal-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+}
+
+.confirm-modal {
+  position: relative;
+  background: #f5f0e6;
+  border-radius: 16px 16px 0 0;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.16);
+}
+@media (min-width: 640px) {
+  .confirm-modal {
+    border-radius: 16px;
+    padding-bottom: 24px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+  }
+}
+
+.confirm-modal-title {
+  margin: 0 0 8px;
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 1.25rem;
+  color: #1a3a2f;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.confirm-modal-message {
+  margin: 0 0 20px;
+  color: rgba(26, 58, 47, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.confirm-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.confirm-modal-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+  min-height: 44px; /* iOS Human Interface Guidelines tap target */
+}
+.confirm-modal-btn:active { transform: scale(0.97); }
+
+.confirm-modal-btn-cancel {
+  background: transparent;
+  color: #1a3a2f;
+  border-color: rgba(26, 58, 47, 0.2);
+}
+
+.confirm-modal-btn-confirm {
+  background: #1a3a2f;
+  color: #f5f0e6;
+}
+.confirm-modal-btn-confirm.destructive {
+  background: #b22d2d;
+  color: #fff;
+}
