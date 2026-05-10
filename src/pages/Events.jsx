@@ -1059,17 +1059,11 @@ export default function Events({ location }) {
             >
               🎭
             </motion.div>
-            <h3>No Events Found</h3>
+            <h3>Quiet around here</h3>
             <p>
-              Add API keys to Vercel Environment Variables to enable event discovery,
-              or check out these platforms for events in your area:
+              Nothing showing up nearby right now. Try a different date, or have a
+              look at these platforms for what's on in your area:
             </p>
-            <div className="events-api-setup">
-              <code>
-                TICKETMASTER_KEY<br/>
-                SKIDDLE_KEY
-              </code>
-            </div>
             <div className="events-alternatives">
               <a href="https://www.ticketmaster.co.uk/discover/concerts" target="_blank" rel="noopener noreferrer" className="events-alt-link">
                 <span>Ticketmaster</span>
