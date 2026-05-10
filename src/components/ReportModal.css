@@ -1,0 +1,125 @@
+.report-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1700;
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .report-modal-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+}
+
+.report-modal {
+  position: relative;
+  background: var(--roam-paper, #fff);
+  border-radius: 16px 16px 0 0;
+  padding: 22px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding-bottom: calc(22px + env(safe-area-inset-bottom, 0));
+}
+@media (min-width: 640px) {
+  .report-modal { border-radius: 16px; padding-bottom: 22px; }
+}
+
+.report-modal-title {
+  margin: 0 0 4px;
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 1.25rem;
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 500;
+}
+.report-modal-subtitle {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+  color: var(--roam-stone, #6b6b6b);
+  line-height: 1.4;
+}
+
+.report-modal-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.report-modal-reason {
+  text-align: left;
+  padding: 12px 14px;
+  min-height: 44px;
+  background: transparent;
+  border: 1.5px solid rgba(26, 58, 47, 0.15);
+  border-radius: 10px;
+  color: var(--roam-forest, #1a3a2f);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.report-modal-reason:hover { background: rgba(26, 58, 47, 0.04); }
+.report-modal-reason.selected {
+  background: rgba(212, 168, 85, 0.12);
+  border-color: #d4a855;
+  color: #1a3a2f;
+}
+
+.report-modal-details-label {
+  display: block;
+  margin: 4px 0 6px;
+  font-size: 0.85rem;
+  color: var(--roam-stone, #6b6b6b);
+}
+.report-modal-details {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px 12px;
+  border: 1.5px solid rgba(26, 58, 47, 0.15);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #1a3a2f;
+  background: #fff;
+  resize: vertical;
+}
+.report-modal-details:focus {
+  outline: none;
+  border-color: #d4a855;
+}
+
+.report-modal-error {
+  margin: 10px 0 0;
+  color: #b22d2d;
+  font-size: 0.85rem;
+}
+
+.report-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.report-modal-btn {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.report-modal-btn.cancel {
+  background: transparent;
+  color: #1a3a2f;
+  border-color: rgba(26, 58, 47, 0.2);
+}
+.report-modal-btn.submit {
+  background: #1a3a2f;
+  color: #fdfcf8;
+}
+.report-modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }

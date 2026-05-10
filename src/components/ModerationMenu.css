@@ -1,0 +1,57 @@
+.moderation-menu-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.moderation-menu-trigger {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--roam-stone, #6b6b6b);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+.moderation-menu-trigger:hover {
+  background: rgba(26, 58, 47, 0.06);
+  color: var(--roam-forest, #1a3a2f);
+}
+
+.moderation-menu-popover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 180px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(26, 58, 47, 0.16);
+  border: 1px solid rgba(26, 58, 47, 0.08);
+  z-index: 100;
+  transform-origin: top right;
+}
+
+.moderation-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--roam-forest, #1a3a2f);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.moderation-menu-item:hover {
+  background: rgba(26, 58, 47, 0.05);
+}
+.moderation-menu-item + .moderation-menu-item {
+  border-top: 1px solid rgba(26, 58, 47, 0.06);
+}

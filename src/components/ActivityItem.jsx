@@ -13,6 +13,7 @@ import { motion } from 'framer-motion'
 import { formatDistanceToNow } from '../utils/dateUtils'
 import { formatDisplayName } from '../utils/displayName'
 import PremiumBadge from './PremiumBadge'
+import ModerationMenu from './ModerationMenu'
 import './ActivityItem.css'
 
 // Category icons mapping
@@ -186,6 +187,20 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
             </p>
             <span className="activity-item-time">{timeAgo}</span>
           </div>
+          {activity.id && (
+            <ModerationMenu
+              entityType={activity.type === 'photo' ? 'photo' : 'contribution'}
+              entityId={activity.id}
+              entityLabel={
+                activity.type === 'photo' ? 'this photo' :
+                activity.type === 'tip' ? 'this tip' :
+                activity.type === 'rating' ? 'this rating' :
+                'this activity'
+              }
+              authorId={activity.user?.id}
+              authorUsername={activity.user?.username}
+            />
+          )}
         </header>
 
         {/* Rating indicator for visits */}

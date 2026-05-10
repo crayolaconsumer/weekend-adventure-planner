@@ -138,6 +138,9 @@
 
 .unified-profile-actions {
   margin-top: var(--space-sm, 8px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ═══════════════════════════════════════════════════════

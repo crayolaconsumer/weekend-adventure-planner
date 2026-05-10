@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { formatDisplayName } from '../utils/displayName'
 import { useVote } from '../hooks/useContributions'
+import ModerationMenu from './ModerationMenu'
 import './ContributionDisplay.css'
 
 // Upvote icon
@@ -166,6 +167,13 @@ export function ContributionCard({ contribution, onVoteChange }) {
             </span>
           </div>
         </div>
+        <ModerationMenu
+          entityType="contribution"
+          entityId={localContribution.id}
+          entityLabel={localContribution.contribution_type === 'photo' ? 'this photo' : 'this tip'}
+          authorId={localContribution.user?.id}
+          authorUsername={localContribution.user?.username}
+        />
       </div>
 
       <p className="contribution-card-content">{localContribution.content}</p>

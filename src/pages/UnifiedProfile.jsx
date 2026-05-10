@@ -24,6 +24,7 @@ import { useToast } from '../hooks/useToast'
 import { useSEO } from '../hooks/useSEO'
 import { useUserBadges } from '../hooks/useUserBadges'
 import FollowButton from '../components/FollowButton'
+import ModerationMenu from '../components/ModerationMenu'
 import UserCard from '../components/UserCard'
 import { ContributionCard } from '../components/ContributionDisplay'
 import CategoryChart from '../components/stats/CategoryChart'
@@ -338,6 +339,13 @@ export default function UnifiedProfile() {
               isPrivateAccount={isPrivateAccount}
               onFollowChange={handleFollowChange}
               size="large"
+            />
+            <ModerationMenu
+              entityType="user"
+              entityId={user.id}
+              entityLabel={`@${user.username}`}
+              authorId={user.id}
+              authorUsername={user.username}
             />
           </div>
         )}

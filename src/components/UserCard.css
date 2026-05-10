@@ -112,6 +112,9 @@
 
 .user-card-action {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Skeleton loading */

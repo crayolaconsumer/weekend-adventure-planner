@@ -10,6 +10,7 @@ import { motion } from 'framer-motion'
 import FollowButton from './FollowButton'
 import { formatDisplayName } from '../utils/displayName'
 import PremiumBadge from './PremiumBadge'
+import ModerationMenu from './ModerationMenu'
 import './UserCard.css'
 
 export default function UserCard({
@@ -76,6 +77,13 @@ export default function UserCard({
             initialIsFollowing={isFollowing}
             onFollowChange={handleFollowChange}
             size="small"
+          />
+          <ModerationMenu
+            entityType="user"
+            entityId={user.id}
+            entityLabel={`@${user.username}`}
+            authorId={user.id}
+            authorUsername={user.username}
           />
         </div>
       )}
