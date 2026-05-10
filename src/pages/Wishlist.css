@@ -342,6 +342,16 @@
   padding: var(--space-md) var(--space-lg);
   background: var(--roam-paper);
   border-bottom: 1px solid var(--roam-parchment);
+  /* Three tabs at ~110-130px each = ~390px → overflows 375pt mini viewport.
+     Allow horizontal scroll with hidden scrollbar so the third tab is
+     reachable instead of clipped. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.wishlist-tabs::-webkit-scrollbar { display: none; }
+.wishlist-tab {
+  flex-shrink: 0; /* don't squeeze when overflow-x is on */
 }
 
 .wishlist-tab {

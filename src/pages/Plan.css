@@ -630,18 +630,19 @@
 
 .plan-itinerary-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
 }
 
 .plan-action {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
+  min-height: 36px;
+  padding: 8px 14px;
   background: var(--color-surface-elevated);
   border: 1.5px solid var(--roam-parchment);
   border-radius: var(--radius-full);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -723,15 +724,17 @@
 }
 
 .plan-stop-time-wrapper {
-  width: 42px;
+  width: 52px;
   flex-shrink: 0;
 }
 
 .plan-stop-time {
   width: 100%;
-  padding: 3px 4px;
+  min-height: 36px; /* Apple HIG tap-target floor (44pt preferred; 36 is the
+     compromise here since this control nests inside a dense timeline row) */
+  padding: 8px 6px;
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--roam-forest);
@@ -750,9 +753,10 @@
 
 .plan-stop-time-input {
   width: 100%;
-  padding: 3px 2px;
+  min-height: 36px;
+  padding: 6px 4px;
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--roam-forest);
   text-align: center;
@@ -856,8 +860,8 @@
 }
 
 .plan-stop-actions button {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px; /* up from 26 — App Store reviewers flag <36 even when 44 is preferred */
   display: flex;
   align-items: center;
   justify-content: center;
