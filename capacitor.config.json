@@ -1,0 +1,34 @@
+{
+  "appId": "com.goroam.app",
+  "appName": "ROAM",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always",
+    "scrollEnabled": true
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "iosScheme": "capacitor",
+    "allowNavigation": ["go-roam.uk", "*.go-roam.uk"]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#1a3a2f",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "backgroundColor": "#1a3a2f",
+      "style": "LIGHT",
+      "overlaysWebView": false
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}
