@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePlaceRatings } from '../../hooks/usePlaceRatings'
+import { useVisitedPlaces } from '../../hooks/useVisitedPlaces'
 import './EditReviewModal.css'
 
 const ThumbsUpIcon = () => (
@@ -27,6 +28,7 @@ const ThumbsDownIcon = () => (
 
 export default function EditReviewModal({ place, onClose, onSaved }) {
   const { getRating, ratePlace } = usePlaceRatings()
+  const { markVisited } = useVisitedPlaces()
   const existing = place ? getRating(place.placeId) : null
 
   const initialRecommend = existing?.rating == null ? null : existing.rating > 3
@@ -46,14 +48,27 @@ export default function EditReviewModal({ place, onClose, onSaved }) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await ratePlace(place.placeId, {
-        recommended: recommend === true,
-        review: reviewText.trim() || null,
-        vibe: null,
-        noiseLevel: null,
-        valueForMoney: null,
-        categoryKey: place.placeData?.category?.key || place.placeData?.category || null
-      })
+      // Write to BOTH place_ratings (canonical review record) and
+      // visited_places (legacy rating column read by older surfaces).
+      // The API's GET /visited COALESCEs prefer place_ratings, so this
+      // is belt-and-braces — but it keeps the two tables aligned for
+      // any other surface that reads visited_places directly.
+      const numericRating = recommend === true ? 5 : recommend === false ? 1 : null
+      await Promise.all([
+        ratePlace(place.placeId, {
+          recommended: recommend === true,
+          review: reviewText.trim() || null,
+          vibe: null,
+          noiseLevel: null,
+          valueForMoney: null,
+          categoryKey: place.placeData?.category?.key || place.placeData?.category || null
+        }),
+        markVisited(
+          { id: place.placeId, ...(place.placeData || {}) },
+          numericRating,
+          null
+        )
+      ])
       onSaved?.(place.placeId)
       onClose?.()
     } finally {

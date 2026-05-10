@@ -60,7 +60,11 @@ export default function VisitedMapList({
   const sorted = useMemo(() => {
     const enriched = (places || []).map(p => {
       const data = p.placeData || {}
-      const review = ratings?.[p.placeId]?.review || null
+      // Prefer the review delivered with the API row (works for any
+      // profile, including viewers looking at someone else's map).
+      // Fall back to the viewer's own ratings cache for instant updates
+      // immediately after edit-save (before the API refetches).
+      const review = p.review || ratings?.[p.placeId]?.review || null
       return {
         placeId: p.placeId,
         name: data.name || 'Unnamed place',

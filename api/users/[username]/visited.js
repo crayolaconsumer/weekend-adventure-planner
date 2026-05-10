@@ -84,11 +84,19 @@ export default async function handler(req, res) {
 
     const canSeeFull = isOwner || isMapPublic || isFollower
 
+    // Prefer place_ratings.rating when present — that's where reviews
+    // write. visited_places.rating exists for legacy reasons and can
+    // drift out of sync with the canonical review record. COALESCE
+    // gives us "rated rating if you've left a review, else the rating
+    // captured at visit time, else null."
     const rows = await query(
-      `SELECT place_id, place_data, visited_at, notes, rating
-       FROM visited_places
-       WHERE user_id = ?
-       ORDER BY visited_at DESC
+      `SELECT vp.place_id, vp.place_data, vp.visited_at, vp.notes,
+              COALESCE(pr.rating, vp.rating) AS rating,
+              pr.review AS review
+       FROM visited_places vp
+       LEFT JOIN place_ratings pr ON pr.user_id = vp.user_id AND pr.place_id = vp.place_id
+       WHERE vp.user_id = ?
+       ORDER BY vp.visited_at DESC
        LIMIT 500`,
       [target.id]
     )
@@ -109,7 +117,13 @@ export default async function handler(req, res) {
           : null,
         visitedAt: new Date(r.visited_at).getTime(),
         notes: r.notes,
-        rating: r.rating
+        rating: r.rating,
+        // Surface the review text alongside the visit so the list can
+        // show it without needing a separate ratings fetch — and so
+        // visitors viewing someone else's profile can see reviews too
+        // (previously the viewer's own usePlaceRatings was being read,
+        // which only worked on the viewer's own profile).
+        review: r.review
       }))
       return res.status(200).json({
         visibility: 'full',
