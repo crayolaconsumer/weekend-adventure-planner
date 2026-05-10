@@ -143,11 +143,8 @@ export default function SharedPlan() {
   const openDirections = (stop) => {
     const data = stop.placeData
     if (data?.lat && data?.lng) {
-      window.open(
-        `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`,
-        '_blank',
-        'noopener,noreferrer'
-      )
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`
+      import('../utils/nativePlugins').then(m => m.openExternalUrl(url))
     }
   }
 

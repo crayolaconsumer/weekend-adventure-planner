@@ -223,7 +223,26 @@ export async function generateAdventureCard(places, stats = {}) {
 export async function shareContent(shareData) {
   const { title, text, url, files } = shareData
 
-  // Try native share API first
+  // Capacitor native first — proper system share sheet on iOS/Android.
+  // Lazy-imported via nativePlugins so the web bundle stays clean.
+  try {
+    const { isNative } = await import('./nativeBridge')
+    if (isNative()) {
+      const { shareContent: nativeShare } = await import('./nativePlugins')
+      try {
+        await nativeShare({ title, text, url, dialogTitle: title })
+        return true
+      } catch (err) {
+        // Capacitor's Share throws { code: 'CANCELED' } on user dismiss
+        if (err?.code === 'CANCELED' || err?.message?.includes('cancel')) {
+          return false
+        }
+        console.debug('Capacitor share failed:', err)
+      }
+    }
+  } catch { /* nativeBridge import failed — fall through to web flow */ }
+
+  // Web Share API
   if (navigator.share) {
     try {
       const data = { title, text, url }

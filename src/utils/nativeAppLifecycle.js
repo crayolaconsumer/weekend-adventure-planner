@@ -19,6 +19,7 @@
  */
 
 import { isNative } from './nativeBridge'
+import { configureStatusBar, configureKeyboard, hideSplashScreen } from './nativePlugins'
 
 let initialized = false
 
@@ -27,26 +28,41 @@ export async function initNativeAppLifecycle() {
   initialized = true
   if (!isNative()) return
 
+  // Brand the status bar + keyboard up-front so the splash hand-off
+  // looks branded, not default-iOS-grey.
+  await Promise.all([configureStatusBar(), configureKeyboard()])
+
   try {
     const { App } = await import('@capacitor/app')
 
-    // Foreground / background — useful for refreshing stale data.
     App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        // Stage 4: refresh user, refetch trending, etc.
-        window.dispatchEvent(new CustomEvent('roam-app-foreground'))
-      } else {
-        window.dispatchEvent(new CustomEvent('roam-app-background'))
+      window.dispatchEvent(new CustomEvent(
+        isActive ? 'roam-app-foreground' : 'roam-app-background'
+      ))
+    })
+
+    // Deep-link handler: routes Universal Links (iOS) / App Links
+    // (Android) into react-router. Requires apple-app-site-association
+    // and Android assetlinks.json files at /.well-known/ on go-roam.uk
+    // (separate task — see Stage 6).
+    App.addListener('appUrlOpen', (event) => {
+      try {
+        const url = new URL(event.url)
+        // Strip the origin so we get a router-compatible path
+        const path = url.pathname + url.search + url.hash
+        window.dispatchEvent(new CustomEvent('roam-app-url-open', {
+          detail: { url: event.url, path }
+        }))
+      } catch (err) {
+        console.warn('Invalid deep link URL:', event.url, err)
       }
     })
 
-    // Universal links / app links — Stage 4 wires the actual router.
-    App.addListener('appUrlOpen', (event) => {
-      // event.url is the full URL the OS handed off — e.g.
-      // "https://go-roam.uk/place/12345"
-      window.dispatchEvent(new CustomEvent('roam-app-url-open', {
-        detail: { url: event.url }
-      }))
+    // Hand off splash → React. We ask for splash hide on the next
+    // animation frame after this init completes, giving React enough
+    // time to render the first screen behind the splash.
+    requestAnimationFrame(() => {
+      void hideSplashScreen()
     })
   } catch (err) {
     console.warn('Capacitor App listeners failed to init', err)

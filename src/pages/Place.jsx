@@ -94,7 +94,7 @@ export default function Place() {
     // Mark as visited and open directions in Google Maps
     markVisited(place)
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-    window.open(mapsUrl, '_blank')
+    import('../utils/nativePlugins').then(m => m.openExternalUrl(mapsUrl))
   }
 
   if (loading) {

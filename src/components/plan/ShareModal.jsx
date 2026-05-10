@@ -109,7 +109,7 @@ export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode
     // (full plan would need multiple adds)
     if (itinerary && itinerary.length > 0) {
       const url = getGoogleCalendarUrl(itinerary[0])
-      window.open(url, '_blank', 'noopener,noreferrer')
+      import('../../utils/nativePlugins').then(m => m.openExternalUrl(url))
     }
   }
 

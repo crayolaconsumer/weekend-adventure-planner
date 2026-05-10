@@ -79,7 +79,9 @@ export default function EventCard({ event, variant = 'compact' }) {
 
   const handleClick = () => {
     if (event.ticketUrl) {
-      window.open(event.ticketUrl, '_blank', 'noopener,noreferrer')
+      // openExternalUrl uses Capacitor Browser on native (in-app SF
+      // Safari View / Custom Tabs UX), window.open on web.
+      import('../utils/nativePlugins').then(m => m.openExternalUrl(event.ticketUrl))
     }
   }
 

@@ -672,8 +672,8 @@ export default function Events({ location }) {
       // Save event using hook
       saveEvent(event)
     } else if (action === 'go' && event.ticketUrl) {
-      // Open tickets in new tab
-      window.open(event.ticketUrl, '_blank', 'noopener,noreferrer')
+      // Open tickets — Capacitor Browser on native, new tab on web
+      import('../utils/nativePlugins').then(m => m.openExternalUrl(event.ticketUrl))
     }
     markEventSeen(event?.id)
     if (!hideSeen) {

@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { isNative, getPlatform } from '../utils/nativeBridge'
+import { nativeAppleSignIn } from '../utils/nativePlugins'
 import './AuthModal.css'
 
 // Icons
@@ -185,36 +187,53 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   handleGoogleLoginRef.current = handleGoogleLogin
 
   // ─── Sign in with Apple ────────────────────────────────────────
-  // Web flow uses Apple's JS SDK (AppleID.auth). Native iOS uses
-  // Capacitor's Sign in with Apple plugin (added in Stage 4) — same
-  // identityToken format hits /api/auth { action: 'apple' } either way.
+  // Two backends, one server endpoint:
+  //   - Native iOS: @capacitor-community/apple-sign-in (system sheet,
+  //     audience claim = bundle ID com.goroam.app)
+  //   - Web (incl. Android Capacitor): Apple's JS SDK popup,
+  //     audience = Services ID com.goroam.app.signin
+  // Server's jwtVerify accepts both audiences so the same /api/auth
+  // { action: 'apple' } endpoint handles either path.
   const handleAppleLogin = useCallback(async () => {
     const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
     if (!servicesId) {
       setLocalError('Sign in with Apple is not configured')
       return
     }
-    if (!window.AppleID?.auth) {
-      setLocalError('Apple Sign-In is loading, please try again')
-      return
-    }
+
+    setIsSubmitting(true)
     try {
-      setIsSubmitting(true)
-      const data = await window.AppleID.auth.signIn()
-      // data shape: { authorization: { code, id_token, state }, user?: { name, email } }
-      const identityToken = data?.authorization?.id_token
+      let identityToken, userInfo
+      if (isNative() && getPlatform() === 'ios') {
+        // Native iOS — system sheet UX
+        const native = await nativeAppleSignIn()
+        identityToken = native.identityToken
+        userInfo = native.userInfo
+      } else {
+        // Web (or Android Capacitor — Apple JS SDK works in WKWebView too)
+        if (!window.AppleID?.auth) {
+          setLocalError('Apple Sign-In is loading, please try again')
+          setIsSubmitting(false)
+          return
+        }
+        const data = await window.AppleID.auth.signIn()
+        identityToken = data?.authorization?.id_token
+        userInfo = data?.user || null
+      }
+
       if (!identityToken) {
         throw new Error('Apple did not return an identity token')
       }
-      const result = await loginWithApple({
-        identityToken,
-        userInfo: data?.user || null
-      })
+      const result = await loginWithApple({ identityToken, userInfo })
       if (result.success) onClose()
       else setLocalError(result.error)
     } catch (err) {
-      // Apple's popup_closed_by_user etc — silent unless it's a real error
-      if (err?.error !== 'popup_closed_by_user') {
+      // popup_closed_by_user (web) and ERR_CANCELED (native iOS) — silent
+      const cancelled =
+        err?.error === 'popup_closed_by_user' ||
+        err?.code === 'ERR_CANCELED' ||
+        err?.code === '1001' // SignInWithApple cancellation code
+      if (!cancelled) {
         setLocalError(err?.message || 'Apple sign-in failed')
       }
     } finally {
@@ -222,11 +241,13 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     }
   }, [loginWithApple, onClose])
 
-  // Load Apple's JS SDK on demand
+  // Load Apple's JS SDK on demand — only when not on native iOS
+  // (the Capacitor plugin handles native iOS without the SDK).
   useEffect(() => {
     if (!isOpen) return
     const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
     if (!servicesId) return
+    if (isNative() && getPlatform() === 'ios') return // skip — using Capacitor plugin
 
     const initApple = () => {
       if (window.AppleID?.auth) {
