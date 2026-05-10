@@ -21,57 +21,84 @@ async function handler(req, res) {
   }
 
   try {
-    const { endpoint, keys } = req.body
+    // Two shapes accepted now:
+    //   Web (VAPID):    { endpoint: 'https://...', keys: { p256dh, auth } }
+    //   Native iOS:     { platform: 'ios',     token: '<APNS device token hex>' }
+    //   Native Android: { platform: 'android', token: '<FCM registration token>' }
+    //
+    // Native rows store the device token in the `endpoint` column and
+    // leave p256dh/auth NULL. The dispatcher branches on platform.
+    const body = req.body || {}
+    const platform = body.platform || 'web'
 
-    if (!endpoint || !keys) {
-      return res.status(400).json({ error: 'Invalid subscription data' })
+    if (!['web', 'ios', 'android'].includes(platform)) {
+      return res.status(400).json({ error: 'Invalid platform' })
     }
 
-    // Validate endpoint is a valid URL
-    try {
-      const url = new URL(endpoint)
-      if (!['https:', 'http:'].includes(url.protocol)) {
-        return res.status(400).json({ error: 'Invalid endpoint URL protocol' })
+    let endpoint, p256dhKey = null, authKey = null
+
+    if (platform === 'web') {
+      const { endpoint: ep, keys } = body
+      if (!ep || !keys) {
+        return res.status(400).json({ error: 'Invalid subscription data' })
       }
-    } catch {
-      return res.status(400).json({ error: 'Invalid endpoint URL' })
-    }
-
-    // Validate keys exist and are proper Base64 format
-    if (!keys.p256dh || !keys.auth) {
-      return res.status(400).json({ error: 'Missing required keys (p256dh and auth)' })
-    }
-
-    // Base64 URL-safe characters: A-Z, a-z, 0-9, -, _
-    const base64UrlRegex = /^[A-Za-z0-9_-]+$/
-    if (!base64UrlRegex.test(keys.p256dh) || !base64UrlRegex.test(keys.auth)) {
-      return res.status(400).json({ error: 'Invalid key format - must be Base64 URL-safe encoded' })
+      try {
+        const url = new URL(ep)
+        if (!['https:', 'http:'].includes(url.protocol)) {
+          return res.status(400).json({ error: 'Invalid endpoint URL protocol' })
+        }
+      } catch {
+        return res.status(400).json({ error: 'Invalid endpoint URL' })
+      }
+      if (!keys.p256dh || !keys.auth) {
+        return res.status(400).json({ error: 'Missing required keys (p256dh and auth)' })
+      }
+      const base64UrlRegex = /^[A-Za-z0-9_-]+$/
+      if (!base64UrlRegex.test(keys.p256dh) || !base64UrlRegex.test(keys.auth)) {
+        return res.status(400).json({ error: 'Invalid key format - must be Base64 URL-safe encoded' })
+      }
+      endpoint = ep
+      p256dhKey = keys.p256dh
+      authKey = keys.auth
+    } else {
+      // Native: just a device token
+      const token = typeof body.token === 'string' ? body.token.trim() : null
+      if (!token) {
+        return res.status(400).json({ error: 'Native push registration requires a token' })
+      }
+      // APNS device tokens are 64 hex chars; FCM tokens are longer (~150+).
+      // Validate length defensively so we don't store junk.
+      if (platform === 'ios' && !/^[0-9a-fA-F]{64}$/.test(token)) {
+        return res.status(400).json({ error: 'iOS push token must be 64 hex characters' })
+      }
+      if (platform === 'android' && (token.length < 64 || token.length > 500)) {
+        return res.status(400).json({ error: 'Android push token length out of range' })
+      }
+      endpoint = token
     }
 
     // Get user if authenticated (optional - allow anonymous subscriptions)
     const user = await getUserFromRequest(req)
     const userId = user?.id || null
 
-    // Check if subscription already exists
+    // Upsert by endpoint (the unique constraint)
     const existing = await queryOne(
       'SELECT id FROM push_subscriptions WHERE endpoint = ?',
       [endpoint]
     )
 
     if (existing) {
-      // Update existing subscription
       await update(
         `UPDATE push_subscriptions
-         SET p256dh_key = ?, auth_key = ?, user_id = ?, updated_at = NOW()
+         SET platform = ?, p256dh_key = ?, auth_key = ?, user_id = ?, updated_at = NOW()
          WHERE id = ?`,
-        [keys.p256dh, keys.auth, userId, existing.id]
+        [platform, p256dhKey, authKey, userId, existing.id]
       )
     } else {
-      // Create new subscription
       await insert(
-        `INSERT INTO push_subscriptions (endpoint, p256dh_key, auth_key, user_id)
-         VALUES (?, ?, ?, ?)`,
-        [endpoint, keys.p256dh, keys.auth, userId]
+        `INSERT INTO push_subscriptions (platform, endpoint, p256dh_key, auth_key, user_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [platform, endpoint, p256dhKey, authKey, userId]
       )
     }
 

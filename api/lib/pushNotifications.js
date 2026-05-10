@@ -16,6 +16,46 @@
 /* global process */
 import { query, queryOne } from './db.js'
 
+// Lazy-load apns2 to keep cold-start fast for endpoints that don't push
+let apnsClient = null
+let apnsClientFailed = false
+
+async function getApnsClient() {
+  if (apnsClient) return apnsClient
+  if (apnsClientFailed) return null
+
+  const keyId = process.env.APNS_KEY_ID
+  const teamId = process.env.APPLE_TEAM_ID
+  const bundleId = process.env.APNS_BUNDLE_ID || 'com.goroam.app'
+  const signingKey = process.env.APNS_AUTH_KEY
+
+  if (!keyId || !teamId || !signingKey) {
+    apnsClientFailed = true
+    console.warn('APNS env vars missing — iOS native pushes disabled')
+    return null
+  }
+
+  try {
+    const { ApnsClient } = await import('apns2')
+    apnsClient = new ApnsClient({
+      team: teamId,
+      keyId,
+      signingKey,
+      defaultTopic: bundleId,
+      // production = true means apns.apple.com (real devices). Development
+      // = sandbox.apns.apple.com (TestFlight/dev builds).
+      // Vercel prod env should always send to prod APNS; preview env can
+      // be configured separately if we ever need sandbox testing.
+      host: process.env.NODE_ENV === 'production' ? 'api.push.apple.com' : 'api.sandbox.push.apple.com'
+    })
+    return apnsClient
+  } catch (err) {
+    console.warn('APNS client failed to init:', err.message)
+    apnsClientFailed = true
+    return null
+  }
+}
+
 /**
  * Check if a user has a specific notification type enabled
  * @param {number} userId - User ID to check
@@ -70,68 +110,152 @@ async function getWebPush() {
  * @param {string} [payload.tag] - Notification tag (for grouping)
  * @returns {Promise<boolean>} Success status
  */
+/**
+ * Dispatch a push notification across all of a user's subscriptions,
+ * branching per platform:
+ *   - 'web':     VAPID web push via web-push lib (existing)
+ *   - 'ios':     APNS via apns2 + .p8 token-based auth
+ *   - 'android': FCM (placeholder — Firebase setup deferred to post-launch)
+ *
+ * Returns true if at least one delivery succeeded across all subscriptions.
+ * Expired tokens (410 / 404 from VAPID, 'BadDeviceToken' / 'Unregistered'
+ * from APNS) are auto-deleted from the table.
+ */
 export async function sendPushToUser(userId, payload) {
+  // Pull all subscriptions in one go — much cheaper than per-platform queries
+  const subscriptions = await query(
+    `SELECT id, platform, endpoint, p256dh_key, auth_key
+     FROM push_subscriptions
+     WHERE user_id = ?`,
+    [userId]
+  )
+
+  if (!subscriptions || subscriptions.length === 0) return false
+
+  const results = await Promise.allSettled(
+    subscriptions.map((sub) => dispatchToSubscription(sub, payload))
+  )
+
+  return results.some(r => r.status === 'fulfilled' && r.value === true)
+}
+
+async function dispatchToSubscription(sub, payload) {
+  switch (sub.platform) {
+    case 'web':
+      return dispatchVapid(sub, payload)
+    case 'ios':
+      return dispatchApns(sub, payload)
+    case 'android':
+      return dispatchFcm(sub, payload)
+    default:
+      console.warn(`Unknown push platform '${sub.platform}' for sub ${sub.id}`)
+      return false
+  }
+}
+
+// ─── VAPID web push ──────────────────────────────────────────────
+
+async function dispatchVapid(sub, payload) {
   const push = await getWebPush()
   if (!push) return false
+  const notification = {
+    title: payload.title || 'ROAM',
+    body: payload.body,
+    icon: payload.icon || '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: payload.tag || 'roam-notification',
+    data: { url: payload.url || '/' }
+  }
+  try {
+    await push.sendNotification(
+      {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh_key, auth: sub.auth_key }
+      },
+      JSON.stringify(notification)
+    )
+    return true
+  } catch (err) {
+    if (err.statusCode === 404 || err.statusCode === 410) {
+      await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
+    }
+    return false
+  }
+}
+
+// ─── APNS (iOS) ──────────────────────────────────────────────────
+
+async function dispatchApns(sub, payload) {
+  const client = await getApnsClient()
+  if (!client) return false
 
   try {
-    // Get user's subscriptions
-    const subscriptions = await query(
-      `SELECT endpoint, p256dh_key, auth_key
-       FROM push_subscriptions
-       WHERE user_id = ?`,
-      [userId]
-    )
+    const { Notification, Priority } = await import('apns2')
+    const note = new Notification(sub.endpoint, {
+      alert: {
+        title: payload.title || 'ROAM',
+        body: payload.body || ''
+      },
+      badge: typeof payload.badge === 'number' ? payload.badge : undefined,
+      sound: payload.silent ? undefined : 'default',
+      data: { url: payload.url || '/' },
+      threadId: payload.tag || 'roam-notification',
+      priority: Priority.immediate
+    })
+    await client.send(note)
+    return true
+  } catch (err) {
+    // apns2 throws errors with reason like 'BadDeviceToken', 'Unregistered',
+    // 'DeviceTokenNotForTopic'. Clean up dead tokens.
+    const reason = err?.reason || err?.message || ''
+    if (reason === 'BadDeviceToken' || reason === 'Unregistered' || reason === 'DeviceTokenNotForTopic') {
+      await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
+    } else {
+      console.error('APNS dispatch error:', reason || err)
+    }
+    return false
+  }
+}
 
-    if (!subscriptions || subscriptions.length === 0) {
+// ─── FCM (Android) ───────────────────────────────────────────────
+// Placeholder — wires up when FIREBASE_SERVER_KEY env var is added
+// and we set up Firebase project. Returns false silently until then
+// so Android subscriptions don't error (just don't deliver).
+
+async function dispatchFcm(sub, payload) {
+  const fcmKey = process.env.FCM_SERVER_KEY
+  if (!fcmKey) return false
+
+  try {
+    const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `key=${fcmKey}`
+      },
+      body: JSON.stringify({
+        to: sub.endpoint,
+        notification: {
+          title: payload.title || 'ROAM',
+          body: payload.body,
+          icon: 'ic_launcher',
+          tag: payload.tag || 'roam-notification',
+          click_action: payload.url || '/'
+        },
+        data: { url: payload.url || '/' }
+      })
+    })
+    if (!res.ok) {
+      // FCM returns 'NotRegistered' or 'InvalidRegistration' for dead tokens
+      const txt = await res.text()
+      if (/NotRegistered|InvalidRegistration/.test(txt)) {
+        await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
+      }
       return false
     }
-
-    const notification = {
-      title: payload.title || 'ROAM',
-      body: payload.body,
-      icon: payload.icon || '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      tag: payload.tag || 'roam-notification',
-      data: {
-        url: payload.url || '/'
-      }
-    }
-
-    // Send to all subscriptions
-    const results = await Promise.allSettled(
-      subscriptions.map(async (sub) => {
-        const pushSubscription = {
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh_key,
-            auth: sub.auth_key
-          }
-        }
-
-        try {
-          await push.sendNotification(
-            pushSubscription,
-            JSON.stringify(notification)
-          )
-          return true
-        } catch (err) {
-          // Handle expired subscriptions
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            await query(
-              'DELETE FROM push_subscriptions WHERE endpoint = ?',
-              [sub.endpoint]
-            )
-          }
-          throw err
-        }
-      })
-    )
-
-    // Return true if at least one succeeded
-    return results.some(r => r.status === 'fulfilled' && r.value === true)
+    return true
   } catch (err) {
-    console.error('Push notification error:', err)
+    console.error('FCM dispatch error:', err)
     return false
   }
 }

@@ -31,6 +31,7 @@
     "@use-gesture/react": "^10.3.1",
     "@vercel/blob": "^2.0.1",
     "@vercel/og": "^0.8.6",
+    "apns2": "^12.2.0",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.26.2",
     "google-auth-library": "^10.5.0",

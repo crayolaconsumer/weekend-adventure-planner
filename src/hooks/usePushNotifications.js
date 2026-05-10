@@ -1,10 +1,18 @@
 /**
  * usePushNotifications Hook
  *
- * Manages push notification subscriptions for the PWA
+ * Manages push notification subscriptions for both PWA (VAPID web push)
+ * and native iOS/Android (Capacitor + APNS/FCM).
+ *
+ * Native vs web is auto-detected via nativeBridge.isNative(). On native,
+ * we use @capacitor/push-notifications which returns an APNS device token
+ * (iOS) or FCM token (Android) — both stored server-side as platform-
+ * tagged subscriptions in push_subscriptions, then dispatched per
+ * platform by api/lib/pushNotifications.js.
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { isNative, getPlatform } from '../utils/nativeBridge'
 
 // Get auth token from storage
 function getAuthToken() {
@@ -26,19 +34,30 @@ export function usePushNotifications() {
   // Check support and current state on mount
   useEffect(() => {
     const checkSupport = async () => {
-      // Check if push is supported
+      if (isNative()) {
+        // Native always supports push (subject to user permission)
+        setSupported(true)
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications')
+          const status = await PushNotifications.checkPermissions()
+          setPermission(status.receive === 'granted' ? 'granted' :
+                       status.receive === 'denied' ? 'denied' : 'default')
+        } catch {
+          setSupported(false)
+        }
+        return
+      }
+
+      // Web — check VAPID prerequisites
       const pushSupported = 'serviceWorker' in navigator &&
                            'PushManager' in window &&
                            'Notification' in window
 
       setSupported(pushSupported)
-
       if (!pushSupported) return
 
-      // Get current permission
       setPermission(Notification.permission)
 
-      // Check for existing subscription
       try {
         const registration = await navigator.serviceWorker.ready
         const existingSub = await registration.pushManager.getSubscription()
@@ -62,6 +81,58 @@ export function usePushNotifications() {
     setError(null)
 
     try {
+      if (isNative()) {
+        // Native flow — Capacitor PushNotifications plugin
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+
+        // Request permission if needed
+        const permStatus = await PushNotifications.requestPermissions()
+        if (permStatus.receive !== 'granted') {
+          setPermission('denied')
+          setError('Permission denied')
+          setLoading(false)
+          return null
+        }
+        setPermission('granted')
+
+        // Token comes back via the 'registration' event listener — APNS
+        // registration is async after register() resolves. Set listeners
+        // BEFORE register() to avoid races.
+        let regHandle, errHandle
+        const cleanup = () => { regHandle?.remove(); errHandle?.remove() }
+        const tokenPromise = new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            cleanup()
+            reject(new Error('Push registration timed out'))
+          }, 10000)
+          PushNotifications.addListener('registration', (token) => {
+            clearTimeout(timer); cleanup(); resolve(token.value)
+          }).then(h => { regHandle = h })
+          PushNotifications.addListener('registrationError', (err) => {
+            clearTimeout(timer); cleanup()
+            reject(new Error(err?.error || 'Registration failed'))
+          }).then(h => { errHandle = h })
+        })
+
+        await PushNotifications.register()
+        const deviceToken = await tokenPromise
+
+        const platform = getPlatform() === 'ios' ? 'ios' : 'android'
+        const saveResponse = await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify({ platform, token: deviceToken })
+        })
+        if (!saveResponse.ok) throw new Error('Failed to save native subscription')
+
+        setSubscription({ platform, endpoint: deviceToken })
+        return { platform, endpoint: deviceToken }
+      }
+
+      // Web flow — VAPID
       // Request permission if needed
       if (Notification.permission === 'default') {
         const result = await Notification.requestPermission()
@@ -130,17 +201,23 @@ export function usePushNotifications() {
     setError(null)
 
     try {
-      await subscription.unsubscribe()
+      const endpoint = isNative()
+        ? subscription.endpoint  // device token (we stored it that way)
+        : subscription.endpoint
 
-      // Notify server
+      // Web subscription has its own .unsubscribe() — native doesn't
+      if (!isNative() && typeof subscription.unsubscribe === 'function') {
+        await subscription.unsubscribe()
+      }
+
+      // Tell the server to delete the subscription row
       await fetch('/api/push/unsubscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeaders()
         },
-        credentials: 'include',
-        body: JSON.stringify({ endpoint: subscription.endpoint })
+        body: JSON.stringify({ endpoint })
       })
 
       setSubscription(null)
