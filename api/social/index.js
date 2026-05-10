@@ -334,8 +334,12 @@ async function discoverUsers(req, res, currentUser, limit) {
 
   const similarUsers = await query(sql, [currentUser.id, currentUser.id, currentUser.id, currentUser.id, currentUser.id, currentUser.id, limit])
 
-  // If not enough similar users, fill with active contributors
-  // Uses JOINs with aggregation instead of correlated subqueries for O(n) performance
+  // If not enough similar users, fill with active users (any activity:
+  // contributions OR saves OR visits). The previous "HAVING contribution_count > 0"
+  // filter returned zero rows in early product life when no one has
+  // contributions yet — Find People showed empty even though there were
+  // public users to discover. Now we surface anyone with *any* activity,
+  // ordered by total activity, then most-recently-joined.
   if (similarUsers.length < limit) {
     const excludeIds = [currentUser.id, ...similarUsers.map(u => u.id)]
     const fillSql = `
@@ -345,20 +349,24 @@ async function discoverUsers(req, res, currentUser, limit) {
         u.display_name,
         u.avatar_url,
         0 as common_saves,
-        COUNT(c.id) as contribution_count,
+        COUNT(DISTINCT CASE WHEN c.status = 'approved' THEN c.id END) as contribution_count,
+        COUNT(DISTINCT sp.id) as save_count,
+        COUNT(DISTINCT vp.id) as visit_count,
         MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
         COALESCE(ups.is_private_account, FALSE) as is_private
       FROM users u
-      LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
+      LEFT JOIN contributions c ON u.id = c.user_id
+      LEFT JOIN saved_places sp ON u.id = sp.user_id
+      LEFT JOIN visited_places vp ON u.id = vp.user_id
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       LEFT JOIN follows f_check ON f_check.follower_id = ? AND f_check.following_id = u.id
       WHERE u.id NOT IN (${excludeIds.map(() => '?').join(',')})
       AND u.username IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
       AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
-      GROUP BY u.id, u.username, u.display_name, u.avatar_url, ups.is_private_account
-      HAVING contribution_count > 0
-      ORDER BY contribution_count DESC
+      AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
+      GROUP BY u.id, u.username, u.display_name, u.avatar_url, ups.is_private_account, u.created_at
+      ORDER BY (contribution_count + save_count + visit_count) DESC, u.created_at DESC
       LIMIT ?
     `
     const fillUsers = await query(fillSql, [currentUser.id, ...excludeIds, currentUser.id, currentUser.id, currentUser.id, limit - similarUsers.length])

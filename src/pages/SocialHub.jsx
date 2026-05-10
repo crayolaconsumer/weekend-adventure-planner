@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useUserSearch, useDiscoverUsers } from '../hooks/useSocial'
 import { useToast } from '../hooks/useToast'
 import LocationAwareFeed from '../components/LocationAwareFeed'
+import { formatDisplayName } from '../utils/displayName'
 import './SocialHub.css'
 
 // Icons
@@ -184,7 +185,7 @@ function DiscoverUsers() {
             />
             <div className="social-hub-discover-user-info">
               <span className="social-hub-discover-user-name">
-                {user.displayName || user.username}
+                {formatDisplayName(user)}
               </span>
               {user.sharedInterests && (
                 <span className="social-hub-discover-user-match">
@@ -242,6 +243,7 @@ export default function SocialHub({ location }) {
   // Update location if prop changes - prop always takes priority
   useEffect(() => {
     if (location) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync prop changes into local state for fallback chain
       setUserLocation(location)
       setLocationSource('prop')
     }

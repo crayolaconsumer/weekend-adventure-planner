@@ -33,6 +33,7 @@ import OfflineMapsManager from '../components/OfflineMapsManager'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import { useDistance } from '../contexts/DistanceContext'
 import { formatDate } from '../utils/dateUtils'
+import { formatDisplayName } from '../utils/displayName'
 import './UnifiedProfile.css'
 
 // Icons
@@ -153,7 +154,7 @@ export default function UnifiedProfile() {
   const [activeTab, setActiveTab] = useState('activity')
 
   // Dynamic SEO for user profiles
-  const displayName = profile?.user?.displayName || profile?.user?.username || username
+  const displayName = formatDisplayName(profile?.user) || username
   useSEO({
     title: isOwnProfile ? 'My Profile' : `${displayName} (@${username})`,
     description: profile?.stats
@@ -261,7 +262,7 @@ export default function UnifiedProfile() {
     hideFollowingList
   } = profile
   const avatarUrl = user.avatarUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.username)}&background=E07A5F&color=fff&size=200`
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(user))}&background=E07A5F&color=fff&size=200`
 
   return (
     <div className="page unified-profile-page">

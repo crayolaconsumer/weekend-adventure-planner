@@ -1,0 +1,84 @@
+.display-name-nudge {
+  background: linear-gradient(180deg, #f5f0e6 0%, #efe8d9 100%);
+  border-bottom: 1px solid rgba(26, 58, 47, 0.08);
+  padding: 12px 16px;
+  position: relative;
+  z-index: 5;
+}
+
+.display-name-nudge-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.display-name-nudge-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #1a3a2f;
+  font-size: 0.9rem;
+}
+.display-name-nudge-text strong {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.display-name-nudge-text span {
+  color: rgba(26, 58, 47, 0.7);
+  font-size: 0.85rem;
+}
+
+.display-name-nudge-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.display-name-nudge-input {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid rgba(26, 58, 47, 0.2);
+  border-radius: 8px;
+  font: inherit;
+  background: #fafaf6;
+}
+.display-name-nudge-input:focus {
+  outline: none;
+  border-color: #1a3a2f;
+}
+
+.display-name-nudge-save,
+.display-name-nudge-skip {
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid rgba(26, 58, 47, 0.2);
+}
+.display-name-nudge-save {
+  background: #1a3a2f;
+  color: #f5f0e6;
+  border-color: #1a3a2f;
+}
+.display-name-nudge-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.display-name-nudge-skip {
+  background: transparent;
+  color: rgba(26, 58, 47, 0.7);
+}
+.display-name-nudge-skip:hover {
+  color: #1a3a2f;
+}
+
+.display-name-nudge-error {
+  margin: 0;
+  color: #b22d2d;
+  font-size: 0.8rem;
+}

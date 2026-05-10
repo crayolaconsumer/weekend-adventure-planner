@@ -24,6 +24,7 @@ import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
 import IntentHandler from './components/IntentHandler'
+import DisplayNameNudge from './components/DisplayNameNudge'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
@@ -371,6 +372,7 @@ function App() {
               <InstallBanner />
 
               <IntentHandler />
+              <DisplayNameNudge />
 
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>

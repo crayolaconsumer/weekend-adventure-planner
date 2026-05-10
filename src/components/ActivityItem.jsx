@@ -11,6 +11,7 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { formatDistanceToNow } from '../utils/dateUtils'
+import { formatDisplayName } from '../utils/displayName'
 import './ActivityItem.css'
 
 // Category icons mapping
@@ -101,8 +102,9 @@ const CheckCircleIcon = () => (
 )
 
 export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisited }) {
+  const friendlyName = formatDisplayName(activity.user)
   const avatarUrl = activity.user?.avatarUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(activity.user?.displayName || activity.user?.username || 'U')}&background=E07A5F&color=fff`
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(friendlyName)}&background=E07A5F&color=fff`
 
   const timeAgo = activity.createdAt ? formatDistanceToNow(new Date(activity.createdAt)) : ''
 
@@ -155,14 +157,14 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
           <Link to={`/user/${activity.user?.username}`} className="activity-item-avatar-link">
             <img
               src={avatarUrl}
-              alt={activity.user?.displayName || activity.user?.username}
+              alt={friendlyName}
               className="activity-item-avatar"
             />
           </Link>
           <div className="activity-item-meta">
             <p className="activity-item-action-line">
               <Link to={`/user/${activity.user?.username}`} className="activity-item-username">
-                {activity.user?.displayName || activity.user?.username}
+                {friendlyName}
               </Link>
               <span className="activity-item-verb">{verb}</span>
               {activity.place?.name && activity.place?.id && (

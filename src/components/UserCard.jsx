@@ -8,6 +8,7 @@ import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import FollowButton from './FollowButton'
+import { formatDisplayName } from '../utils/displayName'
 import './UserCard.css'
 
 export default function UserCard({
@@ -25,7 +26,7 @@ export default function UserCard({
     setIsFollowing(nowFollowing)
   }, [])
 
-  const avatarUrl = user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || user.username)}&background=E07A5F&color=fff`
+  const avatarUrl = user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(user))}&background=E07A5F&color=fff`
 
   return (
     <motion.div
@@ -37,13 +38,13 @@ export default function UserCard({
       <Link to={`/user/${user.username}`} className="user-card-link">
         <img
           src={avatarUrl}
-          alt={user.displayName || user.username}
+          alt={formatDisplayName(user)}
           className="user-card-avatar"
         />
 
         <div className="user-card-info">
           <div className="user-card-name">
-            {user.displayName || user.username}
+            {formatDisplayName(user)}
           </div>
           <div className="user-card-username">@{user.username}</div>
 

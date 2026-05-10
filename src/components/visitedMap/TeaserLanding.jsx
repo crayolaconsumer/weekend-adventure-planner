@@ -11,6 +11,7 @@
  */
 
 import { useNavigate } from 'react-router-dom'
+import { formatDisplayName } from '../../utils/displayName'
 import './TeaserLanding.css'
 
 export default function TeaserLanding({ user, placesAbstract = [], total }) {
@@ -38,7 +39,7 @@ export default function TeaserLanding({ user, placesAbstract = [], total }) {
   const latRange = (maxLat - minLat) || 1
   const lngRange = (maxLng - minLng) || 1
 
-  const displayName = user.displayName || user.username
+  const displayName = formatDisplayName(user)
 
   return (
     <div className="teaser-landing">

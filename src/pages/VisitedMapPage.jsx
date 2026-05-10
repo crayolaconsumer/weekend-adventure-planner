@@ -19,6 +19,7 @@ import VisitedMapLeaflet from '../components/visitedMap/VisitedMapLeaflet'
 import VisitedMapList from '../components/visitedMap/VisitedMapList'
 import EditReviewModal from '../components/visitedMap/EditReviewModal'
 import TeaserLanding from '../components/visitedMap/TeaserLanding'
+import { formatDisplayName } from '../utils/displayName'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -103,8 +104,8 @@ export default function VisitedMapPage() {
     // Use the share-prerender redirect URL so og:image meta tags fire
     // for link unfurlers (iMessage/WhatsApp/Slack/Twitter).
     const url = `${window.location.origin}/api/share/user-map/${encodeURIComponent(username)}`
-    const title = `${data?.user?.displayName || username}'s ROAM map`
-    const text = `Check out the places ${data?.user?.displayName || username} has visited on ROAM`
+    const title = `${formatDisplayName(data?.user) || username}'s ROAM map`
+    const text = `Check out the places ${formatDisplayName(data?.user) || username} has visited on ROAM`
     if (navigator.share) {
       try { await navigator.share({ url, title, text }) } catch { /* user cancelled */ }
     } else {
@@ -158,7 +159,7 @@ export default function VisitedMapPage() {
           )}
           <div className="visited-map-user-text">
             <span className="visited-map-user-name">
-              {data.user.displayName || data.user.username}
+              {formatDisplayName(data.user)}
             </span>
             <span className="visited-map-user-count">
               {data.total} {data.total === 1 ? 'place' : 'places'}

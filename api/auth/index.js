@@ -23,9 +23,7 @@ import {
   isValidEmail,
   validatePassword,
   generateUsername,
-  getUserFromRequest,
-  extractToken,
-  verifyToken
+  getUserFromRequest
 } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
@@ -194,6 +192,10 @@ async function handleRegister(req, res) {
     // Check for potentially malicious content
     if (/<script|javascript:|data:/i.test(displayName)) {
       return res.status(400).json({ error: 'Display name contains invalid characters' })
+    }
+    // Reject email-shaped display names (people sometimes paste their email here)
+    if (displayName.includes('@')) {
+      return res.status(400).json({ error: 'Display name should be your name, not your email' })
     }
   }
 
@@ -440,6 +442,9 @@ async function handleUpdateProfile(req, res) {
   if (displayName !== undefined) {
     if (displayName && displayName.length > 50) {
       return res.status(400).json({ error: 'Display name must be 50 characters or less' })
+    }
+    if (displayName && typeof displayName === 'string' && displayName.includes('@')) {
+      return res.status(400).json({ error: 'Display name should be your name, not your email' })
     }
   }
 
