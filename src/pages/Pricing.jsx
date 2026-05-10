@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import PremiumBadge from '../components/PremiumBadge'
+import { track } from '../utils/analytics'
 import './Pricing.css'
 
 // Check icon
@@ -55,11 +56,13 @@ export default function Pricing() {
 
   const handleUpgrade = async () => {
     if (!user) {
+      track('upgrade-clicked', { plan: billingPeriod, surface: 'pricing-page', authed: false })
       openAuthModal('signup')
       return
     }
 
     const plan = billingPeriod === 'annual' ? 'premium_annual' : 'premium_monthly'
+    track('upgrade-clicked', { plan: billingPeriod, surface: 'pricing-page', authed: true })
     await startCheckout(plan)
   }
 

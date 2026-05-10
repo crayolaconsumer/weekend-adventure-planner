@@ -163,6 +163,13 @@ export function useVisitedPlaces() {
       return [visitedEntry, ...filtered]
     })
 
+    // Analytics — fire-and-forget, no-op when PostHog isn't initialised
+    import('../utils/analytics').then(({ track }) => track('place-visited', {
+      placeId,
+      recommended: rating != null ? rating > 3 : null,
+      hasDistance: distance != null,
+    }))
+
     // Update localStorage
     const local = loadLocalVisited()
     const filtered = local.filter(v => v.placeId !== placeId)

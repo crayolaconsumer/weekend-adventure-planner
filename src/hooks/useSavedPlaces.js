@@ -92,6 +92,12 @@ export function useSavedPlaces() {
     // Optimistic update - add to front of list
     setPlaces(prev => [placeWithTimestamp, ...prev.filter(p => p.id !== place.id)])
 
+    // Analytics — fire-and-forget, no-op when PostHog isn't initialised
+    import('../utils/analytics').then(({ track }) => track('place-saved', {
+      placeId: place.id,
+      category: place.category?.key || place.category || null,
+    }))
+
     if (isAuthenticated) {
       try {
         const token = getToken()

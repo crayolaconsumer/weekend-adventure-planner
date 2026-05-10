@@ -211,6 +211,13 @@ export async function downloadPack(coords, radiusKm, onProgress = () => {}, sign
       window.dispatchEvent(new CustomEvent('roam-pack-ready', { detail: { manifest: final } }))
     }
 
+    // Analytics — no-op when PostHog isn't initialised
+    import('./analytics.js').then(({ track }) => track('offline-pack-downloaded', {
+      radiusKm,
+      byteSize: final.byteSize,
+      placeCount: final.placeIds.length,
+    }))
+
     return final
   } catch (err) {
     await db.writeManifest({ ...manifest, status: 'failed' })

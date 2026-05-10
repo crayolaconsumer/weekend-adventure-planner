@@ -25,6 +25,7 @@
     "leaflet.markercluster": "^1.5.3",
     "mysql2": "^3.16.1",
     "opening_hours": "^3.10.0",
+    "posthog-js": "^1.372.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0",

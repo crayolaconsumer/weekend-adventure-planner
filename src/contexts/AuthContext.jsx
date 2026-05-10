@@ -6,6 +6,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { identifyUser, clearUser } from '../utils/errorReporting'
+import { identify as analyticsIdentify, resetAnalytics, track } from '../utils/analytics'
 
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
@@ -116,11 +117,21 @@ export function AuthProvider({ children }) {
     }
   }, [getStoredToken])
 
-  // Sync user identity to Sentry when it changes — so errors carry the
-  // user_id / username that hit them. No-op if Sentry isn't initialised.
+  // Sync user identity to Sentry + PostHog when it changes — so errors
+  // and analytics events carry the user_id/username that hit them.
+  // No-ops when env vars aren't set.
   useEffect(() => {
-    if (user) identifyUser({ id: user.id, username: user.username, email: user.email })
-    else clearUser()
+    if (user) {
+      identifyUser({ id: user.id, username: user.username, email: user.email })
+      analyticsIdentify(user.id, {
+        username: user.username,
+        email: user.email,
+        plan: user.subscription_status === 'active' ? 'premium' : 'free',
+      })
+    } else {
+      clearUser()
+      resetAnalytics()
+    }
   }, [user])
 
   /**
@@ -146,6 +157,7 @@ export function AuthProvider({ children }) {
       storeToken(data.token, true)
       // Migrate localStorage data to database
       migrateLocalData(data.token)
+      track('signed-up', { method: 'email' })
       return { success: true, user: data.user }
     } catch (err) {
       setError(err.message)
@@ -212,6 +224,7 @@ export function AuthProvider({ children }) {
       storeToken(data.token, true)
       // Migrate localStorage data to database
       migrateLocalData(data.token)
+      if (data.isNewUser) track('signed-up', { method: 'google' })
       return { success: true, user: data.user, isNewUser: data.isNewUser }
     } catch (err) {
       setError(err.message)
