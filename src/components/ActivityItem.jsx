@@ -33,10 +33,29 @@ const CATEGORY_ICONS = {
 }
 
 // Get icon for category
+// place_data.category may be either a plain string ("restaurant") OR the
+// full GOOD_CATEGORIES object ({ key: 'nature', icon: '🌿', ... }) depending
+// on how the row was inserted. Normalise both shapes to a string key before
+// looking up the icon, and short-circuit to the embedded icon when present.
 function getCategoryIcon(category) {
   if (!category) return CATEGORY_ICONS.default
+  if (typeof category === 'object') {
+    if (typeof category.icon === 'string' && category.icon) return category.icon
+    const key = typeof category.key === 'string' ? category.key.toLowerCase() : null
+    if (!key) return CATEGORY_ICONS.default
+    return CATEGORY_ICONS[key.replace(/[_-]/g, '_')] || CATEGORY_ICONS.default
+  }
+  if (typeof category !== 'string') return CATEGORY_ICONS.default
   const key = category.toLowerCase().replace(/[_-]/g, '_')
   return CATEGORY_ICONS[key] || CATEGORY_ICONS.default
+}
+
+// Extract a human-readable category label (for tooltips). Handles same
+// dual shape as getCategoryIcon.
+function getCategoryLabel(category) {
+  if (!category) return ''
+  if (typeof category === 'object') return category.label || category.key || ''
+  return typeof category === 'string' ? category : ''
 }
 
 // Get verb for activity type
@@ -123,7 +142,7 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
           </div>
         )}
         {activity.place?.category && (
-          <span className="activity-item-category-badge" title={activity.place.category}>
+          <span className="activity-item-category-badge" title={getCategoryLabel(activity.place.category)}>
             {categoryIcon}
           </span>
         )}
