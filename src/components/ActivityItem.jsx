@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { formatDistanceToNow } from '../utils/dateUtils'
 import { formatDisplayName } from '../utils/displayName'
+import PremiumBadge from './PremiumBadge'
 import './ActivityItem.css'
 
 // Category icons mapping
@@ -154,17 +155,19 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
       <div className="activity-item-body">
         {/* Header: User + Action + Place */}
         <header className="activity-item-header">
-          <Link to={`/user/${activity.user?.username}`} className="activity-item-avatar-link">
+          <Link to={`/user/${activity.user?.username}`} className="activity-item-avatar-link avatar-with-premium">
             <img
               src={avatarUrl}
               alt={friendlyName}
               className="activity-item-avatar"
             />
+            {activity.user?.isPremium && <PremiumBadge size="xs" />}
           </Link>
           <div className="activity-item-meta">
             <p className="activity-item-action-line">
               <Link to={`/user/${activity.user?.username}`} className="activity-item-username">
                 {friendlyName}
+                {activity.user?.isPremium && <PremiumBadge size="inline" className="activity-item-username-badge" />}
               </Link>
               <span className="activity-item-verb">{verb}</span>
               {activity.place?.name && activity.place?.id && (

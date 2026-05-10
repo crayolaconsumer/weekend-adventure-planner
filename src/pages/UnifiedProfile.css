@@ -1650,3 +1650,14 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.unified-profile-avatar-wrap { display: inline-block; }
+.unified-profile-avatar-wrap .premium-badge {
+  /* Place the larger badge a bit further off the avatar so it reads */
+  bottom: -3px;
+  right: -3px;
+}
+.unified-profile-name-badge {
+  margin-left: 6px;
+  vertical-align: -2px;
+}

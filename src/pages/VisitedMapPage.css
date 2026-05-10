@@ -121,3 +121,8 @@
   color: rgba(26, 58, 47, 0.7);
   gap: 8px;
 }
+
+.visited-map-user-name-badge {
+  margin-left: 4px;
+  vertical-align: -1px;
+}

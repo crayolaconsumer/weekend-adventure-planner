@@ -13,6 +13,7 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validatePagination, parseCoordinates } from '../lib/validation.js'
+import { isPremiumSql } from '../lib/premium.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -147,7 +148,8 @@ export default async function handler(req, res) {
           u.id as user_id,
           u.username,
           u.display_name,
-          u.avatar_url
+          u.avatar_url,
+          ${isPremiumSql('u')} AS is_premium
           ${distanceSelect}
         FROM visited_places vp
         JOIN users u ON vp.user_id = u.id
@@ -203,6 +205,7 @@ export default async function handler(req, res) {
           u.username,
           u.display_name,
           u.avatar_url,
+          ${isPremiumSql('u')} AS is_premium,
           NULL as distance_meters
         FROM contributions c
         JOIN users u ON c.user_id = u.id
@@ -246,6 +249,7 @@ export default async function handler(req, res) {
           u.username,
           u.display_name,
           u.avatar_url,
+          ${isPremiumSql('u')} AS is_premium,
           NULL as distance_meters
         FROM place_ratings pr
         JOIN users u ON pr.user_id = u.id
@@ -326,7 +330,8 @@ export default async function handler(req, res) {
           id: activity.user_id,
           username: activity.username,
           displayName: activity.display_name,
-          avatarUrl: activity.avatar_url
+          avatarUrl: activity.avatar_url,
+          isPremium: !!activity.is_premium
         }
       }
     })

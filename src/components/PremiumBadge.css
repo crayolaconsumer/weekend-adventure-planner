@@ -1,0 +1,31 @@
+.premium-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(26, 58, 47, 0.18));
+  /* The component sets explicit pixel size via inline style */
+}
+
+.premium-badge svg {
+  display: block;
+}
+
+/* Helper layout for placing the badge as an avatar overlay */
+.avatar-with-premium {
+  position: relative;
+  display: inline-block;
+}
+
+.avatar-with-premium .premium-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  z-index: 1;
+}
+
+/* Hero-size badge gets a richer drop shadow */
+.premium-badge.premium-badge-hero {
+  filter: drop-shadow(0 2px 6px rgba(26, 58, 47, 0.25));
+}

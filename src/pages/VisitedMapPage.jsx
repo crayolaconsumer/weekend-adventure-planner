@@ -20,6 +20,7 @@ import VisitedMapList from '../components/visitedMap/VisitedMapList'
 import EditReviewModal from '../components/visitedMap/EditReviewModal'
 import TeaserLanding from '../components/visitedMap/TeaserLanding'
 import { formatDisplayName } from '../utils/displayName'
+import PremiumBadge from '../components/PremiumBadge'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -155,11 +156,15 @@ export default function VisitedMapPage() {
         </button>
         <Link to={`/user/${data.user.username}`} className="visited-map-user">
           {data.user.avatarUrl && (
-            <img src={data.user.avatarUrl} alt="" className="visited-map-avatar" />
+            <span className="avatar-with-premium">
+              <img src={data.user.avatarUrl} alt="" className="visited-map-avatar" />
+              {data.user.isPremium && <PremiumBadge size="sm" />}
+            </span>
           )}
           <div className="visited-map-user-text">
             <span className="visited-map-user-name">
               {formatDisplayName(data.user)}
+              {data.user.isPremium && <PremiumBadge size="inline" className="visited-map-user-name-badge" />}
             </span>
             <span className="visited-map-user-count">
               {data.total} {data.total === 1 ? 'place' : 'places'}

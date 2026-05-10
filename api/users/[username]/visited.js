@@ -19,6 +19,7 @@ import { getUserFromRequest } from '../../lib/auth.js'
 import { query, queryOne } from '../../lib/db.js'
 import { hasBlockBetween } from '../../social/block.js'
 import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
+import { isPremiumRow } from '../../lib/premium.js'
 
 const TEASER_CELL_DEGREES = 0.5
 
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
 
   try {
     const target = await queryOne(
-      `SELECT id, username, display_name, avatar_url
+      `SELECT id, username, display_name, avatar_url, tier, subscription_expires_at
        FROM users
        WHERE username = ?`,
       [username]
@@ -96,7 +97,8 @@ export default async function handler(req, res) {
       id: target.id,
       username: target.username,
       displayName: target.display_name,
-      avatarUrl: target.avatar_url
+      avatarUrl: target.avatar_url,
+      isPremium: isPremiumRow(target)
     }
 
     if (canSeeFull) {

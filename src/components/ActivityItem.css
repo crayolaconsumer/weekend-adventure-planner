@@ -327,3 +327,9 @@ a.activity-item-place-name:hover {
     flex-wrap: wrap;
   }
 }
+
+/* Premium badge inline with username — small horizontal gap */
+.activity-item-username-badge {
+  margin-left: 4px;
+  vertical-align: -1px;
+}

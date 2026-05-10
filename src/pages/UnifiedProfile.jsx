@@ -27,6 +27,7 @@ import CategoryChart from '../components/stats/CategoryChart'
 import DistanceStats from '../components/stats/DistanceStats'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
 import MapPreviewBand from '../components/profile/MapPreviewBand'
+import PremiumBadge from '../components/PremiumBadge'
 import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
 import OfflineMapsManager from '../components/OfflineMapsManager'
@@ -292,15 +293,19 @@ export default function UnifiedProfile() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <img
-          src={avatarUrl}
-          alt={user.displayName || user.username}
-          className="unified-profile-avatar"
-        />
+        <span className="avatar-with-premium unified-profile-avatar-wrap">
+          <img
+            src={avatarUrl}
+            alt={formatDisplayName(user)}
+            className="unified-profile-avatar"
+          />
+          {user.isPremium && <PremiumBadge size="md" />}
+        </span>
 
         <div className="unified-profile-info">
           <h2 className="unified-profile-name">
-            {user.displayName || user.username}
+            {formatDisplayName(user)}
+            {user.isPremium && <PremiumBadge size="inline" className="unified-profile-name-badge" />}
           </h2>
           <p className="unified-profile-username">@{user.username}</p>
 

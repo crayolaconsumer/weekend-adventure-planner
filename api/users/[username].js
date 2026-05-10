@@ -9,6 +9,7 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { hasBlockBetween } from '../social/block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { isPremiumRow } from '../lib/premium.js'
 
 export default async function handler(req, res) {
   // Rate limit profile lookups to prevent enumeration
@@ -36,7 +37,9 @@ export default async function handler(req, res) {
         username,
         display_name,
         avatar_url,
-        created_at
+        created_at,
+        tier,
+        subscription_expires_at
       FROM users
       WHERE username = ?`,
       [username]
@@ -118,7 +121,8 @@ export default async function handler(req, res) {
           username: user.username,
           displayName: user.display_name,
           avatarUrl: user.avatar_url,
-          joinedAt: user.created_at
+          joinedAt: user.created_at,
+          isPremium: isPremiumRow(user)
         },
         stats: {
           followers: followerCount.count,
@@ -265,7 +269,8 @@ export default async function handler(req, res) {
         username: user.username,
         displayName: user.display_name,
         avatarUrl: user.avatar_url,
-        joinedAt: user.created_at
+        joinedAt: user.created_at,
+        isPremium: isPremiumRow(user)
       },
       stats: {
         followers: followerCount.count,

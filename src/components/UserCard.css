@@ -175,3 +175,8 @@
 .user-card-empty-text {
   font-size: 14px;
 }
+
+.user-card-name-badge {
+  margin-left: 4px;
+  vertical-align: -1px;
+}

@@ -15,6 +15,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
+import { isPremiumSql } from '../lib/premium.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
 import { notifyNewFollower } from '../lib/pushNotifications.js'
@@ -98,6 +99,7 @@ async function getFollowers(req, res, userId, currentUser, limit, offset) {
       u.username,
       u.display_name,
       u.avatar_url,
+      ${isPremiumSql('u')} as is_premium,
       f.created_at as followed_at
   `
 
@@ -134,6 +136,7 @@ async function getFollowers(req, res, userId, currentUser, limit, offset) {
       username: f.username,
       displayName: f.display_name,
       avatarUrl: f.avatar_url,
+      isPremium: !!f.is_premium,
       followedAt: f.followed_at,
       isFollowing: !!f.is_following
     })),
@@ -156,6 +159,7 @@ async function getFollowing(req, res, userId, currentUser, limit, offset) {
       u.username,
       u.display_name,
       u.avatar_url,
+      ${isPremiumSql('u')} as is_premium,
       f.created_at as followed_at
   `
 
@@ -192,6 +196,7 @@ async function getFollowing(req, res, userId, currentUser, limit, offset) {
       username: f.username,
       displayName: f.display_name,
       avatarUrl: f.avatar_url,
+      isPremium: !!f.is_premium,
       followedAt: f.followed_at,
       isFollowing: currentUser ? (currentUser.id === parseInt(userId) ? true : !!f.is_following) : false
     })),
@@ -277,13 +282,14 @@ async function discoverUsers(req, res, currentUser, limit) {
         u.username,
         u.display_name,
         u.avatar_url,
+        ${isPremiumSql('u')} as is_premium,
         COUNT(c.id) as contribution_count
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
       AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
-      GROUP BY u.id
+      GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at
       HAVING contribution_count > 0
       ORDER BY contribution_count DESC
       LIMIT ?
@@ -296,6 +302,7 @@ async function discoverUsers(req, res, currentUser, limit) {
         username: u.username,
         displayName: u.display_name,
         avatarUrl: u.avatar_url,
+        isPremium: !!u.is_premium,
         contributionCount: u.contribution_count,
         isFollowing: false,
         isPrivate: false,
@@ -313,6 +320,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       u.username,
       u.display_name,
       u.avatar_url,
+      ${isPremiumSql('u')} as is_premium,
       COUNT(DISTINCT sp2.place_id) as common_saves,
       COUNT(DISTINCT CASE WHEN c.status = 'approved' THEN c.id END) as contribution_count,
       MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
@@ -327,7 +335,7 @@ async function discoverUsers(req, res, currentUser, limit) {
     AND u.username IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
     AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
-    GROUP BY u.id, u.username, u.display_name, u.avatar_url, ups.is_private_account
+    GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at, ups.is_private_account
     ORDER BY common_saves DESC, contribution_count DESC
     LIMIT ?
   `
@@ -348,6 +356,7 @@ async function discoverUsers(req, res, currentUser, limit) {
         u.username,
         u.display_name,
         u.avatar_url,
+        ${isPremiumSql('u')} as is_premium,
         0 as common_saves,
         COUNT(DISTINCT CASE WHEN c.status = 'approved' THEN c.id END) as contribution_count,
         COUNT(DISTINCT sp.id) as save_count,
@@ -365,7 +374,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
       AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
       AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
-      GROUP BY u.id, u.username, u.display_name, u.avatar_url, ups.is_private_account, u.created_at
+      GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at, ups.is_private_account, u.created_at
       ORDER BY (contribution_count + save_count + visit_count) DESC, u.created_at DESC
       LIMIT ?
     `
@@ -378,6 +387,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       id: u.id,
       username: u.username,
       displayName: u.display_name,
+      isPremium: !!u.is_premium,
       avatarUrl: u.avatar_url,
       commonSaves: u.common_saves,
       contributionCount: u.contribution_count,

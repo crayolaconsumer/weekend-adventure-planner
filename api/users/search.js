@@ -8,6 +8,7 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { isPremiumSql } from '../lib/premium.js'
 
 export default async function handler(req, res) {
   // Rate limit search requests to prevent enumeration attacks
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
         u.username,
         u.display_name,
         u.avatar_url,
+        ${isPremiumSql('u')} as is_premium,
         (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status = 'approved') as contribution_count,
         (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as follower_count,
         COALESCE(ups.is_private_account, FALSE) as is_private
@@ -133,6 +135,7 @@ export default async function handler(req, res) {
         username: u.username,
         displayName: u.display_name,
         avatarUrl: u.avatar_url,
+        isPremium: !!u.is_premium,
         contributionCount: u.contribution_count,
         followerCount: u.follower_count,
         isFollowing: !!u.is_following,

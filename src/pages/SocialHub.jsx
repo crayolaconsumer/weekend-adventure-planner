@@ -18,6 +18,7 @@ import { useUserSearch, useDiscoverUsers } from '../hooks/useSocial'
 import { useToast } from '../hooks/useToast'
 import LocationAwareFeed from '../components/LocationAwareFeed'
 import { formatDisplayName } from '../utils/displayName'
+import PremiumBadge from '../components/PremiumBadge'
 import './SocialHub.css'
 
 // Icons
@@ -178,14 +179,18 @@ function DiscoverUsers() {
             to={`/user/${user.username}`}
             className="social-hub-discover-user"
           >
-            <img
-              src={user.avatarUrl || '/default-avatar.png'}
-              alt=""
-              className="social-hub-discover-user-avatar"
-            />
+            <span className="avatar-with-premium">
+              <img
+                src={user.avatarUrl || '/default-avatar.png'}
+                alt=""
+                className="social-hub-discover-user-avatar"
+              />
+              {user.isPremium && <PremiumBadge size="sm" />}
+            </span>
             <div className="social-hub-discover-user-info">
               <span className="social-hub-discover-user-name">
                 {formatDisplayName(user)}
+                {user.isPremium && <PremiumBadge size="inline" className="social-hub-discover-user-name-badge" />}
               </span>
               {user.sharedInterests && (
                 <span className="social-hub-discover-user-match">

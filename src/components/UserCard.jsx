@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import FollowButton from './FollowButton'
 import { formatDisplayName } from '../utils/displayName'
+import PremiumBadge from './PremiumBadge'
 import './UserCard.css'
 
 export default function UserCard({
@@ -36,15 +37,19 @@ export default function UserCard({
       whileHover={{ y: -2 }}
     >
       <Link to={`/user/${user.username}`} className="user-card-link">
-        <img
-          src={avatarUrl}
-          alt={formatDisplayName(user)}
-          className="user-card-avatar"
-        />
+        <span className="avatar-with-premium">
+          <img
+            src={avatarUrl}
+            alt={formatDisplayName(user)}
+            className="user-card-avatar"
+          />
+          {user.isPremium && <PremiumBadge size="sm" />}
+        </span>
 
         <div className="user-card-info">
           <div className="user-card-name">
             {formatDisplayName(user)}
+            {user.isPremium && <PremiumBadge size="inline" className="user-card-name-badge" />}
           </div>
           <div className="user-card-username">@{user.username}</div>
 
