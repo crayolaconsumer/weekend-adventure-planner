@@ -14,6 +14,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
+import AchievementBadge from '../components/icons/AchievementBadge'
+import ToggleIcon from '../components/icons/SettingsIcon'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import ActivityItem from '../components/ActivityItem'
@@ -213,7 +215,7 @@ export default function UnifiedProfile() {
         newBadges.forEach((badge, index) => {
           // Stagger toasts so they don't overlap
           setTimeout(() => {
-            toast.success(`${badge.icon} Badge Unlocked: ${badge.name}!`)
+            toast.success(`Badge Unlocked: ${badge.name}!`)
           }, index * 1000)
         })
       }, 500)
@@ -726,7 +728,9 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
                     transition={{ delay: index * 0.1 }}
                     title={`Earned ${new Date(badge.earnedAt).toLocaleDateString()}`}
                   >
-                    <span className="unified-profile-badge-icon">{config.icon}</span>
+                    <span className="unified-profile-badge-icon">
+                      <AchievementBadge id={badge.badgeId} size="lg" />
+                    </span>
                     <span className="unified-profile-badge-name">{config.name}</span>
                     <span className="unified-profile-badge-desc">{config.description}</span>
                   </motion.div>
@@ -749,7 +753,9 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <span className="unified-profile-badge-icon">{badge.icon}</span>
+                  <span className="unified-profile-badge-icon">
+                    <AchievementBadge id={badge.id} size="lg" />
+                  </span>
                   <span className="unified-profile-badge-name">{badge.name}</span>
                   <span className="unified-profile-badge-desc">{badge.description}</span>
                 </motion.div>
@@ -772,7 +778,9 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
             <div className="unified-profile-badges locked">
               {lockedBadges.map(badge => (
                 <div key={badge.id} className="unified-profile-badge locked">
-                  <span className="unified-profile-badge-icon">🔒</span>
+                  <span className="unified-profile-badge-icon">
+                    <AchievementBadge id={badge.id} size="lg" locked />
+                  </span>
                   <span className="unified-profile-badge-name">{badge.name}</span>
                   <span className="unified-profile-badge-desc">{badge.description}</span>
                 </div>
@@ -809,7 +817,9 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
       {/* Best Streak */}
       {stats.bestStreak > 0 && (
         <div className="unified-profile-highlight">
-          <span className="unified-profile-highlight-icon">🏆</span>
+          <span className="unified-profile-highlight-icon">
+            <AchievementBadge id="streak_30" size="md" />
+          </span>
           <div className="unified-profile-highlight-content">
             <span className="unified-profile-highlight-value">{stats.bestStreak} days</span>
             <span className="unified-profile-highlight-label">Best Streak</span>
@@ -1126,7 +1136,7 @@ function SettingsTab({ user, onLogout }) {
             disabled={isSaving}
             aria-pressed={freeOnly}
           >
-            <span className="toggle-icon">💸</span>
+            <span className="toggle-icon"><ToggleIcon name="free" size={20} /></span>
             <span className="toggle-text">
               <span className="toggle-label">Free Places Only</span>
               <span className="toggle-desc">Show only free attractions</span>
@@ -1148,7 +1158,7 @@ function SettingsTab({ user, onLogout }) {
             disabled={isSaving}
             aria-pressed={accessibilityMode}
           >
-            <span className="toggle-icon">♿</span>
+            <span className="toggle-icon"><ToggleIcon name="accessibility" size={20} /></span>
             <span className="toggle-text">
               <span className="toggle-label">Accessibility Mode</span>
               <span className="toggle-desc">Prioritize accessible places</span>
@@ -1170,7 +1180,7 @@ function SettingsTab({ user, onLogout }) {
             disabled={isSaving}
             aria-pressed={openOnly}
           >
-            <span className="toggle-icon">🕐</span>
+            <span className="toggle-icon"><ToggleIcon name="clock" size={20} /></span>
             <span className="toggle-text">
               <span className="toggle-label">Open Now Only</span>
               <span className="toggle-desc">Hide places that are closed</span>
@@ -1350,7 +1360,7 @@ function NotificationsSection() {
           disabled={loading}
           aria-pressed={isSubscribed}
         >
-          <span className="toggle-icon">🔔</span>
+          <span className="toggle-icon"><ToggleIcon name="bell" size={20} /></span>
           <span className="toggle-text">
             <span className="toggle-label">Push Notifications</span>
             <span className="toggle-desc">
@@ -1392,7 +1402,7 @@ function NotificationsSection() {
               onClick={() => updatePref('newContribution', !prefs.newContribution)}
               aria-pressed={prefs.newContribution}
             >
-              <span className="toggle-icon">⬆️</span>
+              <span className="toggle-icon"><ToggleIcon name="upvote" size={20} /></span>
               <span className="toggle-text">
                 <span className="toggle-label">Tip Upvotes</span>
                 <span className="toggle-desc">When your tips get upvoted</span>
@@ -1407,7 +1417,7 @@ function NotificationsSection() {
               onClick={() => updatePref('planShared', !prefs.planShared)}
               aria-pressed={prefs.planShared}
             >
-              <span className="toggle-icon">🗺️</span>
+              <span className="toggle-icon"><ToggleIcon name="map" size={20} /></span>
               <span className="toggle-text">
                 <span className="toggle-label">Shared Plans</span>
                 <span className="toggle-desc">When someone shares a plan with you</span>
@@ -1422,7 +1432,7 @@ function NotificationsSection() {
               onClick={() => updatePref('weeklyDigest', !prefs.weeklyDigest)}
               aria-pressed={prefs.weeklyDigest}
             >
-              <span className="toggle-icon">📬</span>
+              <span className="toggle-icon"><ToggleIcon name="digest" size={20} /></span>
               <span className="toggle-text">
                 <span className="toggle-label">Weekly Digest</span>
                 <span className="toggle-desc">Weekly summary of activity</span>
@@ -1437,7 +1447,7 @@ function NotificationsSection() {
               onClick={() => updatePref('visitReminder', !prefs.visitReminder)}
               aria-pressed={prefs.visitReminder}
             >
-              <span className="toggle-icon">📅</span>
+              <span className="toggle-icon"><ToggleIcon name="calendar" size={20} /></span>
               <span className="toggle-text">
                 <span className="toggle-label">Visit Reminders</span>
                 <span className="toggle-desc">Reminder on your planned visit day</span>

@@ -5,6 +5,7 @@
  */
 
 import { getRating, VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
+import RatingIcon from './icons/RatingIcon'
 import './PlaceReviews.css'
 
 // Icons
@@ -20,10 +21,11 @@ const ThumbsDownIcon = () => (
   </svg>
 )
 
-// Helper to get option label by value
+// Helper to get option label by value (returns just text — icon now
+// rendered as a separate JSX element via RatingIcon for proper SVG output)
 function getOptionLabel(options, value) {
   const opt = options.find(o => o.value === value)
-  return opt ? `${opt.icon} ${opt.label}` : null
+  return opt ? opt.label : null
 }
 
 export default function PlaceReviews({ placeId }) {
@@ -61,16 +63,19 @@ export default function PlaceReviews({ placeId }) {
           <div className="place-review-tags">
             {rating.vibe && (
               <span className="place-review-tag">
+                <RatingIcon kind="vibe" value={rating.vibe} size={16} />
                 {getOptionLabel(VIBE_OPTIONS, rating.vibe)}
               </span>
             )}
             {rating.noiseLevel && (
               <span className="place-review-tag">
+                <RatingIcon kind="noise" value={rating.noiseLevel} size={16} />
                 {getOptionLabel(NOISE_OPTIONS, rating.noiseLevel)}
               </span>
             )}
             {rating.valueForMoney && (
               <span className="place-review-tag">
+                <RatingIcon kind="value" value={rating.valueForMoney} size={16} />
                 {getOptionLabel(VALUE_OPTIONS, rating.valueForMoney)}
               </span>
             )}

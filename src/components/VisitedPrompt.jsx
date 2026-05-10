@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
+import RatingIcon from './icons/RatingIcon'
+import CategoryIcon from './icons/CategoryIcon'
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateContribution } from '../hooks/useContributions'
 import { useUserStats } from '../hooks/useUserStats'
@@ -264,7 +266,11 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                 exit={{ opacity: 0 }}
               >
                 <div className="visited-place-info">
-                  <span className="visited-category">{place.category?.icon}</span>
+                  {place.category?.key && (
+                    <span className="visited-category">
+                      <CategoryIcon name={place.category.key} size="sm" />
+                    </span>
+                  )}
                   <h3 className="visited-place-name">{place.name}</h3>
                 </div>
 
@@ -361,7 +367,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                         className={`feedback-chip ${selectedVibe === opt.value ? 'selected' : ''}`}
                         onClick={() => toggleChip(selectedVibe, opt.value, setSelectedVibe)}
                       >
-                        <span>{opt.icon}</span>
+                        <RatingIcon kind="vibe" value={opt.value} size={18} />
                         <span>{opt.label}</span>
                       </button>
                     ))}
@@ -377,7 +383,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                         className={`feedback-chip ${selectedNoise === opt.value ? 'selected' : ''}`}
                         onClick={() => toggleChip(selectedNoise, opt.value, setSelectedNoise)}
                       >
-                        <span>{opt.icon}</span>
+                        <RatingIcon kind="noise" value={opt.value} size={18} />
                         <span>{opt.label}</span>
                       </button>
                     ))}
@@ -393,7 +399,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                         className={`feedback-chip ${selectedValue === opt.value ? 'selected' : ''}`}
                         onClick={() => toggleChip(selectedValue, opt.value, setSelectedValue)}
                       >
-                        <span>{opt.icon}</span>
+                        <RatingIcon kind="value" value={opt.value} size={18} />
                         <span>{opt.label}</span>
                       </button>
                     ))}

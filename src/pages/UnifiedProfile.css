@@ -427,8 +427,15 @@
 }
 
 .unified-profile-badge.locked {
-  opacity: 0.5;
+  /* Locked styling is baked into AchievementBadge SVG (grey rim + dimmed
+     field) — container opacity stays high so the SVG reads crisply. The
+     name + description text still dim slightly via the colour rules below. */
   background: var(--roam-parchment, #e8e0d0);
+  opacity: 0.85;
+}
+.unified-profile-badge.locked .unified-profile-badge-name,
+.unified-profile-badge.locked .unified-profile-badge-desc {
+  color: var(--roam-ink-muted, #6b6b6b);
 }
 
 .unified-profile-badge.server {
@@ -467,8 +474,11 @@
 }
 
 .unified-profile-badge-icon {
-  font-size: var(--text-3xl, 32px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: var(--space-sm, 8px);
+  /* SVG sets its own dimensions; this just ensures clean centering */
 }
 
 .unified-profile-badge-name {
