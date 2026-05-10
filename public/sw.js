@@ -12,11 +12,148 @@
  * - Static files: Cache first
  */
 
-const CACHE_NAME = 'roam-v2'
-const STATIC_CACHE = 'roam-static-v2'
-const IMAGE_CACHE = 'roam-images-v2'
-const MAP_TILE_CACHE = 'roam-map-tiles-v1'
+const CACHE_NAME = 'roam-v3'
+const STATIC_CACHE = 'roam-static-v3'
+const IMAGE_CACHE = 'roam-images-v2'           // unchanged — preserves existing entries
+const MAP_TILE_CACHE = 'roam-map-tiles-v1'     // unchanged — preserves existing entries
+const OFFLINE_API_CACHE = 'roam-offline-api-v1' // new — pack API responses
 const IS_LOCALHOST = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1'
+
+// ─── Offline pack manifest cache ─────────────────────────────────
+//
+// The SW reads the pack manifest from IndexedDB on relevant fetches.
+// We keep the most-recent manifest in memory so we don't open the DB
+// per request. Window dispatches 'pack-changed' postMessage events
+// on download / clear / expire to invalidate.
+
+const PACK_DB_NAME = 'roam_offline'
+const PACK_DB_VERSION = 1
+const PACK_MANIFEST_STORE = 'pack_manifest'
+
+let cachedManifest = null
+let cachedManifestAt = 0
+const CACHED_MANIFEST_TTL_MS = 30 * 1000 // re-read at most every 30s
+
+function readManifestFromIdb() {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') return resolve(null)
+    const req = indexedDB.open(PACK_DB_NAME, PACK_DB_VERSION)
+    req.onsuccess = () => {
+      const db = req.result
+      try {
+        const tx = db.transaction(PACK_MANIFEST_STORE, 'readonly')
+        const get = tx.objectStore(PACK_MANIFEST_STORE).get(1)
+        get.onsuccess = () => resolve(get.result || null)
+        get.onerror = () => resolve(null)
+      } catch {
+        resolve(null)
+      }
+    }
+    req.onerror = () => resolve(null)
+    req.onblocked = () => resolve(null)
+  })
+}
+
+async function getManifest() {
+  if (cachedManifest && (Date.now() - cachedManifestAt) < CACHED_MANIFEST_TTL_MS) {
+    return cachedManifest
+  }
+  cachedManifest = await readManifestFromIdb()
+  cachedManifestAt = Date.now()
+  return cachedManifest
+}
+
+// ─── Offline pack routing ────────────────────────────────────────
+
+function urlInsideAnyBbox(lat, lng, bboxes) {
+  if (!Array.isArray(bboxes)) return false
+  for (const b of bboxes) {
+    if (lat >= b.south && lat <= b.north && lng >= b.west && lng <= b.east) return true
+  }
+  return false
+}
+
+function readAllPackPlaces() {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') return resolve([])
+    const req = indexedDB.open(PACK_DB_NAME, PACK_DB_VERSION)
+    req.onsuccess = () => {
+      try {
+        const tx = req.result.transaction('pack_places', 'readonly')
+        const get = tx.objectStore('pack_places').getAll()
+        get.onsuccess = () => resolve(get.result || [])
+        get.onerror = () => resolve([])
+      } catch { resolve([]) }
+    }
+    req.onerror = () => resolve([])
+  })
+}
+
+/**
+ * Decide if this fetch should be served from the offline pack.
+ * Returns a Response or null (caller falls back to existing strategies).
+ */
+async function maybeServeFromOfflinePack(request) {
+  if (typeof navigator !== 'undefined' && navigator.onLine !== false) return null
+  const url = new URL(request.url)
+
+  // Same-origin only
+  if (url.origin !== self.location.origin) return null
+
+  const manifest = await getManifest()
+  if (!manifest || manifest.status !== 'ready') return null
+
+  // 1. /api/wikipedia/summary and /api/places/image-resolve — direct cache lookup
+  if (
+    url.pathname === '/api/wikipedia/summary' ||
+    url.pathname === '/api/places/image-resolve'
+  ) {
+    const cache = await caches.open(OFFLINE_API_CACHE)
+    const hit = await cache.match(request)
+    if (hit) return hit
+    return new Response(JSON.stringify({ error: 'offline', message: 'No cached data for this request' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // 2. /api/places/overpass/nearby — bbox check then synthesize a response from pack_places
+  if (url.pathname === '/api/places/overpass/nearby' && request.method === 'POST') {
+    try {
+      const body = await request.clone().json()
+      const m = body?.query?.match(/bbox:([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)/)
+      if (!m) return null
+      const south = parseFloat(m[1])
+      const west = parseFloat(m[2])
+      const north = parseFloat(m[3])
+      const east = parseFloat(m[4])
+      const inside = urlInsideAnyBbox((south + north) / 2, (west + east) / 2, manifest.deckBboxes)
+      if (!inside) return null
+      // Synthesize an Overpass response from cached places
+      const allPlaces = await readAllPackPlaces()
+      const filtered = allPlaces.filter((p) =>
+        p.placeData.lat >= south && p.placeData.lat <= north &&
+        p.placeData.lng >= west && p.placeData.lng <= east
+      )
+      const elements = filtered.map((p) => ({
+        id: Number(p.placeId) || p.placeId,
+        type: 'node',
+        lat: p.placeData.lat,
+        lon: p.placeData.lng,
+        tags: p.placeData.tags || {},
+        center: { lat: p.placeData.lat, lon: p.placeData.lng },
+      }))
+      return new Response(JSON.stringify({ version: 0.6, elements }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'X-Roam-Cache': 'offline-pack' },
+      })
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
 
 // Request deduplication - coalesce simultaneous identical requests
 const pendingRequests = new Map()
@@ -111,7 +248,8 @@ self.addEventListener('activate', (event) => {
                 cacheName !== CACHE_NAME &&
                 cacheName !== STATIC_CACHE &&
                 cacheName !== IMAGE_CACHE &&
-                cacheName !== MAP_TILE_CACHE) {
+                cacheName !== MAP_TILE_CACHE &&
+                cacheName !== OFFLINE_API_CACHE) {
               log('Service Worker: Deleting old cache:', cacheName)
               return caches.delete(cacheName)
             }
@@ -126,52 +264,62 @@ self.addEventListener('activate', (event) => {
 })
 
 // Fetch event - serve from cache or network
-self.addEventListener('fetch', (event) => {
+//
+// The listener body has been extracted into defaultFetchStrategy() so the
+// offline-pack short-circuit can run first. event.respondWith is called
+// exactly once, and defaultFetchStrategy always returns a Response.
+async function defaultFetchStrategy(request) {
   if (IS_LOCALHOST) {
-    return
+    return fetch(request)
   }
 
-  const { request } = event
   const url = new URL(request.url)
 
   // Always use network-first for navigations to avoid stale app shells.
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request))
-    return
+    return await networkFirst(request)
   }
 
   // Skip non-GET requests
   if (request.method !== 'GET') {
-    return
+    return fetch(request)
   }
 
   // Skip chrome-extension and other non-http(s) requests
   if (!url.protocol.startsWith('http')) {
-    return
+    return fetch(request)
   }
 
   // Handle different request types
   if (isMapTileRequest(url)) {
     // Map tiles: Cache first with LRU eviction
-    event.respondWith(cacheMapTile(request))
+    return await cacheMapTile(request)
   } else if (isApiRequest(url)) {
     // Use stale-while-revalidate for user data APIs (instant loads + background refresh)
     if (USER_DATA_APIS.some(api => url.pathname.startsWith(api))) {
-      event.respondWith(staleWhileRevalidate(request))
+      return await staleWhileRevalidate(request)
     } else {
       // Other API requests: Network first, cache fallback
-      event.respondWith(networkFirst(request))
+      return await networkFirst(request)
     }
   } else if (isImageRequest(url, request)) {
     // Images: Cache first, network fallback
-    event.respondWith(cacheFirst(request, IMAGE_CACHE))
+    return await cacheFirst(request, IMAGE_CACHE)
   } else if (isStaticAsset(url)) {
     // Static assets (JS, CSS): Cache first
-    event.respondWith(cacheFirst(request, STATIC_CACHE))
+    return await cacheFirst(request, STATIC_CACHE)
   } else {
     // Everything else: Network first
-    event.respondWith(networkFirst(request))
+    return await networkFirst(request)
   }
+}
+
+self.addEventListener('fetch', (event) => {
+  event.respondWith((async () => {
+    const packResponse = await maybeServeFromOfflinePack(event.request)
+    if (packResponse) return packResponse
+    return await defaultFetchStrategy(event.request)
+  })())
 })
 
 // Check if request is an API call
@@ -369,6 +517,13 @@ self.addEventListener('message', (event) => {
     caches.delete(MAP_TILE_CACHE).then(() => {
       log('Service Worker: Map tile cache cleared')
     })
+  }
+
+  // Invalidate in-memory pack manifest cache (window dispatches this on
+  // download / clear / expire so the SW re-reads from IndexedDB).
+  if (event.data && event.data.type === 'pack-changed') {
+    cachedManifest = null
+    cachedManifestAt = 0
   }
 })
 
