@@ -190,7 +190,6 @@ function DiscoverUsers() {
             <div className="social-hub-discover-user-info">
               <span className="social-hub-discover-user-name">
                 {formatDisplayName(user)}
-                {user.isPremium && <PremiumBadge size="inline" className="social-hub-discover-user-name-badge" />}
               </span>
               {user.sharedInterests && (
                 <span className="social-hub-discover-user-match">

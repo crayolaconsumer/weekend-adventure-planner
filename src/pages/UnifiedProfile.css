@@ -1651,15 +1651,22 @@
   cursor: not-allowed;
 }
 
-.unified-profile-avatar-wrap { display: inline-block; }
-.unified-profile-avatar-wrap .premium-badge {
-  /* Place the larger badge a bit further off the avatar so it reads */
-  bottom: -3px;
-  right: -3px;
+.unified-profile-avatar-wrap {
+  display: inline-block;
+  margin-bottom: var(--space-lg, 20px);
 }
-.unified-profile-name-badge {
-  margin-left: 6px;
-  vertical-align: -2px;
+/* Move the avatar's existing margin onto the wrapper so the badge can
+ * overlap the avatar cleanly */
+.unified-profile-avatar-wrap .unified-profile-avatar {
+  margin-bottom: 0;
+}
+/* On a 100px avatar with a thick ring + halo, push the larger badge
+ * inside the bottom-right corner so it sits over the avatar, not
+ * floating beside it */
+.unified-profile-avatar-wrap .premium-badge {
+  bottom: 6px;
+  right: 6px;
+  filter: drop-shadow(0 2px 6px rgba(26, 58, 47, 0.28));
 }
 
 /* ROAM+ upgrade card on Settings tab — non-premium */

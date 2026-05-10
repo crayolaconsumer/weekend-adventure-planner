@@ -49,7 +49,6 @@ export default function UserCard({
         <div className="user-card-info">
           <div className="user-card-name">
             {formatDisplayName(user)}
-            {user.isPremium && <PremiumBadge size="inline" className="user-card-name-badge" />}
           </div>
           <div className="user-card-username">@{user.username}</div>
 

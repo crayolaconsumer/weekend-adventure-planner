@@ -167,7 +167,6 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
             <p className="activity-item-action-line">
               <Link to={`/user/${activity.user?.username}`} className="activity-item-username">
                 {friendlyName}
-                {activity.user?.isPremium && <PremiumBadge size="inline" className="activity-item-username-badge" />}
               </Link>
               <span className="activity-item-verb">{verb}</span>
               {activity.place?.name && activity.place?.id && (

@@ -216,7 +216,6 @@ export default function VisitedMapPage() {
           <div className="visited-map-user-text">
             <span className="visited-map-user-name">
               {formatDisplayName(data.user)}
-              {data.user.isPremium && <PremiumBadge size="inline" className="visited-map-user-name-badge" />}
             </span>
             <span className="visited-map-user-count">
               {data.total} {data.total === 1 ? 'place' : 'places'}

@@ -299,13 +299,12 @@ export default function UnifiedProfile() {
             alt={formatDisplayName(user)}
             className="unified-profile-avatar"
           />
-          {user.isPremium && <PremiumBadge size="md" />}
+          {user.isPremium && <PremiumBadge size={32} />}
         </span>
 
         <div className="unified-profile-info">
           <h2 className="unified-profile-name">
             {formatDisplayName(user)}
-            {user.isPremium && <PremiumBadge size="inline" className="unified-profile-name-badge" />}
           </h2>
           <p className="unified-profile-username">@{user.username}</p>
 
