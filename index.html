@@ -50,7 +50,11 @@
   <!-- Service Worker Registration with Update Handling -->
   <script>
     const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-    if (!isLocalhost && 'serviceWorker' in navigator) {
+    // Skip SW registration in Capacitor (iOS WKWebView's SW support is
+    // limited; the offline pack feature uses @capacitor/filesystem on
+    // native instead — wired in Stage 4)
+    const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+    if (!isLocalhost && !isCapacitor && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then((registration) => {
