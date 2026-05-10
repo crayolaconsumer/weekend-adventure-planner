@@ -59,8 +59,15 @@ const GoogleIcon = () => (
   </svg>
 )
 
+// Apple icon
+const AppleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+  </svg>
+)
+
 export default function Onboarding({ onComplete }) {
-  const { loginWithGoogle } = useAuth()
+  const { loginWithGoogle, loginWithApple } = useAuth()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [selectedInterests, setSelectedInterests] = useState([])
   const [showInterests, setShowInterests] = useState(false)
@@ -178,19 +185,86 @@ export default function Onboarding({ onComplete }) {
     }
   }, [loginWithGoogle, savePreferencesAndComplete])
 
-  // Load Google Sign-In script
+  // Apple Sign-In handler — same dual-path as AuthModal:
+  //   - Native iOS: Capacitor plugin (system sheet)
+  //   - Web / Android Capacitor: Apple JS SDK popup
+  const handleAppleSignIn = useCallback(async () => {
+    const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
+    if (!servicesId) {
+      setSignInError('Apple Sign-In is not configured')
+      return
+    }
+
+    setSignInError(null)
+    setSignInLoading(true)
+    try {
+      const { isNative, getPlatform } = await import('../utils/nativeBridge')
+      let identityToken, userInfo
+      if (isNative() && getPlatform() === 'ios') {
+        const { nativeAppleSignIn } = await import('../utils/nativePlugins')
+        const native = await nativeAppleSignIn()
+        identityToken = native.identityToken
+        userInfo = native.userInfo
+      } else {
+        if (!window.AppleID?.auth) {
+          setSignInError('Apple Sign-In is loading, please try again')
+          setSignInLoading(false)
+          return
+        }
+        const data = await window.AppleID.auth.signIn()
+        identityToken = data?.authorization?.id_token
+        userInfo = data?.user || null
+      }
+      if (!identityToken) throw new Error('Apple did not return an identity token')
+
+      const result = await loginWithApple({ identityToken, userInfo })
+      setSignInLoading(false)
+      if (result.success) {
+        savePreferencesAndComplete()
+      } else {
+        setSignInError(result.error)
+      }
+    } catch (err) {
+      setSignInLoading(false)
+      const cancelled = err?.error === 'popup_closed_by_user' ||
+        err?.code === 'ERR_CANCELED' || err?.code === '1001'
+      if (!cancelled) setSignInError(err?.message || 'Apple sign-in failed')
+    }
+  }, [loginWithApple, savePreferencesAndComplete])
+
+  // Load Google + Apple JS SDKs when the sign-in step is reached.
+  // Native iOS uses the Capacitor plugin and skips the Apple SDK load.
   useEffect(() => {
     if (!showSignIn) return
 
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-    if (!clientId) return
-
-    if (!window.google && !document.getElementById('google-signin-script')) {
+    if (clientId && !window.google && !document.getElementById('google-signin-script')) {
       const script = document.createElement('script')
       script.id = 'google-signin-script'
       script.src = 'https://accounts.google.com/gsi/client'
       script.async = true
       script.defer = true
+      document.head.appendChild(script)
+    }
+
+    const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
+    const onNativeIOS = window.Capacitor?.isNativePlatform?.() && window.Capacitor?.getPlatform?.() === 'ios'
+    if (servicesId && !onNativeIOS && !window.AppleID && !document.getElementById('apple-signin-script')) {
+      const script = document.createElement('script')
+      script.id = 'apple-signin-script'
+      script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js'
+      script.async = true
+      script.defer = true
+      script.onload = () => {
+        if (window.AppleID?.auth) {
+          window.AppleID.auth.init({
+            clientId: servicesId,
+            scope: 'name email',
+            redirectURI: `${window.location.origin}/api/auth/apple/callback`,
+            usePopup: true
+          })
+        }
+      }
       document.head.appendChild(script)
     }
   }, [showSignIn])
@@ -336,6 +410,26 @@ export default function Onboarding({ onComplete }) {
               </p>
 
               <div className="onboarding-signin-options">
+                {/* Apple before Google — App Store Guideline 4.8 + Apple users find it first */}
+                {import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID && (
+                  <motion.button
+                    className="onboarding-apple-btn"
+                    onClick={handleAppleSignIn}
+                    disabled={signInLoading}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {signInLoading ? (
+                      <span className="onboarding-loading-spinner" />
+                    ) : (
+                      <>
+                        <AppleIcon />
+                        <span>Continue with Apple</span>
+                      </>
+                    )}
+                  </motion.button>
+                )}
+
                 <motion.button
                   className="onboarding-google-btn"
                   onClick={handleGoogleSignIn}

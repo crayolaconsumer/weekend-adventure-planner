@@ -323,31 +323,33 @@ export default function SocialHub({ location }) {
         )}
       </header>
 
-      {/* User search */}
-      <UserSearchBar />
+      {/* Auth-gated chrome — hide pre-auth UI for cleaner first impression.
+          Search, tabs, and location indicator only make sense once a user
+          has an account; otherwise we lead with the value-prop CTA. */}
+      {isAuthenticated && <UserSearchBar />}
 
-      {/* Tabs */}
-      <div className="social-hub-tabs" role="tablist">
-        <button
-          className={`social-hub-tab ${activeTab === 'feed' ? 'active' : ''}`}
-          onClick={() => setActiveTab('feed')}
-          role="tab"
-          aria-selected={activeTab === 'feed'}
-        >
-          Near You
-        </button>
-        <button
-          className={`social-hub-tab ${activeTab === 'discover' ? 'active' : ''}`}
-          onClick={() => setActiveTab('discover')}
-          role="tab"
-          aria-selected={activeTab === 'discover'}
-        >
-          Find People
-        </button>
-      </div>
+      {isAuthenticated && (
+        <div className="social-hub-tabs" role="tablist">
+          <button
+            className={`social-hub-tab ${activeTab === 'feed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('feed')}
+            role="tab"
+            aria-selected={activeTab === 'feed'}
+          >
+            Near You
+          </button>
+          <button
+            className={`social-hub-tab ${activeTab === 'discover' ? 'active' : ''}`}
+            onClick={() => setActiveTab('discover')}
+            role="tab"
+            aria-selected={activeTab === 'discover'}
+          >
+            Find People
+          </button>
+        </div>
+      )}
 
-      {/* Location indicator - shown only on feed tab when we have a location */}
-      {activeTab === 'feed' && locationSource && (
+      {isAuthenticated && activeTab === 'feed' && locationSource && (
         <div className="social-hub-location-indicator">
           <LocationPinIcon />
           <span>
