@@ -18,6 +18,7 @@
 
 import { ImageResponse } from '@vercel/og'
 import { queryOne, query } from '../../lib/db.js'
+import { formatDisplayName } from '../../lib/displayName.js'
 
 const TEASER_CELL_DEGREES = 0.5
 
@@ -123,7 +124,7 @@ export default async function handler(req, res) {
           )}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: 48, color: '#1a3a2f', fontWeight: 600 }}>
-              {target.display_name || target.username}'s map
+              {formatDisplayName(target)}'s map
             </div>
             <div style={{ fontSize: 26, color: '#5a7a6e' }}>
               {total} {total === 1 ? 'place' : 'places'} visited{!isFull && ' · followers see the real map'}

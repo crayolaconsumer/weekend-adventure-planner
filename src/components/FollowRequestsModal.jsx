@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useFollowRequests } from '../hooks/useFollowRequests'
 import { formatDate } from '../utils/dateUtils'
+import { formatDisplayName } from '../utils/displayName'
 import './FollowRequestsModal.css'
 
 export default function FollowRequestsModal({ onClose }) {
@@ -84,13 +85,13 @@ export default function FollowRequestsModal({ onClose }) {
                     >
                       <img
                         src={request.user.avatarUrl ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(request.user.displayName || request.user.username)}&background=E07A5F&color=fff&size=80`}
-                        alt={request.user.displayName || request.user.username}
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(request.user))}&background=E07A5F&color=fff&size=80`}
+                        alt={formatDisplayName(request.user)}
                         className="follow-request-avatar"
                       />
                       <div className="follow-request-info">
                         <span className="follow-request-name">
-                          {request.user.displayName || request.user.username}
+                          {formatDisplayName(request.user)}
                         </span>
                         <span className="follow-request-username">
                           @{request.user.username}

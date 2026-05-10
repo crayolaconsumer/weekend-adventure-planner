@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { formatDisplayName } from '../utils/displayName'
 import { useVote } from '../hooks/useContributions'
 import './ContributionDisplay.css'
 
@@ -153,7 +154,7 @@ export function ContributionCard({ contribution, onVoteChange }) {
             />
           ) : (
             <div className="contribution-avatar-placeholder">
-              {(localContribution.user.displayName || localContribution.user.username || 'U')[0].toUpperCase()}
+              {formatDisplayName(localContribution.user)[0].toUpperCase()}
             </div>
           )}
           <div>

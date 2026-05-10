@@ -10,6 +10,7 @@
  */
 
 import { queryOne } from '../../lib/db.js'
+import { formatDisplayName } from '../../lib/displayName.js'
 
 export default async function handler(req, res) {
   const { username } = req.query
@@ -39,7 +40,7 @@ export default async function handler(req, res) {
     const safeUsername = encodeURIComponent(target.username)
     const ogImage = `${origin}/api/og/user-map/${safeUsername}`
     const pageUrl = `${origin}/user/${safeUsername}/map`
-    const displayName = target.display_name || target.username
+    const displayName = formatDisplayName(target)
     const title = `${displayName}'s ROAM map`
     const description = `Places ${displayName} has visited on ROAM`
 

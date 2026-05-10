@@ -7,6 +7,7 @@
 import { motion } from 'framer-motion'
 import { useBlockedUsers } from '../hooks/useBlockedUsers'
 import { formatDate } from '../utils/dateUtils'
+import { formatDisplayName } from '../utils/displayName'
 import './BlockedUsersModal.css'
 
 export default function BlockedUsersModal({ onClose }) {
@@ -77,13 +78,13 @@ export default function BlockedUsersModal({ onClose }) {
                     <div className="blocked-user-info">
                       <img
                         src={item.user.avatarUrl ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(item.user.displayName || item.user.username)}&background=E07A5F&color=fff&size=80`}
-                        alt={item.user.displayName || item.user.username}
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(item.user))}&background=E07A5F&color=fff&size=80`}
+                        alt={formatDisplayName(item.user)}
                         className="blocked-user-avatar"
                       />
                       <div className="blocked-user-details">
                         <span className="blocked-user-name">
-                          {item.user.displayName || item.user.username}
+                          {formatDisplayName(item.user)}
                         </span>
                         <span className="blocked-user-username">
                           @{item.user.username}

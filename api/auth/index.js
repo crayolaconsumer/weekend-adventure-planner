@@ -280,7 +280,8 @@ async function handleGoogle(req, res) {
     googleId = payload.sub
     email = payload.email
     emailVerified = payload.email_verified
-    displayName = payload.name
+    // Defensive: Google can return an email-shaped name in rare cases
+    displayName = (typeof payload.name === 'string' && !payload.name.includes('@')) ? payload.name : null
     avatarUrl = payload.picture
   } else if (accessToken && typeof accessToken === 'string') {
     // Access Token flow - MUST validate with Google's userinfo API
@@ -303,7 +304,7 @@ async function handleGoogle(req, res) {
       googleId = userInfo.sub
       email = userInfo.email
       emailVerified = userInfo.email_verified ?? false
-      displayName = userInfo.name
+      displayName = (typeof userInfo.name === 'string' && !userInfo.name.includes('@')) ? userInfo.name : null
       avatarUrl = userInfo.picture
     } catch {
       return res.status(401).json({ error: 'Failed to verify Google access token' })
