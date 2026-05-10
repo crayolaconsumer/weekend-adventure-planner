@@ -51,7 +51,7 @@ async function getWebPush() {
         console.warn('VAPID keys not configured - push notifications disabled')
         webpush = null
       }
-    } catch (err) {
+    } catch {
       console.warn('web-push not installed - push notifications disabled')
       webpush = null
     }
@@ -256,8 +256,11 @@ export async function notifyPlannedVisit(userId, placeName, placeId) {
  * @returns {Promise<Array>} List of planned visits with user and place info
  */
 export async function getPlannedVisitsForToday() {
-  // Get visits planned for today (comparing just the date part)
-  // Only get visits that haven't been visited yet
+  // Get visits planned for today (comparing just the date part).
+  // Exclude places the user has already actually visited — the modern
+  // visit flow writes to visited_places (separate table), not back to
+  // saved_places.visited. Without this LEFT JOIN we'd re-remind users
+  // about places they've been to.
   const visits = await query(
     `SELECT
        sp.user_id,
@@ -265,8 +268,11 @@ export async function getPlannedVisitsForToday() {
        sp.place_data,
        sp.planned_date
      FROM saved_places sp
+     LEFT JOIN visited_places vp
+       ON vp.user_id = sp.user_id AND vp.place_id = sp.place_id
      WHERE DATE(sp.planned_date) = CURDATE()
-       AND (sp.visited = 0 OR sp.visited IS NULL)`,
+       AND (sp.visited = 0 OR sp.visited IS NULL)
+       AND vp.id IS NULL`,
     []
   )
 
