@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /* global Buffer */
 /**
  * GET /api/og/user-map/[username]
