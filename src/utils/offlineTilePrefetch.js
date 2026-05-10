@@ -79,17 +79,16 @@ export async function prefetchTilesForArea({ lat, lng, radiusKm, minZoom = 12, m
         if (existing) {
           const buf = await existing.clone().arrayBuffer()
           bytes += buf.byteLength
-          done += 1
-          onProgress({ current: done, total, byteSize: bytes })
-          continue
+        } else {
+          const res = await fetch(url, { signal, mode: 'cors' })
+          if (res.ok) {
+            await cache.put(url, res.clone())
+            const buf = await res.clone().arrayBuffer()
+            bytes += buf.byteLength
+          }
         }
-        const res = await fetch(url, { signal, mode: 'cors' })
-        if (!res.ok) continue
-        await cache.put(url, res.clone())
-        const buf = await res.clone().arrayBuffer()
-        bytes += buf.byteLength
       } catch {
-        // skip individual failures
+        // skip individual failures — counter still advances below
       }
       done += 1
       onProgress({ current: done, total, byteSize: bytes })

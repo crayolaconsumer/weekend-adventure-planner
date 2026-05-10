@@ -38,6 +38,15 @@ function readManifestFromIdb() {
   return new Promise((resolve) => {
     if (typeof indexedDB === 'undefined') return resolve(null)
     const req = indexedDB.open(PACK_DB_NAME, PACK_DB_VERSION)
+    // If onupgradeneeded fires here, the DB doesn't exist — meaning no
+    // pack has ever been downloaded. Abort so we don't create an empty
+    // DB at v1; the window-side `openDb()` opens at v1 too and would
+    // skip onupgradeneeded if we'd already created the DB, leaving
+    // pack_manifest / pack_places / pack_images uncreated and bricking
+    // the first download.
+    req.onupgradeneeded = (event) => {
+      try { event.target.transaction.abort() } catch { /* ignore */ }
+    }
     req.onsuccess = () => {
       const db = req.result
       try {
@@ -77,6 +86,10 @@ function readAllPackPlaces() {
   return new Promise((resolve) => {
     if (typeof indexedDB === 'undefined') return resolve([])
     const req = indexedDB.open(PACK_DB_NAME, PACK_DB_VERSION)
+    // Same DB-creation guard as readManifestFromIdb — see comment there.
+    req.onupgradeneeded = (event) => {
+      try { event.target.transaction.abort() } catch { /* ignore */ }
+    }
     req.onsuccess = () => {
       try {
         const tx = req.result.transaction('pack_places', 'readonly')

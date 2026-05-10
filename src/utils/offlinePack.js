@@ -358,19 +358,20 @@ async function downloadImages(urls, onProgress, signal) {
       const url = queue.shift()
       try {
         const res = await fetch(url, { signal, mode: 'cors' })
-        if (!res.ok) continue
-        await cache.put(url, res.clone())
-        const blob = await res.clone().blob()
-        await db.putImage({
-          url,
-          blob,
-          contentType: res.headers.get('content-type') || 'image/jpeg',
-          size: blob.size,
-          cachedAt: Date.now(),
-        })
-        bytesAccum += blob.size
+        if (res.ok) {
+          await cache.put(url, res.clone())
+          const blob = await res.clone().blob()
+          await db.putImage({
+            url,
+            blob,
+            contentType: res.headers.get('content-type') || 'image/jpeg',
+            size: blob.size,
+            cachedAt: Date.now(),
+          })
+          bytesAccum += blob.size
+        }
       } catch {
-        // skip cors errors etc
+        // skip cors errors etc — counter still advances below
       }
       done += 1
       onProgress({ phase: 'images', current: done, total })

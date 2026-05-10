@@ -43,17 +43,33 @@ function LockedTeaser() {
 }
 
 function PremiumVariant() {
-  const { status, refresh } = useOfflinePack()
+  // Passively read cached geolocation (no prompt) so useOfflinePack can
+  // compute distance and surface 'stale-distance' warnings. If perms
+  // aren't granted, distance just stays null — graceful no-op.
+  const [coords, setCoords] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation || !navigator.permissions) return
+      try {
+        const perm = await navigator.permissions.query({ name: 'geolocation' })
+        if (perm.state !== 'granted') return
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { if (!cancelled) setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }) },
+          () => {},
+          { maximumAge: 30 * 60 * 1000, timeout: 4000 }
+        )
+      } catch { /* skip */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const { status, refresh } = useOfflinePack(coords)
   const [radius, setRadius] = useState(5)
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState(null) // { phase, current, total }
   const [error, setError] = useState(null)
   const [abortController, setAbortController] = useState(null)
-
-  // Reset error when state changes externally
-  useEffect(() => {
-    if (status.state !== 'downloading') setError(null)
-  }, [status.state])
 
   const requestLocation = useCallback(() => new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
@@ -92,18 +108,52 @@ function PremiumVariant() {
     }
   }
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     abortController?.abort()
-    clearPack().then(refresh)
+    await clearPack()
+    await refresh()
   }
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (!confirm('Clear your offline pack? You can download a new one any time.')) return
-    clearPack().then(refresh)
+    await clearPack()
+    await refresh()
   }
 
   const estimated = formatBytes(estimateSize(radius))
   const isReady = status.state === 'fresh' || status.state === 'stale-time' || status.state === 'stale-distance'
+
+  // Downloading takes precedence — useOfflinePack's status doesn't
+  // update mid-download (no event fires for the 'downloading' manifest
+  // write), so we'd otherwise render the stale active view with
+  // disabled buttons instead of the progress bar.
+  if (downloading) {
+    const total = progress?.total || 1
+    const current = progress?.current || 0
+    const pct = Math.round((current / total) * 100)
+    return (
+      <div className="offline-pack-card offline-pack-card--active">
+        <div className="offline-pack-card-header">
+          <span className="offline-pack-card-eyebrow">ROAM+ · Downloading…</span>
+          <PremiumBadge size="sm" />
+        </div>
+        <div className="offline-pack-progress-row">
+          <div className="offline-pack-progress-bar">
+            <motion.div className="offline-pack-progress-bar-fill"
+              initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.3 }} />
+          </div>
+          <span className="offline-pack-progress-pct">{pct}%</span>
+        </div>
+        <p className="offline-pack-card-meta">
+          {progress?.phase === 'tiles' && 'Map tiles…'}
+          {progress?.phase === 'deck' && 'Discovery deck…'}
+          {progress?.phase === 'place-details' && `Place details (${current}/${total})`}
+          {progress?.phase === 'images' && `Images (${current}/${total})`}
+        </p>
+        <button className="offline-pack-card-btn-secondary" onClick={handleCancel}>Cancel</button>
+      </div>
+    )
+  }
 
   // Active pack view
   if (isReady) {
@@ -141,46 +191,21 @@ function PremiumVariant() {
     )
   }
 
-  // Downloading view
-  if (downloading) {
-    const total = progress?.total || 1
-    const current = progress?.current || 0
-    const pct = Math.round((current / total) * 100)
-    return (
-      <div className="offline-pack-card offline-pack-card--active">
-        <div className="offline-pack-card-header">
-          <span className="offline-pack-card-eyebrow">ROAM+ · Downloading…</span>
-          <PremiumBadge size="sm" />
-        </div>
-        <div className="offline-pack-progress-row">
-          <div className="offline-pack-progress-bar">
-            <motion.div className="offline-pack-progress-bar-fill"
-              initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.3 }} />
-          </div>
-          <span className="offline-pack-progress-pct">{pct}%</span>
-        </div>
-        <p className="offline-pack-card-meta">
-          {progress?.phase === 'tiles' && 'Map tiles…'}
-          {progress?.phase === 'deck' && 'Discovery deck…'}
-          {progress?.phase === 'place-details' && `Place details (${current}/${total})`}
-          {progress?.phase === 'images' && `Images (${current}/${total})`}
-        </p>
-        <button className="offline-pack-card-btn-secondary" onClick={handleCancel}>Cancel</button>
-      </div>
-    )
-  }
-
   // Idle view — pick radius and download
+  const headline = status.state === 'expired'
+    ? 'Your pack expired'
+    : 'Download for offline'
+  const subtext = status.state === 'expired'
+    ? "It's been a while since this pack was downloaded. Grab a fresh one for where you are now."
+    : "Perfect for trips where signal drops. Tap below to grab tiles + nearby places for the area you're in now."
   return (
     <div className="offline-pack-card offline-pack-card--active">
       <div className="offline-pack-card-header">
         <span className="offline-pack-card-eyebrow">ROAM+ · Offline pack</span>
         <PremiumBadge size="sm" />
       </div>
-      <h4 className="offline-pack-card-headline">Download for offline</h4>
-      <p className="offline-pack-card-sub">
-        Perfect for trips where signal drops. Tap below to grab tiles + nearby places for the area you're in now.
-      </p>
+      <h4 className="offline-pack-card-headline">{headline}</h4>
+      <p className="offline-pack-card-sub">{subtext}</p>
       <div className="offline-pack-radius-options" role="group" aria-label="Pack radius">
         {RADIUS_OPTIONS.map((r) => (
           <button
