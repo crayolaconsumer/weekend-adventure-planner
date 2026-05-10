@@ -13,6 +13,7 @@
  */
 
 import { OAuth2Client } from 'google-auth-library'
+import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { queryOne, insert, update } from '../lib/db.js'
 import {
   hashPassword,
@@ -28,6 +29,11 @@ import {
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+const APPLE_SERVICES_ID = process.env.APPLE_SIGNIN_SERVICES_ID
+const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'com.goroam.app'
+
+// Apple's public keys, fetched + cached + auto-rotated by jose
+const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
 
 export default async function handler(req, res) {
   try {
@@ -43,12 +49,14 @@ export default async function handler(req, res) {
             return await handleRegister(req, res)
           case 'google':
             return await handleGoogle(req, res)
+          case 'apple':
+            return await handleApple(req, res)
           case 'logout':
             return await handleLogout(req, res)
           case 'update':
             return await handleUpdateProfile(req, res)
           default:
-            return res.status(400).json({ error: 'Invalid action. Use: login, register, google, logout, or update' })
+            return res.status(400).json({ error: 'Invalid action. Use: login, register, google, apple, logout, or update' })
         }
       }
       default:
@@ -362,6 +370,156 @@ async function handleGoogle(req, res) {
         display_name = COALESCE(display_name, ?)
       WHERE id = ?`,
       [avatarUrl, displayName, user.id]
+    )
+  }
+
+  const token = generateToken(user)
+  const cookie = createAuthCookie(token, true)
+  res.setHeader('Set-Cookie', cookie)
+
+  return res.status(200).json({
+    user: {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.display_name,
+      avatarUrl: user.avatar_url,
+      emailVerified: user.email_verified,
+      tier: user.tier,
+      subscription_id: user.subscription_id,
+      subscription_expires_at: user.subscription_expires_at,
+      subscription_cancelled_at: user.subscription_cancelled_at,
+      stripe_customer_id: user.stripe_customer_id
+    },
+    token,
+    isNewUser: !user.last_login_at
+  })
+}
+
+/**
+ * POST action=apple - Sign in with Apple
+ *
+ * Body shape:
+ *   { action: 'apple', identityToken: '<JWT>', userInfo?: { name?: { firstName, lastName } } }
+ *
+ * Apple sends the user's full name ONLY on first sign-in, and only via
+ * the client (it's NOT in the identity token claims). The client must
+ * capture it on the first sign-in event and forward it here. Subsequent
+ * sign-ins won't have it — that's expected; we already have it stored.
+ *
+ * The identity token's `aud` claim is:
+ *   - Services ID (e.g. com.goroam.app.signin) for web flow
+ *   - Bundle ID (com.goroam.app) for native iOS via Capacitor plugin
+ * We accept both.
+ */
+async function handleApple(req, res) {
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.AUTH_GOOGLE, 'apple')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
+  if (!APPLE_SERVICES_ID) {
+    return res.status(501).json({ error: 'Sign in with Apple is not configured' })
+  }
+
+  const { identityToken, userInfo } = req.body
+  if (!identityToken || typeof identityToken !== 'string') {
+    return res.status(400).json({ error: 'Apple identity token is required' })
+  }
+
+  // Verify the JWT — checks signature against Apple's JWKS, expiry,
+  // issuer, and audience all in one shot.
+  let payload
+  try {
+    const verified = await jwtVerify(identityToken, APPLE_JWKS, {
+      issuer: 'https://appleid.apple.com',
+      audience: [APPLE_SERVICES_ID, APPLE_BUNDLE_ID],
+    })
+    payload = verified.payload
+  } catch {
+    return res.status(401).json({ error: 'Invalid Apple identity token' })
+  }
+
+  const appleId = payload.sub
+  const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : null
+  const emailVerified = payload.email_verified === true || payload.email_verified === 'true'
+  // Apple's "private email relay" — privaterelay.appleid.com — fine to accept,
+  // counts as verified since Apple owns the relay.
+  const isPrivateEmail = payload.is_private_email === true || payload.is_private_email === 'true'
+
+  if (!appleId) {
+    return res.status(401).json({ error: 'Apple token missing subject' })
+  }
+
+  // Extract display name from first-sign-in user info (client-provided)
+  let displayName = null
+  if (userInfo?.name && typeof userInfo.name === 'object') {
+    const first = typeof userInfo.name.firstName === 'string' ? userInfo.name.firstName : ''
+    const last = typeof userInfo.name.lastName === 'string' ? userInfo.name.lastName : ''
+    const combined = `${first} ${last}`.trim()
+    // Defensive: reject email-shaped names to match the Google handler convention
+    if (combined && !combined.includes('@')) displayName = combined.slice(0, 100)
+  }
+
+  // Look up by apple_id first
+  let user = await queryOne(
+    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE apple_id = ?',
+    [appleId]
+  )
+
+  if (!user) {
+    // Fall back to email match — link existing account if user previously
+    // signed up with email or Google using the same address. Apple's email
+    // is verified so this is safe to auto-link.
+    if (email) {
+      user = await queryOne(
+        'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE email = ?',
+        [email]
+      )
+    }
+
+    if (user) {
+      // Existing account — link Apple ID to it
+      await update(
+        `UPDATE users SET
+          apple_id = ?,
+          email_verified = ?,
+          display_name = COALESCE(display_name, ?),
+          last_login_at = NOW()
+        WHERE id = ?`,
+        [appleId, emailVerified || isPrivateEmail, displayName, user.id]
+      )
+
+      user = await queryOne(
+        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE id = ?',
+        [user.id]
+      )
+    } else {
+      // Brand new user
+      if (!email) {
+        return res.status(400).json({ error: 'No email available — Apple did not share an email address' })
+      }
+      const username = await generateUsername(email)
+
+      const userId = await insert(
+        `INSERT INTO users (email, apple_id, username, display_name, email_verified, last_login_at)
+         VALUES (?, ?, ?, ?, ?, NOW())`,
+        [email, appleId, username, displayName, emailVerified || isPrivateEmail]
+      )
+
+      user = await queryOne(
+        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE id = ?',
+        [userId]
+      )
+    }
+  } else {
+    // Existing Apple-linked user, just refresh last_login + name if newly provided
+    await update(
+      `UPDATE users SET
+        last_login_at = NOW(),
+        display_name = COALESCE(display_name, ?)
+      WHERE id = ?`,
+      [displayName, user.id]
     )
   }
 

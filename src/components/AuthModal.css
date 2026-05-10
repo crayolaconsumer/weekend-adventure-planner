@@ -103,6 +103,39 @@
 }
 
 /* ═══════════════════════════════════════════════════════
+   APPLE BUTTON
+   Apple's HIG: black bg, white text/icon, same hit target as Google.
+   Render order: Apple before Google so Apple users find it first.
+   ═══════════════════════════════════════════════════════ */
+
+.auth-apple-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: #000;
+  border: 1px solid #000;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  margin-bottom: var(--space-sm);
+}
+
+.auth-apple-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.auth-apple-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════
    DIVIDER
    ═══════════════════════════════════════════════════════ */
 

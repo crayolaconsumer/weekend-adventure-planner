@@ -233,6 +233,40 @@ export function AuthProvider({ children }) {
   }, [storeToken, migrateLocalData])
 
   /**
+   * Sign in with Apple
+   * Accepts the identityToken from Apple's JS SDK (web) or Capacitor's
+   * Sign in with Apple plugin (native). userInfo carries the name on
+   * first sign-in only — Apple never returns it again on subsequent
+   * sign-ins, so the client must capture it here and forward it.
+   */
+  const loginWithApple = useCallback(async ({ identityToken, userInfo }) => {
+    setError(null)
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'apple', identityToken, userInfo })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Apple sign-in failed')
+      }
+
+      setUser(data.user)
+      storeToken(data.token, true)
+      migrateLocalData(data.token)
+      if (data.isNewUser) track('signed-up', { method: 'apple' })
+      return { success: true, user: data.user, isNewUser: data.isNewUser }
+    } catch (err) {
+      setError(err.message)
+      return { success: false, error: err.message }
+    }
+  }, [storeToken, migrateLocalData])
+
+  /**
    * Logout
    */
   const logout = useCallback(async () => {
@@ -297,6 +331,7 @@ export function AuthProvider({ children }) {
     register,
     login,
     loginWithGoogle,
+    loginWithApple,
     logout,
     updateProfile,
     checkAuth,

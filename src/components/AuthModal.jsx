@@ -41,6 +41,12 @@ const GoogleIcon = () => (
   </svg>
 )
 
+const AppleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+  </svg>
+)
+
 const MailIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -58,7 +64,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [localError, setLocalError] = useState('')
 
-  const { login, register, loginWithGoogle, error: authError, clearError } = useAuth()
+  const { login, register, loginWithGoogle, loginWithApple, error: authError, clearError } = useAuth()
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -178,6 +184,74 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   // Keep the ref updated with the latest callback
   handleGoogleLoginRef.current = handleGoogleLogin
 
+  // ─── Sign in with Apple ────────────────────────────────────────
+  // Web flow uses Apple's JS SDK (AppleID.auth). Native iOS uses
+  // Capacitor's Sign in with Apple plugin (added in Stage 4) — same
+  // identityToken format hits /api/auth { action: 'apple' } either way.
+  const handleAppleLogin = useCallback(async () => {
+    const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
+    if (!servicesId) {
+      setLocalError('Sign in with Apple is not configured')
+      return
+    }
+    if (!window.AppleID?.auth) {
+      setLocalError('Apple Sign-In is loading, please try again')
+      return
+    }
+    try {
+      setIsSubmitting(true)
+      const data = await window.AppleID.auth.signIn()
+      // data shape: { authorization: { code, id_token, state }, user?: { name, email } }
+      const identityToken = data?.authorization?.id_token
+      if (!identityToken) {
+        throw new Error('Apple did not return an identity token')
+      }
+      const result = await loginWithApple({
+        identityToken,
+        userInfo: data?.user || null
+      })
+      if (result.success) onClose()
+      else setLocalError(result.error)
+    } catch (err) {
+      // Apple's popup_closed_by_user etc — silent unless it's a real error
+      if (err?.error !== 'popup_closed_by_user') {
+        setLocalError(err?.message || 'Apple sign-in failed')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [loginWithApple, onClose])
+
+  // Load Apple's JS SDK on demand
+  useEffect(() => {
+    if (!isOpen) return
+    const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
+    if (!servicesId) return
+
+    const initApple = () => {
+      if (window.AppleID?.auth) {
+        window.AppleID.auth.init({
+          clientId: servicesId,
+          scope: 'name email',
+          redirectURI: `${window.location.origin}/api/auth/apple/callback`,
+          usePopup: true
+        })
+      }
+    }
+
+    if (!window.AppleID && !document.getElementById('apple-signin-script')) {
+      const script = document.createElement('script')
+      script.id = 'apple-signin-script'
+      script.src = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js'
+      script.async = true
+      script.defer = true
+      script.onload = initApple
+      document.head.appendChild(script)
+    } else if (window.AppleID) {
+      initApple()
+    }
+  }, [isOpen])
+
   // Initialize Google Sign-In
   // Note: Script is intentionally left in DOM after load (standard for third-party SDKs).
   // We use handleGoogleLoginRef to avoid stale closures and remove handleGoogleLogin from deps.
@@ -277,6 +351,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
                 : 'Join ROAM to save places and create collections'}
             </p>
           </div>
+
+          {/* Sign in with Apple — required by App Store Review Guideline 4.8
+              when any third-party auth is offered (we have Google). Render only
+              when configured; quiet no-op for dev/preview without the env var. */}
+          {import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID && (
+            <button
+              className="auth-apple-btn"
+              onClick={handleAppleLogin}
+              disabled={isSubmitting}
+            >
+              <AppleIcon />
+              <span>Continue with Apple</span>
+            </button>
+          )}
 
           {/* Google Sign-In Button */}
           <button
