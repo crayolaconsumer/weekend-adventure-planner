@@ -30,7 +30,7 @@ import MapPreviewBand from '../components/profile/MapPreviewBand'
 import PremiumBadge from '../components/PremiumBadge'
 import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
-import OfflineMapsManager from '../components/OfflineMapsManager'
+import OfflinePackCard from '../components/OfflinePackCard'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import { useDistance } from '../contexts/DistanceContext'
 import { formatDate } from '../utils/dateUtils'
@@ -1200,9 +1200,9 @@ function SettingsTab({ user, onLogout }) {
       {/* Notifications Section */}
       <NotificationsSection />
 
-      {/* Offline Maps Section */}
+      {/* Offline Pack Section (premium-gated; locked teaser for free users) */}
       <div className="unified-profile-settings-section">
-        <OfflineMapsManager userLocation={null} />
+        <OfflinePackCard />
       </div>
 
       {/* Privacy Settings */}
