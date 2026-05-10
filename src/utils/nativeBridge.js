@@ -43,6 +43,20 @@ export function getPlatform() {
 }
 
 /**
+ * True when running inside the native iOS Capacitor shell.
+ *
+ * Used to gate Stripe-based subscription UI per App Store Review
+ * Guideline 3.1.1 — digital goods purchases on iOS MUST go through
+ * Apple StoreKit / In-App Purchase, not third-party payment
+ * processors. Until RevenueCat is wired, all subscribe / manage /
+ * upgrade surfaces are hidden or redirected on iOS native, with
+ * an informational "Available on the web" state shown instead.
+ */
+export function isIosNative() {
+  return isNative() && getPlatform() === 'ios'
+}
+
+/**
  * Where /api/* calls should go. Empty string = same-origin (web), full
  * URL = cross-origin (native). Useful if a callsite needs to construct
  * an absolute URL explicitly (e.g. an <img src> for an authenticated

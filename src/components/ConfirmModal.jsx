@@ -67,7 +67,9 @@ export default function ConfirmModal({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="confirm-modal-title" className="confirm-modal-title">{title}</h3>
-            {message && <p className="confirm-modal-message">{message}</p>}
+            {/* div not p — message can include form inputs / block elements
+                (the delete-account flow injects a username confirmation input) */}
+            {message && <div className="confirm-modal-message">{message}</div>}
             <div className="confirm-modal-actions">
               <button
                 type="button"

@@ -825,6 +825,56 @@
   color: white;
 }
 
+/* Legal & Support link rows — Settings tab */
+.unified-profile-settings-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  min-height: 44px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface-elevated, #fff);
+  color: var(--roam-forest, #1a3a2f);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 6px;
+  transition: background 0.15s ease;
+}
+.unified-profile-settings-link-row::after {
+  content: '›';
+  color: var(--roam-stone, #6b6b6b);
+  font-size: 20px;
+  line-height: 1;
+}
+.unified-profile-settings-link-row:hover {
+  background: var(--roam-parchment, #ebe2cf);
+}
+
+/* Delete-account button — quieter than logout (terracotta is for active
+   actions; delete is destructive but visually de-emphasized so users
+   don't tap it accidentally). */
+.unified-profile-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: var(--roam-stone, #6b6b6b);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.unified-profile-delete-btn:hover {
+  color: #b22d2d;
+}
+
 /* ═══════════════════════════════════════════════════════
    EMPTY STATE
    ═══════════════════════════════════════════════════════ */

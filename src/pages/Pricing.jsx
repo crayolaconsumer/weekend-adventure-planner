@@ -5,6 +5,8 @@ import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import PremiumBadge from '../components/PremiumBadge'
 import { track } from '../utils/analytics'
+import { isIosNative } from '../utils/nativeBridge'
+import { openExternalUrl } from '../utils/nativePlugins'
 import './Pricing.css'
 
 // Check icon
@@ -198,6 +200,15 @@ export default function Pricing() {
                 <button className="pricing-btn primary" disabled>
                   Current Plan
                 </button>
+              ) : isIosNative() ? (
+                /* App Store 3.1.1 — until IAP is wired, iOS native cannot
+                   show a Stripe purchase button. Direct users to the web. */
+                <button
+                  className="pricing-btn primary"
+                  onClick={() => openExternalUrl('https://go-roam.uk/pricing')}
+                >
+                  Subscribe on the web
+                </button>
               ) : (
                 <button
                   className="pricing-btn primary"
@@ -207,8 +218,24 @@ export default function Pricing() {
                   {loading ? 'Loading...' : 'Start 7-day free trial'}
                 </button>
               )}
-              {error && <p className="pricing-error">{error}</p>}
-              <p className="pricing-trial-note">7 days free, then £{billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}{billingPeriod === 'annual' ? '/year' : '/month'}. Cancel anytime in the trial — no charge.</p>
+              {error && error !== 'iap-not-available' && <p className="pricing-error">{error}</p>}
+              {isIosNative() ? (
+                <p className="pricing-trial-note">
+                  ROAM+ subscriptions are managed via your Apple ID. To start your free trial, subscribe on the web at go-roam.uk; your benefits will sync across devices.
+                </p>
+              ) : (
+                <>
+                  <p className="pricing-trial-note">
+                    7 days free, then £{billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}{billingPeriod === 'annual' ? '/year' : '/month'}. Subscription auto-renews until canceled at least 24 hours before the end of the current period. Cancel anytime during the trial — no charge.
+                  </p>
+                  <p className="pricing-legal-links">
+                    By subscribing you agree to our{' '}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer">Terms of Use</a>
+                    {' '}and{' '}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+                  </p>
+                </>
+              )}
             </div>
           </motion.div>
         </div>

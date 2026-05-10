@@ -15,6 +15,8 @@ const SocialHub = lazy(() => import('./pages/SocialHub'))
 const Place = lazy(() => import('./pages/Place'))
 const SharedPlan = lazy(() => import('./pages/SharedPlan'))
 const Pricing = lazy(() => import('./pages/Pricing'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const Terms = lazy(() => import('./pages/Terms'))
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -425,6 +427,8 @@ function App() {
                       <Route path="/place/:id" element={<Place />} />
                       <Route path="/plan/share/:code" element={<SharedPlan />} />
                       <Route path="/pricing" element={<Pricing />} />
+                      <Route path="/privacy" element={<Privacy />} />
+                      <Route path="/terms" element={<Terms />} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>

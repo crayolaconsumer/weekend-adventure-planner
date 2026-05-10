@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { isIosNative } from '../utils/nativeBridge'
 
 /**
  * Hook for managing user subscription state and premium features
@@ -58,6 +59,14 @@ export function useSubscription() {
 
   // Start checkout flow
   const startCheckout = useCallback(async (plan = 'premium_monthly') => {
+    // App Store Review Guideline 3.1.1 — iOS digital-goods purchases MUST
+    // go through Apple StoreKit, NOT Stripe. Until RevenueCat is wired,
+    // subscribe surfaces on iOS native short-circuit with an info-only
+    // path; the call site renders 'Subscribe on the web at go-roam.uk'.
+    if (isIosNative()) {
+      setError('iap-not-available')
+      return null
+    }
     if (!user) {
       setError('Please sign in to upgrade')
       return null
@@ -101,6 +110,14 @@ export function useSubscription() {
 
   // Manage subscription (cancel, update payment method)
   const manageSubscription = useCallback(async () => {
+    // Same App Store 3.1.1 gating — on iOS native the user manages their
+    // subscription through the iOS Settings app (for IAP subs) or via
+    // the web (for legacy Stripe subs they bought before iOS launch).
+    // The call site renders an informational redirect button instead.
+    if (isIosNative()) {
+      setError('iap-not-available')
+      return null
+    }
     if (!user) {
       setError('Please sign in first')
       return null

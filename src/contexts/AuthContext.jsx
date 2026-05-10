@@ -267,6 +267,36 @@ export function AuthProvider({ children }) {
   }, [storeToken, migrateLocalData])
 
   /**
+   * Delete account — App Store Review 5.1.1(v) requirement.
+   * Calls the server endpoint with username confirmation, clears local
+   * auth state on success. Returns { success, error?, code? }.
+   */
+  const deleteAccount = useCallback(async (confirmUsername) => {
+    setError(null)
+    try {
+      const storedToken = getStoredToken()
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'delete', confirmUsername })
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        return { success: false, error: data.error, code: data.code }
+      }
+      clearStoredToken()
+      setUser(null)
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }, [getStoredToken, clearStoredToken])
+
+  /**
    * Logout
    */
   const logout = useCallback(async () => {
@@ -334,6 +364,7 @@ export function AuthProvider({ children }) {
     loginWithApple,
     logout,
     updateProfile,
+    deleteAccount,
     checkAuth,
     clearError
   }

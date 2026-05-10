@@ -14,7 +14,7 @@
 
 import { OAuth2Client } from 'google-auth-library'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { queryOne, insert, update } from '../lib/db.js'
+import { queryOne, insert, update, transaction } from '../lib/db.js'
 import {
   hashPassword,
   comparePassword,
@@ -56,8 +56,10 @@ async function handler(req, res) {
             return await handleLogout(req, res)
           case 'update':
             return await handleUpdateProfile(req, res)
+          case 'delete':
+            return await handleDeleteAccount(req, res)
           default:
-            return res.status(400).json({ error: 'Invalid action. Use: login, register, google, apple, logout, or update' })
+            return res.status(400).json({ error: 'Invalid action. Use: login, register, google, apple, logout, update, or delete' })
         }
       }
       default:
@@ -551,6 +553,98 @@ async function handleApple(req, res) {
  * POST action=logout - Clear auth cookie
  */
 async function handleLogout(req, res) {
+  res.setHeader('Set-Cookie', createLogoutCookie())
+  return res.status(200).json({ success: true })
+}
+
+/**
+ * POST action=delete — Permanently delete the authenticated user's account.
+ *
+ * App Store Review Guideline 5.1.1(v) requires apps that support account
+ * creation to also offer in-app account deletion (since iOS 14.5+, mid-2022).
+ *
+ * Body shape:
+ *   { action: 'delete', confirmUsername: '<current username>' }
+ *
+ * The confirmUsername guard prevents accidental taps. We require a fresh
+ * recent login (within 30 minutes) so a leaked session token can't trash
+ * the account silently.
+ *
+ * Cancels any active Stripe subscription before deleting the row so the
+ * user isn't billed after deletion.
+ *
+ * Cascades via FK ON DELETE CASCADE for: saved_places, collections,
+ * contributions, visited_places, place_ratings, user_stats, user_privacy_
+ * settings, push_subscriptions, refresh_tokens, follows, follow_requests,
+ * blocked_users, notifications, content_reports, swiped_places.
+ */
+async function handleDeleteAccount(req, res) {
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.AUTH_LOGIN, 'delete')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
+  const user = await getUserFromRequest(req)
+  if (!user) {
+    return res.status(401).json({ error: 'Not authenticated' })
+  }
+
+  const { confirmUsername } = req.body || {}
+  if (typeof confirmUsername !== 'string' || confirmUsername !== user.username) {
+    return res.status(400).json({
+      error: 'Please type your username to confirm account deletion'
+    })
+  }
+
+  // Fresh-login check — require a login within the last 30 minutes for this
+  // destructive action. last_login_at is updated on every login.
+  const fresh = await queryOne(
+    'SELECT last_login_at FROM users WHERE id = ?',
+    [user.id]
+  )
+  const loginAge = fresh?.last_login_at
+    ? (Date.now() - new Date(fresh.last_login_at).getTime()) / 60000
+    : Infinity
+  if (loginAge > 30) {
+    return res.status(401).json({
+      error: 'Please sign in again before deleting your account',
+      code: 'STALE_SESSION'
+    })
+  }
+
+  // Cancel any active Stripe subscription so the user isn't billed after
+  // deletion. Best-effort — never block deletion if Stripe call fails.
+  if (fresh?.stripe_customer_id || user.stripe_subscription_id) {
+    try {
+      const subRow = await queryOne(
+        'SELECT subscription_id FROM users WHERE id = ?',
+        [user.id]
+      )
+      if (subRow?.subscription_id) {
+        const { default: Stripe } = await import('stripe')
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+        await stripe.subscriptions.cancel(subRow.subscription_id).catch(() => {})
+      }
+    } catch (err) {
+      console.warn('Stripe cancel during delete failed (continuing):', err?.message)
+    }
+  }
+
+  // Hard delete in a single transaction. All dependent rows cascade via FK.
+  try {
+    await transaction(async (conn) => {
+      // Belt-and-braces explicit deletes for tables that may lack FK cascade
+      // (e.g. content_reports, swiped_places). Safe to no-op if rows absent.
+      await conn.query('DELETE FROM swiped_places WHERE user_id = ?', [user.id])
+      await conn.query('DELETE FROM content_reports WHERE reporter_id = ? OR reported_user_id = ?', [user.id, user.id]).catch(() => {})
+      await conn.query('DELETE FROM users WHERE id = ?', [user.id])
+    })
+  } catch (err) {
+    console.error('Account deletion failed:', err)
+    return res.status(500).json({ error: 'Account deletion failed. Please contact hello@go-roam.com' })
+  }
+
+  // Clear cookies and signal client to log out
   res.setHeader('Set-Cookie', createLogoutCookie())
   return res.status(200).json({ success: true })
 }

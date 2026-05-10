@@ -36,8 +36,11 @@ export function initObservability() {
     integrations: [
       Sentry.browserTracingIntegration(),
       Sentry.replayIntegration({
-        maskAllText: false,
-        blockAllMedia: false,
+        /* Mask user-readable text + media in session replays so error
+           recordings don't ship reviews/photos/display-names to Sentry.
+           Required for accurate privacy nutrition label disclosure. */
+        maskAllText: true,
+        blockAllMedia: true,
       }),
     ],
     // Don't capture noise from extensions or third-party scripts

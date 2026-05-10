@@ -87,7 +87,10 @@ export default function CardStack({
       return place
     }
 
-    if (!sponsoredPlaces || sponsoredPlaces.length === 0) {
+    // Premium subscribers see no ads (per the Pricing page's "no ads, ever"
+    // promise). App Store rejection-risk if a paying user still sees
+    // sponsored cards on review.
+    if (isPremium || !sponsoredPlaces || sponsoredPlaces.length === 0) {
       return places.map(p => ({ place: applyEnrichedImage(p), isSponsored: false }))
     }
 
@@ -110,7 +113,7 @@ export default function CardStack({
     }
 
     return result
-  }, [places, sponsoredPlaces, enrichedImages])
+  }, [places, sponsoredPlaces, enrichedImages, isPremium])
 
   // Reset index when places change - legitimate pattern for syncing state to props
   /* eslint-disable react-hooks/set-state-in-effect */

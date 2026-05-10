@@ -34,6 +34,7 @@ import PremiumBadge from '../components/PremiumBadge'
 import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
 import OfflinePackCard from '../components/OfflinePackCard'
+import ConfirmModal from '../components/ConfirmModal'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import { useDistance } from '../contexts/DistanceContext'
 import { formatDate } from '../utils/dateUtils'
@@ -834,9 +835,31 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
  * Settings Tab - Account Management (Fully Editable)
  */
 function SettingsTab({ user, onLogout }) {
-  const { updateProfile } = useAuth()
+  const { updateProfile, deleteAccount } = useAuth()
   const { isPremium, manageSubscription, loading: subLoading, error: subError, expiresAt, isCancelled } = useSubscription()
   const { distanceUnit, setDistanceUnit } = useDistance()
+  const navigate = useNavigate()
+
+  // Delete-account confirm flow — App Store Review 5.1.1(v)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteUsernameInput, setDeleteUsernameInput] = useState('')
+  const [deleteError, setDeleteError] = useState(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const handleConfirmDelete = async () => {
+    setDeleteError(null)
+    setDeleteBusy(true)
+    const result = await deleteAccount(deleteUsernameInput)
+    setDeleteBusy(false)
+    if (result.success) {
+      setShowDeleteConfirm(false)
+      navigate('/', { replace: true })
+    } else if (result.code === 'STALE_SESSION') {
+      setDeleteError('For security, please sign in again before deleting your account.')
+    } else {
+      setDeleteError(result.error || 'Account deletion failed. Try again or email hello@go-roam.com')
+    }
+  }
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false)
@@ -1225,11 +1248,89 @@ function SettingsTab({ user, onLogout }) {
         <PrivacySettings />
       </div>
 
+      {/* Legal + Support — App Store Review 1.2 (contact info), 5.1.1
+          (privacy policy), 3.1.2 (terms of use for subscriptions). All
+          three must be reachable from within the app. */}
+      <div className="unified-profile-settings-section">
+        <h3 className="unified-profile-section-title">Legal & Support</h3>
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="unified-profile-settings-link-row"
+        >
+          Privacy Policy
+        </a>
+        <a
+          href="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="unified-profile-settings-link-row"
+        >
+          Terms of Use
+        </a>
+        <a
+          href="mailto:hello@go-roam.com"
+          className="unified-profile-settings-link-row"
+        >
+          Contact Support
+        </a>
+      </div>
+
       {/* Sign Out */}
       <button className="unified-profile-logout-btn" onClick={onLogout}>
         <LogOutIcon />
         Sign Out
       </button>
+
+      {/* Delete Account — App Store Review 5.1.1(v) */}
+      <button
+        className="unified-profile-delete-btn"
+        onClick={() => { setDeleteUsernameInput(''); setDeleteError(null); setShowDeleteConfirm(true) }}
+      >
+        Delete account
+      </button>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete your account?"
+        message={
+          <>
+            This is permanent. We'll delete your profile, saves, reviews, photos and
+            cancel any active subscription. To confirm, type your username{' '}
+            <strong>@{user?.username}</strong> below.
+            <input
+              type="text"
+              value={deleteUsernameInput}
+              onChange={(e) => setDeleteUsernameInput(e.target.value)}
+              placeholder={user?.username}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck="false"
+              style={{
+                display: 'block',
+                marginTop: 12,
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid rgba(26,58,47,0.2)',
+                borderRadius: 8,
+                fontSize: 15,
+                background: '#fff'
+              }}
+            />
+            {deleteError && (
+              <span style={{ display: 'block', marginTop: 8, color: '#b22d2d', fontSize: 13 }}>
+                {deleteError}
+              </span>
+            )}
+          </>
+        }
+        confirmLabel={deleteBusy ? 'Deleting…' : 'Delete forever'}
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }

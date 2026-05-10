@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
+import { isIosNative } from '../utils/nativeBridge'
+import { openExternalUrl } from '../utils/nativePlugins'
 import './UpgradePrompt.css'
 
 // Sparkle icon
@@ -81,6 +83,13 @@ export default function UpgradePrompt({
       onClose?.()
       return
     }
+    // App Store 3.1.1 — iOS native cannot show a Stripe checkout. Route
+    // the user to the web pricing page in the system Safari view.
+    if (isIosNative()) {
+      openExternalUrl('https://go-roam.uk/pricing')
+      onClose?.()
+      return
+    }
 
     const url = await startCheckout('premium_monthly')
     // Only call onUpgrade if checkout succeeded (URL returned means redirect happening)
@@ -154,7 +163,7 @@ export default function UpgradePrompt({
                   whileHover={loading ? {} : { scale: 1.02 }}
                   whileTap={loading ? {} : { scale: 0.98 }}
                 >
-                  {loading ? 'Loading...' : config.cta}
+                  {loading ? 'Loading...' : isIosNative() ? 'Continue on the web' : config.cta}
                 </motion.button>
 
                 {/* Secondary action */}
@@ -167,8 +176,9 @@ export default function UpgradePrompt({
                   Just {PRICING.currency}{PRICING.monthly}/month after free trial
                 </p>
 
-                {/* Error display */}
-                {error && (
+                {/* Error display — suppress the iOS gating signal which is
+                    not a real error, just a routing decision */}
+                {error && error !== 'iap-not-available' && (
                   <p className="upgrade-prompt-error">{error}</p>
                 )}
               </div>
