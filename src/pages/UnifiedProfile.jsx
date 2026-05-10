@@ -915,9 +915,20 @@ function SettingsTab({ user, onLogout }) {
       {/* Premium Section */}
       {!isPremium ? (
         <div className="unified-profile-settings-section premium-upgrade-section">
-          <Link to="/pricing" className="profile-upgrade-btn">
-            <span className="upgrade-text">Upgrade to ROAM+</span>
-            <span className="upgrade-badge">7 days free</span>
+          <Link to="/pricing" className="profile-upgrade-card">
+            <div className="profile-upgrade-card-badge">
+              <PremiumBadge size="hero" showBevel={true} />
+            </div>
+            <div className="profile-upgrade-card-body">
+              <span className="profile-upgrade-card-eyebrow">ROAM+</span>
+              <span className="profile-upgrade-card-headline">Make every weekend matter.</span>
+              <span className="profile-upgrade-card-sub">
+                Unlimited saves, offline maps, no ads, and a scout badge on your profile.
+              </span>
+              <span className="profile-upgrade-card-cta">
+                Try free for 7 days →
+              </span>
+            </div>
           </Link>
         </div>
       ) : (
@@ -925,11 +936,11 @@ function SettingsTab({ user, onLogout }) {
           <div className="premium-status-card">
             <div className="premium-status-header">
               <span className="premium-status-badge">
-                <span className="premium-crown">👑</span>
+                <PremiumBadge size="md" showBevel={true} />
                 ROAM+ Member
               </span>
             </div>
-            <p className="premium-status-perks">Unlimited swipes, hidden gems, and more</p>
+            <p className="premium-status-perks">Unlimited saves, offline maps, all filters, no ads.</p>
             {expiresAt && (
               <p className="premium-status-expiry">
                 {isCancelled

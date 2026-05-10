@@ -19,7 +19,9 @@ import VisitedMapLeaflet from '../components/visitedMap/VisitedMapLeaflet'
 import VisitedMapList from '../components/visitedMap/VisitedMapList'
 import EditReviewModal from '../components/visitedMap/EditReviewModal'
 import TeaserLanding from '../components/visitedMap/TeaserLanding'
+import UpgradePrompt from '../components/UpgradePrompt'
 import { formatDisplayName } from '../utils/displayName'
+import { useSubscription } from '../hooks/useSubscription'
 import PremiumBadge from '../components/PremiumBadge'
 import './VisitedMapPage.css'
 
@@ -40,6 +42,15 @@ const ShareIcon = () => (
   </svg>
 )
 
+const PosterIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="3" width="14" height="18" rx="2"/>
+    <path d="M9 7h6"/>
+    <path d="M9 11h6"/>
+    <path d="M9 15h4"/>
+  </svg>
+)
+
 function getAuthHeaders() {
   const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -56,6 +67,9 @@ export default function VisitedMapPage() {
   const [error, setError] = useState(null)
   const [focusedPlaceId, setFocusedPlaceId] = useState(null)
   const [editingPlace, setEditingPlace] = useState(null)
+  const [exporting, setExporting] = useState(false)
+  const [showUpgrade, setShowUpgrade] = useState(false)
+  const { isPremium } = useSubscription()
 
   // NOTE: usePlaceRatings returns the VIEWER's own ratings, not the
   // target user's. So reviews appear on the list only when viewing
@@ -100,6 +114,44 @@ export default function VisitedMapPage() {
     load()
     return () => { cancelled = true }
   }, [username])
+
+  // Owner-only export to a high-res printable PNG poster.
+  // Premium-gated server-side; we mirror the gate client-side to skip
+  // the network round-trip and surface the upgrade modal directly.
+  const handleExportPoster = async () => {
+    if (!isPremium) {
+      setShowUpgrade(true)
+      return
+    }
+    setExporting(true)
+    try {
+      const res = await fetch(`/api/og/user-map-poster/${encodeURIComponent(username)}`, {
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      })
+      if (res.status === 402) {
+        setShowUpgrade(true)
+        return
+      }
+      if (!res.ok) {
+        throw new Error('Export failed')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${username}-roam-map.png`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      // Revoke after a tick to let download start
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (err) {
+      console.error('Poster export failed', err)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const handleShare = async () => {
     // Use the share-prerender redirect URL so og:image meta tags fire
@@ -204,11 +256,35 @@ export default function VisitedMapPage() {
         </div>
       )}
 
+      {/* Owner-only export-poster floating action — only render when owner viewing own full map */}
+      {isOwner && !isTeaser && (data.visited?.length ?? 0) > 0 && (
+        <button
+          type="button"
+          className="visited-map-export-fab"
+          onClick={handleExportPoster}
+          disabled={exporting}
+          aria-label={isPremium ? 'Export your map as a poster' : 'Get a printable map poster with ROAM+'}
+        >
+          <PosterIcon />
+          <span>{exporting ? 'Generating poster...' : 'Export poster'}</span>
+          {!isPremium && <PremiumBadge size="xs" className="visited-map-export-fab-badge" />}
+        </button>
+      )}
+
       {editingPlace && (
         <EditReviewModal
           place={editingPlace}
           onClose={() => setEditingPlace(null)}
           onSaved={() => { /* optimistic update is handled by ratePlace */ }}
+        />
+      )}
+
+      {showUpgrade && (
+        <UpgradePrompt
+          type="export"
+          isOpen={showUpgrade}
+          onClose={() => setShowUpgrade(false)}
+          onUpgrade={() => setShowUpgrade(false)}
         />
       )}
     </motion.div>

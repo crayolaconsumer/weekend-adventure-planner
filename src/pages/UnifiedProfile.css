@@ -1661,3 +1661,63 @@
   margin-left: 6px;
   vertical-align: -2px;
 }
+
+/* ROAM+ upgrade card on Settings tab — non-premium */
+.profile-upgrade-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f5f0e6 0%, #ebe2cf 100%);
+  border: 1px solid rgba(212, 168, 85, 0.4);
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.profile-upgrade-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(26, 58, 47, 0.12);
+}
+.profile-upgrade-card-badge {
+  flex-shrink: 0;
+}
+.profile-upgrade-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.profile-upgrade-card-eyebrow {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #b88a3c;
+  font-weight: 600;
+}
+.profile-upgrade-card-headline {
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 1.15rem;
+  color: #1a3a2f;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.profile-upgrade-card-sub {
+  font-size: 0.875rem;
+  color: rgba(26, 58, 47, 0.72);
+  line-height: 1.4;
+}
+.profile-upgrade-card-cta {
+  margin-top: 4px;
+  font-size: 0.875rem;
+  color: #1a3a2f;
+  font-weight: 600;
+}
+
+/* Active premium card — pull badge inline with the label */
+.premium-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

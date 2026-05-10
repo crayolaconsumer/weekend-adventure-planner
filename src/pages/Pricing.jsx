@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
+import PremiumBadge from '../components/PremiumBadge'
 import './Pricing.css'
 
 // Check icon
@@ -20,24 +21,22 @@ const XIcon = () => (
   </svg>
 )
 
-// Sparkle icon for premium
-const SparkleIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-  </svg>
-)
+// (legacy SparkleIcon dropped — replaced by PremiumBadge component for brand consistency)
 
+// Outcome-led copy. Each row reads as a thing the user gets to do, not
+// a feature checkbox. Free column shows the ceiling; ROAM+ shows freedom.
 const FEATURES = [
-  { key: 'discover', label: 'Unlimited discovery', free: true, premium: true },
-  { key: 'community', label: 'See community tips', free: true, premium: true },
-  { key: 'saves', label: 'Save places', free: '10 places', premium: 'Unlimited' },
-  { key: 'collections', label: 'Collections', free: '3 max', premium: 'Unlimited' },
-  { key: 'whoSaved', label: 'See who saved same places', free: false, premium: true },
-  { key: 'filters', label: 'Advanced filters', free: 'Basic', premium: 'All' },
-  { key: 'offline', label: 'Offline maps', free: false, premium: true },
-  { key: 'adFree', label: 'Ad-free experience', free: false, premium: true },
-  { key: 'export', label: 'Export adventures (PDF/iCal)', free: false, premium: true },
-  { key: 'earlyAccess', label: 'Early access to new features', free: false, premium: true }
+  { key: 'discover', label: 'Discover places near you', free: true, premium: true },
+  { key: 'community', label: 'See what locals recommend', free: true, premium: true },
+  { key: 'saves', label: 'Save places to revisit', free: '10', premium: 'Unlimited' },
+  { key: 'collections', label: 'Build themed lists', free: '3', premium: 'Unlimited' },
+  { key: 'whoSaved', label: 'See who shares your taste', free: false, premium: true },
+  { key: 'filters', label: 'Find exactly what you want', free: 'Basic', premium: 'All filters' },
+  { key: 'radius', label: 'Reach further afield', free: 'Up to 30km', premium: 'Up to 150km' },
+  { key: 'offline', label: 'Explore when signal drops', free: false, premium: 'Offline maps' },
+  { key: 'adFree', label: 'Distraction-free browsing', free: false, premium: 'No ads, ever' },
+  { key: 'export', label: 'Keep your adventures forever', free: false, premium: 'Posters & calendar export' },
+  { key: 'earlyAccess', label: 'Try new features first', free: false, premium: true }
 ]
 
 export default function Pricing() {
@@ -83,8 +82,10 @@ export default function Pricing() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h1>Unlock ROAM+</h1>
-          <p>Discover more, save more, explore without limits</p>
+          <h1>Make every weekend matter.</h1>
+          <p className="pricing-hero-sub">
+            Unlimited saves. Offline-ready maps. No ads. <strong>Less than the price of a pint a month.</strong>
+          </p>
         </motion.div>
 
         {/* Billing toggle */}
@@ -124,7 +125,7 @@ export default function Pricing() {
                 <span className="price-amount">£0</span>
                 <span className="price-period">forever</span>
               </div>
-              <p className="pricing-description">Perfect for casual explorers</p>
+              <p className="pricing-description">Try ROAM and start your map.</p>
             </div>
 
             <ul className="pricing-features">
@@ -160,7 +161,7 @@ export default function Pricing() {
             transition={{ delay: 0.3 }}
           >
             <div className="pricing-card-badge">
-              <SparkleIcon />
+              <PremiumBadge size="md" showBevel={false} />
               Most Popular
             </div>
 
@@ -172,10 +173,12 @@ export default function Pricing() {
                 </span>
                 <span className="price-period">/month</span>
               </div>
-              {billingPeriod === 'annual' && (
-                <p className="pricing-billed">Billed annually at £{annualPrice}</p>
+              {billingPeriod === 'annual' ? (
+                <p className="pricing-billed">Billed annually — £{annualPrice}/year (save {savingsPercent}%)</p>
+              ) : (
+                <p className="pricing-billed">Billed monthly. Switch to annual any time and save {savingsPercent}%.</p>
               )}
-              <p className="pricing-description">For serious adventurers</p>
+              <p className="pricing-description">Everything in Free, plus the freedom to roam without limits.</p>
             </div>
 
             <ul className="pricing-features">
@@ -202,19 +205,30 @@ export default function Pricing() {
                 </button>
               )}
               {error && <p className="pricing-error">{error}</p>}
-              <p className="pricing-trial-note">Cancel anytime during trial</p>
+              <p className="pricing-trial-note">7 days free, then £{billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}{billingPeriod === 'annual' ? '/year' : '/month'}. Cancel anytime in the trial — no charge.</p>
             </div>
           </motion.div>
         </div>
 
-        {/* Social proof */}
+        {/* Trust strip */}
         <motion.div
-          className="pricing-social-proof"
+          className="pricing-trust-strip"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
         >
-          <p>Join thousands of adventurers exploring with ROAM+</p>
+          <div className="pricing-trust-item">
+            <strong>Secure</strong>
+            <span>Stripe handles payments — your card never touches our servers.</span>
+          </div>
+          <div className="pricing-trust-item">
+            <strong>Fair</strong>
+            <span>Cancel from your phone in two taps. We&apos;ll never trick you into renewing.</span>
+          </div>
+          <div className="pricing-trust-item">
+            <strong>Indie</strong>
+            <span>Built by one person who actually wants you to get out more.</span>
+          </div>
         </motion.div>
 
         {/* FAQ */}
@@ -227,20 +241,28 @@ export default function Pricing() {
           <h3>Questions?</h3>
           <div className="faq-grid">
             <div className="faq-item">
-              <h4>Can I cancel anytime?</h4>
-              <p>Yes! Cancel your subscription at any time. You'll keep premium access until the end of your billing period.</p>
+              <h4>Can I cancel during the trial?</h4>
+              <p>Yes — cancel from your phone in two taps. You won&apos;t be charged a penny.</p>
             </div>
             <div className="faq-item">
-              <h4>What happens to my saved places?</h4>
-              <p>If you downgrade, you keep all your saved places. You just won't be able to save more than 10 until you upgrade again.</p>
+              <h4>What happens to my saved places if I downgrade?</h4>
+              <p>You keep them all. You just won&apos;t be able to add new ones beyond 10 until you upgrade again.</p>
             </div>
             <div className="faq-item">
-              <h4>Is there a free trial?</h4>
-              <p>Yes! Get 7 days free to try all premium features. Cancel before the trial ends and you won't be charged.</p>
+              <h4>Is my payment secure?</h4>
+              <p>Yes. All payments are handled by Stripe. We never see your card details.</p>
+            </div>
+            <div className="faq-item">
+              <h4>Will my price ever go up?</h4>
+              <p>If you stay subscribed, your price stays the same. If we ever raise prices for new subscribers, you&apos;re grandfathered in.</p>
+            </div>
+            <div className="faq-item">
+              <h4>What does the badge do?</h4>
+              <p>ROAM+ subscribers get a scout-style badge on their profile and activity. It&apos;s small but cool.</p>
             </div>
             <div className="faq-item">
               <h4>How do I manage my subscription?</h4>
-              <p>Go to your Profile page and click "Manage Subscription" to update payment methods or cancel.</p>
+              <p>Go to Settings → Manage Subscription to update payment or cancel.</p>
             </div>
           </div>
         </motion.div>
