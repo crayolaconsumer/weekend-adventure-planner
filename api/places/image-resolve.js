@@ -29,6 +29,7 @@
  */
 
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 const MEMORY_TTL_MS = 60 * 60 * 1000
 const memCache = new Map()
@@ -143,7 +144,7 @@ async function tryCommonsGeo(lat, lng) {
   } catch { return null }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -196,3 +197,5 @@ export default async function handler(req, res) {
   res.setHeader('X-Roam-Cache', value.url ? 'fresh-hit' : 'fresh-miss')
   return res.status(200).json(value)
 }
+
+export default withCors(handler)

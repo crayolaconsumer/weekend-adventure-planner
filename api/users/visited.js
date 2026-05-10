@@ -8,8 +8,9 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { awardBadge } from './badges.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Apply rate limiting before method validation (M2 fix)
   const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
   const rateLimitError = applyRateLimit(req, res, rateLimit, 'visited')
@@ -168,3 +169,5 @@ async function handleDelete(req, res, user) {
 
   return res.status(200).json({ success: true, deleted: affected > 0 })
 }
+
+export default withCors(handler)

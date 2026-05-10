@@ -6,6 +6,8 @@
  * Client calls: /api/events/skiddle?lat=51.5&lng=-0.1&radius=20
  */
 
+import { withCors } from '../lib/cors.js'
+
 // Simple in-memory rate limiting
 const requestCounts = new Map()
 const RATE_LIMIT = 50 // requests per minute per IP
@@ -28,7 +30,7 @@ function isRateLimited(ip) {
   return false
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -124,3 +126,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to fetch events' })
   }
 }
+
+export default withCors(handler)

@@ -9,8 +9,9 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Apply rate limiting
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'users:badges')
   if (rateLimitError) {
@@ -82,3 +83,5 @@ export async function awardBadge(userId, badgeId) {
 
   return { awarded: true, alreadyEarned: false }
 }
+
+export default withCors(handler)

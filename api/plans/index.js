@@ -9,8 +9,9 @@ import { query, queryOne, insert } from '../lib/db.js'
 import { generateShareCode } from '../lib/crypto.js'
 import { validatePlanTitle, validatePagination } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     switch (req.method) {
       case 'GET':
@@ -201,3 +202,5 @@ async function handlePost(req, res) {
     }
   })
 }
+
+export default withCors(handler)

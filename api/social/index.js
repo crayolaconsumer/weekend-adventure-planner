@@ -23,8 +23,9 @@ import { hasBlockBetween } from './block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateId, validatePagination } from '../lib/validation.js'
 import { awardBadge } from '../users/badges.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     switch (req.method) {
       case 'GET':
@@ -581,3 +582,5 @@ async function unfollowUser(req, res, user) {
     status: 'not_following'
   })
 }
+
+export default withCors(handler)

@@ -8,8 +8,9 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validatePlaceId } from '../lib/validation.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' })
@@ -219,3 +220,5 @@ async function handleDelete(req, res, user) {
 
   return res.status(200).json({ success: true, deleted: affected > 0 })
 }
+
+export default withCors(handler)

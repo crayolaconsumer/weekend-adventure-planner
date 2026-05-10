@@ -12,8 +12,9 @@
 import { queryOne } from '../../lib/db.js'
 import { formatDisplayName } from '../../lib/displayName.js'
 import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
+import { withCors } from '../../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'share:user-map')
   if (rateLimitError) {
     return res.status(rateLimitError.status).json(rateLimitError)
@@ -90,3 +91,5 @@ export default async function handler(req, res) {
     return res.redirect(302, '/')
   }
 }
+
+export default withCors(handler)

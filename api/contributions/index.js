@@ -10,6 +10,7 @@ import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateContent, validateId } from '../lib/validation.js'
 import { notifyContributionUpvote } from '../lib/pushNotifications.js'
 import { awardBadge } from '../users/badges.js'
+import { withCors } from '../lib/cors.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -22,7 +23,7 @@ const safeJsonParse = (data, defaultValue = null) => {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     switch (req.method) {
       case 'GET':
@@ -468,3 +469,5 @@ async function handleDelete(req, res) {
 
   return res.status(200).json({ success: true })
 }
+
+export default withCors(handler)

@@ -7,8 +7,9 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Apply rate limiting
   const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
   const rateLimitError = applyRateLimit(req, res, rateLimit, 'places:swiped')
@@ -160,3 +161,5 @@ async function handlePost(req, res, user) {
 
   return res.status(201).json({ success: true })
 }
+
+export default withCors(handler)

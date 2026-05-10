@@ -154,11 +154,25 @@ function validateOverpassQuery(query) {
   return null // Query is valid
 }
 
+// Edge Runtime — manual CORS since this endpoint can't import withCors
+// (different module shape than Node Express handlers). Public proxy with
+// no auth, so '*' origin is acceptable.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400'
+}
+
 export default async function handler(request) {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: CORS_HEADERS })
+  }
+
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
     })
   }
 
@@ -168,7 +182,7 @@ export default async function handler(request) {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
     })
   }
 
@@ -177,7 +191,7 @@ export default async function handler(request) {
   if (!query || typeof query !== 'string') {
     return new Response(JSON.stringify({ error: 'query is required' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
     })
   }
 
@@ -186,7 +200,7 @@ export default async function handler(request) {
   if (query.length > MAX_QUERY_SIZE) {
     return new Response(JSON.stringify({ error: 'Query too large', maxSize: MAX_QUERY_SIZE }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
     })
   }
 
@@ -195,7 +209,7 @@ export default async function handler(request) {
   if (validationError) {
     return new Response(JSON.stringify({ error: validationError }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
     })
   }
 
@@ -242,7 +256,8 @@ export default async function handler(request) {
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 's-maxage=3600, stale-while-revalidate=7200',
-          'X-Overpass-Endpoint': endpoint.replace('https://', '').split('/')[0]
+          'X-Overpass-Endpoint': endpoint.replace('https://', '').split('/')[0],
+          ...CORS_HEADERS
         }
       })
 
@@ -270,7 +285,8 @@ export default async function handler(request) {
     status: 503,
     headers: {
       'Content-Type': 'application/json',
-      'Retry-After': '60'
+      'Retry-After': '60',
+      ...CORS_HEADERS
     }
   })
 }

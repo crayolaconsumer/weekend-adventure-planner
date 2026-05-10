@@ -12,8 +12,9 @@ import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
 import { notifyFollowRequestApproved } from '../lib/pushNotifications.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Apply rate limiting
   const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
   const rateLimitError = applyRateLimit(req, res, rateLimit, 'social:requests')
@@ -210,3 +211,5 @@ export async function cancelFollowRequest(user, targetUserId) {
 
   return result > 0
 }
+
+export default withCors(handler)

@@ -6,6 +6,7 @@
  */
 
 import { applyRateLimit } from '../../lib/rateLimit.js'
+import { withCors } from '../../lib/cors.js'
 
 const OTM_API = 'https://api.opentripmap.com/0.1'
 
@@ -16,7 +17,7 @@ const OTM_DETAILS_RATE_LIMIT = {
   blockDurationMs: 5 * 60 * 1000 // Block for 5 min if exceeded
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -90,3 +91,5 @@ function formatAddress(addr) {
   ].filter(Boolean)
   return parts.length > 0 ? parts.join(', ') : null
 }
+
+export default withCors(handler)

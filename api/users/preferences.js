@@ -7,6 +7,7 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 // Whitelist of allowed preference fields
 const ALLOWED_FIELDS = [
@@ -32,7 +33,7 @@ const VALID_TRAVEL_MODES = ['walking', 'driving', 'transit', 'dayTrip', 'explore
 const VALID_EVENTS_SORT = ['recommended', 'date', 'distance', 'popularity']
 const VALID_DISTANCE_UNITS = ['km', 'mi']
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' })
@@ -268,3 +269,5 @@ async function handlePut(req, res, user) {
 
   return res.status(200).json({ success: true })
 }
+
+export default withCors(handler)

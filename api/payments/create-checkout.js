@@ -13,6 +13,7 @@
 import Stripe from 'stripe'
 import { getUserFromRequest } from '../lib/auth.js'
 import { queryOne } from '../lib/db.js'
+import { withCors } from '../lib/cors.js'
 
 // Validate required environment variables at module load
 const REQUIRED_ENV_VARS = [
@@ -40,7 +41,7 @@ const PRICE_IDS = {
 const checkoutRateLimit = new Map()
 const RATE_LIMIT_WINDOW_MS = 60000 // 1 minute
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -155,3 +156,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to create checkout session' })
   }
 }
+
+export default withCors(handler)

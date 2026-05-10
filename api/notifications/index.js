@@ -13,6 +13,7 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { pushNotificationBadge } from '../lib/pushNotifications.js'
+import { withCors } from '../lib/cors.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = null) => {
@@ -25,7 +26,7 @@ const safeJsonParse = (data, defaultValue = null) => {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Apply rate limiting
   const rateLimit = req.method === 'GET' ? RATE_LIMITS.API_GENERAL : RATE_LIMITS.API_WRITE
   const rateLimitError = applyRateLimit(req, res, rateLimit, 'notifications')
@@ -203,3 +204,5 @@ export async function createNotification({ userId, actorId, type, title, message
     return false
   }
 }
+
+export default withCors(handler)

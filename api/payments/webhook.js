@@ -14,6 +14,7 @@
 import Stripe from 'stripe'
 import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { sendPaymentFailedEmail } from '../lib/email.js'
+import { withCors } from '../lib/cors.js'
 
 // Validate required environment variables at module load
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -42,7 +43,7 @@ async function getRawBody(req) {
   return Buffer.concat(chunks)
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -347,3 +348,5 @@ async function handleInvoicePaid(invoice, conn) {
     [user.id]
   )
 }
+
+export default withCors(handler)

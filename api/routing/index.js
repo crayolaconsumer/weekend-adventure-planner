@@ -9,6 +9,7 @@
 
 import { validateCoordinates } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 const ORS_BASE_URL = 'https://api.openrouteservice.org/v2/directions'
 
@@ -54,7 +55,7 @@ function calculateFallback(from, to, mode) {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Rate limit routing requests
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'routing')
   if (rateLimitError) {
@@ -132,3 +133,5 @@ export default async function handler(req, res) {
     return res.status(200).json(calculateFallback(from, to, mode))
   }
 }
+
+export default withCors(handler)

@@ -9,8 +9,9 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, insert, update } from '../lib/db.js'
 import { parseCoordinates, validateId } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Rate limit impression tracking to prevent abuse
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'ads:impression')
   if (rateLimitError) {
@@ -129,3 +130,5 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: false, error: 'Tracking failed' })
   }
 }
+
+export default withCors(handler)

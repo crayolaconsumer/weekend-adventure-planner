@@ -7,11 +7,12 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 // Maximum value to prevent integer overflow (MySQL INT max is 2147483647)
 const MAX_STAT_VALUE = 999999999
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' })
@@ -141,3 +142,5 @@ async function handlePut(req, res, user) {
 
   return res.status(200).json({ success: true })
 }
+
+export default withCors(handler)

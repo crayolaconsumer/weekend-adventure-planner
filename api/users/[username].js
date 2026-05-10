@@ -10,8 +10,9 @@ import { query, queryOne } from '../lib/db.js'
 import { hasBlockBetween } from '../social/block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { isPremiumRow } from '../lib/premium.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Rate limit profile lookups to prevent enumeration
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'users:profile')
   if (rateLimitError) {
@@ -309,3 +310,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+export default withCors(handler)

@@ -21,6 +21,7 @@
  */
 
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 // In-memory function-instance cache. Vercel reuses warm functions, so
 // hot tags hit this before the upstream fetch even when edge cache misses.
@@ -49,7 +50,7 @@ function pickFirstUrl(...candidates) {
   return null
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -132,3 +133,5 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'fetch_failed' })
   }
 }
+
+export default withCors(handler)

@@ -27,6 +27,7 @@ import {
   getUserFromRequest
 } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const APPLE_SERVICES_ID = process.env.APPLE_SIGNIN_SERVICES_ID
@@ -35,7 +36,7 @@ const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'com.goroam.app'
 // Apple's public keys, fetched + cached + auto-rotated by jose
 const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   try {
     switch (req.method) {
       case 'GET':
@@ -322,7 +323,7 @@ async function handleGoogle(req, res) {
   }
 
   let user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE google_id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE google_id = ?',
     [googleId]
   )
 
@@ -676,3 +677,5 @@ async function handleUpdateProfile(req, res) {
     }
   })
 }
+
+export default withCors(handler)

@@ -9,8 +9,9 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { isPremiumSql } from '../lib/premium.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Rate limit search requests to prevent enumeration attacks
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'users:search')
   if (rateLimitError) {
@@ -149,3 +150,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+export default withCors(handler)

@@ -9,8 +9,9 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query } from '../lib/db.js'
 import { parseCoordinates, validatePagination } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Rate limit ad requests
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'ads:sponsored')
   if (rateLimitError) {
@@ -123,3 +124,5 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 function toRad(deg) {
   return deg * (Math.PI / 180)
 }
+
+export default withCors(handler)

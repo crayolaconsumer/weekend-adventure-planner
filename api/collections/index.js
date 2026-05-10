@@ -8,6 +8,7 @@ import { getUserFromRequest, getUserLimits } from '../lib/auth.js'
 import { query, queryOne, insert } from '../lib/db.js'
 import { validateCollectionName, validateEmoji, sanitizeString } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = {}) => {
@@ -20,7 +21,7 @@ const safeJsonParse = (data, defaultValue = {}) => {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const user = await getUserFromRequest(req)
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' })
@@ -160,3 +161,5 @@ async function handlePost(req, res, user) {
     }
   })
 }
+
+export default withCors(handler)

@@ -9,6 +9,7 @@ import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 import { validateShareCode } from '../../lib/validation.js'
 import { getUserFromRequest } from '../../lib/auth.js'
 import { hasBlockBetween } from '../../social/block.js'
+import { withCors } from '../../lib/cors.js'
 
 // Safe JSON parse helper
 const safeJsonParse = (data, defaultValue = {}) => {
@@ -21,7 +22,7 @@ const safeJsonParse = (data, defaultValue = {}) => {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // L1: Check method before rate limiting
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -108,3 +109,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+export default withCors(handler)
