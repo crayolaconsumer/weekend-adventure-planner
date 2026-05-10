@@ -101,12 +101,18 @@ function buildOverpassQuery(lat, lng, radius, types) {
     })
     .join('\n      ')
 
-  // Global bbox setting applies to ALL statements - no need for per-statement bbox
+  // Global bbox setting applies to ALL statements - no need for per-statement bbox.
+  // `out tags center;` returns the centroid (lat/lng for ways/relations) AND
+  // all tags. Without `tags`, we'd lose wikipedia/wikidata/image/opening_hours/
+  // website/phone — every place ends up as just a name + coords. This is the
+  // upstream fix for "all places look generic": OSM has the data, we just
+  // weren't asking for it. Slightly bigger response (~2-3x), but cached at
+  // the edge so the cost is paid once per geographic tile per day.
   const query = `[out:json][timeout:${timeout}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
 (
 ${typeFilters}
 );
-out center;`
+out tags center;`
 
   return {
     query,

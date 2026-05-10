@@ -146,26 +146,70 @@ export async function fetchWikipediaSummary(wikipediaTag) {
   }
 }
 
-async function fetchWikipediaThumb(wikipediaTag) {
-  const summary = await fetchWikipediaSummary(wikipediaTag)
-  return summary?.thumbnail || null
+/**
+ * Resolve a place image via the multi-source server proxy. Tries:
+ *   1. Wikipedia (via wikipedia tag)
+ *   2. Wikidata P18 (via wikidata QID)
+ *   3. Wikimedia Commons geosearch (via lat/lng) — finds geotagged
+ *      community photos within 300m. The big hit-rate win for outdoor
+ *      / nature places that aren't individually in Wikipedia.
+ * Server runs all three in parallel and returns the first hit; caches
+ * aggressively at the edge.
+ */
+async function fetchEnhancedImage(place) {
+  const data = place?.placeData || place || {}
+  const wiki = data.wikipedia || data.tags?.wikipedia || null
+  const wikidata = data.wikidata || data.tags?.wikidata || null
+  const lat = typeof data.lat === 'number' ? data.lat : null
+  const lng = typeof data.lng === 'number' ? data.lng :
+              typeof data.lon === 'number' ? data.lon : null
+
+  if (!wiki && !wikidata && (lat == null || lng == null)) return null
+
+  // Build a stable cache key for the disk/memory caches
+  const key = `image-resolve:${wiki || ''}|${wikidata || ''}|${lat ?? ''},${lng ?? ''}`
+  const memHit = memoryCache.get(key)
+  if (memHit !== undefined) return memHit
+  const diskHit = readDiskEntry(key)
+  if (diskHit !== undefined) {
+    memoryCache.set(key, diskHit)
+    return diskHit
+  }
+
+  const params = new URLSearchParams()
+  if (wiki) params.set('wikipedia', wiki)
+  if (wikidata) params.set('wikidata', wikidata)
+  if (lat != null) params.set('lat', String(lat))
+  if (lng != null) params.set('lng', String(lng))
+
+  try {
+    const res = await fetch(`/api/places/image-resolve?${params.toString()}`)
+    if (!res.ok) {
+      memoryCache.set(key, null)
+      return null
+    }
+    const result = await res.json()
+    const url = result?.url || null
+    memoryCache.set(key, url)
+    // Disk-cache hits and 'no image' verdicts both — saves the round trip
+    // either way next time
+    saveDiskEntry(key, url)
+    return url
+  } catch {
+    memoryCache.set(key, null)
+    return null
+  }
 }
 
 /**
- * Returns the best-known image URL, falling back to a Wikipedia thumbnail
- * for places with a wikipedia/wikidata tag. Returns null if nothing is
- * available — caller renders the stylized placeholder.
+ * Returns the best-known image URL, falling back to:
+ *   - Wikipedia thumbnail (via wikipedia tag)
+ *   - Wikidata P18 image (via wikidata QID)
+ *   - Wikimedia Commons geosearch (via lat/lng, finds geotagged photos within 300m)
+ * Returns null if nothing is available — caller renders the stylized placeholder.
  */
 export async function resolvePlaceImageAsync(place) {
   const sync = resolvePlaceImageSync(place)
   if (sync) return sync
-
-  const data = place?.placeData || place || {}
-  const wiki =
-    data.wikipedia ||
-    data.tags?.wikipedia ||
-    null
-  if (!wiki) return null
-
-  return await fetchWikipediaThumb(wiki)
+  return await fetchEnhancedImage(place)
 }
