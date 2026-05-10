@@ -8,6 +8,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
+import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import './DiscoverList.css'
@@ -80,7 +81,7 @@ function ListItem({ place, isSelected, onSelect, onSave, onGo, index, formatDist
         <div className="list-item-header">
           {category && (
             <span className="list-item-category" style={{ '--cat-color': category.color }}>
-              {category.icon} {category.label}
+              <CategoryIcon name={category.key} size="xs" /> {category.label}
             </span>
           )}
           {openingState.state !== 'unknown' && (

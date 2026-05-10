@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
+import CategoryIcon from '../components/icons/CategoryIcon'
 import CollectionManager from '../components/CollectionManager'
 import VisitedPrompt from '../components/VisitedPrompt'
 import { useSavedEvents } from '../hooks/useSavedEvents'
@@ -339,7 +340,7 @@ export default function Wishlist() {
                         <div className="wishlist-card-gradient" />
                         {place.category && (
                           <span className="wishlist-card-category">
-                            {place.category.icon}
+                            <CategoryIcon name={place.category.key} size="sm" />
                           </span>
                         )}
                       </div>

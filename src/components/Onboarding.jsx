@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import { useAuth } from '../contexts/AuthContext'
+import CategoryIcon from './icons/CategoryIcon'
 import './Onboarding.css'
 
 const SLIDES = [
@@ -375,7 +376,7 @@ export default function Onboarding({ onComplete }) {
                       '--chip-color': category.color,
                     }}
                   >
-                    <span className="interest-icon">{category.icon}</span>
+                    <span className="interest-icon"><CategoryIcon name={key} size="md" /></span>
                     <span>{category.label}</span>
                     {selectedInterests.includes(key) && (
                       <motion.span

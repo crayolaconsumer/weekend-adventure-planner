@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCollections } from '../hooks/useCollections'
 import { COLLECTION_EMOJIS } from '../utils/collections'
+import CategoryIcon from './icons/CategoryIcon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useToast } from '../hooks/useToast'
 import { useSubscription } from '../hooks/useSubscription'
@@ -150,7 +151,7 @@ export default function CollectionManager({ place, isOpen, onClose }) {
           </div>
 
           <div className="collection-manager-place">
-            {place.category?.icon && <span>{place.category.icon}</span>}
+            {place.category?.key && <CategoryIcon name={place.category.key} size="sm" />}
             <span>{place.name}</span>
           </div>
 

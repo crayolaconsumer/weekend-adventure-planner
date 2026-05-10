@@ -7,6 +7,7 @@ import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { formatDistanceToNow } from '../utils/dateUtils'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import PlaceReviews from './PlaceReviews'
+import CategoryIcon from './icons/CategoryIcon'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import ShareButton from './ShareButton'
@@ -395,7 +396,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <span>{category.icon}</span>
+                <CategoryIcon name={category.key} size="sm" />
                 {category.label}
               </motion.span>
             )}

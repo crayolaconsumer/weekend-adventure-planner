@@ -13,6 +13,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
+import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import ActivityItem from '../components/ActivityItem'
@@ -242,7 +243,9 @@ export default function UnifiedProfile() {
           </button>
         </header>
         <div className="unified-profile-error">
-          <div className="unified-profile-error-icon">😕</div>
+          <div className="unified-profile-error-icon">
+            <EmptyStateIllustration variant="error" size="md" />
+          </div>
           <h2>User not found</h2>
           <p>This user doesn't exist or has been removed.</p>
           <Link to="/" className="unified-profile-error-link">Go back home</Link>
@@ -564,7 +567,9 @@ function ActivityTab({ contributions, activities, loading, user, isOwnProfile, i
   if (!activityList || activityList.length === 0) {
     return (
       <div className="unified-profile-empty">
-        <span className="unified-profile-empty-icon">💭</span>
+        <span className="unified-profile-empty-icon">
+          <EmptyStateIllustration variant="thoughts" size="sm" />
+        </span>
         <p>{isOwnProfile ? "You haven't shared any activity yet" : "No activity yet"}</p>
         {isOwnProfile && (
           <p className="unified-profile-empty-hint">

@@ -14,6 +14,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
+import CategoryIcon from './icons/CategoryIcon'
 import './FilterModal.css'
 
 // Backdrop animation
@@ -331,7 +332,7 @@ export function FilterModal({
                       ref={key === 'food' ? firstFocusableRef : null}
                     >
                       <span className="filter-category-icon" aria-hidden="true">
-                        {category.icon}
+                        <CategoryIcon name={key} size="lg" />
                       </span>
                       <span className="filter-category-label">{category.label}</span>
 

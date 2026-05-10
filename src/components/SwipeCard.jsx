@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import PlaceImage from './PlaceImage'
+import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import { ContributionBadge } from './ContributionDisplay'
@@ -427,7 +428,7 @@ export default function SwipeCard({
               className="swipe-card-category"
               style={{ '--category-color': category.color }}
             >
-              <span>{category.icon}</span>
+              <CategoryIcon name={category.key} size="sm" />
               {category.label}
             </span>
           )}

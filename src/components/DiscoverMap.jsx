@@ -10,6 +10,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 're
 import L from 'leaflet'
 import { motion } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
+import CategoryIcon from './icons/CategoryIcon'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import 'leaflet/dist/leaflet.css'
 import './DiscoverMap.css'
@@ -115,7 +116,7 @@ function PlacePopup({ place, onSelect, formatDistance }) {
       <div className="map-popup-info">
         {category && (
           <span className="map-popup-category" style={{ '--cat-color': category.color }}>
-            {category.icon} {category.label}
+            <CategoryIcon name={category.key} size="xs" /> {category.label}
           </span>
         )}
         <h4 className="map-popup-name">{place.name}</h4>

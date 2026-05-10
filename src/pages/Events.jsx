@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import EventCard from '../components/EventCard'
+import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import EventDetail from '../components/EventDetail'
 import {
   fetchAllEvents,
@@ -1054,10 +1055,10 @@ export default function Events({ location }) {
           <div className="events-empty">
             <motion.div
               className="events-empty-icon"
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             >
-              🎭
+              <EmptyStateIllustration variant="events-quiet" size="md" />
             </motion.div>
             <h3>Quiet around here</h3>
             <p>
