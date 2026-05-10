@@ -125,9 +125,14 @@ export default async function handler(req, res) {
         placeId: t.place_id,
         placeName: place?.name || null,
         placeCategory: place?.category?.label || place?.type || null,
-        contributionCount: t.contribution_count,
-        planCount: t.plan_inclusion_count,
-        popularityScore: t.popularity_score,
+        // Full placeData so the client can render proper imagery
+        // (PlaceImage needs the wikipedia/wikidata tags for the
+        // Wikipedia thumbnail fallback chain).
+        placeData: place || null,
+        contributionCount: Number(t.contribution_count) || 0,
+        saveCount: Number(t.save_count) || 0,
+        visitCount: Number(t.visit_count) || 0,
+        popularityScore: Number(t.popularity_score) || 0,
         topTip: contributionsByPlace[t.place_id] ? {
           content: contributionsByPlace[t.place_id].content,
           username: contributionsByPlace[t.place_id].username,

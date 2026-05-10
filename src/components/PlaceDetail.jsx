@@ -18,6 +18,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
+import PlaceImage from './PlaceImage'
 import './PlaceDetail.css'
 
 // Icons
@@ -101,19 +102,13 @@ const CalendarPlusIcon = () => (
   </svg>
 )
 
-// Category-specific placeholder images (same as SwipeCard)
-const CATEGORY_IMAGES = {
-  food: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80',
-  nature: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80',
-  culture: 'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800&q=80',
-  historic: 'https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80',
-  entertainment: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&q=80',
-  nightlife: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80',
-  active: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
-  unique: 'https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=800&q=80',
-  shopping: 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80',
-  default: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80'
-}
+// CATEGORY_IMAGES used to map categories → iconic landmark Unsplash photos
+// (Taj Mahal for "historic", Statue of Liberty etc). That created false
+// expectations: a "Memorial" near Aylesbury was rendered with a Taj Mahal
+// hero. Now we never use stock landmark photos as fallbacks — we render
+// the brand-coloured PlaceImage placeholder instead, which reads as an
+// intentional design choice rather than a misleading photo. Real photos
+// only come from place_data or Wikipedia (resolved via PlaceImage).
 
 export default function PlaceDetail({ place, onClose, onGo }) {
   const [enrichedPlace, setEnrichedPlace] = useState(place)
@@ -255,17 +250,16 @@ export default function PlaceDetail({ place, onClose, onGo }) {
     return null
   }
 
-  const getPlaceholderImage = () => CATEGORY_IMAGES[category?.key] || CATEGORY_IMAGES.default
-
   const resolvedImageUrl =
     extractImageUrl(enrichedPlace.photo) ||
     extractImageUrl(enrichedPlace.image) ||
-    getPlaceholderImage()
+    null
 
-  const imageError = failedSrc === resolvedImageUrl
-  // Use cached blob URL if available for instant display (same image was cached by SwipeCard)
-  const imageUrl = imageError ? getPlaceholderImage() : (cachedImageUrl || resolvedImageUrl)
-  const imageLoaded = loadedSrc === imageUrl
+  const imageError = failedSrc != null && failedSrc === resolvedImageUrl
+  // Use cached blob URL if available for instant display (same image was cached by SwipeCard).
+  // imageUrl can be null — when it is, we render the stylized placeholder instead of an <img>.
+  const imageUrl = imageError ? null : (cachedImageUrl || resolvedImageUrl)
+  const imageLoaded = imageUrl ? loadedSrc === imageUrl : true
 
   const handleDirections = () => {
     openDirections(enrichedPlace.lat, enrichedPlace.lng, enrichedPlace.name)
@@ -335,24 +329,37 @@ export default function PlaceDetail({ place, onClose, onGo }) {
         >
           {/* Hero Image */}
           <div className="place-detail-hero">
-            {!imageLoaded && <div className="place-detail-image-placeholder" />}
-            <motion.img
-              src={imageUrl}
-              alt={enrichedPlace.name}
-              className={`place-detail-image ${imageLoaded ? 'loaded' : ''}`}
-              onLoad={() => setLoadedSrc(imageUrl)}
-              onError={() => {
-                if (imageUrl === resolvedImageUrl) {
-                  setFailedSrc(resolvedImageUrl)
-                  // Invalidate from cache to prevent retrying bad URLs
-                  invalidateCachedImage(resolvedImageUrl).catch(() => {})
-                  console.warn(`[PlaceDetail] Image failed to load: ${resolvedImageUrl.substring(0, 80)}...`)
-                }
-              }}
-              initial={{ scale: 1.1 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-            />
+            {imageUrl ? (
+              <>
+                {!imageLoaded && <div className="place-detail-image-placeholder" />}
+                <motion.img
+                  src={imageUrl}
+                  alt={enrichedPlace.name}
+                  className={`place-detail-image ${imageLoaded ? 'loaded' : ''}`}
+                  onLoad={() => setLoadedSrc(imageUrl)}
+                  onError={() => {
+                    if (imageUrl === resolvedImageUrl) {
+                      setFailedSrc(resolvedImageUrl)
+                      invalidateCachedImage(resolvedImageUrl).catch(() => {})
+                      console.warn(`[PlaceDetail] Image failed to load: ${resolvedImageUrl.substring(0, 80)}...`)
+                    }
+                  }}
+                  initial={{ scale: 1.1 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                />
+              </>
+            ) : (
+              // No real photo. Render the stylized placeholder — never a stock
+              // landmark. PlaceImage will async-upgrade to a Wikipedia thumbnail
+              // if the place has a wikipedia/wikidata tag, otherwise stays as
+              // a brand-coloured gradient with the category icon.
+              <PlaceImage
+                place={enrichedPlace}
+                alt={enrichedPlace.name}
+                className="place-detail-image loaded place-detail-image--no-real"
+              />
+            )}
             <div className="place-detail-hero-gradient" />
 
             {/* Header buttons */}

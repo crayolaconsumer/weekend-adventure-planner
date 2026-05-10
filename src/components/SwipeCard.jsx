@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
+import PlaceImage from './PlaceImage'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import { ContributionBadge } from './ContributionDisplay'
@@ -11,73 +12,17 @@ import FriendChips from './FriendChips'
 import './SwipeCard.css'
 
 // Category-specific placeholder images
-const CATEGORY_IMAGES = {
-  food: [
-    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&q=80', // Restaurant interior
-    'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=800&q=80', // British pub
-    'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=800&q=80', // Cafe
-    'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80', // Bar
-  ],
-  nature: [
-    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80', // Rolling hills
-    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80', // Forest path
-    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80', // Beach
-    'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=800&q=80', // English garden
-  ],
-  culture: [
-    'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800&q=80', // Museum interior
-    'https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=800&q=80', // Art gallery
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&q=80', // Theatre
-    'https://images.unsplash.com/photo-1594794312433-05a69a98b7a0?w=800&q=80', // Library
-  ],
-  historic: [
-    'https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80', // Castle
-    'https://images.unsplash.com/photo-1590001155093-a3c66ab0c3ff?w=800&q=80', // Cathedral
-    'https://images.unsplash.com/photo-1582034438067-64c2e2a95766?w=800&q=80', // Historic building
-    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80', // Ruins
-  ],
-  entertainment: [
-    'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800&q=80', // Cinema
-    'https://images.unsplash.com/photo-1545315003-c5ad6226c272?w=800&q=80', // Bowling
-    'https://images.unsplash.com/photo-1534423861386-85a16f5d13fd?w=800&q=80', // Arcade
-    'https://images.unsplash.com/photo-1551620831-0175ea233a2e?w=800&q=80', // Theme park
-  ],
-  nightlife: [
-    'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&q=80', // Bar
-    'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=800&q=80', // Nightclub
-    'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=800&q=80', // Cocktail bar
-    'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=800&q=80', // Drinks
-  ],
-  active: [
-    'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', // Gym
-    'https://images.unsplash.com/photo-1519311965067-36d3e5f33d39?w=800&q=80', // Pool
-    'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&q=80', // Sports
-    'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?w=800&q=80', // Climbing
-  ],
-  unique: [
-    'https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=800&q=80', // Street art
-    'https://images.unsplash.com/photo-1533929736458-ca588d08c8be?w=800&q=80', // London quirky
-    'https://images.unsplash.com/photo-1509023464722-18d996393ca8?w=800&q=80', // Unique view
-    'https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800&q=80', // Hidden alley
-  ],
-  shopping: [
-    'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80', // Market
-    'https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?w=800&q=80', // Bookshop
-    'https://images.unsplash.com/photo-1513757378314-e46255f6ed16?w=800&q=80', // Vintage shop
-    'https://images.unsplash.com/photo-1559454403-b8fb88521f11?w=800&q=80', // Antiques
-  ],
-  default: [
-    'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80', // UK cityscape
-    'https://images.unsplash.com/photo-1486299267070-83823f5448dd?w=800&q=80', // British town
-    'https://images.unsplash.com/photo-1520986606214-8b456906c813?w=800&q=80', // Countryside
-    'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?w=800&q=80', // Quaint street
-  ]
-}
-
-function getPlaceholderImage(placeId, categoryKey) {
-  const images = CATEGORY_IMAGES[categoryKey] || CATEGORY_IMAGES.default
-  const index = Math.abs(placeId?.toString().split('').reduce((a, b) => a + b.charCodeAt(0), 0) || 0) % images.length
-  return images[index]
+// Stock landmark photos as category fallbacks have been removed — they
+// created false impressions ("Memorial near Aylesbury" rendered with the
+// Taj Mahal arch). Real photos only come from place_data or, if the
+// place has a wikipedia/wikidata tag, an async upgrade to a Wikipedia
+// thumbnail. When we have nothing real, we render the brand-coloured
+// PlaceImage placeholder instead — never a misleading photo.
+//
+// getPlaceholderImage returns null to signal "no real image", which the
+// render path uses to switch to the <PlaceImage> placeholder.
+function getPlaceholderImage() {
+  return null
 }
 
 // Icons
@@ -271,6 +216,7 @@ export default function SwipeCard({
 
   // Load image on mount and when source changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Image loader sets state internally; intentional sync from prop
     loadImage(sourceImageUrl)
 
     // Cleanup object URLs on unmount using ref (not state, to avoid stale closure)
@@ -297,6 +243,7 @@ export default function SwipeCard({
         return
       }
       // A new enriched image arrived - reload
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset cycle for new image source
       setImageLoaded(false)
       setUsingFallback(false)
       loadImage(enrichedImage)
@@ -419,14 +366,29 @@ export default function SwipeCard({
     >
       {/* Background Image */}
       <div className="swipe-card-image-container">
-        {!imageLoaded && <div className="swipe-card-image-placeholder" />}
-        <img
-          src={cachedImageUrl || sourceImageUrl}
-          alt={place.name}
-          className={`swipe-card-image ${imageLoaded ? 'loaded' : ''}`}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-        />
+        {sourceImageUrl ? (
+          <>
+            {!imageLoaded && <div className="swipe-card-image-placeholder" />}
+            <img
+              src={cachedImageUrl || sourceImageUrl}
+              alt={place.name}
+              className={`swipe-card-image ${imageLoaded ? 'loaded' : ''}`}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+            />
+          </>
+        ) : (
+          // No real photo for this place. Render the stylized brand
+          // placeholder via PlaceImage — it'll async-upgrade to a
+          // Wikipedia thumbnail if the place has a wikipedia/wikidata
+          // tag, otherwise stays as a brand-coloured gradient with the
+          // category icon. Never an iconic landmark photo.
+          <PlaceImage
+            place={place}
+            alt={place.name}
+            className="swipe-card-image loaded"
+          />
+        )}
       </div>
 
       {/* Gradient Overlay */}

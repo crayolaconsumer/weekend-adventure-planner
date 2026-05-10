@@ -1,91 +1,126 @@
 /**
- * TrendingPlaces Component
+ * TrendingPlaces
  *
- * Shows places trending in the community based on recent activity
+ * Horizontal-scroll card row of places trending in the community over
+ * the last 30 days. Replaces the legacy stat-list (rank + fire emoji
+ * + count) with proper place cards using the same PlaceImage chain as
+ * the rest of the app — real photos when known, Wikipedia thumbnail
+ * via the wikipedia/wikidata tag, brand-coloured stylized placeholder
+ * otherwise. No iconic landmark photos as fallbacks.
+ *
+ * Hides itself when empty so the section disappears entirely instead
+ * of showing an empty header.
  */
 
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useTrendingPlaces } from '../hooks/useTrendingPlaces'
+import PlaceImage from './PlaceImage'
 import './TrendingPlaces.css'
 
 const TrendingIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
     <polyline points="17 6 23 6 23 12" />
   </svg>
 )
 
-const FireIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 23c-4.97 0-9-3.58-9-8 0-2.1.8-4.01 2.12-5.46.65-.72 1.58-.54 2.06.18.38.57.62 1.28.62 2.03 0 .75-.38 1.43-1 1.83-.4.26-.71.64-.9 1.08-.19.44-.28.93-.26 1.42.1 2.04 1.79 3.67 3.86 3.92 2.07.25 3.94-.95 4.5-2.87.29-.98.3-2.02.02-3-.52-1.83-1.89-3.35-3.68-4.08-1.39-.57-2.34-1.9-2.34-3.41 0-1.02.42-1.95 1.1-2.62l.45-.45c.36-.36.85-.56 1.36-.56.51 0 1 .2 1.36.56.93.93 1.54 2.09 1.75 3.36.12.72.62 1.32 1.3 1.56.69.24 1.44.12 2-.32 1.62-1.28 2.62-3.23 2.62-5.41 0-.43-.04-.86-.11-1.27-.16-.91.34-1.8 1.18-2.12.29-.11.61-.14.92-.08 1.28.26 2.31 1.26 2.59 2.54.14.62.21 1.27.21 1.93 0 6.08-4.93 11-11 11z"/>
-  </svg>
-)
+// Format a single human activity stat per card. We don't show "5 fire"
+// because nobody knows what that means. Pick the strongest signal:
+//   visits > saves > contributions
+function formatActivity(item) {
+  if (item.visitCount > 0) {
+    return item.visitCount === 1 ? '1 person visited' : `${item.visitCount} people visited`
+  }
+  if (item.saveCount > 0) {
+    return item.saveCount === 1 ? '1 person saved' : `${item.saveCount} people saved`
+  }
+  if (item.contributionCount > 0) {
+    return item.contributionCount === 1 ? '1 tip shared' : `${item.contributionCount} tips shared`
+  }
+  return null
+}
 
 export default function TrendingPlaces({ onSelectPlace }) {
-  const { trending, loading } = useTrendingPlaces({ limit: 5, days: 30 })
+  const { trending, loading } = useTrendingPlaces({ limit: 8, days: 30 })
 
-  // Don't render anything if no trending data
+  // Hide the section entirely when empty — no orphaned header
   if (!loading && trending.length === 0) {
     return null
   }
 
-  if (loading) {
-    return (
-      <div className="trending-places trending-loading">
-        <div className="trending-header">
-          <TrendingIcon />
-          <span>Trending</span>
-        </div>
-        <div className="trending-skeleton">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="trending-skeleton-item" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <motion.div
+    <motion.section
       className="trending-places"
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      aria-labelledby="trending-heading"
     >
       <div className="trending-header">
         <TrendingIcon />
-        <span>Trending This Week</span>
+        <h3 id="trending-heading" className="trending-heading">Popular this month</h3>
       </div>
 
-      <div className="trending-list">
-        {trending.map((item, index) => (
-          <motion.button
-            key={item.placeId}
-            className="trending-item"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05 }}
-            onClick={() => onSelectPlace?.(item.placeId)}
-          >
-            <span className="trending-rank">#{index + 1}</span>
-            <div className="trending-content">
-              <div className="trending-place-name">{item.placeName || 'Unknown Place'}</div>
-              {item.placeCategory && (
-                <div className="trending-place-category">{item.placeCategory}</div>
-              )}
-              {item.topTip && (
-                <div className="trending-tip">
-                  "{item.topTip.content.slice(0, 60)}{item.topTip.content.length > 60 ? '...' : ''}"
-                  <span className="trending-tip-author">— @{item.topTip.username}</span>
+      <div className="trending-row" role="list">
+        {(loading ? Array.from({ length: 4 }) : trending).map((item, index) => {
+          if (!item) {
+            return (
+              <div key={`skeleton-${index}`} className="trending-card trending-card--skeleton" role="listitem">
+                <div className="trending-card-image trending-card-skeleton-shimmer" />
+                <div className="trending-card-body">
+                  <div className="trending-card-skeleton-line" />
+                  <div className="trending-card-skeleton-line trending-card-skeleton-line--short" />
                 </div>
-              )}
-            </div>
-            <div className="trending-stats">
-              <FireIcon />
-              <span>{item.popularityScore}</span>
-            </div>
-          </motion.button>
-        ))}
+              </div>
+            )
+          }
+          const activity = formatActivity(item)
+          return (
+            <motion.div
+              key={item.placeId}
+              role="listitem"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(index * 0.04, 0.4) }}
+            >
+              <Link
+                to={`/place/${item.placeId}`}
+                className="trending-card"
+                onClick={(e) => {
+                  // Allow parent to intercept (open detail modal) instead of
+                  // a full navigation when handler is provided
+                  if (onSelectPlace) {
+                    e.preventDefault()
+                    onSelectPlace(item.placeId)
+                  }
+                }}
+              >
+                <div className="trending-card-image">
+                  <PlaceImage
+                    place={{ id: item.placeId, ...(item.placeData || {}), name: item.placeName }}
+                    alt={item.placeName || 'Place'}
+                  />
+                  {item.placeCategory && (
+                    <span className="trending-card-category-pill">
+                      {item.placeCategory}
+                    </span>
+                  )}
+                </div>
+                <div className="trending-card-body">
+                  <span className="trending-card-name">{item.placeName || 'Unnamed place'}</span>
+                  {activity && <span className="trending-card-activity">{activity}</span>}
+                  {item.topTip && (
+                    <span className="trending-card-tip">
+                      &ldquo;{item.topTip.content.slice(0, 70)}{item.topTip.content.length > 70 ? '…' : ''}&rdquo;
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </motion.div>
+          )
+        })}
       </div>
-    </motion.div>
+    </motion.section>
   )
 }
