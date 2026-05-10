@@ -96,6 +96,12 @@
   font-size: 14px;
   line-height: 1.4;
   color: var(--color-text-secondary, #666);
+  /* Long email-as-username + long place names overflow flex containers
+   * by default because browsers won't break unbreakable strings mid-word.
+   * Allow break anywhere as a last resort so cards never blow out the
+   * viewport on narrow screens. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .activity-item-username {
