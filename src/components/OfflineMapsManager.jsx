@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useOfflineMaps } from '../hooks/useOfflineMaps'
 import './OfflineMapsManager.css'
 
-export default function OfflineMapsManager({ userLocation }) {
+export default function OfflineMapsManager({ userLocation: userLocationProp }) {
   const {
     isSupported,
     isPrefetching,
@@ -23,19 +23,61 @@ export default function OfflineMapsManager({ userLocation }) {
   const [storageInfo, setStorageInfo] = useState(null)
   const [radius, setRadius] = useState(5) // km
   const [downloadComplete, setDownloadComplete] = useState(false)
+  // Self-detected geolocation as a fallback when the parent doesn't
+  // pass userLocation (UnifiedProfile mounts us with null because it
+  // doesn't track location itself). Defer the actual prompt until the
+  // user clicks Download — that way we don't pop a permission dialog
+  // for users who never look at the offline section.
+  const [selfLocation, setSelfLocation] = useState(null)
+  const [locationError, setLocationError] = useState(null)
+  const [requestingLocation, setRequestingLocation] = useState(false)
+
+  const userLocation = userLocationProp || selfLocation
 
   // Load storage info on mount
   useEffect(() => {
     estimateStorageUsed().then(setStorageInfo)
   }, [estimateStorageUsed])
 
+  const requestLocation = () => new Promise((resolve) => {
+    if (!('geolocation' in navigator)) {
+      setLocationError('Your browser does not support location.')
+      resolve(null)
+      return
+    }
+    setRequestingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setRequestingLocation(false)
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setSelfLocation(loc)
+        setLocationError(null)
+        resolve(loc)
+      },
+      (err) => {
+        setRequestingLocation(false)
+        setLocationError(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission denied. Allow it in your browser settings to download maps for your area.'
+            : 'Couldn\'t get your location. Please try again.'
+        )
+        resolve(null)
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
+    )
+  })
+
   const handleDownload = async () => {
-    if (!userLocation) return
+    let loc = userLocation
+    if (!loc) {
+      loc = await requestLocation()
+      if (!loc) return
+    }
 
     setDownloadComplete(false)
     const result = await prefetchArea({
-      lat: userLocation.lat,
-      lng: userLocation.lng,
+      lat: loc.lat,
+      lng: loc.lng,
       radiusKm: radius,
       minZoom: 12,
       maxZoom: 16
@@ -102,16 +144,24 @@ export default function OfflineMapsManager({ userLocation }) {
           </div>
         </div>
 
-        {!userLocation && (
-          <p className="offline-maps-warning">
-            Enable location to download maps for your area
+        {locationError && (
+          <p className="offline-maps-warning">{locationError}</p>
+        )}
+        {!userLocation && !locationError && !requestingLocation && (
+          <p className="offline-maps-hint">
+            We&apos;ll ask for your location when you tap Download.
+          </p>
+        )}
+        {requestingLocation && (
+          <p className="offline-maps-hint">
+            Getting your location…
           </p>
         )}
 
         <motion.button
           className="offline-maps-download-btn"
           onClick={handleDownload}
-          disabled={!userLocation || isPrefetching}
+          disabled={isPrefetching || requestingLocation}
           whileTap={{ scale: 0.97 }}
         >
           {isPrefetching ? (

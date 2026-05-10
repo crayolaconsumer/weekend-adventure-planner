@@ -267,3 +267,13 @@
   color: var(--color-text-secondary);
   margin: 0;
 }
+
+.offline-maps-hint {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(26, 58, 47, 0.04);
+  color: rgba(26, 58, 47, 0.7);
+  font-size: 0.85rem;
+  border-radius: 8px;
+  text-align: center;
+}
