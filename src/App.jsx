@@ -25,6 +25,8 @@ import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
 import IntentHandler from './components/IntentHandler'
 import DisplayNameNudge from './components/DisplayNameNudge'
+import OfflineIndicator from './components/OfflineIndicator'
+import { checkAndAutoExpire } from './utils/offlinePack'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
@@ -283,6 +285,37 @@ function App() {
     }
   }, [])
 
+  // Hard-expire stale offline packs on app open. Uses cached browser
+  // location only (no permission prompt) so the distance check happens
+  // when possible without disturbing the user.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        let coords = null
+        if (typeof navigator !== 'undefined' && navigator.geolocation && navigator.permissions) {
+          try {
+            const perm = await navigator.permissions.query({ name: 'geolocation' })
+            if (perm.state === 'granted') {
+              coords = await new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                  () => resolve(null),
+                  { maximumAge: 30 * 60 * 1000, timeout: 4000 }
+                )
+              })
+            }
+          } catch { /* no perm API; skip distance check */ }
+        }
+        if (cancelled) return
+        await checkAndAutoExpire(coords)
+      } catch (err) {
+        console.warn('Pack auto-expire check failed', err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   // Get user location only after onboarding is complete
   useEffect(() => {
     // Don't request location while onboarding is showing
@@ -373,6 +406,7 @@ function App() {
 
               <IntentHandler />
               <DisplayNameNudge />
+              <OfflineIndicator />
 
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>

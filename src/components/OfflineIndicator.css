@@ -1,0 +1,35 @@
+.offline-indicator {
+  position: fixed;
+  top: env(safe-area-inset-top, 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: #1a3a2f;
+  color: #f5f0e6;
+  box-shadow: 0 2px 12px rgba(26, 58, 47, 0.3);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.offline-indicator.no-pack {
+  background: #6b6b6b;
+}
+
+.offline-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: offline-pulse 2s ease-in-out infinite;
+}
+
+@keyframes offline-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
