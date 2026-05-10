@@ -4,6 +4,7 @@ import { VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStor
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateContribution } from '../hooks/useContributions'
 import { useUserStats } from '../hooks/useUserStats'
+import { useNeedsConnection } from '../hooks/useNeedsConnection'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import PhotoUpload from './PhotoUpload'
@@ -76,6 +77,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   const { incrementStat } = useUserStats()
   const { markVisited } = useVisitedPlaces()
   const { ratePlace } = usePlaceRatings()
+  const needsConnection = useNeedsConnection()
   const [tipText, setTipText] = useState('')
   const [tipError, setTipError] = useState(null)
   const [photoUrl, setPhotoUrl] = useState(null)
@@ -128,6 +130,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
       setTipError('Please write a tip or add a photo')
       return
     }
+    if (needsConnection()) return
 
     setTipError(null)
     const result = await createContribution({

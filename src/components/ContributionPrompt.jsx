@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateContribution } from '../hooks/useContributions'
+import { useNeedsConnection } from '../hooks/useNeedsConnection'
 import './ContributionPrompt.css'
 
 const MAX_CHARS = 280
@@ -15,6 +16,7 @@ const MAX_CHARS = 280
 export default function ContributionPrompt({ place, onClose, onSuccess }) {
   const { isAuthenticated } = useAuth()
   const { createContribution, loading } = useCreateContribution()
+  const needsConnection = useNeedsConnection()
   const [content, setContent] = useState('')
   const [error, setError] = useState(null)
 
@@ -26,6 +28,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
       setError('Please write something about your visit')
       return
     }
+    if (needsConnection()) return
 
     setError(null)
     const result = await createContribution({
