@@ -1066,26 +1066,23 @@ export default function Events({ location }) {
               look at these platforms for what's on in your area:
             </p>
             <div className="events-alternatives">
-              <a href="https://www.ticketmaster.co.uk/discover/concerts" target="_blank" rel="noopener noreferrer" className="events-alt-link">
-                <span>Ticketmaster</span>
-                <ExternalLinkIcon />
-              </a>
-              <a href="https://www.skiddle.com/whats-on/" target="_blank" rel="noopener noreferrer" className="events-alt-link">
-                <span>Skiddle</span>
-                <ExternalLinkIcon />
-              </a>
-              <a href="https://www.ents24.com/" target="_blank" rel="noopener noreferrer" className="events-alt-link">
-                <span>Ents24</span>
-                <ExternalLinkIcon />
-              </a>
-              <a href="https://www.meetup.com/find/?source=EVENTS" target="_blank" rel="noopener noreferrer" className="events-alt-link">
-                <span>Meetup</span>
-                <ExternalLinkIcon />
-              </a>
-              <a href="https://www.facebook.com/events/" target="_blank" rel="noopener noreferrer" className="events-alt-link">
-                <span>Facebook Events</span>
-                <ExternalLinkIcon />
-              </a>
+              {[
+                { label: 'Ticketmaster', url: 'https://www.ticketmaster.co.uk/discover/concerts' },
+                { label: 'Skiddle',      url: 'https://www.skiddle.com/whats-on/' },
+                { label: 'Ents24',       url: 'https://www.ents24.com/' },
+                { label: 'Meetup',       url: 'https://www.meetup.com/find/?source=EVENTS' },
+                { label: 'Facebook Events', url: 'https://www.facebook.com/events/' },
+              ].map(({ label, url }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="events-alt-link"
+                  onClick={() => import('../utils/nativePlugins').then(m => m.openExternalUrl(url))}
+                >
+                  <span>{label}</span>
+                  <ExternalLinkIcon />
+                </button>
+              ))}
             </div>
           </div>
         ) : filteredEvents.length === 0 ? (

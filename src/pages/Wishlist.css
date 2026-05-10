@@ -215,9 +215,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
+  min-height: 40px; /* HIG floor — was effectively ~32px before */
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-full);
-  font-size: var(--text-xs);
+  font-size: 13px; /* bumped from text-xs(12) so 'Go' label reads cleanly */
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -235,7 +236,7 @@
 }
 
 .wishlist-card-btn.remove {
-  width: 36px;
+  width: 40px;
   padding: var(--space-sm);
   background: transparent;
   border: 1px solid var(--roam-parchment);
@@ -249,7 +250,7 @@
 }
 
 .wishlist-card-btn.collection {
-  width: 36px;
+  width: 40px;
   padding: var(--space-sm);
   background: transparent;
   border: 1px solid var(--roam-parchment);
@@ -263,7 +264,7 @@
 }
 
 .wishlist-card-btn.visited {
-  width: 36px;
+  width: 40px;
   padding: var(--space-sm);
   background: transparent;
   border: 1px solid var(--roam-parchment);
@@ -481,7 +482,7 @@
 }
 
 .wishlist-empty-icon.events svg {
-  width: 36px;
+  width: 40px;
   height: 36px;
 }
 
@@ -632,7 +633,7 @@
 }
 
 .wishlist-adventure-delete {
-  width: 36px;
+  width: 40px;
   height: 36px;
   display: flex;
   align-items: center;
@@ -664,7 +665,7 @@
 }
 
 .wishlist-empty-icon.adventures svg {
-  width: 36px;
+  width: 40px;
   height: 36px;
 }
 

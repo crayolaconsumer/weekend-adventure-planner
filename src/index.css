@@ -615,6 +615,25 @@ p {
 }
 
 /* ═══════════════════════════════════════════════════════
+   TOUCH-DEVICE GUARD
+   On devices without a hover-capable pointer (phones, tablets), :hover
+   styles fire on tap and stick until another element is tapped — the
+   button stays visually elevated after release, looks broken.
+   Reset the most-common offenders (transform / box-shadow lifts) to
+   their default state on touch-only devices. Color hovers stay since
+   they're brief enough not to look stuck.
+   ═══════════════════════════════════════════════════════ */
+@media (hover: none) and (pointer: coarse) {
+  *:hover {
+    transform: none !important;
+  }
+  /* Buttons / cards with hover lift effects flatten on touch */
+  button:hover, a:hover, [role="button"]:hover {
+    box-shadow: inherit;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    PAGE LAYOUT
    ═══════════════════════════════════════════════════════ */
 

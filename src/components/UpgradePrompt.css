@@ -108,7 +108,7 @@
 }
 
 .upgrade-prompt-description {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   color: var(--roam-forest-light);
   line-height: 1.5;
   margin-bottom: var(--space-lg);
@@ -152,7 +152,7 @@
   background: linear-gradient(135deg, var(--roam-gold) 0%, var(--roam-gold-light) 100%);
   border: none;
   border-radius: var(--radius-md);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 600;
   color: white;
   cursor: pointer;

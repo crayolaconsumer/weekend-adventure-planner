@@ -87,6 +87,10 @@
 }
 
 .activity-login-prompt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px; /* HIG floor */
   padding: 12px 32px;
   background: var(--color-primary, #E07A5F);
   color: white;

@@ -639,7 +639,7 @@
 }
 
 .events-empty-icon {
-  font-size: 4rem;
+  font-size: 3rem;
   margin-bottom: var(--space-lg);
 }
 
@@ -828,13 +828,14 @@
   gap: 6px;
 }
 
+/* HIG 44pt — bumped from 36 to meet App Store reviewer expectations */
 .events-toolbar-btn {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   background: white;
   border: 1px solid rgba(26, 58, 47, 0.1);
   border-radius: var(--radius-full);
@@ -1411,7 +1412,7 @@
 }
 
 .events-swipe-empty > div:first-child {
-  font-size: 4rem;
+  font-size: 3rem;
   margin-bottom: var(--space-lg);
 }
 
