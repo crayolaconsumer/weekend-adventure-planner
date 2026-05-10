@@ -195,6 +195,21 @@
   gap: var(--space-sm);
 }
 
+/* Unified meta strip — replaces the old separate pills + badges rows.
+   One generous gap, consistent baseline, no competing visual treatments. */
+.place-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: var(--space-sm);
+}
+/* When PlaceBadges renders inside the meta strip, drop its own outer
+   margins so it shares a single row-gap with the rest of the pills. */
+.place-detail-meta .place-badges {
+  display: contents;
+}
+
 .place-detail-pill {
   display: inline-flex;
   align-items: center;
@@ -274,7 +289,7 @@
 }
 
 .place-detail-address,
-.place-detail-hours {
+.place-detail-hours-raw {
   font-size: var(--text-sm);
   color: var(--roam-text);
   margin: 0;
@@ -291,11 +306,18 @@
   background: var(--roam-parchment);
 }
 
-.place-detail-map-iframe {
+.place-detail-map-iframe,
+.place-detail-map-leaflet {
   width: 100%;
   height: 100%;
   border: none;
 }
+/* Leaflet adds a bg color we don't want bleeding through */
+.place-detail-map-leaflet { background: var(--roam-parchment); }
+/* Hide the residual outline ring that some Leaflet builds inject */
+.place-detail-map-leaflet:focus { outline: none; }
+/* Ensure the brand pin div has no white box */
+.place-detail-leaflet-pin { background: transparent; border: none; }
 
 .place-detail-map::after {
   content: '';
@@ -304,6 +326,53 @@
   pointer-events: none;
   border-radius: var(--radius-lg);
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 401; /* above leaflet tile pane */
+}
+
+/* Weekly hours table — replaces raw OSM string. Today's row is
+   highlighted with a forest-green left rail and bold day label. */
+.place-detail-hours-table {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--roam-parchment-dark, rgba(26, 58, 47, 0.12));
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--roam-paper, #fdfcf8);
+}
+.place-detail-hours-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  border-top: 1px solid rgba(26, 58, 47, 0.08);
+}
+.place-detail-hours-row:first-child { border-top: none; }
+.place-detail-hours-day {
+  font-weight: 500;
+  color: var(--roam-forest);
+  letter-spacing: 0.01em;
+}
+.place-detail-hours-time {
+  color: var(--roam-text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.place-detail-hours-row.closed .place-detail-hours-time {
+  color: var(--roam-text-muted, #6b6b6b);
+  font-style: italic;
+}
+.place-detail-hours-row.today {
+  background: rgba(212, 168, 85, 0.12);
+  border-left: 3px solid #d4a855;
+  padding-left: 11px;
+}
+.place-detail-hours-row.today .place-detail-hours-day {
+  font-weight: 700;
 }
 
 /* Loading state */

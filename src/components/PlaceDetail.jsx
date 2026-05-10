@@ -21,7 +21,37 @@ import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
 import { fetchWikipediaSummary } from '../utils/placeImage'
+import { getWeeklySchedule } from '../utils/openingHours'
+import { MapContainer, TileLayer, Marker } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import './PlaceDetail.css'
+
+// Brand-coloured map pin — drop-shape with gold dot inside a forest field.
+// Uses divIcon so we don't have to ship a PNG asset; SVG inline = sharp at any DPI.
+const BRAND_PIN_HTML = `
+<svg viewBox="0 0 32 44" width="32" height="44" xmlns="http://www.w3.org/2000/svg">
+  <path d="M16 0 C7 0 0 7 0 16 c0 11 16 28 16 28 s16 -17 16 -28 C32 7 25 0 16 0 z" fill="#1a3a2f"/>
+  <circle cx="16" cy="16" r="11" fill="none" stroke="#d4a855" stroke-width="1.2" opacity="0.6"/>
+  <circle cx="16" cy="16" r="6" fill="#d4a855"/>
+  <circle cx="16" cy="16" r="2" fill="#fdfcf8"/>
+</svg>
+`
+const brandPinIcon = L.divIcon({
+  className: 'place-detail-leaflet-pin',
+  html: BRAND_PIN_HTML,
+  iconSize: [32, 44],
+  iconAnchor: [16, 44],
+})
+const VOYAGER_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const VOYAGER_ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+const WEEKDAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 }
+function todayWeekdayName() {
+  const day = new Date().getDay()
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  return names[day]
+}
 
 // Icons
 const CloseIcon = () => (
@@ -412,8 +442,9 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               <YouVisitedBanner placeId={enrichedPlace.id} />
               <h1 id="place-detail-title" className="place-detail-name">{enrichedPlace.name}</h1>
 
-              {/* Quick info pills */}
-              <div className="place-detail-pills">
+              {/* Unified meta strip — quick-info pills + place-badges in
+                  one well-spaced row, instead of two cramped competing rows */}
+              <div className="place-detail-meta">
                 {enrichedPlace.distance && (
                   <span className="place-detail-pill">
                     <MapPinIcon />
@@ -438,9 +469,9 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                     Accessible
                   </span>
                 )}
-                <SocialProof placeId={place.id} variant="full" />
+                <PlaceBadges place={enrichedPlace} variant="full" maxVisible={4} />
               </div>
-              <PlaceBadges place={enrichedPlace} variant="full" maxVisible={4} />
+              <SocialProof placeId={place.id} variant="full" />
             </motion.div>
 
             {/* Description */}
@@ -483,11 +514,10 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                   {enrichedPlace.description && (
                     <p className="place-detail-description">{enrichedPlace.description}</p>
                   )}
-                  {!wikiSummary?.extract && !enrichedPlace.description && enrichedPlace.type && (
-                    <p className="place-detail-type-info">
-                      {enrichedPlace.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </p>
-                  )}
+                  {/* Floating "Restaurant" / type-info fallback removed —
+                      a single capitalised word sitting alone read as broken
+                      copy rather than useful context. The category pill at
+                      the top + the hero header carry that information now. */}
                 </>
               )}
             </motion.div>
@@ -517,31 +547,58 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                 transition={{ delay: 0.27 }}
               >
                 <div className="place-detail-map">
-                  <iframe
-                    title={`Map showing ${enrichedPlace.name}`}
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${enrichedPlace.lng - 0.008},${enrichedPlace.lat - 0.006},${enrichedPlace.lng + 0.008},${enrichedPlace.lat + 0.006}&layer=mapnik&marker=${enrichedPlace.lat},${enrichedPlace.lng}`}
-                    className="place-detail-map-iframe"
-                    loading="lazy"
-                  />
+                  <MapContainer
+                    center={[enrichedPlace.lat, enrichedPlace.lng]}
+                    zoom={15}
+                    scrollWheelZoom={false}
+                    dragging={false}
+                    doubleClickZoom={false}
+                    zoomControl={false}
+                    className="place-detail-map-leaflet"
+                    attributionControl={false}
+                  >
+                    <TileLayer url={VOYAGER_TILE} attribution={VOYAGER_ATTRIBUTION} detectRetina />
+                    <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} />
+                  </MapContainer>
                 </div>
               </motion.div>
             )}
 
-            {/* Opening Hours */}
-            {enrichedPlace.openingHours && (
-              <motion.div
-                className="place-detail-section"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <h3 className="place-detail-section-title">
-                  <ClockIcon />
-                  Opening Hours
-                </h3>
-                <p className="place-detail-hours">{enrichedPlace.openingHours}</p>
-              </motion.div>
-            )}
+            {/* Opening Hours — parsed weekly schedule with today highlighted.
+                Falls back to the raw OSM string only when the parser can't
+                handle the format (rare). */}
+            {enrichedPlace.openingHours && (() => {
+              const schedule = getWeeklySchedule(enrichedPlace.openingHours, enrichedPlace)
+              const today = todayWeekdayName()
+              return (
+                <motion.div
+                  className="place-detail-section"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <h3 className="place-detail-section-title">
+                    <ClockIcon />
+                    Opening Hours
+                  </h3>
+                  {schedule ? (
+                    <ul className="place-detail-hours-table" role="list">
+                      {schedule.map(({ day, hours }) => (
+                        <li
+                          key={day}
+                          className={`place-detail-hours-row ${day === today ? 'today' : ''} ${hours === 'Closed' ? 'closed' : ''}`}
+                        >
+                          <span className="place-detail-hours-day">{day === today ? `${day} (today)` : day}</span>
+                          <span className="place-detail-hours-time">{hours}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="place-detail-hours-raw">{enrichedPlace.openingHours}</p>
+                  )}
+                </motion.div>
+              )
+            })()}
 
             {/* Quick Actions */}
             <motion.div
