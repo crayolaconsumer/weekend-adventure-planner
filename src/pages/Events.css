@@ -6,8 +6,9 @@
 .events-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 70px); /* Subtract nav bar height */
-  height: calc(100dvh - 70px); /* Dynamic viewport for mobile */
+  /* 80px nav + home-indicator safe area. 70px hard-coded was leaving
+     the last visible content row clipped behind the nav on Pro Max. */
+  height: calc(100dvh - 80px - env(safe-area-inset-bottom, 0));
   overflow: hidden;
   background: var(--roam-cream);
 }
@@ -15,7 +16,7 @@
 @media (min-width: 1024px) {
   .events-page {
     height: auto;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow: visible;
   }
 }

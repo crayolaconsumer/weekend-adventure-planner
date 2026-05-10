@@ -21,7 +21,7 @@
   position: relative;
   width: 100%;
   max-width: 480px;
-  max-height: 85vh;
+  max-height: 85dvh;
   background: var(--roam-cream);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: var(--space-lg) var(--space-lg) var(--space-xl);

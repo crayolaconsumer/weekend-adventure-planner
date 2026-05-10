@@ -19,7 +19,7 @@
 .upgrade-prompt {
   position: relative;
   width: 100%;
-  max-height: 90vh;
+  max-height: 90dvh;
   background: white;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   z-index: 1001;

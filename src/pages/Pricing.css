@@ -4,9 +4,9 @@
    ═══════════════════════════════════════════════════════ */
 
 .pricing-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: var(--space-xl) var(--space-md);
-  padding-bottom: calc(var(--space-xl) + 80px);
+  padding-bottom: calc(var(--space-xl) + 80px + env(safe-area-inset-bottom, 0));
   background: linear-gradient(135deg, var(--roam-cream) 0%, var(--roam-cream-dark) 100%);
 }
 

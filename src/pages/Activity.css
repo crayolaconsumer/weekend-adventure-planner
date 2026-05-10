@@ -1,7 +1,7 @@
 /* Activity Page Styles */
 
 .activity-page {
-  padding-bottom: 100px;
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0));
 }
 
 .activity-page .page-header {

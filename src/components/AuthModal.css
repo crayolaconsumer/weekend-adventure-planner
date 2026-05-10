@@ -22,7 +22,7 @@
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 420px;
-  max-height: calc(100vh - var(--space-2xl) * 2);
+  max-height: calc(100dvh - var(--space-2xl) * 2);
   overflow-y: auto;
   padding: var(--space-2xl);
 }
@@ -387,7 +387,7 @@
   }
 
   .auth-modal {
-    max-height: 90vh;
+    max-height: 90dvh;
     border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
     padding: var(--space-xl);
     padding-bottom: calc(var(--space-xl) + env(safe-area-inset-bottom));

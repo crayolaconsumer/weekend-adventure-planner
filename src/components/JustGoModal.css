@@ -33,7 +33,7 @@
   position: relative;
   width: 100%;
   max-width: 400px;
-  max-height: 90vh;
+  max-height: 90dvh;
   background: var(--roam-cream);
   border-radius: var(--radius-xl);
   overflow: hidden;
@@ -368,7 +368,7 @@
   }
 
   .just-go-modal {
-    max-height: 95vh;
+    max-height: 95dvh;
     border-radius: var(--radius-lg);
   }
 
