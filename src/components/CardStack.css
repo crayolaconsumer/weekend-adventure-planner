@@ -10,11 +10,7 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  /* Shrunk from 520→440 so the progress counter sits above the bottom
-     nav without forcing scroll on iPhone 14/15 mini and similar.
-     Larger viewports still get plenty of card real estate via the
-     wrapper's aspect-ratio + max-width below. */
-  min-height: 440px;
+  min-height: 0; /* allow flex children to shrink past content size */
   padding: var(--space-lg);
   padding-bottom: var(--space-sm);
 }
@@ -23,20 +19,30 @@
   position: relative;
   width: 100%;
   max-width: 380px;
+  /* Default (desktop / wide viewports): 3:4 aspect, plenty of room. */
   aspect-ratio: 3/4;
-  /* Cap the deck height to whatever fits between the page header and
-     the progress counter / bottom nav. Header chrome (~280px) + nav
-     (~80px) + counter (~36px) + safety = ~410px reserved on small
-     phones; dvh handles iOS Safari URL-bar resizing too. */
   max-height: calc(100dvh - 420px);
 }
 
-@media (min-height: 760px) {
-  .card-stack { min-height: 480px; }
+/* Mobile: stop letting aspect-ratio dictate height — fill the flex
+   space left over after the page chrome + counter + nav. Floor at
+   280px so the card never becomes unusably small on tiny viewports
+   (which would just allow scrolling there as a fallback). */
+@media (max-width: 767px) {
+  .card-stack {
+    padding: var(--space-md) var(--space-md) var(--space-xs);
+  }
+  .card-stack-wrapper {
+    aspect-ratio: auto;
+    height: 100%;
+    max-height: none;
+    flex: 1 1 auto;
+    min-height: 280px;
+  }
 }
-@media (min-height: 860px) {
-  .card-stack { min-height: 520px; }
-  .card-stack-wrapper { max-height: calc(100dvh - 440px); }
+
+@media (min-height: 760px) and (min-width: 768px) {
+  .card-stack-wrapper { max-height: calc(100dvh - 380px); }
 }
 
 .card-stack-item {

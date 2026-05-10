@@ -336,16 +336,33 @@
 }
 
 @media (max-width: 767px) {
+  /* Mobile vertical budget — every above-card pixel matters. The brand
+     wordmark stays (identity preserved) but proportional to mobile chrome
+     conventions instead of desktop hero sizing, so the swipe deck +
+     action buttons + counter + bottom nav all fit on a single screen
+     down to iPhone SE / mini class viewports. */
   .discover-header {
-    padding: var(--space-lg) var(--space-md) var(--space-md);
+    padding: var(--space-sm) var(--space-md) var(--space-xs);
+  }
+
+  /* Wordmark scales hard on mobile — 4rem desktop → 2.25rem mobile.
+     Still reads as a hero, but takes ~30pt vs ~80pt of vertical space. */
+  .discover-wordmark {
+    font-size: 2.25rem;
+    margin-bottom: 2px;
+  }
+
+  .discover-tagline {
+    font-size: var(--text-sm);
   }
 
   .discover-hero {
-    margin-bottom: var(--space-md);
+    margin-bottom: var(--space-xs);
   }
 
   .discover-status {
-    margin-top: var(--space-md);
+    margin-top: var(--space-sm);
+    margin-bottom: var(--space-xs);
     gap: var(--space-xs);
   }
 
