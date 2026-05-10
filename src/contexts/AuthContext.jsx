@@ -5,6 +5,7 @@
  */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { identifyUser, clearUser } from '../utils/errorReporting'
 
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
@@ -114,6 +115,13 @@ export function AuthProvider({ children }) {
       setLoading(false)
     }
   }, [getStoredToken])
+
+  // Sync user identity to Sentry when it changes — so errors carry the
+  // user_id / username that hit them. No-op if Sentry isn't initialised.
+  useEffect(() => {
+    if (user) identifyUser({ id: user.id, username: user.username, email: user.email })
+    else clearUser()
+  }, [user])
 
   /**
    * Register with email and password

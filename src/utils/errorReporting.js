@@ -1,36 +1,90 @@
 /**
  * Error Reporting Utility
  *
- * Centralized error reporting. Currently logs to console.
+ * Conditional Sentry — activates only when VITE_SENTRY_DSN is set in the
+ * environment. Without the DSN, all calls are silent no-ops, so dev /
+ * preview deployments don't send noise upstream.
  *
- * To enable Sentry:
- * 1. npm install @sentry/react
- * 2. Add VITE_SENTRY_DSN to environment
- * 3. Uncomment the Sentry initialization and captureException calls
+ * Usage:
+ *   1. Set VITE_SENTRY_DSN in Vercel env (Project → Settings → Env Vars)
+ *   2. Redeploy. No code changes needed.
+ *   3. Init runs automatically from main.jsx via initObservability()
  */
 
-// Uncomment when Sentry is configured:
-// import * as Sentry from '@sentry/react'
+import * as Sentry from '@sentry/react'
 
-// Initialize Sentry (uncomment when ready)
-// if (import.meta.env.VITE_SENTRY_DSN) {
-//   Sentry.init({
-//     dsn: import.meta.env.VITE_SENTRY_DSN,
-//     environment: import.meta.env.MODE,
-//     tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
-//     integrations: [
-//       Sentry.browserTracingIntegration(),
-//     ],
-//   })
-// }
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || 'dev'
+
+let initialized = false
 
 /**
- * Report an error to the error tracking service
- * @param {Error} error - The error to report
+ * Initialize Sentry. Safe to call multiple times — second call is a no-op.
+ * Called once from main.jsx before React renders.
+ */
+export function initObservability() {
+  if (initialized) return
+  if (!SENTRY_DSN) return
+
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    release: APP_VERSION,
+    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+    replaysOnErrorSampleRate: import.meta.env.PROD ? 1.0 : 0,
+    replaysSessionSampleRate: 0,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration({
+        maskAllText: false,
+        blockAllMedia: false,
+      }),
+    ],
+    // Don't capture noise from extensions or third-party scripts
+    ignoreErrors: [
+      'ResizeObserver loop limit exceeded',
+      'ResizeObserver loop completed with undelivered notifications',
+      'Non-Error promise rejection captured',
+      /chrome-extension:\/\//,
+      /moz-extension:\/\//,
+    ],
+  })
+
+  initialized = true
+}
+
+/**
+ * Identify the current user to Sentry. Call after login.
+ */
+export function identifyUser({ id, username, email } = {}) {
+  if (!initialized) return
+  Sentry.setUser(id ? { id: String(id), username, email } : null)
+}
+
+/**
+ * Clear user context. Call on logout.
+ */
+export function clearUser() {
+  if (!initialized) return
+  Sentry.setUser(null)
+}
+
+/**
+ * Add a breadcrumb (small contextual event) — Sentry shows the last
+ * ~100 of these alongside any captured exception.
+ */
+export function addBreadcrumb({ category, message, level = 'info', data } = {}) {
+  if (!initialized) return
+  Sentry.addBreadcrumb({ category, message, level, data })
+}
+
+/**
+ * Report an error to the error tracking service.
+ * @param {Error|string} error - The error to report
  * @param {Object} [context={}] - Additional context (component, user action, etc.)
  */
 export function reportError(error, context = {}) {
-  // Always log to console in development
+  // Always log to console in development for instant feedback
   if (import.meta.env.DEV) {
     console.error('Error reported:', error)
     if (Object.keys(context).length > 0) {
@@ -38,75 +92,36 @@ export function reportError(error, context = {}) {
     }
   }
 
-  // Send to Sentry in production (uncomment when configured)
-  // if (import.meta.env.VITE_SENTRY_DSN) {
-  //   Sentry.captureException(error, {
-  //     extra: {
-  //       ...context,
-  //       url: window.location.href,
-  //       timestamp: new Date().toISOString()
-  //     }
-  //   })
-  // }
+  if (!initialized) return
 
-  // Optionally send to custom error endpoint
-  // This can be useful for aggregating errors without a third-party service
-  if (import.meta.env.PROD && !import.meta.env.VITE_SENTRY_DSN) {
-    // Could POST to /api/errors endpoint
-    // fetch('/api/errors', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     message: error.message,
-    //     stack: error.stack,
-    //     context,
-    //     url: window.location.href,
-    //     timestamp: new Date().toISOString()
-    //   })
-    // }).catch(() => {})
-  }
+  const err = error instanceof Error ? error : new Error(String(error))
+  Sentry.captureException(err, {
+    extra: {
+      ...context,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      timestamp: new Date().toISOString(),
+    },
+  })
 }
 
 /**
- * Report a message (non-error) to the tracking service
- * @param {string} message - The message to report
- * @param {'info'|'warning'|'error'} [level='info'] - Severity level
- * @param {Object} [context={}] - Additional context
+ * Capture a non-error message (info / warning) — useful for tracking
+ * unusual states that aren't crashes but worth investigating.
  */
 export function reportMessage(message, level = 'info', context = {}) {
-  const logFn = level === 'error' ? console.error : level === 'warning' ? console.warn : console.log
-
   if (import.meta.env.DEV) {
+    const logFn = level === 'error' ? console.error : level === 'warning' ? console.warn : console.log
     logFn(`[${level.toUpperCase()}]`, message, context)
   }
-
-  // Sentry.captureMessage(message, { level, extra: context })
-}
-
-/**
- * Set user context for error reports
- * @param {Object|null} user - User object (null to clear)
- */
-export function setUser(user) {
-  if (user) {
-    // Sentry.setUser({
-    //   id: user.id,
-    //   username: user.username,
-    //   email: user.email
-    // })
-    if (import.meta.env.DEV) {
-      console.log('Error reporting user context set:', { id: user.id, username: user.username })
-    }
-  } else {
-    // Sentry.setUser(null)
-    if (import.meta.env.DEV) {
-      console.log('Error reporting user context cleared')
-    }
-  }
+  if (!initialized) return
+  Sentry.captureMessage(message, { level, extra: context })
 }
 
 export default {
+  initObservability,
+  identifyUser,
+  clearUser,
+  addBreadcrumb,
   reportError,
   reportMessage,
-  setUser
 }
