@@ -11,7 +11,29 @@ import './MapPreviewBand.css'
  */
 export default function MapPreviewBand({ places, onClick, label = 'View map' }) {
   const mapData = useMemo(() => {
-    const validPlaces = (places || []).filter(p => p.lat && p.lng)
+    // Accept either flat ({lat, lng}) shape or the nested
+    // ({placeData: {lat, lng}}) shape that useVisitedPlaces stores. The
+    // bug we hit before this fix: visited rows nested coords inside
+    // placeData, the band filtered on top-level p.lat, every row was
+    // dropped, the band rendered empty even when visits existed.
+    const normalised = (places || []).map(p => {
+      const data = p?.placeData || p || {}
+      const lat = (typeof p?.lat === 'number') ? p.lat : data.lat
+      const lng = (typeof p?.lng === 'number') ? p.lng :
+                  (typeof p?.lon === 'number') ? p.lon :
+                  data.lng ?? data.lon
+      const category =
+        (typeof p?.category === 'object' && p.category) ? p.category :
+        (typeof data.category === 'object' && data.category) ? data.category :
+        null
+      return {
+        id: p?.id || p?.placeId || data.id || data.placeId,
+        lat,
+        lng,
+        category
+      }
+    })
+    const validPlaces = normalised.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
     if (validPlaces.length === 0) return null
 
     const bounds = getBoundingBox(validPlaces)

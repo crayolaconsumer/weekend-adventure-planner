@@ -1728,3 +1728,19 @@
   align-items: center;
   gap: 6px;
 }
+
+/* Journey-tab map block — band gets its own breathing room with title */
+.unified-profile-journey-map {
+  margin-bottom: var(--space-lg, 20px);
+}
+.unified-profile-journey-map .map-preview-band {
+  border-radius: 14px;
+  border: 1px solid var(--roam-parchment, #e8e0d0);
+}
+.unified-profile-journey-map .unified-profile-section-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display, 'Newsreader', serif);
+  color: var(--roam-forest, #1a3a2f);
+  font-size: 1.05rem;
+  font-weight: 600;
+}

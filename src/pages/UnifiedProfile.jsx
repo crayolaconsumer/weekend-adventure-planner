@@ -345,16 +345,14 @@ export default function UnifiedProfile() {
         )}
       </motion.section>
 
-      {/* Map preview band — graduated from a stat tile to a profile-header element */}
-      <MapPreviewBand
-        places={visitedPlaces}
-        onClick={() => navigate(`/user/${user.username}/map`)}
-        label={`View ${user.displayName || user.username}'s map`}
-      />
-
-      {/* Stats Bar — Visited count graduated into the band above */}
+      {/* Stats Bar — four columns: Followers / Following / Visited / Helpful.
+          The Visited tile is tappable on every profile and navigates to the
+          full /user/:username/map page (real map + expandable list + edit
+          reviews for the owner). The map preview itself lives in the Journey
+          tab now — first-class but not in the header where it competed with
+          the avatar, name, and follow button. */}
       <motion.section
-        className="unified-profile-stats unified-profile-stats--three-col"
+        className="unified-profile-stats"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -388,6 +386,17 @@ export default function UnifiedProfile() {
             <span className="unified-profile-stat-label">Following</span>
           </button>
         )}
+
+        <button
+          className="unified-profile-stat"
+          onClick={() => navigate(`/user/${user.username}/map`)}
+          aria-label="View visited places map and list"
+        >
+          <span className="unified-profile-stat-value">
+            {stats.placesVisited || visitedPlaces.length || 0}
+          </span>
+          <span className="unified-profile-stat-label">Visited</span>
+        </button>
 
         <div className="unified-profile-stat">
           <span className="unified-profile-stat-value">{stats.helpfulVotes}</span>
@@ -463,6 +472,7 @@ export default function UnifiedProfile() {
             exit={{ opacity: 0, y: -10 }}
           >
             <JourneyTab
+              username={user.username}
               stats={localStats}
               level={level}
               levelProgress={levelProgress}
@@ -638,7 +648,8 @@ const SERVER_BADGE_CONFIG = {
 /**
  * Journey Tab - Gamification, Badges, Stats
  */
-function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalActivity, earnedBadges, lockedBadges, serverBadges, badgesLoading, visitedPlaces, isOwnProfile }) {
+function JourneyTab({ username, stats, level, levelProgress, nextLevelRequirement, totalActivity, earnedBadges, lockedBadges, serverBadges, badgesLoading, visitedPlaces, isOwnProfile }) {
+  const navigate = useNavigate()
   return (
     <div className="unified-profile-journey">
       {/* Level Card */}
@@ -764,6 +775,17 @@ function JourneyTab({ stats, level, levelProgress, nextLevelRequirement, totalAc
             </div>
           </>
         )}
+      </div>
+
+      {/* Map Preview — first thing in the Journey tab. Tap → opens the
+          full /user/:username/map page (Leaflet map + list + edit reviews). */}
+      <div className="unified-profile-journey-map">
+        <h3 className="unified-profile-section-title">Your Map</h3>
+        <MapPreviewBand
+          places={visitedPlaces}
+          onClick={() => username && navigate(`/user/${username}/map`)}
+          label="View your visited places map"
+        />
       </div>
 
       {/* Visual Stats - Owner Only */}
