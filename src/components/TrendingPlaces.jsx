@@ -22,7 +22,7 @@ const FireIcon = () => (
 )
 
 export default function TrendingPlaces({ onSelectPlace }) {
-  const { trending, loading } = useTrendingPlaces({ limit: 5, days: 7 })
+  const { trending, loading } = useTrendingPlaces({ limit: 5, days: 30 })
 
   // Don't render anything if no trending data
   if (!loading && trending.length === 0) {

@@ -17,8 +17,8 @@ import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { useSubscription } from '../hooks/useSubscription'
 import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
-import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, createOverpassController, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
-import { filterPlaces, enhancePlace, getRandomQualityPlaces } from '../utils/placeFilter'
+import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
+import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
@@ -953,11 +953,6 @@ export default function Discover({ location }) {
         </div>
       )}
 
-      {/* Trending Places - shows what's popular in the community */}
-      <Suspense fallback={null}>
-        <TrendingPlaces onSelectPlace={handleViewTrending} />
-      </Suspense>
-
       {/* View Mode Toggle (desktop only) */}
       {isDesktop && (
         <div className="discover-view-toggle" role="group" aria-label="View mode">
@@ -1123,6 +1118,14 @@ export default function Discover({ location }) {
           </Suspense>
         )}
       </div>
+
+      {/* Trending Places — moved below the card stack so the swipe deck
+          remains the primary attention target. Hides itself when there's
+          no data, so this section only appears when there's something to
+          show. */}
+      <Suspense fallback={null}>
+        <TrendingPlaces onSelectPlace={handleViewTrending} />
+      </Suspense>
 
       {/* Place Detail Modal */}
       <AnimatePresence>

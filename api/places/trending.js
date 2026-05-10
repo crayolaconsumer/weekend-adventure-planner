@@ -20,38 +20,43 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { limit = 10, days = 7 } = req.query
+    const { limit = 10, days = 30 } = req.query
 
     // Apply bounds to prevent abuse
     const safeLimit = Math.min(Math.max(1, parseInt(limit) || 10), 50)
-    const safeDays = Math.min(Math.max(1, parseInt(days) || 7), 30)
+    const safeDays = Math.min(Math.max(1, parseInt(days) || 30), 90)
 
-    // Get places with recent activity (only approved contributions)
-    // Score = contributions + plan inclusions (weighted)
-    // Note: plan_stops doesn't have created_at, so join through plans table
+    // Get places with recent activity from any source (contributions, saves,
+    // visits). Weighted scoring: contributions are strongest signal (someone
+    // wrote about it), visits next (someone went), saves last (someone wants
+    // to go). Default window 30 days — short enough to feel current, long
+    // enough to populate in low-volume product life.
     const sql = `
       SELECT
-        c.place_id,
-        COUNT(DISTINCT c.id) as contribution_count,
-        COUNT(DISTINCT recent_ps.id) as plan_inclusion_count,
-        (COUNT(DISTINCT c.id) * 2 + COUNT(DISTINCT recent_ps.id)) as popularity_score,
-        MAX(c.created_at) as last_activity
-      FROM contributions c
-      LEFT JOIN (
-        SELECT ps.id, ps.place_id
-        FROM plan_stops ps
-        JOIN plans p ON ps.plan_id = p.id
-        WHERE p.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
-      ) recent_ps ON c.place_id = recent_ps.place_id
-      WHERE c.created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
-        AND c.status = 'approved'
-      GROUP BY c.place_id
+        combined.place_id,
+        SUM(combined.contribution_score) as contribution_count,
+        SUM(combined.save_score) as save_count,
+        SUM(combined.visit_score) as visit_count,
+        SUM(combined.weight) as popularity_score,
+        MAX(combined.activity_at) as last_activity
+      FROM (
+        SELECT place_id, 1 as contribution_score, 0 as save_score, 0 as visit_score, 3 as weight, created_at as activity_at
+        FROM contributions
+        WHERE status = 'approved' AND created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+        UNION ALL
+        SELECT place_id, 0, 1, 0, 1, saved_at FROM saved_places
+        WHERE saved_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+        UNION ALL
+        SELECT place_id, 0, 0, 1, 2, visited_at FROM visited_places
+        WHERE visited_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+      ) combined
+      GROUP BY combined.place_id
       HAVING popularity_score > 0
       ORDER BY popularity_score DESC, last_activity DESC
       LIMIT ?
     `
 
-    const trending = await query(sql, [safeDays, safeDays, safeLimit])
+    const trending = await query(sql, [safeDays, safeDays, safeDays, safeLimit])
 
     // Get top contribution content for each trending place
     const placeIds = trending.map(t => t.place_id)
@@ -79,13 +84,19 @@ export default async function handler(req, res) {
         placeIds
       )
 
-      // Fetch place names from saved_places (most recent save for each place)
+      // Fetch place data from saved_places OR visited_places — visits write
+      // place_data too and might be the only source for a trending place
+      // that nobody has saved yet.
       placeData = await query(
-        `SELECT place_id, place_data
-        FROM saved_places
-        WHERE place_id IN (${placeholders})
+        `SELECT place_id, place_data FROM (
+          SELECT place_id, place_data, saved_at as activity_at FROM saved_places
+          WHERE place_id IN (${placeholders}) AND place_data IS NOT NULL
+          UNION ALL
+          SELECT place_id, place_data, visited_at as activity_at FROM visited_places
+          WHERE place_id IN (${placeholders}) AND place_data IS NOT NULL
+        ) all_data
         GROUP BY place_id`,
-        placeIds
+        [...placeIds, ...placeIds]
       )
     }
 
