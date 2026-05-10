@@ -10,32 +10,43 @@ import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import PhotoUpload from './PhotoUpload'
 import './VisitedPrompt.css'
 
-// Pre-generated confetti particles (random values computed once at module load)
-const CONFETTI_COLORS = ['#1a3a2f', '#d4a855', '#7c9a82', '#f5f0e6', '#ef4444', '#3b82f6']
-const CONFETTI_PARTICLES = Array.from({ length: 30 }, (_, i) => ({
+// Pre-generated confetti particles. The container is full-viewport, so each
+// particle gets its own absolute starting position (startX from 0..100% across
+// the screen) and falls down. driftX is the horizontal drift during the fall.
+const CONFETTI_COLORS = ['#1a3a2f', '#d4a855', '#7c9a82', '#f5f0e6', '#c45c3e', '#6b5b95']
+const CONFETTI_PARTICLES = Array.from({ length: 36 }, (_, i) => ({
   id: i,
-  delay: i * 0.05,
-  color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
-  x: Math.random() * 200 - 100,
-  rotation: Math.random() * 360
+  delay: (i % 12) * 0.04,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  startX: Math.random() * 100, // %
+  driftX: (Math.random() - 0.5) * 80, // px drift
+  rotation: Math.random() * 540 - 270,
+  shape: i % 3, // 0=rect, 1=circle, 2=long-rect
+  size: 6 + Math.random() * 6,
 }))
 
-// Confetti particle - receives pre-computed random values as props
-const Confetti = ({ delay, color, x, rotation }) => (
+// Confetti particle — falls from above the viewport, drifts and rotates
+const Confetti = ({ delay, color, startX, driftX, rotation, shape, size }) => (
   <motion.div
-    className="confetti"
-    style={{ backgroundColor: color }}
-    initial={{ y: -20, x: 0, opacity: 1, rotate: 0 }}
+    className={`confetti shape-${shape}`}
+    style={{
+      backgroundColor: color,
+      left: `${startX}%`,
+      width: shape === 2 ? size * 1.6 : size,
+      height: shape === 2 ? size * 0.5 : size,
+      borderRadius: shape === 1 ? '50%' : 2,
+    }}
+    initial={{ y: -40, x: 0, opacity: 1, rotate: 0 }}
     animate={{
-      y: 300,
-      x: x,
-      opacity: 0,
+      y: '110vh',
+      x: driftX,
+      opacity: [1, 1, 0.7, 0],
       rotate: rotation,
     }}
     transition={{
-      duration: 1.5,
-      delay: delay,
-      ease: 'easeOut',
+      duration: 2.4,
+      delay,
+      ease: [0.2, 0.6, 0.4, 1], // gentle gravity-ish curve
     }}
   />
 )
@@ -286,11 +297,18 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
               >
                 <motion.div
                   className="visited-icon-success"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                  initial={{ scale: 0, rotate: -10 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 18 }}
                 >
-                  🎉
+                  {/* Compass-rose / signpost — contextually right for the
+                      "would you recommend it" prompt (not celebration yet) */}
+                  <svg viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
+                    <circle cx="28" cy="28" r="24" fill="#1a3a2f" />
+                    <circle cx="28" cy="28" r="20" fill="none" stroke="#d4a855" strokeWidth="1" opacity="0.55" />
+                    <path d="M28 10 L31 26 L46 28 L31 30 L28 46 L25 30 L10 28 L25 26 Z" fill="#d4a855" />
+                    <circle cx="28" cy="28" r="2" fill="#fdfcf8" />
+                  </svg>
                 </motion.div>
 
                 <h3 className="visited-title">Would you recommend it?</h3>
@@ -525,18 +543,52 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
               <motion.div
                 key="success"
                 className="visited-content success"
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <div className="visited-mini-map" aria-hidden="true">
-                  <motion.span
-                    className="visited-mini-pin"
-                    initial={{ y: -40, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 18, delay: 0.15 }}
-                  />
-                </div>
+                {/* Stamped medallion: the plot pin lands inside the merit-
+                    badge ring. Scout-journal feel matches the brand. */}
+                <motion.div
+                  className="visited-success-medallion"
+                  initial={{ scale: 0, rotate: -25 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 280, damping: 16, delay: 0.05 }}
+                  aria-hidden="true"
+                >
+                  <svg viewBox="0 0 96 96" width="96" height="96">
+                    {/* 12-point serrated outer rim (matches PremiumBadge) */}
+                    <polygon
+                      points="48,2 66,12 84,9 90,28 95,48 90,68 84,87 66,84 48,94 30,84 12,87 6,68 1,48 6,28 12,9 30,12"
+                      fill="#d4a855"
+                    />
+                    {/* Forest field */}
+                    <circle cx="48" cy="48" r="34" fill="#1a3a2f" />
+                    <circle cx="48" cy="48" r="31" fill="none" stroke="#d4a855" strokeWidth="0.7" opacity="0.55" />
+                    {/* Map pin landing in the centre */}
+                    <motion.g
+                      initial={{ y: -30, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 320, damping: 14, delay: 0.32 }}
+                    >
+                      <path
+                        d="M48 30 c-7 0 -12 5.4 -12 12 0 8 12 22 12 22 s12 -14 12 -22 c0 -6.6 -5 -12 -12 -12 z"
+                        fill="#fdfcf8"
+                      />
+                      <circle cx="48" cy="42" r="4.5" fill="#d4a855" />
+                    </motion.g>
+                    {/* Subtle ground ellipse where the pin drops */}
+                    <motion.ellipse
+                      cx="48" cy="68" rx="8" ry="2"
+                      fill="#000"
+                      opacity="0.18"
+                      initial={{ scaleX: 0.4 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ delay: 0.5, duration: 0.25 }}
+                      style={{ transformOrigin: '48px 68px' }}
+                    />
+                  </svg>
+                </motion.div>
                 <h3 className="visited-title">+1 on your map</h3>
                 <p className="visited-subtitle">Keep exploring to unlock badges</p>
               </motion.div>

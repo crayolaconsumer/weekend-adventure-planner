@@ -220,21 +220,24 @@
   margin-bottom: var(--space-md);
 }
 
-/* Confetti */
+/* Confetti — full-viewport overlay so particles fall from off-screen-top
+   to below the fold, drifting through the modal as they go. Z-index sits
+   above the modal backdrop but below the modal itself so the celebration
+   reads as ambient. */
 .confetti-container {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   pointer-events: none;
+  overflow: hidden;
   z-index: 1600;
 }
 
 .confetti {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  top: 0;
+  /* size + shape are set inline per particle */
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -431,24 +434,18 @@
   border-color: var(--roam-forest);
 }
 
-/* Mini-map pin-drop animation in the success step (+1 on your map) */
-.visited-mini-map {
-  position: relative;
-  width: 120px;
-  height: 80px;
-  background: rgba(26, 58, 47, 0.06);
-  border-radius: 12px;
+/* Success-step medallion — replaces the old flat mini-map. Scout-merit-
+   badge styling matches PremiumBadge / CategoryIcon visual family. */
+.visited-success-medallion {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   margin: 0 auto 16px;
+  width: 96px;
+  height: 96px;
+  filter: drop-shadow(0 6px 14px rgba(26, 58, 47, 0.18));
 }
-.visited-mini-pin {
-  position: absolute;
-  left: 50%;
-  top: 40%;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #16a34a;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 16px rgba(22, 163, 74, 0.5);
-  display: block;
+.visited-success-medallion svg {
+  width: 96px;
+  height: 96px;
 }
