@@ -51,6 +51,15 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>ROAM uses your location to suggest nearby places to visit, show distances, and centre your offline pack download. Your location is never shared with other users.</string>
+	<!-- Apple's static analyzer flags an "always" location reference in
+	     a linked SDK (Capacitor Geolocation / RevenueCat / Social Login)
+	     even though ROAM itself only ever calls when-in-use. Providing
+	     this purpose string satisfies the requirement; the user will
+	     only see the "While Using" prompt because that's what our code
+	     requests at runtime. Wording mirrors the foreground key so the
+	     two read consistently if Apple ever changes which prompt fires. -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ROAM only uses your location while you're using the app, to suggest nearby places and show distances. We never track you in the background.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>ROAM uses the camera so you can take and share photos of places you visit.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

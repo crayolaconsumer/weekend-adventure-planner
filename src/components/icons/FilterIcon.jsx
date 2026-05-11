@@ -1,20 +1,14 @@
 /**
  * FilterIcon — stroked SVG icons for Discover filter extras + travel modes.
  *
- * Matches the inline-SVG style used throughout the app (CloseIcon,
- * RefreshIcon, etc.): 24x24 viewBox, stroke=currentColor, strokeWidth 2,
- * round line caps and joins. Inherits color from the surrounding text via
- * currentColor so a single icon set works on selected (white-on-color)
- * and unselected (dark-on-cream) filter chips without per-variant styling.
+ * Paths adapted from Lucide (ISC licensed, https://lucide.dev) which is
+ * the standard stroke-icon set used across the React ecosystem. They
+ * render cleanly at every size we use (18-28px) because each path is
+ * tuned for 24x24 with a 2px stroke.
  *
- * Replaces these emojis previously used inline in FilterModal:
- *   Filter extras: 💸 ♿ 🕐 📍 ⏰
- *   Travel modes:  🚶 🚇 🚗 🗺️ 🧭
- *
- * Why not use CategoryIcon? CategoryIcon is the heavy medallion treatment
- * reserved for the place-category buttons (food/nature/etc.) — a brand
- * statement. These toggle filters and mode chips want a lighter visual
- * weight so the categories remain the visual anchor of the screen.
+ * Inherits color via currentColor so a single icon set works on
+ * selected (white-on-color) and unselected (dark-on-cream) filter
+ * chips without per-variant styling.
  *
  * Usage:
  *   <FilterIcon name="free" />
@@ -23,109 +17,101 @@
 
 const DEFAULT_SIZE = 24
 
-// Each icon is a paths-only fragment that goes inside a <svg> with shared
-// styling. Keeping them as fragments (not full <svg> elements) lets us
-// apply a single stroke / size definition in the wrapper below.
-
 const ICONS = {
   // ─── Filter extras ──────────────────────────────────────────────
 
-  /* Free — pound symbol inside a circle (UK pricing context). */
+  /* Free — Lucide "pound-sterling" inside a circle. Clear UK pricing semantics. */
   free: (
     <>
-      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 12h6" />
+      <path d="M9 16V9.5a2.5 2.5 0 0 1 5 0" />
       <path d="M9 16h6" />
-      <path d="M14.5 8.5 a2.5 2.5 0 0 0 -4.5 1.5 v2 c0 1.5 -1 2 -1 2 h5" />
     </>
   ),
 
-  /* Accessible — wheelchair pictogram (head + body + wheel). */
+  /* Accessibility — Lucide "accessibility". Person in wheelchair pictogram. */
   accessibility: (
     <>
-      <circle cx="13" cy="4.5" r="1.5" />
-      <path d="M13 7 v6 h3 l2 4" />
-      <circle cx="11" cy="17" r="4" />
-      <path d="M11 13 v4" />
+      <circle cx="16" cy="4" r="1" />
+      <path d="m18 19 1-7-5.87.94" />
+      <path d="m5 8 3-3 5.5 3-2.21 3.1" />
+      <path d="M4.24 14.5a5 5 0 0 0 6.88 6" />
+      <path d="M13.76 17.5a5 5 0 0 0-6.88-6" />
     </>
   ),
 
-  /* Open now — clock with current-time hand. */
+  /* Open now — Lucide "clock". Outline circle + two hands. */
   'open-now': (
     <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7 v5 l3 2" />
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </>
   ),
 
-  /* Locals' picks — pin with a heart inside. */
+  /* Locals' picks — Lucide "map-pin-heart". Pin with heart inside. */
   'locals-picks': (
     <>
-      <path d="M12 21 c-4 -5 -7 -8 -7 -12 a7 7 0 0 1 14 0 c0 4 -3 7 -7 12 z" />
-      <path d="M9.5 10.5 a1.7 1.7 0 0 1 2.5 -1 1.7 1.7 0 0 1 2.5 1 c0 1.5 -2.5 3 -2.5 3 s -2.5 -1.5 -2.5 -3 z" fill="currentColor" stroke="none" />
+      <path d="M19.5 9.5C19.5 14 12 21.5 12 21.5S4.5 14 4.5 9.5a7.5 7.5 0 0 1 15 0Z" />
+      <path d="M11.95 12.5a2 2 0 0 1-1.36-3.45 2 2 0 0 1 2.74-.09 2 2 0 0 1 2.74.09 2 2 0 0 1-1.36 3.45" />
     </>
   ),
 
-  /* Off-peak — clock with a small "z" sleep mark in the corner. */
+  /* Off-peak — Lucide "moon". Crescent. Reads as "quieter time". */
   'off-peak': (
-    <>
-      <circle cx="11" cy="13" r="8" />
-      <path d="M11 8 v5 l3 2" />
-      <path d="M17 4 h4 l-4 4 h4" />
-    </>
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   ),
 
   // ─── Travel modes ───────────────────────────────────────────────
 
-  /* Walking — stick figure mid-stride. */
+  /* Walking — Lucide "person-standing" with one leg striding. */
   walking: (
     <>
-      <circle cx="13" cy="4.5" r="1.5" />
-      <path d="M11 8 l1.5 3 -2 5 1 5" />
-      <path d="M14.5 11 l3 1.5 1 4" />
-      <path d="M10 13 l-2 4" />
+      <circle cx="13" cy="4" r="2" />
+      <path d="M15 22v-4l-3-3 2-6 3 4 3 1" />
+      <path d="M12 9v3l-4 5 2 4" />
     </>
   ),
 
-  /* Transit — bus front (Capital Letter T was confusing, bus reads clearer). */
+  /* Transit — Lucide "bus-front". Friendly bus pictogram. */
   transit: (
     <>
-      <rect x="5" y="4" width="14" height="14" rx="2" />
-      <path d="M5 12 h14" />
-      <path d="M8 4 v-1" />
-      <path d="M16 4 v-1" />
-      <circle cx="8.5" cy="15" r="1" fill="currentColor" stroke="none" />
-      <circle cx="15.5" cy="15" r="1" fill="currentColor" stroke="none" />
-      <path d="M6 20 l1 -2" />
-      <path d="M18 20 l-1 -2" />
+      <path d="M4 6 2 7" />
+      <path d="M10 6h4" />
+      <path d="m22 7-2-1" />
+      <rect x="4" y="3" width="16" height="17" rx="2" />
+      <path d="M4 11h16" />
+      <path d="M8 15h.01" />
+      <path d="M16 15h.01" />
+      <path d="M6 19v2" />
+      <path d="M18 21v-2" />
     </>
   ),
 
-  /* Driving — car silhouette side view. */
+  /* Driving — Lucide "car". Side view with two wheels. */
   driving: (
     <>
-      <path d="M3 14 v3 a1 1 0 0 0 1 1 h2 a2 2 0 0 0 4 0 h4 a2 2 0 0 0 4 0 h2 a1 1 0 0 0 1 -1 v-3 l-2 -5 a1 1 0 0 0 -1 -1 h-12 a1 1 0 0 0 -1 1 z" />
-      <path d="M6 13 h12" />
+      <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
+      <circle cx="7" cy="17" r="2" />
+      <path d="M9 17h6" />
+      <circle cx="17" cy="17" r="2" />
     </>
   ),
 
-  /* Day Trip — folded map. */
+  /* Day Trip — Lucide "map". Folded map with three panels. */
   dayTrip: (
     <>
-      <path d="M3 6 l6 -2 6 2 6 -2 v14 l-6 2 -6 -2 -6 2 z" />
-      <path d="M9 4 v16" />
-      <path d="M15 6 v16" />
+      <path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" />
+      <path d="M15 5.764v15" />
+      <path d="M9 3.236v15" />
     </>
   ),
 
-  /* Explorer — compass with N pointer. */
+  /* Explorer — Lucide "compass". Outer ring + diamond needle. */
   explorer: (
     <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 3 v2" />
-      <path d="M12 19 v2" />
-      <path d="M3 12 h2" />
-      <path d="M19 12 h2" />
-      <path d="M12 8 l3 8 -3 -2 -3 2 z" fill="currentColor" stroke="none" />
+      <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+      <circle cx="12" cy="12" r="10" />
     </>
   ),
 }
