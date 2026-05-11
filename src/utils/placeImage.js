@@ -21,12 +21,11 @@
  *     a sync miss. Cached in localStorage with a TTL.
  */
 
-// v2 = dropped Commons geosearch fallback. Bumping the key force-clears
-// any localStorage entries that pointed at random nearby street photos
-// from the old geosearch behaviour, so the next request asks the server
-// fresh and either gets a real Wikipedia image or null (→ branded
-// category placeholder).
-const WIKI_CACHE_KEY = 'roam_wiki_image_cache_v2'
+// v3 = added 4 new tiers + smart per-category preference. Bumping the
+// key force-clears any localStorage entries cached with the v2 verdict
+// (which often returned null because geosearch was disabled outright),
+// so users see the upgraded results on next page load.
+const WIKI_CACHE_KEY = 'roam_wiki_image_cache_v3'
 const WIKI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 const memoryCache = new Map() // wiki key -> url | null
@@ -168,11 +167,19 @@ async function fetchEnhancedImage(place) {
   const wikidata = data.wikidata || data.tags?.wikidata || null
   const commons = data.wikimedia_commons || data.tags?.wikimedia_commons || null
   const website = data.website || data.tags?.website || data.tags?.['contact:website'] || null
+  // Name + category power the new Commons-by-name search and the
+  // category-gated geosearch tier. Category can live on the place object
+  // as either a string (key) or an object ({ key, label }).
+  const name = typeof data.name === 'string' ? data.name : null
+  const rawCategory = data.category ?? place?.category
+  const category = typeof rawCategory === 'string'
+    ? rawCategory
+    : (rawCategory && typeof rawCategory === 'object' ? rawCategory.key : null)
   const lat = typeof data.lat === 'number' ? data.lat : null
   const lng = typeof data.lng === 'number' ? data.lng :
               typeof data.lon === 'number' ? data.lon : null
 
-  if (!wiki && !wikidata && !commons && !website && (lat == null || lng == null)) return null
+  if (!wiki && !wikidata && !commons && !website && !name && (lat == null || lng == null)) return null
 
   // Build a stable cache key for the disk/memory caches.
   // The website value is condensed to its hostname so the key stays bounded.
@@ -182,7 +189,7 @@ async function fetchEnhancedImage(place) {
       websiteHost = new URL(website.startsWith('http') ? website : `https://${website}`).hostname
     } catch { websiteHost = '' }
   }
-  const key = `image-resolve:v2:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${lat ?? ''},${lng ?? ''}`
+  const key = `image-resolve:v3:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${name || ''}|${category || ''}|${lat ?? ''},${lng ?? ''}`
   const memHit = memoryCache.get(key)
   if (memHit !== undefined) return memHit
   const diskHit = readDiskEntry(key)
@@ -196,6 +203,8 @@ async function fetchEnhancedImage(place) {
   if (wikidata) params.set('wikidata', wikidata)
   if (commons) params.set('commons', commons)
   if (website) params.set('website', website)
+  if (name) params.set('name', name)
+  if (category) params.set('category', category)
   if (lat != null) params.set('lat', String(lat))
   if (lng != null) params.set('lng', String(lng))
 

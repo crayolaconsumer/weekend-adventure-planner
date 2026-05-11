@@ -45,8 +45,11 @@ const POLITE_HEADERS = {
 const UPSTREAM_TIMEOUT_MS = 4000
 
 // Bump v when behaviour changes so existing memory/edge caches don't
-// keep serving the old verdict. v2 = dropped Commons geosearch.
-const CACHE_VERSION = 'v2'
+// keep serving the old verdict.
+//   v2 = dropped Commons geosearch.
+//   v3 = added category-gated geosearch + Commons name-search + venue
+//        website og:image, reshuffled preference order by category.
+const CACHE_VERSION = 'v3'
 
 function cacheKey({ wikipedia, wikidata, commons, website, lat, lng }) {
   // Round coords to 4 decimals (~11m) so nearby calls hit the same cache.
@@ -235,25 +238,92 @@ async function tryWebsiteOgImage(website) {
   } catch { return null }
 }
 
-async function tryCommonsGeo(lat, lng) {
+/**
+ * Categories where Commons geosearch reliably returns relevant photos.
+ * Outdoor landmarks tend to be photographed BY name (a Commons file
+ * geotagged near a castle is usually a photo of the castle); private
+ * venues (restaurants, shops, pubs) get random street-scene noise
+ * because they're in built-up areas with unrelated geotagged content.
+ */
+const GEOSEARCH_OK_CATEGORIES = new Set([
+  'nature',
+  'historic',
+  'culture',
+  'entertainment',
+  'active'
+])
+
+/**
+ * Drop result titles that look like generic street/road/building shots —
+ * these are the false-positives that prompted the "absolute garbage"
+ * complaint. Title text in Commons follows the filename convention so
+ * keyword matching is reliable.
+ */
+const GEOSEARCH_TITLE_DENYLIST = /\b(road|street|junction|roundabout|crossing|footpath|pavement|sidewalk|signpost|sign\b|highway|motorway|verge|bus stop|car park|carpark)\b/i
+
+async function tryCommonsGeo(lat, lng, category) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
+  // Category gate — running geosearch for restaurants/shops produced
+  // unrelated nearby street scenes. Only allow outdoor / landmark
+  // categories where geotagged Commons photos are usually OF the place.
+  if (!GEOSEARCH_OK_CATEGORIES.has(category)) return null
   try {
-    // gsradius=300 (metres) — small enough that a hit is likely the same place,
-    // big enough to actually find something for places photographed nearby.
-    // gsnamespace=6 = file pages only.
-    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}|${lng}&gsradius=300&gsnamespace=6&gslimit=5&format=json&origin=*`
+    // gsradius=120m — tighter than the original 300m so we're really
+    // "on top of" the feature. Anything farther is too likely to be of
+    // something else nearby (especially in cities).
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}|${lng}&gsradius=120&gsnamespace=6&gslimit=10&format=json&origin=*`
     const res = await fetchWithTimeout(url, { headers: POLITE_HEADERS })
     if (!res.ok) return null
     const data = await res.json()
     const items = data?.query?.geosearch || []
-    const first = items[0]
+    // Filter results by title — skip obvious "road sign at corner of X"
+    // type photos that aren't of any named feature.
+    const filtered = items.filter(it => it?.title && !GEOSEARCH_TITLE_DENYLIST.test(it.title))
+    const first = filtered[0]
     if (!first?.title) return null
-    // Strip the File: prefix to get the bare filename
     const filename = first.title.replace(/^File:/, '')
     return {
       url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=800`,
       source: 'commons-geo',
+      attribution: {
+        name: filename,
+        url: `https://commons.wikimedia.org/wiki/${encodeURIComponent(first.title)}`,
+        source: 'Wikimedia Commons'
+      }
+    }
+  } catch { return null }
+}
+
+/**
+ * Find a Commons file whose title contains the place's name. Higher
+ * signal than geosearch because the title is metadata describing the
+ * subject, not just the location the camera was at. Hit rate is low
+ * (only named landmarks get individual Commons files) but when it
+ * hits, the file is reliably of the place.
+ */
+async function tryCommonsNameSearch(name) {
+  if (!name || typeof name !== 'string') return null
+  const trimmed = name.trim()
+  if (trimmed.length < 4) return null // too short to be specific
+  try {
+    // srsearch with srnamespace=6 (file pages), prefer recent + relevant
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`intitle:"${trimmed}"`)}&srnamespace=6&srlimit=5&format=json&origin=*`
+    const res = await fetchWithTimeout(url, { headers: POLITE_HEADERS })
+    if (!res.ok) return null
+    const data = await res.json()
+    const items = data?.query?.search || []
+    // intitle: search already requires the name to be in the title.
+    // Pick the first file with a recognisable image extension so we
+    // don't return PDFs / SVGs.
+    const first = items.find(it =>
+      it?.title && /\.(jpe?g|png|webp|gif)$/i.test(it.title)
+    )
+    if (!first?.title) return null
+    const filename = first.title.replace(/^File:/, '')
+    return {
+      url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(filename)}?width=800`,
+      source: 'commons-name',
       attribution: {
         name: filename,
         url: `https://commons.wikimedia.org/wiki/${encodeURIComponent(first.title)}`,
@@ -277,6 +347,11 @@ async function handler(req, res) {
   const wikidata = req.query.wikidata && typeof req.query.wikidata === 'string' ? req.query.wikidata.slice(0, 30) : null
   const commons = req.query.commons && typeof req.query.commons === 'string' ? req.query.commons.slice(0, 250) : null
   const website = req.query.website && typeof req.query.website === 'string' ? req.query.website.slice(0, 500) : null
+  // name + category drive the new name-search + category-gated geo tiers.
+  // Limit name length to stop pathological queries; category to known keys.
+  const name = req.query.name && typeof req.query.name === 'string' ? req.query.name.slice(0, 120) : null
+  const categoryRaw = req.query.category && typeof req.query.category === 'string' ? req.query.category.toLowerCase().slice(0, 20) : null
+  const category = categoryRaw && /^[a-z]+$/.test(categoryRaw) ? categoryRaw : null
   const latRaw = req.query.lat
   const lngRaw = req.query.lng
   const lat = latRaw != null && latRaw !== '' ? parseFloat(latRaw) : null
@@ -303,35 +378,43 @@ async function handler(req, res) {
     return res.status(200).json(memHit.value)
   }
 
-  // Resolution chain in preference order:
-  //   1. OSM `wikimedia_commons` tag — mapper-vetted specific Commons file
-  //   2. Wikipedia summary thumbnail (via wikipedia tag)
-  //   3. Wikidata P18 (via wikidata QID, points to a Commons file)
-  //   4. Venue website og:image — the venue's own self-selected photo,
-  //      huge untapped source for restaurants/cafes/shops that don't
-  //      have a Wikipedia article but DO have a website. Slowest of the
-  //      four (HTML fetch + parse) so it runs in parallel with the others.
+  // ─── Six-source parallel race ─────────────────────────────────
+  // Run every reasonable image source in parallel. Each returns either
+  // a hit ({ url, source, attribution }) or null. We then pick by
+  // category-aware preference order — restaurants want venue-website
+  // og:image first, landmarks want Wikipedia first, etc.
   //
-  // Commons geosearch (was tier 3) is intentionally NOT in the race —
-  // its results are tagged by photo LOCATION, not SUBJECT, so they
-  // returned random nearby street scenes. tryCommonsGeo() kept in the
-  // file as dead code in case a future filter makes it safe to re-enable.
-  // Reference tryCommonsGeo so the dead-code preserved-for-future tier
-  // doesn't become an unused-function lint warning. Self-documenting.
-  void tryCommonsGeo
-  const [cm, wp, wd, og] = await Promise.all([
+  // All sources are bounded by UPSTREAM_TIMEOUT_MS so a slow tier
+  // doesn't gate response latency. Edge cache + memory cache hides
+  // the cost on the second hit.
+  const [cm, wp, wd, og, geo, cn] = await Promise.all([
     tryCommonsFile(commons),
     tryWikipedia(wikipedia),
     tryWikidata(wikidata),
-    tryWebsiteOgImage(website)
+    tryWebsiteOgImage(website),
+    validCoords ? tryCommonsGeo(lat, lng, category) : Promise.resolve(null),
+    tryCommonsNameSearch(name)
   ])
 
-  // Preference order: mapper-declared Commons file → Wikipedia → Wikidata → website og.
-  // Wikipedia ranks above the website og because for landmarks (museum,
-  // castle, park) the Wikipedia thumb is curated; the venue website
-  // tier shines for unnamed restaurants/cafes/shops which wouldn't
-  // have wp/wd anyway.
-  const value = cm || wp || wd || og || { url: null, source: null, attribution: null }
+  // ─── Pick the best result ─────────────────────────────────────
+  // Different categories want different sources:
+  //   - Landmarks (historic, culture, nature, entertainment, active):
+  //     curated databases (Wikipedia / Wikidata / Commons by name)
+  //     beat venue website, which is often a homepage banner rather
+  //     than a photo of the venue.
+  //   - Venues (food, nightlife, shopping, unique): the venue's own
+  //     website OG image is usually the best photo because the venue
+  //     picks it deliberately. Wikipedia rarely has a restaurant;
+  //     Commons by-name usually misses.
+  // Mapper-vetted sources (cm = OSM-declared Commons file) always
+  // come first in both orders — they're the highest-curated signal.
+  const isLandmarkLike = category === 'historic' || category === 'culture' ||
+                         category === 'nature' || category === 'entertainment' ||
+                         category === 'active'
+
+  const value = isLandmarkLike
+    ? (cm || wp || wd || cn || geo || og || { url: null, source: null, attribution: null })
+    : (cm || og || wp || wd || cn || geo || { url: null, source: null, attribution: null })
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't
