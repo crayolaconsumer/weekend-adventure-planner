@@ -189,11 +189,16 @@ export default function UnifiedProfile() {
     refresh()
   }, [refresh])
 
-  // Calculate level (for Journey tab)
+  // Calculate level (for Journey tab). Curve: level N requires
+  // (N-1)² activity. So 0→L1, 1→L2, 4→L3, 9→L4, 16→L5, ...
+  // The 0% progress immediately after leveling up is intentional —
+  // it's progress toward the NEXT level, which starts at zero.
   const totalActivity = (localStats.timesWentOut || 0) + (localStats.boredomBusts || 0) + (localStats.adventuresCreated || 0)
   const level = Math.floor(Math.sqrt(totalActivity)) + 1
+  const currentLevelFloor = Math.pow(level - 1, 2)
   const nextLevelRequirement = Math.pow(level, 2)
-  const levelProgress = ((totalActivity - Math.pow(level - 1, 2)) / (nextLevelRequirement - Math.pow(level - 1, 2))) * 100
+  const denominator = Math.max(nextLevelRequirement - currentLevelFloor, 1) // never 0
+  const levelProgress = ((totalActivity - currentLevelFloor) / denominator) * 100
 
   // Get earned badges
   const earnedBadges = BADGES.filter(badge => badge.requirement(localStats))
@@ -315,8 +320,11 @@ export default function UnifiedProfile() {
           </h2>
           <p className="unified-profile-username">@{user.username}</p>
 
-          {/* Level badge (public) */}
-          {isOwnProfile && level > 1 && (
+          {/* Level badge (public). Show on own profile from Level 1
+              onwards so new users immediately see their starting rank,
+              and on others' profiles too — a user's level is public
+              information, no reason to hide it. */}
+          {level >= 1 && (
             <span className="unified-profile-header-level">
               Level {level} Explorer
             </span>
@@ -704,7 +712,13 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
       {/* Stats Grid */}
       <div className="unified-profile-stats-grid">
         <div className="unified-profile-stat-card">
-          <span className="unified-profile-stat-card-value">{stats.timesWentOut || 0}</span>
+          {/* Use the same source as the header "Visited" counter
+              (server stats + localStorage fallback). Previously this
+              card showed stats.timesWentOut — a separate counter that
+              only ticks when the user taps "Let's Go" on Discover —
+              while the header showed actual visited count, so the two
+              numbers contradicted each other on the same screen. */}
+          <span className="unified-profile-stat-card-value">{stats.placesVisited || visitedPlaces.length || 0}</span>
           <span className="unified-profile-stat-card-label">Places Visited</span>
         </div>
         <div className="unified-profile-stat-card">

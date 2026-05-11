@@ -6,7 +6,7 @@
  * - Logged-in users: API (MySQL)
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 const STORAGE_KEY = 'roam_badges'
@@ -27,7 +27,6 @@ export function useUserBadges() {
   const { isAuthenticated, loading: authLoading } = useAuth()
   const [badges, setBadges] = useState(loadLocalBadges)
   const [loading, setLoading] = useState(true)
-  const syncedRef = useRef(false)
 
   // Load badges
   const loadBadges = useCallback(async () => {
@@ -60,39 +59,12 @@ export function useUserBadges() {
     }
   }, [isAuthenticated])
 
-  // Sync local badges to API on login
-  useEffect(() => {
-    if (authLoading || !isAuthenticated || syncedRef.current) return
-
-    const syncLocalBadges = async () => {
-      const token = getAuthToken()
-      if (!token) return
-
-      const local = loadLocalBadges()
-      if (local.length === 0) return
-
-      try {
-        for (const badge of local) {
-          if (badge.badgeId) {
-            await fetch('/api/users/badges', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              credentials: 'include',
-              body: JSON.stringify({ badgeId: badge.badgeId })
-            }).catch(() => {})
-          }
-        }
-        syncedRef.current = true
-      } catch (err) {
-        console.error('Error syncing badges:', err)
-      }
-    }
-
-    syncLocalBadges()
-  }, [isAuthenticated, authLoading])
+  // Note: there's no client → server badge sync on login. Server
+  // badges are awarded server-side from real events (visit POST,
+  // contribution POST, follow POST) — never from client-supplied
+  // badge IDs (a self-award endpoint would let any user fake any
+  // badge). The previous sync loop POSTed to /api/users/badges
+  // which only handles GET → silent 405. Removed.
 
   useEffect(() => {
     if (authLoading) return
@@ -121,26 +93,13 @@ export function useUserBadges() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(local))
     }
 
-    // Sync to API if authenticated
-    if (isAuthenticated) {
-      try {
-        const token = getAuthToken()
-        await fetch('/api/users/badges', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          credentials: 'include',
-          body: JSON.stringify({ badgeId })
-        })
-      } catch (err) {
-        console.error('Error awarding badge:', err)
-      }
-    }
-
+    // Server-side persistence happens through the proper paths
+    // (visit POST → awardBadge('visits_10'), contribution POST →
+    // awardBadge('contributor_10'), etc.). Client-only awards stay
+    // in localStorage; they'll get reconciled on next GET if the
+    // server also awarded the same ID.
     return { success: true }
-  }, [isAuthenticated, badges])
+  }, [badges])
 
   // Check if a badge is earned
   const hasBadge = useCallback((badgeId) => {

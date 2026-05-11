@@ -251,9 +251,15 @@ async function handlePost(req, res) {
     }
   }
 
-  // Award contribution badges (non-blocking)
+  // Award contribution badges (non-blocking). Exclude 'rejected' so a
+  // spammer can't earn contributor_10 by submitting 10 garbage tips
+  // that all get bounced by moderation. 'pending' contributions still
+  // count toward the badge because we don't want to wait for moderator
+  // action to congratulate good-faith contributors.
   const contributionCount = await queryOne(
-    'SELECT COUNT(*) as count FROM contributions WHERE user_id = ?',
+    `SELECT COUNT(*) as count
+     FROM contributions
+     WHERE user_id = ? AND status <> 'rejected'`,
     [user.id]
   )
   const count = contributionCount?.count || 1

@@ -5,7 +5,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, update, transaction } from '../lib/db.js'
+import { query, queryOne, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { awardBadge } from './badges.js'
 import { withCors } from '../lib/cors.js'
@@ -162,12 +162,27 @@ async function handleDelete(req, res, user) {
     return res.status(400).json({ error: 'placeId query parameter is required' })
   }
 
-  const affected = await update(
-    'DELETE FROM visited_places WHERE user_id = ? AND place_id = ?',
-    [user.id, placeId]
-  )
+  // Delete the visit + decrement the stats counter atomically so the
+  // Journey tab's "Places Visited" number stays accurate after un-visiting.
+  // GREATEST(...,0) clamps to zero in case of any historical drift.
+  let deleted = false
+  await transaction(async (conn) => {
+    const [result] = await conn.query(
+      'DELETE FROM visited_places WHERE user_id = ? AND place_id = ?',
+      [user.id, placeId]
+    )
+    deleted = result.affectedRows > 0
+    if (deleted) {
+      await conn.query(
+        `UPDATE user_stats
+         SET places_visited = GREATEST(COALESCE(places_visited, 0) - 1, 0)
+         WHERE user_id = ?`,
+        [user.id]
+      )
+    }
+  })
 
-  return res.status(200).json({ success: true, deleted: affected > 0 })
+  return res.status(200).json({ success: true, deleted })
 }
 
 export default withCors(handler)
