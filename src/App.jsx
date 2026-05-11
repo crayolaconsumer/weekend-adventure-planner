@@ -18,6 +18,8 @@ const Pricing = lazy(() => import('./pages/Pricing'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const Terms = lazy(() => import('./pages/Terms'))
 const AdminReports = lazy(() => import('./pages/AdminReports'))
+import NotFound from './pages/NotFound'
+import AdminRoute from './components/AdminRoute'
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -81,29 +83,6 @@ const CalendarIcon = () => (
   </svg>
 )
 
-// 404 Not Found component (M17)
-const NotFound = () => (
-  <div style={{
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '60vh',
-    padding: '2rem',
-    textAlign: 'center'
-  }}>
-    <h1 style={{ fontSize: '4rem', margin: '0 0 1rem', opacity: 0.3 }}>404</h1>
-    <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem', opacity: 0.7 }}>Page not found</p>
-    <a href="/" style={{
-      padding: '0.75rem 1.5rem',
-      background: 'var(--color-primary, #007AFF)',
-      color: 'white',
-      borderRadius: '8px',
-      textDecoration: 'none',
-      fontWeight: '500'
-    }}>Back to Discover</a>
-  </div>
-)
 
 const LocationIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -430,7 +409,7 @@ function App() {
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/terms" element={<Terms />} />
-                      <Route path="/admin/reports" element={<AdminReports />} />
+                      <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>

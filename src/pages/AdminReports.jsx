@@ -12,8 +12,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../hooks/useToast'
 import './AdminReports.css'
 
@@ -38,7 +36,6 @@ function authHeaders() {
 }
 
 export default function AdminReports() {
-  const { user, loading: authLoading } = useAuth()
   const toast = useToast()
   const [status, setStatus] = useState('open')
   const [severity, setSeverity] = useState(null)
@@ -47,10 +44,7 @@ export default function AdminReports() {
   const [loading, setLoading] = useState(false)
   const [acting, setActing] = useState(null)
 
-  const isAdmin = !!user?.isAdmin
-
   const fetchReports = useCallback(async () => {
-    if (!isAdmin) return
     setLoading(true)
     try {
       const params = new URLSearchParams({ status, limit: '50' })
@@ -68,7 +62,7 @@ export default function AdminReports() {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin, status, severity, toast])
+  }, [status, severity, toast])
 
   useEffect(() => { fetchReports() }, [fetchReports])
 
@@ -82,7 +76,12 @@ export default function AdminReports() {
         body: JSON.stringify({ reportId, decision, actionTaken }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      if (!res.ok) {
+        if (data.code === 'STALE_SESSION') {
+          throw new Error('Please sign in again before taking that action.')
+        }
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
       toast.success(`Report #${reportId} → ${data.status}`)
       setReports(prev => prev.filter(r => r.id !== reportId))
     } catch (err) {
@@ -90,18 +89,6 @@ export default function AdminReports() {
     } finally {
       setActing(null)
     }
-  }
-
-  if (authLoading) return <div className="admin-reports-loading">Loading…</div>
-
-  if (!isAdmin) {
-    return (
-      <div className="admin-reports-404">
-        <h1>404</h1>
-        <p>Page not found.</p>
-        <Link to="/">Back to ROAM</Link>
-      </div>
-    )
   }
 
   return (

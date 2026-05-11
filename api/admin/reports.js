@@ -1,40 +1,36 @@
 /**
  * /api/admin/reports
  *
- * Admin queue for content reports. Gated on `users.is_admin = TRUE` —
- * any non-admin caller (including unauthenticated requests) receives
- * 403/401 with no body distinction so we don't reveal the route's
- * existence by error-shape probing.
+ * Admin queue for content reports. Designed to be effectively invisible
+ * to non-admins: every reject path returns 404 with the same body, the
+ * lazy-loaded admin chunk never ships for non-admin sessions (route
+ * guard at the App.jsx level), and the URL changes when a non-admin
+ * tries to navigate here so the page looks identical to any other 404.
+ *
+ * Threat model & mitigations
+ *   T1  Route discovery       → 404 (not 401/403) for non-admins, no
+ *                                error-shape differences
+ *   T2  Rate-window probing   → IP-keyed rate limit runs BEFORE auth so
+ *                                anonymous attackers can't burn quota
+ *   T3  CSRF / cross-origin   → Origin/Referer must be in our allowlist
+ *                                AND withCors restricts CORS responses
+ *   T4  Privilege escalation  → can't ban admins, can't ban self, can't
+ *                                act on the report you filed
+ *   T5  Compromised admin JWT → fresh-login required (≤30 min) for any
+ *                                destructive action (hide_content,
+ *                                ban_user). Mirrors delete-account.
+ *   T6  Forensics             → every admin action recorded in
+ *                                admin_actions table with IP + UA
  *
  * Methods
- *   GET  /api/admin/reports
- *     Query: ?status=open|reviewed|dismissed|actioned (default: open)
- *            ?severity=critical|high|medium|low (filter)
- *            ?limit=20 (max 100)
- *            ?offset=0
- *     Returns: { reports: [...], total, hasMore }
- *
- *   POST /api/admin/reports
- *     Body: { reportId, decision: 'dismiss'|'review'|'action',
- *             actionTaken?: 'hide_content'|'ban_user'|'none' }
- *     - Updates content_reports.status + reviewed_at + reviewed_by
- *     - Optional actionTaken cascades:
- *         hide_content → contributions.status='rejected' (only for
- *                        entity_type in {contribution, photo})
- *         ban_user     → users.is_banned=TRUE on the reported user
- *                        (column auto-created on first ban — see below)
- *
- * Security notes
- *   - JWT auth (same as the rest of the app)
- *   - Admin check fires BEFORE rate-limit so non-admins can't probe
- *     for the route by exhausting the rate window
- *   - CORS via withCors() — only same-origin + go-roam.uk
- *   - Audit trail: reviewed_by + reviewed_at populated on every decision
+ *   GET  → paginated queue, filterable by status + severity
+ *   POST → record a decision (dismiss/review/action) + optional cascade
+ *           (hide_content | ban_user | none)
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, update } from '../lib/db.js'
-import { withCors } from '../lib/cors.js'
+import { query, queryOne, update, insert } from '../lib/db.js'
+import { withCors, ALLOWED_ORIGINS } from '../lib/cors.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 
 const VALID_STATUSES = new Set(['open', 'reviewed', 'dismissed', 'actioned'])
@@ -42,19 +38,55 @@ const VALID_SEVERITIES = new Set(['critical', 'high', 'medium', 'low'])
 const VALID_DECISIONS = new Set(['dismiss', 'review', 'action'])
 const VALID_ACTIONS = new Set(['hide_content', 'ban_user', 'none'])
 
-async function handler(req, res) {
-  // Auth gate first — must happen before rate limit, otherwise non-admins
-  // can detect the endpoint by triggering a 429 with no auth.
-  const user = await getUserFromRequest(req)
-  if (!user) return res.status(401).json({ error: 'Not authenticated' })
-  if (!user.is_admin) return res.status(403).json({ error: 'Forbidden' })
+// Uniform "this route does not exist" response. Used for EVERY reject
+// path — anonymous, non-admin, banned admin, bad origin, rate-limited.
+// The body shape is intentionally identical to a Vercel-default 404.
+const NOT_FOUND = (res) => res.status(404).json({ error: 'Not found' })
 
-  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, `admin:${user.id}`)
-  if (rateLimitError) return res.status(rateLimitError.status).json(rateLimitError)
+// Pull a stable client IP. Vercel sets x-forwarded-for; first hop is
+// the real client. Fall back to socket address for local dev.
+function clientIp(req) {
+  const fwd = req.headers?.['x-forwarded-for']
+  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim()
+  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown'
+}
+
+function isOriginAllowed(req) {
+  // Browser-issued requests carry Origin; native (Capacitor) and same-
+  // origin server fetches may set Referer instead. Treat both as
+  // assertions about where the request came from. No header at all =
+  // unknown caller = reject.
+  const origin = req.headers?.origin
+  const referer = req.headers?.referer
+  const candidate = origin || referer
+  if (!candidate) return false
+
+  for (const allowed of ALLOWED_ORIGINS) {
+    if (candidate === allowed || candidate.startsWith(allowed + '/')) return true
+  }
+  return false
+}
+
+async function handler(req, res) {
+  // IP-keyed rate limit BEFORE auth — stops anonymous attackers from
+  // burning admin endpoint compute looking for timing oracles or
+  // probing for route existence.
+  const ipKey = clientIp(req)
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, `admin-ip:${ipKey}`)
+  if (rateLimitError) return NOT_FOUND(res)
+
+  // Origin/Referer gate. CSRF defence + extra layer of "this should
+  // only ever be called from our own frontend".
+  if (!isOriginAllowed(req)) return NOT_FOUND(res)
+
+  // Auth + admin role. Banned admins also fail here because
+  // getUserFromRequest returns null when is_banned.
+  const user = await getUserFromRequest(req)
+  if (!user || !user.is_admin) return NOT_FOUND(res)
 
   if (req.method === 'GET') return handleList(req, res)
-  if (req.method === 'POST') return handleAction(req, res, user)
-  return res.status(405).json({ error: 'Method not allowed' })
+  if (req.method === 'POST') return handleAction(req, res, user, ipKey)
+  return NOT_FOUND(res)
 }
 
 async function handleList(req, res) {
@@ -71,9 +103,6 @@ async function handleList(req, res) {
   }
   const whereClause = where.join(' AND ')
 
-  // ai_severity is treated as critical>high>medium>low for ordering. We
-  // hand FIELD() an explicit list rather than ENUM ordering so the
-  // semantics are obvious in code review.
   const reports = await query(
     `SELECT
        r.id, r.entity_type, r.entity_id, r.reported_user_id, r.reason, r.details,
@@ -81,6 +110,8 @@ async function handleList(req, res) {
        r.created_at, r.reviewed_at, r.reviewed_by,
        reporter.username AS reporter_username,
        reported.username AS reported_username,
+       reported.is_admin  AS reported_is_admin,
+       reported.is_banned AS reported_is_banned,
        c.content AS content_text,
        c.contribution_type AS content_type,
        c.status AS content_status
@@ -111,34 +142,46 @@ async function handleList(req, res) {
   })
 }
 
-async function handleAction(req, res, user) {
+async function handleAction(req, res, user, ipKey) {
   const { reportId, decision, actionTaken = 'none' } = req.body || {}
 
-  if (!Number.isInteger(reportId) || reportId <= 0) {
-    return res.status(400).json({ error: 'Invalid reportId' })
-  }
-  if (!VALID_DECISIONS.has(decision)) {
-    return res.status(400).json({ error: 'Invalid decision' })
-  }
-  if (!VALID_ACTIONS.has(actionTaken)) {
-    return res.status(400).json({ error: 'Invalid actionTaken' })
-  }
+  if (!Number.isInteger(reportId) || reportId <= 0) return NOT_FOUND(res)
+  if (!VALID_DECISIONS.has(decision)) return NOT_FOUND(res)
+  if (!VALID_ACTIONS.has(actionTaken)) return NOT_FOUND(res)
 
   const report = await queryOne(
-    'SELECT id, entity_type, entity_id, reported_user_id FROM content_reports WHERE id = ?',
+    'SELECT id, entity_type, entity_id, reporter_id, reported_user_id FROM content_reports WHERE id = ?',
     [reportId]
   )
-  if (!report) return res.status(404).json({ error: 'Report not found' })
+  if (!report) return NOT_FOUND(res)
 
-  // Map decision → final status. 'review' just stamps it as triaged
-  // without prescribing an outcome (use when you want a record of "I
-  // looked, no decision yet").
+  // Refuse to let an admin action a report they themselves filed —
+  // separation of duties.
+  if (report.reporter_id && report.reporter_id === user.id) {
+    return res.status(403).json({ error: 'You cannot action your own report. Ask another admin.' })
+  }
+
+  // Destructive actions require a fresh login. Mirrors the delete-
+  // account flow; cuts the window during which a stolen admin JWT can
+  // do real damage.
+  if (actionTaken === 'hide_content' || actionTaken === 'ban_user') {
+    const fresh = await queryOne('SELECT last_login_at FROM users WHERE id = ?', [user.id])
+    const loginAge = fresh?.last_login_at
+      ? (Date.now() - new Date(fresh.last_login_at).getTime()) / 60000
+      : Infinity
+    if (loginAge > 30) {
+      return res.status(401).json({
+        error: 'Please sign in again before taking this action',
+        code: 'STALE_SESSION',
+      })
+    }
+  }
+
   const newStatus =
     decision === 'dismiss' ? 'dismissed' :
     decision === 'action' ? 'actioned' :
     'reviewed'
 
-  // Apply cascading effect on entity.
   if (actionTaken === 'hide_content') {
     if (report.entity_type !== 'contribution' && report.entity_type !== 'photo') {
       return res.status(400).json({ error: 'hide_content only valid for contribution/photo reports' })
@@ -151,16 +194,18 @@ async function handleAction(req, res, user) {
     if (!report.reported_user_id) {
       return res.status(400).json({ error: 'No reported user to ban' })
     }
-    // Lazy-create the is_banned column on first ban — keeps the
-    // migration cost zero until you actually need it. ALTER IF NOT
-    // EXISTS isn't standard MySQL, so swallow the "duplicate column"
-    // error if the column already exists.
-    try {
-      await update(`ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT FALSE`)
-    } catch (err) {
-      if (!String(err?.message || '').includes('Duplicate column')) {
-        console.error('is_banned column create failed:', err)
-      }
+    if (report.reported_user_id === user.id) {
+      return res.status(400).json({ error: 'You cannot ban yourself.' })
+    }
+    // Don't let an admin ban another admin — accidental or hostile
+    // takeover prevention. Demotion has to happen via direct SQL.
+    const target = await queryOne(
+      'SELECT id, is_admin FROM users WHERE id = ?',
+      [report.reported_user_id]
+    )
+    if (!target) return res.status(404).json({ error: 'Target user not found' })
+    if (target.is_admin) {
+      return res.status(403).json({ error: 'Cannot ban another admin. Demote first via SQL.' })
     }
     await update(
       `UPDATE users SET is_banned = TRUE WHERE id = ?`,
@@ -174,6 +219,31 @@ async function handleAction(req, res, user) {
       WHERE id = ?`,
     [newStatus, actionTaken === 'none' ? null : actionTaken, user.id, reportId]
   )
+
+  // Append-only audit log. Captures the actor, target, action, and
+  // request fingerprint for forensics.
+  try {
+    await insert(
+      `INSERT INTO admin_actions
+        (admin_id, action, target_type, target_id, report_id, ip, user_agent, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        `report.${decision}${actionTaken !== 'none' ? `.${actionTaken}` : ''}`,
+        report.entity_type,
+        String(report.entity_id),
+        reportId,
+        ipKey,
+        (req.headers?.['user-agent'] || '').slice(0, 500),
+        JSON.stringify({ reportedUserId: report.reported_user_id }),
+      ]
+    )
+  } catch (err) {
+    // Audit failure should NOT block the operation, but it MUST be
+    // visible — log loudly. Operator can reconcile via content_reports
+    // reviewed_by/reviewed_at if audit is ever lost.
+    console.error('admin audit log failed:', err)
+  }
 
   return res.status(200).json({ success: true, status: newStatus, actionTaken })
 }
