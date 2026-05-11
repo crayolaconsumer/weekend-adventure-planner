@@ -13,14 +13,18 @@
   background: var(--roam-forest);
   touch-action: none;
   cursor: grab;
-  /* will-change: transform was here — REMOVED. On iOS Safari WKWebView,
-     will-change: transform combined with aspect-ratio on the same
-     element causes the compositor to drop transform updates from
-     Framer Motion mid-drag (motion values still update opacity-using
-     descendants, just not the element itself). Removing will-change
-     and forcing translate3d via transformTemplate restores reliable
-     transform application across iOS Safari, iOS Chrome, and the
-     simulator. */
+  /* MUST keep will-change: transform. On iOS Safari WKWebView, style
+     writes from pointer-event handlers (touchmove → x.set(mx)) are
+     coalesced or dropped unless the target already lives on its own
+     compositor layer. will-change pre-promotes the element to a
+     layer at mount time so per-frame transform updates from the drag
+     handler land immediately, not at the next compositor flush after
+     the gesture ends. Yesterday's working build had this; removing
+     it was the regression that killed the swipe animation on real
+     iPhones. translate3d initial value belt-and-braces forces 3D
+     compositing in case will-change alone isn't enough on older iOS. */
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
   user-select: none;
 
   /* Elevated card shadow */
