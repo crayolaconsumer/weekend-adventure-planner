@@ -2,17 +2,6 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate, useReducedMotion } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import PlaceImage from './PlaceImage'
-import SwipeDebugOverlay from './SwipeDebugOverlay'
-
-// One-time check at module load: are we in swipe-debug mode?
-// Activate with `?debug=1` or `?debug=swipe` on any URL.
-const SWIPE_DEBUG = (() => {
-  if (typeof window === 'undefined') return false
-  try {
-    const p = new URLSearchParams(window.location.search).get('debug')
-    return p === '1' || p === 'swipe'
-  } catch { return false }
-})()
 import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
@@ -597,9 +586,6 @@ export default function SwipeCard({
             <HeartIcon />
           </button>
         </div>
-      )}
-      {SWIPE_DEBUG && isTop && (
-        <SwipeDebugOverlay x={x} y={y} rotate={rotate} />
       )}
     </motion.div>
   )
