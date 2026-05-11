@@ -108,10 +108,18 @@ async function handlePost(req, res) {
     return res.status(400).json({ error: 'vibe and durationHours are required' })
   }
 
-  // Validate vibe
-  const validVibes = ['chill', 'adventure', 'romantic', 'family', 'cultural', 'foodie', 'mix']
+  // Validate vibe. Must match the client's VIBES constant in src/pages/Plan.jsx —
+  // when these drift, every save returns 400 with no useful client-side hint.
+  // The legacy keys (chill/adventure/romantic/family/cultural/mix) are kept
+  // for any plans saved before the UI was simplified.
+  const validVibes = [
+    // Current client keys (src/pages/Plan.jsx VIBES)
+    'mixed', 'foodie', 'culture', 'nature',
+    // Legacy keys retained for historical rows / future re-introduction
+    'chill', 'adventure', 'romantic', 'family', 'cultural', 'mix'
+  ]
   if (!validVibes.includes(vibe)) {
-    return res.status(400).json({ error: 'Invalid vibe' })
+    return res.status(400).json({ error: `Invalid vibe: ${vibe}` })
   }
 
   // Validate durationHours
