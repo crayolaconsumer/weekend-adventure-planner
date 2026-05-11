@@ -21,7 +21,12 @@
  *     a sync miss. Cached in localStorage with a TTL.
  */
 
-const WIKI_CACHE_KEY = 'roam_wiki_image_cache_v1'
+// v2 = dropped Commons geosearch fallback. Bumping the key force-clears
+// any localStorage entries that pointed at random nearby street photos
+// from the old geosearch behaviour, so the next request asks the server
+// fresh and either gets a real Wikipedia image or null (→ branded
+// category placeholder).
+const WIKI_CACHE_KEY = 'roam_wiki_image_cache_v2'
 const WIKI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 const memoryCache = new Map() // wiki key -> url | null

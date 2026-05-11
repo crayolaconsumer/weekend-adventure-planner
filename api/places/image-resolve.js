@@ -44,13 +44,17 @@ const POLITE_HEADERS = {
 // first with a hit dictates response latency.
 const UPSTREAM_TIMEOUT_MS = 4000
 
+// Bump v when behaviour changes so existing memory/edge caches don't
+// keep serving the old verdict. v2 = dropped Commons geosearch.
+const CACHE_VERSION = 'v2'
+
 function cacheKey({ wikipedia, wikidata, lat, lng }) {
   // Round coords to 4 decimals (~11m) so nearby calls hit the same cache.
   // Anything tighter just causes cache fragmentation without a meaningful
   // change in geosearch results.
   const roundedLat = lat == null ? '' : (Math.round(lat * 10000) / 10000).toFixed(4)
   const roundedLng = lng == null ? '' : (Math.round(lng * 10000) / 10000).toFixed(4)
-  return `wp:${wikipedia || ''}|wd:${wikidata || ''}|geo:${roundedLat},${roundedLng}`
+  return `${CACHE_VERSION}:wp:${wikipedia || ''}|wd:${wikidata || ''}|geo:${roundedLat},${roundedLng}`
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = UPSTREAM_TIMEOUT_MS) {
@@ -175,15 +179,25 @@ async function handler(req, res) {
     return res.status(200).json(memHit.value)
   }
 
-  // All three sources race in parallel — first hit wins by preference order.
-  // No source blocks any other; total latency = max(slow_one) up to UPSTREAM_TIMEOUT_MS.
-  const [wp, wd, geo] = await Promise.all([
+  // Wikipedia + Wikidata only. Commons geosearch was disabled because
+  // its results are geotagged by the LOCATION the photo was taken, not
+  // by what the photo is OF. For a restaurant, that returned random
+  // street scenes, road signs, and unrelated suburban houses within
+  // 300m — user feedback: "absolute garbage". Branded category
+  // placeholders (food → fork-and-knife in terracotta, nature → leaf
+  // in sage, etc.) are genuinely more useful: they don't mislead.
+  //
+  // tryCommonsGeo() is intentionally left in the file as dead code in
+  // case a future filter (caption parsing, image classification) makes
+  // geosearch reliable enough to re-enable for specific categories.
+  // eslint-disable-next-line no-unused-vars -- preserved for future use
+  const _commonsGeoStillExists = tryCommonsGeo
+  const [wp, wd] = await Promise.all([
     tryWikipedia(wikipedia),
-    tryWikidata(wikidata),
-    validCoords ? tryCommonsGeo(lat, lng) : Promise.resolve(null)
+    tryWikidata(wikidata)
   ])
 
-  const value = wp || wd || geo || { url: null, source: null, attribution: null }
+  const value = wp || wd || { url: null, source: null, attribution: null }
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't
