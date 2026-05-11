@@ -332,16 +332,22 @@ export default function SwipeCard({
         setTimeout(() => setHasMoved(false), 50)
         const swipeThreshold = 100
         const velocityThreshold = 0.5
+        // Swipe-up uses a smaller distance threshold because vertical
+        // flicks on a phone naturally cover less ground than horizontal
+        // swipes (thumb travel is shorter, grip mechanics restrict it).
+        const swipeUpThreshold = 70
 
         // Pick the dominant axis FIRST, then check direction. Previously
         // the if-chain checked horizontal first, so any swipe-up with
         // even slight rightward drift triggered "Save" instead of "Go".
         // User reported this exact mis-fire on real iPhone.
-        // Vertical wins when |my| > |mx| (no bias needed — finger-paths
-        // that read as "up" to a human have my dominant by a clear margin).
-        const verticalDominant = Math.abs(my) > Math.abs(mx)
+        // Bias toward vertical with a 30% slack — natural finger paths
+        // for "up" intent drift horizontally, so require my to merely
+        // exceed 70% of |mx| rather than strictly dominate. Without
+        // this bias, real-device swipe-up was unreliable.
+        const verticalDominant = Math.abs(my) > Math.abs(mx) * 0.7
 
-        if (verticalDominant && (my < -swipeThreshold || (vy > velocityThreshold && dy < 0))) {
+        if (verticalDominant && (my < -swipeUpThreshold || (vy > velocityThreshold && dy < 0))) {
           // Swipe up - Go now
           animate(y, -500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('go'), 200)
