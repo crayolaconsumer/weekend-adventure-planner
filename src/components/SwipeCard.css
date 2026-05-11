@@ -5,9 +5,24 @@
 
 .swipe-card {
   position: absolute;
-  width: 100%;
+  /* Was width: 100% + aspect-ratio: 3/4. On small viewports (iPhone SE
+     375x667, anything ≤ ~700px tall) the resulting 3:4 height was 50px+
+     taller than the available card-stack-wrapper, so the bottom of the
+     card — including the Skip/Go/Save action buttons — rendered behind
+     the bottom navigation. Playwright caught it: nav literally
+     "intercepts pointer events" for those buttons.
+     Fix: card now fills its wrapper in both dimensions (which is
+     already height-clamped by .card-stack-wrapper's flex behaviour),
+     and aspect-ratio is dropped when height is the constraint. Width
+     still caps at 380px on tablet+ so the design doesn't get gigantic
+     on iPad. */
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
   max-width: 380px;
   aspect-ratio: 3/4;
+  max-height: 100%;
   border-radius: var(--radius-xl);
   overflow: hidden;
   background: var(--roam-forest);
