@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections } from '../utils/navigation'
+import PlaceImage from './PlaceImage'
 import './JustGoModal.css'
 
 // Icons (use simple SVGs matching existing app patterns)
@@ -46,12 +47,17 @@ const NavigationIcon = () => (
 function getRecommendationReasons(place, context, formatDistance) {
   const reasons = []
 
-  // Distance (if close) - place.distance is in meters, formatDistance expects km
-  if (place.distance && place.distance < 2000) {
-    const distanceKm = place.distance / 1000
+  // Distance — enhancePlace (placeFilter.js) sets place.distance in
+  // KILOMETRES (calculateDistance uses R = 6371 km). The old code
+  // assumed metres and was doubly wrong: the < 2000 check treated km
+  // as metres (so ~always fired), then divided by 1000 again so a
+  // place 1km away rendered as "Only 1m away". Now: surface the hint
+  // when the place is genuinely close (within 5km) and pass distance
+  // through formatDistance directly.
+  if (typeof place.distance === 'number' && place.distance < 5) {
     reasons.push({
       icon: '📍',
-      text: `Only ${formatDistance(distanceKm)} away`
+      text: `Only ${formatDistance(place.distance)} away`
     })
   }
 
@@ -101,7 +107,6 @@ export default function JustGoModal({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showCelebration, setShowCelebration] = useState(false)
-  const [imageLoaded, setImageLoaded] = useState(false)
   const formatDistance = useFormatDistance()
   const focusTrapRef = useFocusTrap(isOpen)
 
@@ -110,7 +115,6 @@ export default function JustGoModal({
     if (isOpen) {
       setCurrentIndex(0)
       setShowCelebration(false)
-      setImageLoaded(false)
     }
   }, [isOpen])
 
@@ -140,7 +144,6 @@ export default function JustGoModal({
   )
 
   const handleShowAnother = () => {
-    setImageLoaded(false)
     setCurrentIndex((i) => (i + 1) % recommendations.length)
   }
 
@@ -226,17 +229,11 @@ export default function JustGoModal({
                 transition={{ duration: 0.3 }}
               >
                 <div className="just-go-card-image">
-                  {!imageLoaded && <div className="just-go-image-placeholder" />}
-                  <img
-                    src={current.image || current.photo || `https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80`}
-                    alt={current.name}
-                    onLoad={() => setImageLoaded(true)}
-                    onError={(e) => {
-                      e.target.src = 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80'
-                      setImageLoaded(true)
-                    }}
-                    className={imageLoaded ? 'loaded' : ''}
-                  />
+                  {/* PlaceImage resolves Wikipedia/Wikidata photos when
+                      available and falls back to a brand-coloured
+                      category placeholder — never the same generic
+                      Unsplash mountain for every imageless place. */}
+                  <PlaceImage place={current} alt={current.name} />
                   {current.category && (
                     <span className="just-go-card-category">
                       {current.category.icon} {current.category.label}

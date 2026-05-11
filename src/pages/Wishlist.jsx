@@ -94,17 +94,12 @@ const MapIcon = () => (
   </svg>
 )
 
-// Placeholder images
-const IMAGES = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=80',
-  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&q=80',
-  'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80',
-  'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&q=80',
-]
-
-function getPlaceholderImage(id) {
-  const index = Math.abs(id?.toString().split('').reduce((a, b) => a + b.charCodeAt(0), 0) || 0) % IMAGES.length
-  return IMAGES[index]
+// Photo URL used as the card hero. Returns null when the place has no
+// usable photo — the card's CSS background-color + category badge then
+// shows through, which reads as a branded placeholder rather than the
+// previous rotated stock photos that looked the same for every place.
+function getCardPhotoUrl(place) {
+  return place?.photo || place?.image || null
 }
 
 // Tab options
@@ -332,16 +327,26 @@ export default function Wishlist() {
                       transition={{ delay: Math.min(index, 11) * 0.05 }}
                     >
                       <div
-                        className="wishlist-card-image"
-                        style={{
-                          backgroundImage: `url(${place.photo || place.image || getPlaceholderImage(place.id)})`
-                        }}
+                        className={`wishlist-card-image${getCardPhotoUrl(place) ? '' : ' wishlist-card-image--no-photo'}`}
+                        style={
+                          getCardPhotoUrl(place)
+                            ? { backgroundImage: `url(${getCardPhotoUrl(place)})` }
+                            : undefined
+                        }
                       >
                         <div className="wishlist-card-gradient" />
                         {place.category && (
                           <span className="wishlist-card-category">
                             <CategoryIcon name={place.category.key} size="sm" />
                           </span>
+                        )}
+                        {/* Big centred category icon when no photo —
+                            reads as an intentional placeholder, not a
+                            broken image. */}
+                        {!getCardPhotoUrl(place) && place.category && (
+                          <div className="wishlist-card-image-fallback-icon">
+                            <CategoryIcon name={place.category.key} size="lg" />
+                          </div>
                         )}
                       </div>
 
