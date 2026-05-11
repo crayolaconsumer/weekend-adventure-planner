@@ -6,7 +6,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!api/|assets/|icons/|manifest\\.json|sw\\.js|robots\\.txt).*)", "destination": "/" }
+    { "source": "/((?!api/|assets/|icons/|\\.well-known/|manifest\\.json|sw\\.js|robots\\.txt).*)", "destination": "/" }
   ],
   "headers": [
     {
@@ -21,6 +21,13 @@
       "headers": [
         { "key": "Content-Type", "value": "application/javascript" },
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" },
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
       ]
     }
   ]

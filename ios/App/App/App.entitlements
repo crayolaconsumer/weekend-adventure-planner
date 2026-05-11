@@ -8,5 +8,14 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- Universal Links: iOS fetches
+	     https://www.go-roam.uk/.well-known/apple-app-site-association
+	     and, for paths declared there, opens this app instead of Safari
+	     when a recipient taps a share link. Falls back to Safari if the
+	     app isn't installed. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:www.go-roam.uk</string>
+	</array>
 </dict>
 </plist>

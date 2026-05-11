@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["A74K38RSHC.com.goroam.app"],
+        "components": [
+          { "/": "/plan/share/*", "comment": "shared itinerary" },
+          { "/": "/place/*", "comment": "individual place page" },
+          { "/": "/user/*", "comment": "user profile + visited map" }
+        ]
+      }
+    ]
+  }
+}

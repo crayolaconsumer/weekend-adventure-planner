@@ -29,6 +29,7 @@ import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
 import IntentHandler from './components/IntentHandler'
+import UniversalLinkHandler from './components/UniversalLinkHandler'
 import DisplayNameNudge from './components/DisplayNameNudge'
 import OfflineIndicator from './components/OfflineIndicator'
 import { checkAndAutoExpire } from './utils/offlinePack'
@@ -397,6 +398,7 @@ function App() {
               <InstallBanner />
 
               <IntentHandler />
+              <UniversalLinkHandler />
               <DisplayNameNudge />
               <OfflineIndicator />
 
