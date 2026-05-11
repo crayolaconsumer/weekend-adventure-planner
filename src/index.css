@@ -436,6 +436,18 @@ p {
   box-shadow: 0 2px 8px rgba(212, 168, 85, 0.2);
 }
 
+/* When the location banner is rendered, push page content down so it
+   doesn't sit underneath. The banner itself is position:fixed and
+   ~62px tall on mobile, so we reserve the same room on <main>. Before
+   this rule, the banner overlapped the wordmark + filter button on
+   Discover (Playwright caught it: "location-banner intercepts pointer
+   events"). The body class is toggled by the LocationBanner React
+   component's useEffect — only present while the banner is actually
+   showing, so dismissed/granted states get their space back. */
+body.has-location-banner main {
+  padding-top: 64px;
+}
+
 .location-banner svg {
   flex-shrink: 0;
   opacity: 0.7;

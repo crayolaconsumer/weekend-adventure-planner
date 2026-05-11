@@ -95,6 +95,21 @@ const LocationIcon = () => (
 function LocationBanner({ error, onRetry }) {
   const [dismissed, setDismissed] = useState(false)
 
+  // Tell the rest of the page to reserve space at the top when the
+  // banner is visible. The banner itself is position:fixed (so it
+  // hovers above scroll content), but without this body class the
+  // banner covers the page header — wordmark and filter button on
+  // Discover, search bar on Social, etc. Confirmed by Playwright QA:
+  // before this class, clicking the filter button timed out with
+  // "location-banner intercepts pointer events".
+  useEffect(() => {
+    const showing = error && !dismissed
+    if (showing) {
+      document.body.classList.add('has-location-banner')
+      return () => document.body.classList.remove('has-location-banner')
+    }
+  }, [error, dismissed])
+
   if (dismissed || !error) return null
 
   return (
