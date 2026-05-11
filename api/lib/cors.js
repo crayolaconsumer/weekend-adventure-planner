@@ -26,7 +26,7 @@
  *   }
  */
 
-const ALLOWED_ORIGINS = new Set([
+export const ALLOWED_ORIGINS = new Set([
   'capacitor://localhost',     // iOS Capacitor default
   'https://localhost',         // Android Capacitor default
   'http://localhost',          // Android emulator + local dev
