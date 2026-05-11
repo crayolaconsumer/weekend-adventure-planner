@@ -1,4 +1,4 @@
-/* global process */
+/* global process, Buffer */
 /**
  * POST/GET /api/auth
  *
