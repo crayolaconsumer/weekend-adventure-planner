@@ -1121,13 +1121,21 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
         return []
       })
 
+  // OpenTripMap proxy hard-caps radius at 50km — anything above 400s server-side.
+  // For Day Trip (75km) and Explorer (150km), skip OTM entirely rather than waste
+  // the round-trip + log noise. OSM tiling already covers the area, and OTM has
+  // been winding down with silently-revoked keys anyway (see the proxy comment).
+  const otmFetcher = radius > 50000
+    ? Promise.resolve([])
+    : fetchOpenTripMapPlaces(lat, lng, radius).catch(err => {
+        console.warn('OpenTripMap fetch failed:', err)
+        return []
+      })
+
   // Fetch from ALL sources in parallel with individual failure handling
   const [osmPlaces, otmPlaces, ...wikiResults] = await Promise.all([
     osmFetcher,
-    fetchOpenTripMapPlaces(lat, lng, radius).catch(err => {
-      console.warn('OpenTripMap fetch failed:', err)
-      return []
-    }),
+    otmFetcher,
     ...wikiPromises
   ])
 
