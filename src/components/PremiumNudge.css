@@ -1,9 +1,9 @@
 .premium-nudge {
   display: flex;
   align-items: center;
-  margin: 8px var(--space-md) 0;
-  padding: 10px 12px;
-  border-radius: 14px;
+  margin: 6px var(--space-md) 0;
+  padding: 6px 10px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #f5f0e6 0%, #ebe2cf 100%);
   border: 1px solid rgba(212, 168, 85, 0.4);
   box-shadow: 0 2px 8px rgba(26, 58, 47, 0.08);
@@ -51,21 +51,28 @@
 
 .premium-nudge-headline {
   font-family: 'Newsreader', 'Fraunces', serif;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: #1a3a2f;
   font-weight: 500;
   line-height: 1.2;
 }
 
 .premium-nudge-supporting {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: rgba(26, 58, 47, 0.7);
-  line-height: 1.35;
+  line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
+}
+
+/* On phones, drop the supporting line entirely — every vertical pixel
+   matters on Discover. Headline alone reads as a clear, single-line
+   chip and the card stack regains the room it needs. */
+@media (max-width: 480px) {
+  .premium-nudge-supporting { display: none; }
+  .premium-nudge { padding: 5px 10px; }
+  .premium-nudge-headline { font-size: 0.8rem; }
 }
 
 .premium-nudge-arrow {

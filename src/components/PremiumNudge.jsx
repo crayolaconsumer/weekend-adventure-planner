@@ -59,7 +59,11 @@ export default function PremiumNudge({ streak = 0, savesCount = 0 }) {
   function computeVisible() {
     if (isPremium) return false
     if (localDismissBump > 0) return false
-    const meetsThreshold = streak >= 3 || savesCount >= 5
+    // Raised thresholds — at the previous 3-streak / 5-saves bar the
+    // nudge fired on the user's very first testing session and
+    // squeezed the Discover card off the viewport on iPhone. The
+    // surface should reward sustained engagement, not test-driving.
+    const meetsThreshold = streak >= 5 || savesCount >= 15
     if (!meetsThreshold) return false
     const dismissedAt = readDismissedAt()
     if (dismissedAt === 0) return true

@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
-import { useDrag } from '@use-gesture/react'
 import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
@@ -257,46 +256,56 @@ export default function SwipeCard({
   const nopeOpacity = useTransform(x, [-100, 0], [1, 0])
   const goOpacity = useTransform(y, [-100, 0], [1, 0])
 
-  // Drag gesture handler
-  const bind = useDrag(
-    ({ active, movement: [mx, my], direction: [dx, dy], velocity: [vx, vy] }) => {
-      setIsDragging(active)
+  // Drag handlers — Framer Motion's built-in `drag` prop drives the
+  // motion values directly, so we don't need a separate gesture library.
+  // Previous implementation used @use-gesture/react in parallel which
+  // works fine on web but fails on iOS 26 WKWebView (the pointer events
+  // got fielded by both libraries, and Framer Motion's transform output
+  // never reached the DOM — the indicators brightened via useTransform
+  // but the card itself didn't visually move).
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true)
+  }, [])
 
-      if (active) {
-        x.set(mx)
-        y.set(my)
-        // Track if user has moved significantly (to distinguish tap from drag)
-        if (Math.abs(mx) > 10 || Math.abs(my) > 10) {
-          setHasMoved(true)
-        }
-      } else {
-        // Reset hasMoved after gesture ends
-        setTimeout(() => setHasMoved(false), 50)
-        // Check for swipe completion
-        const swipeThreshold = 100
-        const velocityThreshold = 0.5
+  const handleDrag = useCallback((_event, info) => {
+    // Disambiguate tap vs drag — anything beyond 10px is a drag intent,
+    // so don't fire the onClick → expand modal when the user releases.
+    if (Math.abs(info.offset.x) > 10 || Math.abs(info.offset.y) > 10) {
+      setHasMoved(true)
+    }
+  }, [])
 
-        if (mx > swipeThreshold || (vx > velocityThreshold && dx > 0)) {
-          // Swipe right - Like
-          animate(x, 500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('like'), 200)
-        } else if (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0)) {
-          // Swipe left - Nope
-          animate(x, -500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('nope'), 200)
-        } else if (my < -swipeThreshold || (vy > velocityThreshold && dy < 0)) {
-          // Swipe up - Go now
-          animate(y, -500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('go'), 200)
-        } else {
-          // Spring back
-          animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
-          animate(y, 0, { type: 'spring', stiffness: 300, damping: 30 })
-        }
-      }
-    },
-    { enabled: isTop }
-  )
+  const handleDragEnd = useCallback((_event, info) => {
+    setIsDragging(false)
+    // Brief delay so the synthetic click event that fires after a
+    // pointer release on iOS doesn't slip past hasMoved.
+    setTimeout(() => setHasMoved(false), 50)
+
+    const swipeThreshold = 100
+    // Framer Motion reports velocity in px/sec (vs @use-gesture's
+    // px/ms). Keep the same "intentional flick" feel: ~500 px/sec.
+    const velocityThreshold = 500
+
+    const { offset, velocity } = info
+
+    if (offset.x > swipeThreshold || velocity.x > velocityThreshold) {
+      // Swipe right - Like
+      animate(x, 500, { duration: 0.3 })
+      setTimeout(() => onSwipe?.('like'), 200)
+    } else if (offset.x < -swipeThreshold || velocity.x < -velocityThreshold) {
+      // Swipe left - Nope
+      animate(x, -500, { duration: 0.3 })
+      setTimeout(() => onSwipe?.('nope'), 200)
+    } else if (offset.y < -swipeThreshold || velocity.y < -velocityThreshold) {
+      // Swipe up - Go now
+      animate(y, -500, { duration: 0.3 })
+      setTimeout(() => onSwipe?.('go'), 200)
+    } else {
+      // Spring back to origin
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
+      animate(y, 0, { type: 'spring', stiffness: 300, damping: 30 })
+    }
+  }, [x, y, onSwipe])
 
   const handleButtonClick = (action) => {
     if (action === 'like') {
@@ -358,7 +367,12 @@ export default function SwipeCard({
         rotate,
         ...style
       }}
-      {...(isTop ? bind() : {})}
+      drag={isTop}
+      dragMomentum={false}
+      dragElastic={1}
+      onDragStart={isTop ? handleDragStart : undefined}
+      onDrag={isTop ? handleDrag : undefined}
+      onDragEnd={isTop ? handleDragEnd : undefined}
       onClick={isTop ? handleCardClick : undefined}
       onKeyDown={isTop ? handleKeyDown : undefined}
       tabIndex={isTop ? 0 : -1}
