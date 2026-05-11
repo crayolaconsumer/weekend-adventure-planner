@@ -184,6 +184,10 @@ export function useSubscription() {
     tier: user?.tier || 'free',
     expiresAt: user?.subscription_expires_at,
     isCancelled: !!user?.subscription_cancelled_at,
+    // 'stripe' | 'apple' | 'google' | null — drives cross-platform conflict
+    // guards (e.g. don't let an iOS user double-pay if they already
+    // bought via Stripe on the web).
+    subscriptionSource: user?.subscription_source || null,
     loading,
     error,
 

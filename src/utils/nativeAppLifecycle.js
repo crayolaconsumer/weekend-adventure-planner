@@ -20,6 +20,7 @@
 
 import { isNative } from './nativeBridge'
 import { configureStatusBar, configureKeyboard, hideSplashScreen } from './nativePlugins'
+import { initRevenueCat } from './revenueCat'
 
 let initialized = false
 
@@ -29,8 +30,10 @@ export async function initNativeAppLifecycle() {
   if (!isNative()) return
 
   // Brand the status bar + keyboard up-front so the splash hand-off
-  // looks branded, not default-iOS-grey.
-  await Promise.all([configureStatusBar(), configureKeyboard()])
+  // looks branded, not default-iOS-grey. RevenueCat init happens in
+  // parallel — it's quick (~100ms) and the SDK must be configured
+  // before any Pricing screen mount tries to fetch offerings.
+  await Promise.all([configureStatusBar(), configureKeyboard(), initRevenueCat()])
 
   try {
     const { App } = await import('@capacitor/app')

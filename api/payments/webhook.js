@@ -156,12 +156,14 @@ async function handleCheckoutCompleted(session, conn) {
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
   const plan = subscription.metadata?.plan || 'premium_monthly'
 
-  // Update user tier
+  // Update user tier. subscription_source = 'stripe' lets the RC webhook
+  // know not to revoke this user's premium when an old Apple sub expires.
   await conn.query(
     `UPDATE users
      SET tier = 'premium',
          subscription_id = ?,
-         subscription_expires_at = FROM_UNIXTIME(?)
+         subscription_expires_at = FROM_UNIXTIME(?),
+         subscription_source = 'stripe'
      WHERE id = ?`,
     [subscriptionId, subscription.current_period_end, user.id]
   )
@@ -212,17 +214,20 @@ async function handleSubscriptionUpdated(subscription, conn) {
   // Determine tier based on subscription status
   const tier = ['active', 'trialing'].includes(subscription.status) ? 'premium' : 'free'
 
-  // Update user
+  // Update user — keep subscription_source aligned with tier so the RC
+  // webhook's revoke path doesn't fight with this row.
   await conn.query(
     `UPDATE users
      SET tier = ?,
          subscription_expires_at = FROM_UNIXTIME(?),
-         subscription_cancelled_at = ?
+         subscription_cancelled_at = ?,
+         subscription_source = CASE WHEN ? = 'premium' THEN 'stripe' ELSE subscription_source END
      WHERE id = ?`,
     [
       tier,
       subscription.current_period_end,
       subscription.cancel_at_period_end ? new Date() : null,
+      tier,
       user.id
     ]
   )

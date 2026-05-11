@@ -293,6 +293,39 @@
   color: #ef4444;
 }
 
+/* Restore Purchases — secondary text link below the buy button. Has to
+   be tappable but lower visual weight than the primary CTA. */
+.pricing-restore-link {
+  display: inline-block;
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: none;
+  border: none;
+  color: var(--roam-forest-light);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 44px; /* iOS HIG tap target */
+}
+
+.pricing-restore-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Apple-required Terms + Privacy links — small print under the iOS
+   purchase disclosures. Keep readable but visually de-emphasized. */
+.pricing-legal-links {
+  margin-top: var(--space-xs);
+  font-size: var(--text-xs);
+  color: var(--roam-forest-light);
+}
+
+.pricing-legal-links a {
+  color: var(--roam-forest);
+  text-decoration: underline;
+}
+
 /* Social proof */
 .pricing-social-proof {
   text-align: center;

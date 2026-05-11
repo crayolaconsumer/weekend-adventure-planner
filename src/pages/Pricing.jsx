@@ -1,12 +1,17 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import PremiumBadge from '../components/PremiumBadge'
 import { track } from '../utils/analytics'
-import { isIosNative } from '../utils/nativeBridge'
+import { isIosNative, isNative } from '../utils/nativeBridge'
 import { openExternalUrl } from '../utils/nativePlugins'
+import {
+  getOfferings as rcGetOfferings,
+  purchasePackage as rcPurchasePackage,
+  restorePurchases as rcRestorePurchases
+} from '../utils/revenueCat'
 import './Pricing.css'
 
 // Check icon
@@ -43,9 +48,37 @@ const FEATURES = [
 ]
 
 export default function Pricing() {
-  const { user } = useAuth()
-  const { isPremium, startCheckout, loading, error } = useSubscription()
+  const { user, checkAuth } = useAuth()
+  const { isPremium, startCheckout, loading, error, subscriptionSource } = useSubscription()
   const [billingPeriod, setBillingPeriod] = useState('annual') // 'monthly' | 'annual'
+  const [rcOffering, setRcOffering] = useState(null)
+  const [rcLoading, setRcLoading] = useState(false)
+  const [rcError, setRcError] = useState(null)
+  const [restoring, setRestoring] = useState(false)
+
+  // Fetch RC offerings on mount when on native. Web users skip this
+  // entirely — they go through Stripe. Cross-source guard: if the user
+  // already has a Stripe sub, we show the manage-on-web message
+  // instead of letting them double-pay through Apple.
+  const subscribedViaWeb = isPremium && subscriptionSource === 'stripe'
+
+  useEffect(() => {
+    if (!isNative() || subscribedViaWeb) return
+    let cancelled = false
+    rcGetOfferings().then((offering) => {
+      if (!cancelled) setRcOffering(offering)
+    })
+    return () => { cancelled = true }
+  }, [subscribedViaWeb])
+
+  // Pick the package matching the user's selected billing period.
+  // RC's standard identifiers are '$rc_monthly' and '$rc_annual' but
+  // the offering API also exposes packageType, which is more reliable.
+  const selectedPackage = rcOffering?.availablePackages?.find(p =>
+    billingPeriod === 'annual'
+      ? p.packageType === 'ANNUAL'
+      : p.packageType === 'MONTHLY'
+  ) || null
 
   const monthlyPrice = PRICING.monthly
   const annualPrice = PRICING.annual
@@ -55,6 +88,49 @@ export default function Pricing() {
   const openAuthModal = useCallback((mode = 'signup') => {
     window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode } }))
   }, [])
+
+  const handleNativePurchase = useCallback(async () => {
+    if (!user) {
+      track('upgrade-clicked', { plan: billingPeriod, surface: 'pricing-page', authed: false })
+      openAuthModal('signup')
+      return
+    }
+    if (!selectedPackage) {
+      setRcError('Subscription not available — please try again in a moment.')
+      return
+    }
+    setRcLoading(true)
+    setRcError(null)
+    track('upgrade-clicked', { plan: billingPeriod, surface: 'pricing-page', authed: true, store: 'apple' })
+    const result = await rcPurchasePackage(selectedPackage)
+    setRcLoading(false)
+    if (result.cancelled) return // silent — user backed out of the StoreKit sheet
+    if (!result.success) {
+      setRcError(result.error || 'Purchase failed')
+      return
+    }
+    // Webhook will update the DB; re-poll /api/auth so the UI flips to
+    // "Current Plan" without making the user manually refresh.
+    track('upgrade-completed', { plan: billingPeriod, store: 'apple' })
+    await checkAuth()
+  }, [user, billingPeriod, selectedPackage, checkAuth, openAuthModal])
+
+  const handleRestorePurchases = useCallback(async () => {
+    setRestoring(true)
+    setRcError(null)
+    const result = await rcRestorePurchases()
+    setRestoring(false)
+    if (result.success) {
+      // Re-poll auth so isPremium flips to true.
+      await checkAuth()
+    } else if (result.error) {
+      setRcError(result.error)
+    } else {
+      // No error but no entitlement — most likely the user genuinely
+      // hasn't purchased on this Apple ID. Don't show this as an error.
+      setRcError('No previous purchases found on this Apple ID.')
+    }
+  }, [checkAuth])
 
   const handleUpgrade = async () => {
     if (!user) {
@@ -200,14 +276,25 @@ export default function Pricing() {
                 <button className="pricing-btn primary" disabled>
                   Current Plan
                 </button>
-              ) : isIosNative() ? (
-                /* App Store 3.1.1 — until IAP is wired, iOS native cannot
-                   show a Stripe purchase button. Direct users to the web. */
+              ) : isIosNative() && subscribedViaWeb ? (
+                /* Cross-source guard — user already paid via Stripe on
+                   web. Don't let them double-pay through Apple. */
                 <button
                   className="pricing-btn primary"
-                  onClick={() => openExternalUrl('https://www.go-roam.uk/pricing')}
+                  onClick={() => openExternalUrl('https://www.go-roam.uk/account')}
                 >
-                  Subscribe on the web
+                  Manage subscription on web
+                </button>
+              ) : isIosNative() ? (
+                /* Native iOS purchase via RevenueCat + StoreKit. */
+                <button
+                  className="pricing-btn primary"
+                  onClick={handleNativePurchase}
+                  disabled={rcLoading || !selectedPackage}
+                >
+                  {rcLoading ? 'Loading...' :
+                    !selectedPackage ? 'Subscription unavailable' :
+                    `Start 7-day free trial`}
                 </button>
               ) : (
                 <button
@@ -219,10 +306,40 @@ export default function Pricing() {
                 </button>
               )}
               {error && error !== 'iap-not-available' && <p className="pricing-error">{error}</p>}
+              {rcError && <p className="pricing-error">{rcError}</p>}
+              {isIosNative() && !isPremium && !subscribedViaWeb && (
+                <>
+                  {/* Restore Purchases — App Store Review Guideline 3.1.1
+                      requires this for any app with non-consumable IAP.
+                      Lets a user who reinstalls, switches devices, or
+                      signed in fresh recover their existing subscription. */}
+                  <button
+                    type="button"
+                    className="pricing-restore-link"
+                    onClick={handleRestorePurchases}
+                    disabled={restoring}
+                  >
+                    {restoring ? 'Restoring…' : 'Restore Purchases'}
+                  </button>
+                </>
+              )}
               {isIosNative() ? (
-                <p className="pricing-trial-note">
-                  ROAM+ subscriptions are managed via your Apple ID. To start your free trial, subscribe on the web at go-roam.uk; your benefits will sync across devices.
-                </p>
+                <>
+                  {/* Required disclosures on the purchase screen
+                      (Apple's mandatory subscription terms language). */}
+                  <p className="pricing-trial-note">
+                    {selectedPackage ? (
+                      <>7 days free, then {selectedPackage.product?.priceString || `£${billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}`}{billingPeriod === 'annual' ? '/year' : '/month'}. Auto-renews; cancel anytime in Settings → Apple ID → Subscriptions. Payment will be charged to your Apple ID.</>
+                    ) : (
+                      <>Loading subscription details…</>
+                    )}
+                  </p>
+                  <p className="pricing-legal-links">
+                    <a href="https://www.go-roam.uk/terms" onClick={(e) => { e.preventDefault(); openExternalUrl('https://www.go-roam.uk/terms') }}>Terms of Use</a>
+                    {' · '}
+                    <a href="https://www.go-roam.uk/privacy" onClick={(e) => { e.preventDefault(); openExternalUrl('https://www.go-roam.uk/privacy') }}>Privacy Policy</a>
+                  </p>
+                </>
               ) : (
                 <>
                   <p className="pricing-trial-note">

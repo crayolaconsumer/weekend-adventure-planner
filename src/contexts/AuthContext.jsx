@@ -7,6 +7,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { identifyUser, clearUser } from '../utils/errorReporting'
 import { identify as analyticsIdentify, resetAnalytics, track } from '../utils/analytics'
+import { identifyUserToRC, logoutFromRC } from '../utils/revenueCat'
 
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
@@ -128,9 +129,13 @@ export function AuthProvider({ children }) {
         email: user.email,
         plan: user.subscription_status === 'active' ? 'premium' : 'free',
       })
+      // Attach RevenueCat to this user so purchases follow them across
+      // devices. No-op on web / when RC isn't configured.
+      identifyUserToRC(user.id)
     } else {
       clearUser()
       resetAnalytics()
+      logoutFromRC()
     }
   }, [user])
 
