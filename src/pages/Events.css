@@ -272,7 +272,14 @@
     0 10px 20px rgba(26, 58, 47, 0.06),
     0 20px 40px rgba(26, 58, 47, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  /* Was overflow: hidden + no max-height — on iPhones the panel grew
+     taller than the viewport with no way for the user to reach the
+     bottom (PRICE RANGE was cut off). Clamp to 80dvh and let the
+     inner content scroll. */
   overflow: hidden;
+  max-height: 80dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 .events-filter-panel-inner {
@@ -280,6 +287,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Bottom padding accounts for the iPhone home indicator safe area */
+  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0));
 }
 
 /* Filter Section */
