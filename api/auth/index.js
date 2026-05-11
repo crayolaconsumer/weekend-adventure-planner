@@ -29,9 +29,12 @@ import {
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
-const APPLE_SERVICES_ID = process.env.APPLE_SIGNIN_SERVICES_ID
-const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'com.goroam.app'
+// Trim env vars — Vercel dashboard sometimes appends trailing whitespace/newlines
+// when the value is pasted with a return key. That broke audience validation
+// previously (the verifier saw 'com.goroam.app.signin\n' instead of the bare ID).
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID?.trim()
+const APPLE_SERVICES_ID = process.env.APPLE_SIGNIN_SERVICES_ID?.trim()
+const APPLE_BUNDLE_ID = (process.env.APPLE_BUNDLE_ID || 'com.goroam.app').trim()
 
 // Apple's public keys, fetched + cached + auto-rotated by jose
 const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
@@ -452,16 +455,18 @@ async function handleApple(req, res) {
     // claim name) covers the common audience/issuer mismatches.
     // Previous catch swallowed everything — user reported a 401 with
     // no logs and we had nothing to debug.
-    let aud = null, iss = null
+    let aud = null, iss = null, decodeError = null
+    const parts = identityToken.split('.')
     try {
-      const parts = identityToken.split('.')
       if (parts.length === 3) {
         const claimsJson = Buffer.from(parts[1], 'base64').toString('utf8')
         const claims = JSON.parse(claimsJson)
         aud = claims.aud
         iss = claims.iss
       }
-    } catch { /* token wasn't a JWT */ }
+    } catch (decodeErr) {
+      decodeError = decodeErr?.message
+    }
     console.error('[apple-auth] JWT verification failed', {
       code: err?.code,
       message: err?.message,
@@ -469,6 +474,11 @@ async function handleApple(req, res) {
       reason: err?.reason,
       token_aud: aud,
       token_iss: iss,
+      token_length: identityToken.length,
+      token_parts: parts.length,
+      token_prefix: identityToken.slice(0, 30),
+      token_suffix: identityToken.slice(-20),
+      decode_error: decodeError,
       expected_audiences: [APPLE_SERVICES_ID, APPLE_BUNDLE_ID],
     })
     return res.status(401).json({ error: 'Invalid Apple identity token' })

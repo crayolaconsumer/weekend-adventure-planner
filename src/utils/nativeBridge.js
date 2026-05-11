@@ -17,7 +17,12 @@
  * codebase Just Works on native without per-callsite migration.
  */
 
-const API_ORIGIN = 'https://go-roam.uk'
+// Use the canonical www host — the apex domain 307-redirects to www, and
+// the redirect response carries no CORS headers, so WKWebView fetch fails
+// with "Load failed" before the redirect can be followed. Going straight
+// to www avoids the redirect entirely. This was the root cause of Events,
+// Discover, and Apple sign-in all failing silently on native iOS.
+const API_ORIGIN = 'https://www.go-roam.uk'
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 

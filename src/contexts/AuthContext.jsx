@@ -241,20 +241,47 @@ export function AuthProvider({ children }) {
    */
   const loginWithApple = useCallback(async ({ identityToken, userInfo }) => {
     setError(null)
+    // Capture diagnostic info so iOS users get a real error message
+    // when the fetch fails — instead of WKWebView's generic "Load failed".
+    // The native iOS app surfaces this string directly to the screen, so
+    // we know whether the issue is network/CORS/firewall (TypeError from
+    // fetch) or a server-side rejection (status code + body).
+    const diag = {
+      url: typeof window !== 'undefined' ? `${window.location.origin}/api/auth` : '/api/auth',
+      token_length: identityToken?.length ?? 0,
+      native: typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.(),
+    }
+    let response
     try {
-      const response = await fetch('/api/auth', {
+      response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ action: 'apple', identityToken, userInfo })
       })
+    } catch (fetchErr) {
+      // TypeError from fetch = network layer fail. Surface the full
+      // error name + message + diagnostic context so the on-screen
+      // error tells us exactly what to fix.
+      const msg = `fetch failed: ${fetchErr?.name || 'Error'}: ${fetchErr?.message || 'unknown'} | url=${diag.url} native=${diag.native} token_len=${diag.token_length}`
+      setError(msg)
+      return { success: false, error: msg }
+    }
 
-      const data = await response.json()
+    let data
+    try {
+      data = await response.json()
+    } catch {
+      const text = await response.text().catch(() => '<unreadable>')
+      const msg = `non-JSON response: HTTP ${response.status} | body=${text.slice(0, 200)}`
+      setError(msg)
+      return { success: false, error: msg }
+    }
 
+    try {
       if (!response.ok) {
-        throw new Error(data.error || 'Apple sign-in failed')
+        throw new Error(`${data.error || 'Apple sign-in failed'} (HTTP ${response.status})`)
       }
-
       setUser(data.user)
       storeToken(data.token, true)
       migrateLocalData(data.token)
