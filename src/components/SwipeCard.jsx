@@ -308,13 +308,26 @@ export default function SwipeCard({
   }, [x, y, onSwipe])
 
   const handleButtonClick = (action) => {
+    // 'go' must fire onSwipe SYNCHRONOUSLY — CardStack uses it to call
+    // window.location.href to open Google Maps, and mobile browsers
+    // block that navigation if it happens outside the user-gesture
+    // tick (i.e. inside a setTimeout). Previously the setTimeout below
+    // killed the navigation silently on real devices. The card still
+    // animates — the user navigates away mid-animation, which is the
+    // expected feel because they're now in Maps.
+    if (action === 'go') {
+      onSwipe?.(action)
+      animate(y, -500, { duration: 0.3 })
+      return
+    }
+
     if (action === 'like') {
       animate(x, 500, { duration: 0.3 })
     } else if (action === 'nope') {
       animate(x, -500, { duration: 0.3 })
-    } else if (action === 'go') {
-      animate(y, -500, { duration: 0.3 })
     }
+    // For like/nope the setTimeout is fine — onSwipe just notifies the
+    // parent and triggers the next card; no external navigation needed.
     setTimeout(() => onSwipe?.(action), 200)
   }
 
@@ -494,11 +507,19 @@ export default function SwipeCard({
         )}
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons.
+          onPointerDownCapture stopPropagation is critical now that the
+          card uses Framer Motion's drag. Without it, tapping a button
+          starts a drag gesture on the parent motion.div, which on iOS
+          Safari can suppress the click event entirely (and the visible
+          feedback feels like "the button doesn't work"). Stopping
+          propagation at capture phase keeps the buttons feeling like
+          buttons, while the rest of the card stays draggable. */}
       {isTop && (
         <div className="swipe-card-actions">
           <button
             className="swipe-card-btn nope"
+            onPointerDownCapture={(e) => e.stopPropagation()}
             onClick={() => handleButtonClick('nope')}
             aria-label="Skip this place"
           >
@@ -506,6 +527,7 @@ export default function SwipeCard({
           </button>
           <button
             className="swipe-card-btn go"
+            onPointerDownCapture={(e) => e.stopPropagation()}
             onClick={() => handleButtonClick('go')}
             aria-label="Go to this place now"
           >
@@ -513,6 +535,7 @@ export default function SwipeCard({
           </button>
           <button
             className="swipe-card-btn like"
+            onPointerDownCapture={(e) => e.stopPropagation()}
             onClick={() => handleButtonClick('like')}
             aria-label="Save to wishlist"
           >
