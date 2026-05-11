@@ -365,6 +365,15 @@ function parseOverpassResponse(data) {
       wheelchair: tags.wheelchair,
       wikipedia: tags.wikipedia,
       wikidata: tags.wikidata,
+      // OSM image tags — a mapper sometimes hangs a direct photo URL
+      // on the node ('image=https://…') or a Wikimedia Commons file
+      // ('wikimedia_commons=File:Foo.jpg'). These are author-vetted
+      // for the specific place (vs Commons geosearch which is anything
+      // tagged near the location), so they're high-relevance and we
+      // should consume them when present. Coverage is sparse but
+      // basically free real-estate.
+      image: tags.image,
+      wikimedia_commons: tags.wikimedia_commons,
       cuisine: tags.cuisine,
       outdoor_seating: tags.outdoor_seating,
       takeaway: tags.takeaway,

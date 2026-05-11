@@ -48,13 +48,21 @@ const UPSTREAM_TIMEOUT_MS = 4000
 // keep serving the old verdict. v2 = dropped Commons geosearch.
 const CACHE_VERSION = 'v2'
 
-function cacheKey({ wikipedia, wikidata, lat, lng }) {
+function cacheKey({ wikipedia, wikidata, commons, website, lat, lng }) {
   // Round coords to 4 decimals (~11m) so nearby calls hit the same cache.
   // Anything tighter just causes cache fragmentation without a meaningful
   // change in geosearch results.
   const roundedLat = lat == null ? '' : (Math.round(lat * 10000) / 10000).toFixed(4)
   const roundedLng = lng == null ? '' : (Math.round(lng * 10000) / 10000).toFixed(4)
-  return `${CACHE_VERSION}:wp:${wikipedia || ''}|wd:${wikidata || ''}|geo:${roundedLat},${roundedLng}`
+  // The website key is hashed to a fixed-width string — full URLs would
+  // make cache keys unbounded and degrade lookup perf.
+  let websiteKey = ''
+  if (website) {
+    try {
+      websiteKey = new URL(website.startsWith('http') ? website : `https://${website}`).hostname
+    } catch { websiteKey = '' }
+  }
+  return `${CACHE_VERSION}:wp:${wikipedia || ''}|wd:${wikidata || ''}|cm:${commons || ''}|web:${websiteKey}|geo:${roundedLat},${roundedLng}`
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = UPSTREAM_TIMEOUT_MS) {
@@ -120,6 +128,113 @@ async function tryWikidata(qid) {
   } catch { return null }
 }
 
+/**
+ * Specific Wikimedia Commons file declared by an OSM mapper via the
+ * `wikimedia_commons=File:Foo.jpg` tag. Unlike tryCommonsGeo (which
+ * we removed because its results are tagged by photo LOCATION, not
+ * SUBJECT), this is a mapper-vetted "this file is of this place".
+ * High relevance, low coverage.
+ */
+async function tryCommonsFile(commonsTag) {
+  if (!commonsTag || typeof commonsTag !== 'string') return null
+  // Strip "File:" if the mapper included it, then re-add for the URL.
+  // Reject anything looking like a path-traversal attempt.
+  const bare = commonsTag.replace(/^File:/i, '').trim()
+  if (!bare || /[\\/]/.test(bare) || bare.length > 250) return null
+  return {
+    url: `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(bare)}?width=800`,
+    source: 'commons-osm',
+    attribution: {
+      name: bare,
+      url: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(bare)}`,
+      source: 'Wikimedia Commons (OSM tag)'
+    }
+  }
+}
+
+/**
+ * Fetch the venue's website and extract its og:image (the social-share
+ * preview image). Nearly every modern site sets one, and for a venue
+ * site it's almost always a photo of the venue, the food, or the
+ * brand. Massively under-used as a source.
+ *
+ * Risks managed:
+ *   - Some sites 403 / CSP-block bots → bounded timeout, swallow errors
+ *   - Pages can be huge — only read the head (<= 64 KB) since og:image
+ *     lives in <head>
+ *   - Resolve relative-URL og:image values against the page origin
+ *   - Reject non-https URLs (mixed content would be blocked on iOS anyway)
+ */
+async function tryWebsiteOgImage(website) {
+  if (!website || typeof website !== 'string') return null
+  let pageUrl
+  try {
+    pageUrl = new URL(website.startsWith('http') ? website : `https://${website}`)
+  } catch { return null }
+  if (pageUrl.protocol !== 'https:' && pageUrl.protocol !== 'http:') return null
+
+  try {
+    const res = await fetchWithTimeout(pageUrl.toString(), {
+      headers: {
+        ...POLITE_HEADERS,
+        // Most CSPs whitelist normal browsers; mimic so we get HTML
+        // instead of being shown an API-only stub.
+        'Accept': 'text/html,application/xhtml+xml',
+        // Some sites gate on UA. We're an honest crawler — keep our
+        // brand UA but make sure the page knows we want HTML.
+      }
+    })
+    if (!res.ok) return null
+    const ct = res.headers.get('content-type') || ''
+    if (!/text\/html|application\/xhtml/i.test(ct)) return null
+
+    // Stream-read up to 64 KB then bail — og tags live in the <head>.
+    // If the head is genuinely larger than this we don't want the image
+    // badly enough to download a megabyte of body.
+    const reader = res.body?.getReader()
+    if (!reader) return null
+    let html = ''
+    let received = 0
+    const decoder = new TextDecoder('utf-8', { fatal: false })
+    while (received < 64 * 1024) {
+      const { value, done } = await reader.read()
+      if (done) break
+      html += decoder.decode(value, { stream: true })
+      received += value.byteLength
+      if (/<\/head>/i.test(html)) break
+    }
+    try { reader.cancel() } catch { /* noop */ }
+
+    // Try og:image first (Facebook convention), then twitter:image
+    // (some sites only set this), then itemprop=image.
+    const og = html.match(/<meta[^>]+property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
+    const tw = html.match(/<meta[^>]+name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i)
+    const raw = og?.[1] || tw?.[1]
+    if (!raw) return null
+
+    // Resolve relative URLs against the page origin
+    let imgUrl
+    try {
+      imgUrl = new URL(raw, pageUrl).toString()
+    } catch { return null }
+
+    // Reject data: URLs (could be SVG with script) and require https for iOS WKWebView
+    if (!/^https:/i.test(imgUrl)) return null
+
+    return {
+      url: imgUrl,
+      source: 'website-og',
+      attribution: {
+        name: pageUrl.hostname,
+        url: pageUrl.toString(),
+        source: pageUrl.hostname
+      }
+    }
+  } catch { return null }
+}
+
 async function tryCommonsGeo(lat, lng) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
@@ -160,17 +275,26 @@ async function handler(req, res) {
 
   const wikipedia = req.query.wikipedia && typeof req.query.wikipedia === 'string' ? req.query.wikipedia.slice(0, 200) : null
   const wikidata = req.query.wikidata && typeof req.query.wikidata === 'string' ? req.query.wikidata.slice(0, 30) : null
+  const commons = req.query.commons && typeof req.query.commons === 'string' ? req.query.commons.slice(0, 250) : null
+  const website = req.query.website && typeof req.query.website === 'string' ? req.query.website.slice(0, 500) : null
   const latRaw = req.query.lat
   const lngRaw = req.query.lng
   const lat = latRaw != null && latRaw !== '' ? parseFloat(latRaw) : null
   const lng = lngRaw != null && lngRaw !== '' ? parseFloat(lngRaw) : null
   const validCoords = typeof lat === 'number' && !Number.isNaN(lat) && typeof lng === 'number' && !Number.isNaN(lng)
 
-  if (!wikipedia && !wikidata && !validCoords) {
-    return res.status(400).json({ error: 'wikipedia, wikidata, or lat+lng required' })
+  if (!wikipedia && !wikidata && !commons && !website && !validCoords) {
+    return res.status(400).json({ error: 'wikipedia, wikidata, commons, website, or lat+lng required' })
   }
 
-  const key = cacheKey({ wikipedia, wikidata, lat: validCoords ? lat : null, lng: validCoords ? lng : null })
+  const key = cacheKey({
+    wikipedia,
+    wikidata,
+    commons,
+    website,
+    lat: validCoords ? lat : null,
+    lng: validCoords ? lng : null
+  })
 
   const memHit = memCache.get(key)
   if (memHit && Date.now() - memHit.ts < MEMORY_TTL_MS) {
@@ -179,25 +303,35 @@ async function handler(req, res) {
     return res.status(200).json(memHit.value)
   }
 
-  // Wikipedia + Wikidata only. Commons geosearch was disabled because
-  // its results are geotagged by the LOCATION the photo was taken, not
-  // by what the photo is OF. For a restaurant, that returned random
-  // street scenes, road signs, and unrelated suburban houses within
-  // 300m — user feedback: "absolute garbage". Branded category
-  // placeholders (food → fork-and-knife in terracotta, nature → leaf
-  // in sage, etc.) are genuinely more useful: they don't mislead.
+  // Resolution chain in preference order:
+  //   1. OSM `wikimedia_commons` tag — mapper-vetted specific Commons file
+  //   2. Wikipedia summary thumbnail (via wikipedia tag)
+  //   3. Wikidata P18 (via wikidata QID, points to a Commons file)
+  //   4. Venue website og:image — the venue's own self-selected photo,
+  //      huge untapped source for restaurants/cafes/shops that don't
+  //      have a Wikipedia article but DO have a website. Slowest of the
+  //      four (HTML fetch + parse) so it runs in parallel with the others.
   //
-  // tryCommonsGeo() is intentionally left in the file as dead code in
-  // case a future filter (caption parsing, image classification) makes
-  // geosearch reliable enough to re-enable for specific categories.
-  // eslint-disable-next-line no-unused-vars -- preserved for future use
-  const _commonsGeoStillExists = tryCommonsGeo
-  const [wp, wd] = await Promise.all([
+  // Commons geosearch (was tier 3) is intentionally NOT in the race —
+  // its results are tagged by photo LOCATION, not SUBJECT, so they
+  // returned random nearby street scenes. tryCommonsGeo() kept in the
+  // file as dead code in case a future filter makes it safe to re-enable.
+  // Reference tryCommonsGeo so the dead-code preserved-for-future tier
+  // doesn't become an unused-function lint warning. Self-documenting.
+  void tryCommonsGeo
+  const [cm, wp, wd, og] = await Promise.all([
+    tryCommonsFile(commons),
     tryWikipedia(wikipedia),
-    tryWikidata(wikidata)
+    tryWikidata(wikidata),
+    tryWebsiteOgImage(website)
   ])
 
-  const value = wp || wd || { url: null, source: null, attribution: null }
+  // Preference order: mapper-declared Commons file → Wikipedia → Wikidata → website og.
+  // Wikipedia ranks above the website og because for landmarks (museum,
+  // castle, park) the Wikipedia thumb is curated; the venue website
+  // tier shines for unnamed restaurants/cafes/shops which wouldn't
+  // have wp/wd anyway.
+  const value = cm || wp || wd || og || { url: null, source: null, attribution: null }
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't

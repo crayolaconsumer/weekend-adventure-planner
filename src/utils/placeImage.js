@@ -155,24 +155,34 @@ export async function fetchWikipediaSummary(wikipediaTag) {
  * Resolve a place image via the multi-source server proxy. Tries:
  *   1. Wikipedia (via wikipedia tag)
  *   2. Wikidata P18 (via wikidata QID)
- *   3. Wikimedia Commons geosearch (via lat/lng) — finds geotagged
- *      community photos within 300m. The big hit-rate win for outdoor
- *      / nature places that aren't individually in Wikipedia.
- * Server runs all three in parallel and returns the first hit; caches
+ *   3. OSM `wikimedia_commons` tag — mapper-declared Commons file.
+ *   4. Venue website og:image — the place's own social-share photo.
+ *      Biggest hit-rate win for restaurants/cafes/shops that aren't
+ *      in Wikipedia but DO have a website.
+ * Server runs all four in parallel and returns the first hit; caches
  * aggressively at the edge.
  */
 async function fetchEnhancedImage(place) {
   const data = place?.placeData || place || {}
   const wiki = data.wikipedia || data.tags?.wikipedia || null
   const wikidata = data.wikidata || data.tags?.wikidata || null
+  const commons = data.wikimedia_commons || data.tags?.wikimedia_commons || null
+  const website = data.website || data.tags?.website || data.tags?.['contact:website'] || null
   const lat = typeof data.lat === 'number' ? data.lat : null
   const lng = typeof data.lng === 'number' ? data.lng :
               typeof data.lon === 'number' ? data.lon : null
 
-  if (!wiki && !wikidata && (lat == null || lng == null)) return null
+  if (!wiki && !wikidata && !commons && !website && (lat == null || lng == null)) return null
 
-  // Build a stable cache key for the disk/memory caches
-  const key = `image-resolve:${wiki || ''}|${wikidata || ''}|${lat ?? ''},${lng ?? ''}`
+  // Build a stable cache key for the disk/memory caches.
+  // The website value is condensed to its hostname so the key stays bounded.
+  let websiteHost = ''
+  if (website) {
+    try {
+      websiteHost = new URL(website.startsWith('http') ? website : `https://${website}`).hostname
+    } catch { websiteHost = '' }
+  }
+  const key = `image-resolve:v2:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${lat ?? ''},${lng ?? ''}`
   const memHit = memoryCache.get(key)
   if (memHit !== undefined) return memHit
   const diskHit = readDiskEntry(key)
@@ -184,6 +194,8 @@ async function fetchEnhancedImage(place) {
   const params = new URLSearchParams()
   if (wiki) params.set('wikipedia', wiki)
   if (wikidata) params.set('wikidata', wikidata)
+  if (commons) params.set('commons', commons)
+  if (website) params.set('website', website)
   if (lat != null) params.set('lat', String(lat))
   if (lng != null) params.set('lng', String(lng))
 
