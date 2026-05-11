@@ -56,7 +56,7 @@ async function handler(req, res) {
         u.avatar_url
       FROM plans p
       JOIN users u ON p.user_id = u.id
-      WHERE p.share_code = ? AND p.is_public = 1`,
+      WHERE p.share_code = ? AND p.is_public = 1 AND u.is_banned = FALSE`,
       [code]
     )
 

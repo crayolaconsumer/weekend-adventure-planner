@@ -63,6 +63,7 @@ async function handler(req, res) {
       WHERE c.place_id IN (${placeholders})
         AND c.status = 'approved'
         AND c.contribution_type = 'tip'
+        AND u.is_banned = FALSE
       ORDER BY c.place_id, (c.upvotes - c.downvotes) DESC, c.created_at DESC
     `
 

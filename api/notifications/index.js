@@ -80,6 +80,7 @@ async function getNotifications(req, res, user) {
     FROM notifications n
     LEFT JOIN users u ON n.actor_id = u.id
     WHERE n.user_id = ?
+    AND (n.actor_id IS NULL OR u.is_banned = FALSE)
   `
 
   const params = [user.id]

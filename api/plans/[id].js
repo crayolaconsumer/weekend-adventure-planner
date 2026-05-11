@@ -67,7 +67,8 @@ async function handleGet(req, res, id) {
       p.*,
       u.username,
       u.display_name,
-      u.avatar_url
+      u.avatar_url,
+      u.is_banned
     FROM plans p
     JOIN users u ON p.user_id = u.id
     WHERE p.id = ?`,
@@ -82,6 +83,11 @@ async function handleGet(req, res, id) {
   const isOwner = user && user.id === plan.user_id
   if (!isOwner && !plan.is_public) {
     return res.status(403).json({ error: 'Plan is private' })
+  }
+
+  // Banned authors: only the owner can still see their own plan.
+  if (plan.is_banned && !isOwner) {
+    return res.status(404).json({ error: 'Plan not found' })
   }
 
   // Get stops

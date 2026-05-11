@@ -68,6 +68,7 @@ async function getFollowRequests(req, res, user) {
     FROM follow_requests fr
     JOIN users u ON fr.requester_id = u.id
     WHERE fr.target_id = ?
+    AND u.is_banned = FALSE
   `
 
   const params = [user.id]
