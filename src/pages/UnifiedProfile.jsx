@@ -514,7 +514,15 @@ export default function UnifiedProfile() {
           >
             <SettingsTab
               user={currentUser}
-              onLogout={logout}
+              onLogout={async () => {
+                // Navigate FIRST then logout — if we logout first, the
+                // profile page re-renders with user=null, which used to
+                // leave the user stranded on their own URL with nothing
+                // useful to see. Replace history entry so back button
+                // doesn't bring them back to the now-empty profile.
+                navigate('/', { replace: true })
+                await logout()
+              }}
             />
           </motion.section>
         )}

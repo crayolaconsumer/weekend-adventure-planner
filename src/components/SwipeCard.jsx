@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
+import { motion, useMotionValue, useTransform, animate, useReducedMotion } from 'framer-motion'
+import { useDrag } from '@use-gesture/react'
 import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
@@ -256,56 +257,61 @@ export default function SwipeCard({
   const nopeOpacity = useTransform(x, [-100, 0], [1, 0])
   const goOpacity = useTransform(y, [-100, 0], [1, 0])
 
-  // Drag handlers — Framer Motion's built-in `drag` prop drives the
-  // motion values directly, so we don't need a separate gesture library.
-  // Previous implementation used @use-gesture/react in parallel which
-  // works fine on web but fails on iOS 26 WKWebView (the pointer events
-  // got fielded by both libraries, and Framer Motion's transform output
-  // never reached the DOM — the indicators brightened via useTransform
-  // but the card itself didn't visually move).
-  const handleDragStart = useCallback(() => {
-    setIsDragging(true)
-  }, [])
+  // Honour OS-level reduced-motion preference. When true we leave drag
+  // disabled and the card stays static; users still skip/save/go via
+  // the action buttons. Also doubles as a fail-safe: anyone who can't
+  // get the drag animation to render reliably (older devices, certain
+  // WebView versions) can flip this in Accessibility Settings and have
+  // a deterministic experience.
+  const reducedMotion = useReducedMotion()
+  const dragEnabled = isTop && !reducedMotion
 
-  const handleDrag = useCallback((_event, info) => {
-    // Disambiguate tap vs drag — anything beyond 10px is a drag intent,
-    // so don't fire the onClick → expand modal when the user releases.
-    if (Math.abs(info.offset.x) > 10 || Math.abs(info.offset.y) > 10) {
-      setHasMoved(true)
-    }
-  }, [])
+  // Drag gesture handler. We use @use-gesture/react rather than Framer
+  // Motion's built-in `drag` prop: the FM drag path interacts badly
+  // with the parent CardStack motion.div's animated transform on iOS
+  // Safari WKWebView, causing the card itself not to translate even
+  // though its motion-value subscribers (the SKIP/SAVE/GO opacity
+  // indicators) update correctly. @use-gesture writes to our motion
+  // values via x.set() which iOS handles reliably.
+  const bind = useDrag(
+    ({ active, movement: [mx, my], direction: [dx, dy], velocity: [vx, vy] }) => {
+      setIsDragging(active)
 
-  const handleDragEnd = useCallback((_event, info) => {
-    setIsDragging(false)
-    // Brief delay so the synthetic click event that fires after a
-    // pointer release on iOS doesn't slip past hasMoved.
-    setTimeout(() => setHasMoved(false), 50)
+      if (active) {
+        x.set(mx)
+        y.set(my)
+        // Track if user has moved significantly (distinguishes tap from drag).
+        if (Math.abs(mx) > 10 || Math.abs(my) > 10) {
+          setHasMoved(true)
+        }
+      } else {
+        // Reset hasMoved after gesture ends so the next tap registers
+        // as an expand.
+        setTimeout(() => setHasMoved(false), 50)
+        const swipeThreshold = 100
+        const velocityThreshold = 0.5
 
-    const swipeThreshold = 100
-    // Framer Motion reports velocity in px/sec (vs @use-gesture's
-    // px/ms). Keep the same "intentional flick" feel: ~500 px/sec.
-    const velocityThreshold = 500
-
-    const { offset, velocity } = info
-
-    if (offset.x > swipeThreshold || velocity.x > velocityThreshold) {
-      // Swipe right - Like
-      animate(x, 500, { duration: 0.3 })
-      setTimeout(() => onSwipe?.('like'), 200)
-    } else if (offset.x < -swipeThreshold || velocity.x < -velocityThreshold) {
-      // Swipe left - Nope
-      animate(x, -500, { duration: 0.3 })
-      setTimeout(() => onSwipe?.('nope'), 200)
-    } else if (offset.y < -swipeThreshold || velocity.y < -velocityThreshold) {
-      // Swipe up - Go now
-      animate(y, -500, { duration: 0.3 })
-      setTimeout(() => onSwipe?.('go'), 200)
-    } else {
-      // Spring back to origin
-      animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
-      animate(y, 0, { type: 'spring', stiffness: 300, damping: 30 })
-    }
-  }, [x, y, onSwipe])
+        if (mx > swipeThreshold || (vx > velocityThreshold && dx > 0)) {
+          // Swipe right - Like
+          animate(x, 500, { duration: 0.3 })
+          setTimeout(() => onSwipe?.('like'), 200)
+        } else if (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0)) {
+          // Swipe left - Nope
+          animate(x, -500, { duration: 0.3 })
+          setTimeout(() => onSwipe?.('nope'), 200)
+        } else if (my < -swipeThreshold || (vy > velocityThreshold && dy < 0)) {
+          // Swipe up - Go now
+          animate(y, -500, { duration: 0.3 })
+          setTimeout(() => onSwipe?.('go'), 200)
+        } else {
+          // Spring back to origin
+          animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
+          animate(y, 0, { type: 'spring', stiffness: 300, damping: 30 })
+        }
+      }
+    },
+    { enabled: dragEnabled }
+  )
 
   const handleButtonClick = (action) => {
     // 'go' must fire onSwipe SYNCHRONOUSLY — CardStack uses it to call
@@ -380,25 +386,7 @@ export default function SwipeCard({
         rotate,
         ...style
       }}
-      // Force translate3d — without this, iOS Safari's WKWebView
-      // silently drops Framer Motion's default `translateX/Y` output
-      // mid-drag while still firing motion-value subscribers (so the
-      // indicator opacities update but the card itself doesn't move).
-      // translate3d engages the GPU compositor path which iOS handles
-      // reliably. Bug reproduced on iPhone SE / iOS Safari 18 + iOS
-      // 26.4 simulator; fine on desktop and Android.
-      transformTemplate={({ x: xv = 0, y: yv = 0, rotate: rv = 0 }) => {
-        const xs = typeof xv === 'string' ? xv : `${xv}px`
-        const ys = typeof yv === 'string' ? yv : `${yv}px`
-        const rs = typeof rv === 'string' ? rv : `${rv}deg`
-        return `translate3d(${xs}, ${ys}, 0) rotate(${rs})`
-      }}
-      drag={isTop}
-      dragMomentum={false}
-      dragElastic={1}
-      onDragStart={isTop ? handleDragStart : undefined}
-      onDrag={isTop ? handleDrag : undefined}
-      onDragEnd={isTop ? handleDragEnd : undefined}
+      {...(dragEnabled ? bind() : {})}
       onClick={isTop ? handleCardClick : undefined}
       onKeyDown={isTop ? handleKeyDown : undefined}
       tabIndex={isTop ? 0 : -1}
