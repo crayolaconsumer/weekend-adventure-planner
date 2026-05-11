@@ -10,6 +10,7 @@ import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
 import StreakIndicator from '../components/StreakIndicator'
 import PremiumNudge from '../components/PremiumNudge'
+import FilterIcon from '../components/icons/FilterIcon'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -940,7 +941,7 @@ export default function Discover({ location }) {
             </div>
           )}
           <div className="discover-mode">
-            <span>{currentMode.icon}</span>
+            <FilterIcon name={travelMode} size={18} />
             <span>{currentMode.label}</span>
           </div>
           <button

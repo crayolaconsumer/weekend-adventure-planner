@@ -209,6 +209,11 @@
 }
 
 .filter-modal-mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* font-size kept for legacy emoji fallback if any callsite still
+     passes a glyph instead of an <svg> child. */
   font-size: 24px;
   line-height: 1;
 }
@@ -403,7 +408,17 @@
 }
 
 .filter-extra-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1.1rem;
+  /* SVG inherits stroke from currentColor — the parent .filter-extra-item's
+     color flips on .selected, so the icon adapts automatically. */
+  color: var(--roam-forest);
+}
+
+.filter-extra-item.selected .filter-extra-icon {
+  color: var(--roam-cream);
 }
 
 .filter-extra-label {

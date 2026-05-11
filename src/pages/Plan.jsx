@@ -20,6 +20,7 @@ import { useRouting } from '../hooks/useRouting'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import ShareModal from '../components/plan/ShareModal'
+import FilterIcon from '../components/icons/FilterIcon'
 import './Plan.css'
 
 // Vibe options
@@ -961,7 +962,7 @@ export default function Plan({ location }) {
                                   className={`plan-travel-option ${getLegMode(stop) === mode.key ? 'active' : ''}`}
                                   onClick={() => changeLegMode(idx, mode.key)}
                                 >
-                                  <span>{mode.icon}</span>
+                                  <FilterIcon name={mode.key} size={20} />
                                   <span>{mode.label}</span>
                                 </button>
                               ))}

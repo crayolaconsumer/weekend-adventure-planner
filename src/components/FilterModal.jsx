@@ -15,6 +15,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
+import FilterIcon from './icons/FilterIcon'
 import './FilterModal.css'
 
 // Backdrop animation
@@ -289,7 +290,9 @@ export function FilterModal({
                             }
                           }}
                         >
-                          <span className="filter-modal-mode-icon">{mode.icon}</span>
+                          <span className="filter-modal-mode-icon">
+                            <FilterIcon name={key} size={28} />
+                          </span>
                           <span className="filter-modal-mode-label">{mode.label}</span>
                           <span className="filter-modal-mode-detail">
                             Up to {mode.maxRadius / 1000}km
@@ -364,7 +367,9 @@ export function FilterModal({
                   onClick={onToggleFreeOnly}
                   aria-pressed={showFreeOnly}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">💸</span>
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="free" size={22} />
+                  </span>
                   <span className="filter-extra-label">Free only</span>
                   <span className={`filter-extra-toggle ${showFreeOnly ? 'on' : ''}`}>
                     <span className="filter-extra-toggle-knob" />
@@ -376,7 +381,9 @@ export function FilterModal({
                   onClick={onToggleAccessibility}
                   aria-pressed={accessibilityMode}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">♿</span>
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="accessibility" size={22} />
+                  </span>
                   <span className="filter-extra-label">Accessible places</span>
                   <span className={`filter-extra-toggle ${accessibilityMode ? 'on' : ''}`}>
                     <span className="filter-extra-toggle-knob" />
@@ -388,7 +395,9 @@ export function FilterModal({
                   onClick={onToggleOpenOnly}
                   aria-pressed={showOpenOnly}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">🕐</span>
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="open-now" size={22} />
+                  </span>
                   <span className="filter-extra-label">Open now</span>
                   <span className={`filter-extra-toggle ${showOpenOnly ? 'on' : ''}`}>
                     <span className="filter-extra-toggle-knob" />
@@ -412,7 +421,9 @@ export function FilterModal({
                   }}
                   aria-pressed={showLocalsPicks}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">📍</span>
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="locals-picks" size={22} />
+                  </span>
                   <span className="filter-extra-label">Locals' picks</span>
                   {isPremium ? (
                     <span className={`filter-extra-toggle ${showLocalsPicks ? 'on' : ''}`}>
@@ -433,7 +444,9 @@ export function FilterModal({
                   }}
                   aria-pressed={showOffPeak}
                 >
-                  <span className="filter-extra-icon" aria-hidden="true">⏰</span>
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="off-peak" size={22} />
+                  </span>
                   <span className="filter-extra-label">Off-peak times</span>
                   {isPremium ? (
                     <span className={`filter-extra-toggle ${showOffPeak ? 'on' : ''}`}>

@@ -16,6 +16,7 @@ import { useSubscription } from '../hooks/useSubscription'
 import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import AchievementBadge from '../components/icons/AchievementBadge'
 import ToggleIcon from '../components/icons/SettingsIcon'
+import FilterIcon from '../components/icons/FilterIcon'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import ActivityItem from '../components/ActivityItem'
@@ -1156,7 +1157,7 @@ function SettingsTab({ user, onLogout }) {
                 }}
                 disabled={isSaving}
               >
-                <span className="mode-icon">{mode.icon}</span>
+                <span className="mode-icon"><FilterIcon name={key} size={24} /></span>
                 <span className="mode-label">{mode.label}</span>
                 <span className="mode-desc">{mode.desc}</span>
               </button>
