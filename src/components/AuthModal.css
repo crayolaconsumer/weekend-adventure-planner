@@ -187,7 +187,13 @@
   align-items: center;
 }
 
-.auth-input-wrapper svg {
+/* Direct child only — without `>`, this rule was also matching the
+   eye-toggle SVG nested inside `.auth-password-toggle`, dragging that
+   icon to `left: var(--space-md)` and breaking the layout (icon
+   rendered outside the input field on iOS native). The leading icons
+   (email envelope, lock) are direct children of the wrapper so the
+   selector still applies to them. */
+.auth-input-wrapper > svg {
   position: absolute;
   left: var(--space-md);
   color: var(--color-text-muted);

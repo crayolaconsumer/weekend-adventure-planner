@@ -196,7 +196,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   // { action: 'apple' } endpoint handles either path.
   const handleAppleLogin = useCallback(async () => {
     const servicesId = import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID
-    if (!servicesId) {
+    // The Services ID is only used by the WEB JS SDK. Native iOS goes
+    // through Capacitor's apple-sign-in plugin which authenticates
+    // against the bundle ID directly. So only block when there's no
+    // Services ID AND we're not on native iOS.
+    if (!servicesId && !(isNative() && getPlatform() === 'ios')) {
       setLocalError('Sign in with Apple is not configured')
       return
     }
@@ -374,9 +378,15 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
           </div>
 
           {/* Sign in with Apple — required by App Store Review Guideline 4.8
-              when any third-party auth is offered (we have Google). Render only
-              when configured; quiet no-op for dev/preview without the env var. */}
-          {import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID && (
+              when any third-party auth is offered (we have Google).
+              Render whenever the web Services ID env var is present OR
+              we're running natively on iOS (Capacitor plugin uses the
+              bundle ID, not the Services ID, so the env var isn't
+              relevant there). Previously gated on the env var alone,
+              which meant iOS-native builds tree-shook the button out
+              entirely when the local .env hadn't been pulled from
+              Vercel before the build. */}
+          {(import.meta.env.VITE_APPLE_SIGNIN_SERVICES_ID || (isNative() && getPlatform() === 'ios')) && (
             <button
               className="auth-apple-btn"
               onClick={handleAppleLogin}
