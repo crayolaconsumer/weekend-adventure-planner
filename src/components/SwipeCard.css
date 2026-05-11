@@ -13,7 +13,14 @@
   background: var(--roam-forest);
   touch-action: none;
   cursor: grab;
-  will-change: transform;
+  /* will-change: transform was here — REMOVED. On iOS Safari WKWebView,
+     will-change: transform combined with aspect-ratio on the same
+     element causes the compositor to drop transform updates from
+     Framer Motion mid-drag (motion values still update opacity-using
+     descendants, just not the element itself). Removing will-change
+     and forcing translate3d via transformTemplate restores reliable
+     transform application across iOS Safari, iOS Chrome, and the
+     simulator. */
   user-select: none;
 
   /* Elevated card shadow */

@@ -380,6 +380,19 @@ export default function SwipeCard({
         rotate,
         ...style
       }}
+      // Force translate3d — without this, iOS Safari's WKWebView
+      // silently drops Framer Motion's default `translateX/Y` output
+      // mid-drag while still firing motion-value subscribers (so the
+      // indicator opacities update but the card itself doesn't move).
+      // translate3d engages the GPU compositor path which iOS handles
+      // reliably. Bug reproduced on iPhone SE / iOS Safari 18 + iOS
+      // 26.4 simulator; fine on desktop and Android.
+      transformTemplate={({ x: xv = 0, y: yv = 0, rotate: rv = 0 }) => {
+        const xs = typeof xv === 'string' ? xv : `${xv}px`
+        const ys = typeof yv === 'string' ? yv : `${yv}px`
+        const rs = typeof rv === 'string' ? rv : `${rv}deg`
+        return `translate3d(${xs}, ${ys}, 0) rotate(${rs})`
+      }}
       drag={isTop}
       dragMomentum={false}
       dragElastic={1}
