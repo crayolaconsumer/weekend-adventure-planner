@@ -109,7 +109,18 @@ export default function EventCard({ event, variant = 'compact' }) {
         aria-label={`${event.name} on ${dateLabel}${event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view tickets.`}
       >
         <div className="event-card-image">
-          <img src={imageUrl} alt={event.name} loading="lazy" />
+          <img
+            src={imageUrl}
+            alt={event.name}
+            loading="lazy"
+            onError={(e) => {
+              // Ticketmaster / Skiddle CDN URLs go stale frequently;
+              // hide the <img> rather than show a broken-image glyph
+              // — the parent .event-card-image already has a
+              // brand-coloured background that reads as a placeholder.
+              e.currentTarget.style.display = 'none'
+            }}
+          />
         </div>
 
         <div className="event-card-content">

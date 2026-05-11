@@ -4,7 +4,9 @@
    ═══════════════════════════════════════════════════════ */
 
 .collections-page {
+  /* dvh tracks the visible viewport on iOS Safari. */
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--roam-cream);
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0));
 }

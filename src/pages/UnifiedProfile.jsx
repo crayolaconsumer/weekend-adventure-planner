@@ -310,6 +310,16 @@ export default function UnifiedProfile() {
             src={avatarUrl}
             alt={formatDisplayName(user)}
             className="unified-profile-avatar"
+            onError={(e) => {
+              // ui-avatars.com is blocked on some corporate networks; fall
+              // back to the bundled app icon rather than the broken-image
+              // glyph. Guard prevents an infinite onError loop if even the
+              // local icon 404s for some reason.
+              if (!e.currentTarget.dataset.fallback) {
+                e.currentTarget.dataset.fallback = '1'
+                e.currentTarget.src = '/icons/icon-192.png'
+              }
+            }}
           />
           {user.isPremium && <PremiumBadge size={32} />}
         </span>

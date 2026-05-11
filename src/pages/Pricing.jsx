@@ -205,7 +205,7 @@ export default function Pricing() {
                    show a Stripe purchase button. Direct users to the web. */
                 <button
                   className="pricing-btn primary"
-                  onClick={() => openExternalUrl('https://go-roam.uk/pricing')}
+                  onClick={() => openExternalUrl('https://www.go-roam.uk/pricing')}
                 >
                   Subscribe on the web
                 </button>

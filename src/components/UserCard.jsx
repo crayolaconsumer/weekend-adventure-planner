@@ -43,6 +43,12 @@ export default function UserCard({
             src={avatarUrl}
             alt={formatDisplayName(user)}
             className="user-card-avatar"
+            onError={(e) => {
+              if (!e.currentTarget.dataset.fallback) {
+                e.currentTarget.dataset.fallback = '1'
+                e.currentTarget.src = '/icons/icon-192.png'
+              }
+            }}
           />
           {user.isPremium && <PremiumBadge size="sm" />}
         </span>

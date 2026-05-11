@@ -90,10 +90,10 @@ export default function ActivityFeed() {
     return (
       <div className="activity-feed-empty">
         <h3>No activity yet</h3>
-        <p>Follow some users to see their activity here!</p>
-        <p className="activity-feed-empty-hint">
-          Check the Discover tab to find people with similar interests!
-        </p>
+        <p>Follow some users to see their visits, photos, and tips here.</p>
+        <Link to="/social" className="activity-feed-discover-link">
+          Find people to follow
+        </Link>
       </div>
     )
   }

@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../hooks/useToast'
+import ConfirmModal from '../components/ConfirmModal'
 import './AdminReports.css'
 
 const STATUS_FILTERS = [
@@ -146,6 +147,8 @@ function ReportRow({ report, acting, onDecide }) {
   const isContent = report.entity_type === 'contribution' || report.entity_type === 'photo'
   const severity = report.ai_severity || 'untriaged'
   const created = report.created_at ? new Date(report.created_at).toLocaleString() : ''
+  const [showBanConfirm, setShowBanConfirm] = useState(false)
+  const banLabel = `@${report.reported_username || `user ${report.reported_user_id}`}`
 
   return (
     <li className={`admin-report admin-report-sev-${severity}`}>
@@ -215,15 +218,25 @@ function ReportRow({ report, acting, onDecide }) {
           <button
             className="admin-report-btn admin-report-btn-destructive"
             disabled={acting}
-            onClick={() => {
-              if (!window.confirm(`Ban @${report.reported_username || `user ${report.reported_user_id}`}? They will not be able to sign in.`)) return
-              onDecide(report.id, 'action', 'ban_user')
-            }}
+            onClick={() => setShowBanConfirm(true)}
           >
             Ban @{report.reported_username || 'user'}
           </button>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showBanConfirm}
+        title={`Ban ${banLabel}?`}
+        message="They will not be able to sign in. This action can be reversed manually in the database."
+        confirmLabel="Ban user"
+        destructive
+        onConfirm={() => {
+          setShowBanConfirm(false)
+          onDecide(report.id, 'action', 'ban_user')
+        }}
+        onCancel={() => setShowBanConfirm(false)}
+      />
     </li>
   )
 }

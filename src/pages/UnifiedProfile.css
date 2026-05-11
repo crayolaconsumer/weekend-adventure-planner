@@ -4,7 +4,10 @@
    ═══════════════════════════════════════════════════════ */
 
 .unified-profile-page {
+  /* dvh tracks the visible viewport on iOS Safari — bare 100vh includes
+     the address bar in its height, cutting off content at the bottom. */
   min-height: 100vh;
+  min-height: 100dvh;
   padding-bottom: 100px;
   background: var(--roam-cream, #fdfcf8);
 }
@@ -17,7 +20,10 @@
   display: flex;
   align-items: center;
   gap: var(--space-md, 12px);
-  padding: var(--space-md, 16px);
+  /* Safe-area inset on top — black-translucent status bar means the
+     webview extends under the notch, so a sticky header at top:0
+     overlaps the clock/battery icons without this padding. */
+  padding: calc(var(--space-md, 16px) + env(safe-area-inset-top, 0)) var(--space-md, 16px) var(--space-md, 16px);
   background: var(--roam-cream, #fdfcf8);
   border-bottom: 1px solid var(--roam-parchment, #e8e0d0);
   position: sticky;

@@ -41,6 +41,19 @@ export async function initNativeAppLifecycle() {
       ))
     })
 
+    // Android hardware back button. Capacitor's default behaviour is
+    // to exit the app on every press — disastrous for a multi-route
+    // app. Wire it through react-router: pop history if there's a
+    // page to go back to, otherwise let Capacitor exit. (iOS has no
+    // hardware back button so this is a no-op there at runtime.)
+    App.addListener('backButton', ({ canGoBack }) => {
+      if (canGoBack || window.history.length > 1) {
+        window.history.back()
+      } else {
+        App.exitApp()
+      }
+    })
+
     // Deep-link handler: routes Universal Links (iOS) / App Links
     // (Android) into react-router. Requires apple-app-site-association
     // and Android assetlinks.json files at /.well-known/ on go-roam.uk

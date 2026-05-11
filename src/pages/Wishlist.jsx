@@ -653,7 +653,23 @@ function NearbyVisitedNudge({ wishlist }) {
               className="wishlist-nearby-card"
             >
               {img ? (
-                <img src={img} alt="" className="wishlist-nearby-img" loading="lazy" />
+                <img
+                  src={img}
+                  alt=""
+                  className="wishlist-nearby-img"
+                  loading="lazy"
+                  onError={(e) => {
+                    // Wikimedia / Wikidata can 403 on hotlink. Replace
+                    // the broken <img> with the same brand placeholder.
+                    const parent = e.currentTarget.parentNode
+                    if (parent) {
+                      const div = document.createElement('div')
+                      div.className = 'wishlist-nearby-img wishlist-nearby-img-placeholder'
+                      div.textContent = '📍'
+                      parent.replaceChild(div, e.currentTarget)
+                    }
+                  }}
+                />
               ) : (
                 <div className="wishlist-nearby-img wishlist-nearby-img-placeholder">📍</div>
               )}

@@ -652,7 +652,14 @@ body.has-location-banner main {
      their drag transforms survive. */
   button:hover,
   a:hover,
-  [role="button"]:hover {
+  [role="button"]:hover,
+  /* Class selectors that have :hover { transform: translateY(...) }
+     rules in component CSS files and aren't covered by the element
+     selectors above. Adding here is cheaper than wrapping every
+     individual rule in @media (hover: hover). */
+  .wishlist-card:hover,
+  .profile-upgrade-card:hover,
+  .wishlist-adventure-view:hover {
     transform: none !important;
     box-shadow: inherit;
   }
