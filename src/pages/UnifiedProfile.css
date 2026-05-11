@@ -1230,6 +1230,58 @@
   opacity: 0.7;
 }
 
+/* Username field — @ prefix sits inline with the input so the user
+   doesn't type their own @. The input is borderless and the wrapper
+   carries the visual frame, which keeps the affordance unified. */
+.unified-profile-settings-username-row {
+  display: flex;
+  align-items: stretch;
+  background: white;
+  border: 1px solid var(--roam-parchment, #e8e0d0);
+  border-radius: var(--radius-md, 8px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.unified-profile-settings-username-row:focus-within {
+  border-color: var(--roam-forest, #1a3a2f);
+  box-shadow: 0 0 0 3px rgba(26, 58, 47, 0.1);
+}
+
+.unified-profile-settings-username-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-sm, 10px) 0 var(--space-sm, 10px) var(--space-md, 12px);
+  color: var(--roam-forest-light, #5b7c69);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-sm, 14px);
+  user-select: none;
+}
+
+.unified-profile-settings-input--username {
+  border: none;
+  background: transparent;
+  flex: 1;
+  padding-left: 2px;
+}
+
+.unified-profile-settings-input--username:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Helper / inline-error caption under a settings field. Green-tinted
+   forest text by default, red when usernameError is set. */
+.unified-profile-settings-hint {
+  display: block;
+  margin-top: var(--space-xs, 4px);
+  font-size: var(--text-xs, 12px);
+  color: var(--roam-forest-light, #5b7c69);
+}
+
+.unified-profile-settings-hint.is-error {
+  color: #ef4444;
+}
+
 .unified-profile-settings-input::placeholder {
   color: var(--roam-ink-muted, #6b6b6b);
 }

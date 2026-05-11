@@ -910,6 +910,10 @@ function SettingsTab({ user, onLogout }) {
 
   // Form state for account info
   const [displayName, setDisplayName] = useState(user?.displayName || '')
+  // Username is stored lowercase server-side. We let the user type any case
+  // — comparison + submission normalise to lower so case differences don't
+  // false-trigger "unsaved changes" or a redundant API call.
+  const [usernameInput, setUsernameInput] = useState(user?.username || '')
 
   // Preferences state (localStorage-backed)
   const [travelMode, setTravelMode] = useState(() =>
@@ -936,10 +940,25 @@ function SettingsTab({ user, onLogout }) {
   useEffect(() => {
     setDisplayName(user?.displayName || '')
   }, [user?.displayName])
+  useEffect(() => {
+    setUsernameInput(user?.username || '')
+  }, [user?.username])
+
+  // Client-mirror of server validation (api/auth/index.js handleUpdateProfile).
+  // Keep these in sync — drift causes the form to show a green checkmark
+  // while the server returns 400.
+  const normalizedUsername = usernameInput.trim().toLowerCase()
+  const usernameChanged = normalizedUsername !== (user?.username || '').toLowerCase()
+  const usernameError = !usernameChanged ? null :
+    normalizedUsername.length < 3 ? 'Must be at least 3 characters' :
+    normalizedUsername.length > 30 ? 'Must be 30 characters or less' :
+    !/^[a-z0-9_]+$/.test(normalizedUsername) ? 'Only letters, numbers, and underscores' :
+    null
 
   // Track if there are unsaved changes
   const hasUnsavedChanges = isEditing && (
     displayName !== (user?.displayName || '') ||
+    usernameChanged ||
     travelMode !== (localStorage.getItem('roam_travel_mode') || 'walking') ||
     freeOnly !== (localStorage.getItem('roam_free_only') === 'true') ||
     accessibilityMode !== (localStorage.getItem('roam_accessibility') === 'true') ||
@@ -972,12 +991,29 @@ function SettingsTab({ user, onLogout }) {
   const handleSave = async () => {
     setSaveError('')
     setSaveSuccess(false)
-    setIsSaving(true)
 
+    // Client-side guard — server still re-validates, but failing fast
+    // avoids a 400 round-trip and gives a focused error message.
+    if (usernameChanged && usernameError) {
+      setSaveError(usernameError)
+      return
+    }
+
+    setIsSaving(true)
     try {
-      // Save account info to backend if changed
+      // Bundle account changes into one /api/auth update call so partial
+      // failure can't leave the user with displayName saved but username
+      // rejected (or vice versa).
+      const accountPatch = {}
       if (displayName !== (user?.displayName || '')) {
-        const result = await updateProfile({ displayName: displayName || null })
+        accountPatch.displayName = displayName || null
+      }
+      if (usernameChanged) {
+        accountPatch.username = normalizedUsername
+      }
+
+      if (Object.keys(accountPatch).length > 0) {
+        const result = await updateProfile(accountPatch)
         if (!result.success) {
           throw new Error(result.error)
         }
@@ -988,6 +1024,15 @@ function SettingsTab({ user, onLogout }) {
 
       setSaveSuccess(true)
       setIsEditing(false)
+
+      // If the username changed, the current URL still has the old
+      // username as a route param and useUserProfile will refetch the
+      // OLD user (404 if it ever existed for someone else, stale data
+      // otherwise). Navigate to the new URL so everything stays
+      // consistent.
+      if (usernameChanged) {
+        navigate(`/user/${normalizedUsername}`, { replace: true })
+      }
 
       // Clear success message after 3s
       setTimeout(() => setSaveSuccess(false), 3000)
@@ -1002,6 +1047,7 @@ function SettingsTab({ user, onLogout }) {
   const handleCancel = () => {
     // Reset form to current values
     setDisplayName(user?.displayName || '')
+    setUsernameInput(user?.username || '')
     setTravelMode(localStorage.getItem('roam_travel_mode') || 'walking')
     setFreeOnly(localStorage.getItem('roam_free_only') === 'true')
     setAccessibilityMode(localStorage.getItem('roam_accessibility') === 'true')
@@ -1106,10 +1152,37 @@ function SettingsTab({ user, onLogout }) {
           <span className="unified-profile-settings-value">{user?.email || 'Not set'}</span>
         </div>
 
-        <div className="unified-profile-settings-item">
-          <span className="unified-profile-settings-label">Username</span>
-          <span className="unified-profile-settings-value">@{user?.username}</span>
-        </div>
+        {isEditing ? (
+          <div className="unified-profile-settings-field">
+            <label htmlFor="username" className="unified-profile-settings-label">
+              Username
+            </label>
+            <div className="unified-profile-settings-username-row">
+              <span className="unified-profile-settings-username-prefix">@</span>
+              <input
+                id="username"
+                type="text"
+                className="unified-profile-settings-input unified-profile-settings-input--username"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value.replace(/\s/g, ''))}
+                placeholder="username"
+                maxLength={30}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
+                disabled={isSaving}
+              />
+            </div>
+            <span className={`unified-profile-settings-hint${usernameError ? ' is-error' : ''}`}>
+              {usernameError || '3–30 characters · letters, numbers, underscores'}
+            </span>
+          </div>
+        ) : (
+          <div className="unified-profile-settings-item">
+            <span className="unified-profile-settings-label">Username</span>
+            <span className="unified-profile-settings-value">@{user?.username}</span>
+          </div>
+        )}
 
         {isEditing ? (
           <div className="unified-profile-settings-field">
