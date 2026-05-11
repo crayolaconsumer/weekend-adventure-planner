@@ -93,6 +93,7 @@ async function handleGetMe(req, res) {
       emailVerified: user.email_verified,
       createdAt: user.created_at,
       tier: user.tier,
+      isAdmin: user.is_admin === true,
       subscription_id: user.subscription_id,
       subscription_expires_at: user.subscription_expires_at,
       subscription_cancelled_at: user.subscription_cancelled_at,
@@ -122,11 +123,17 @@ async function handleLogin(req, res) {
   }
 
   const user = await queryOne(
-    'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE email = ?',
+    'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, tier, is_banned, subscription_id, subscription_expires_at, subscription_cancelled_at, stripe_customer_id FROM users WHERE email = ?',
     [email.toLowerCase()]
   )
 
   if (!user) {
+    return res.status(401).json({ error: 'Invalid email or password' })
+  }
+
+  // Banned accounts get the generic invalid-credentials response so
+  // we don't confirm to attackers that the email maps to an account.
+  if (user.is_banned) {
     return res.status(401).json({ error: 'Invalid email or password' })
   }
 

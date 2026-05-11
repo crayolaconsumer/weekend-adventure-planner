@@ -111,9 +111,20 @@ export async function getUserFromRequest(req) {
   if (!payload) return null
 
   const user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, stripe_customer_id, subscription_id, subscription_expires_at, subscription_cancelled_at FROM users WHERE id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, is_admin, is_banned, stripe_customer_id, subscription_id, subscription_expires_at, subscription_cancelled_at FROM users WHERE id = ?',
     [payload.userId]
   )
+
+  if (!user) return null
+
+  // MySQL returns TINYINT(1) as 0/1; normalise to booleans.
+  user.is_admin = Boolean(user.is_admin)
+  user.is_banned = Boolean(user.is_banned)
+
+  // Banned users get the same "not authenticated" treatment as expired
+  // tokens — their existing JWTs effectively die the moment the ban
+  // bit flips, without us needing a session-invalidation table.
+  if (user.is_banned) return null
 
   return user
 }

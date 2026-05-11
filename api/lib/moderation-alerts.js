@@ -56,7 +56,7 @@ export async function sendModerationAlert({ report, triage, reportedContent }) {
       reportedContent ? `--- Reported content ---` : null,
       reportedContent ? reportedContent : null,
       ``,
-      `Review at: https://go-roam.uk/admin/reports/${report.id}`,
+      `Review at: https://go-roam.uk/admin/reports`,
       ``,
       `(Reply to this email or open the admin link to action.)`,
     ].filter(line => line !== null)
@@ -78,7 +78,7 @@ export async function sendModerationAlert({ report, triage, reportedContent }) {
   ${reportedContent ? `<hr style="border:none;border-top:1px solid #e6e3d8;margin:18px 0"/>
   <p style="margin:0 0 4px;font-size:13px;color:#6b6b6b">Reported content</p>
   <p style="margin:0;padding:10px 12px;background:#f6f3ec;border-radius:6px;font-size:14px">${escapeHtml(reportedContent)}</p>` : ''}
-  <p style="margin-top:24px"><a href="https://go-roam.uk/admin/reports/${report.id}" style="display:inline-block;padding:10px 18px;background:#1a3a2f;color:#fff;text-decoration:none;border-radius:6px;font-weight:500">Review report</a></p>
+  <p style="margin-top:24px"><a href="https://go-roam.uk/admin/reports" style="display:inline-block;padding:10px 18px;background:#1a3a2f;color:#fff;text-decoration:none;border-radius:6px;font-weight:500">Review report</a></p>
 </div>`
 
     return await sendEmail({ to: ALERT_EMAIL, subject, text, html })

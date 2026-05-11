@@ -17,6 +17,7 @@ const SharedPlan = lazy(() => import('./pages/SharedPlan'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const Terms = lazy(() => import('./pages/Terms'))
+const AdminReports = lazy(() => import('./pages/AdminReports'))
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -429,6 +430,7 @@ function App() {
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/terms" element={<Terms />} />
+                      <Route path="/admin/reports" element={<AdminReports />} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
