@@ -33,11 +33,30 @@ export function initAnalytics() {
     const ph = mod.default
     ph.init(POSTHOG_KEY, {
       api_host: POSTHOG_HOST,
+      // Keep pageviews (automatic, one event per route change) — they're
+      // the spine of any product-analytics funnel and cheap enough.
       capture_pageview: true,
-      capture_pageleave: true,
-      autocapture: {
-        element_attribute_ignorelist: ['data-no-analytics'],
-      },
+      // Drop pageleave — doubles event volume and we don't analyse
+      // dwell time anywhere yet.
+      capture_pageleave: false,
+      // Autocapture fires an event on every DOM interaction by default.
+      // We have explicit track() calls for everything we actually care
+      // about (signed-up, place-saved, upgrade-clicked, etc.), so the
+      // implicit firehose is pure cost with no analytical upside.
+      autocapture: false,
+      // Disable the /decide/ + /flags/ endpoints entirely. PostHog
+      // normally hits these on init + on identify + after every
+      // capture to refresh feature flags, surveys, session-recording
+      // config, etc. We don't use any of those features, so the calls
+      // are pure noise. This is the single biggest request-volume cut.
+      advanced_disable_decide: true,
+      advanced_disable_feature_flags: true,
+      advanced_disable_feature_flags_on_first_load: true,
+      // Belt-and-braces: feature flags, surveys, session recording all
+      // off explicitly in case advanced_disable_decide doesn't catch
+      // them in some PostHog version.
+      disable_session_recording: true,
+      disable_surveys: true,
       persistence: 'localStorage+cookie',
       respect_dnt: true,
       loaded: (instance) => {
