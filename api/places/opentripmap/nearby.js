@@ -1,3 +1,4 @@
+/* global process */
 /**
  * OpenTripMap Nearby Places Proxy
  *
@@ -30,8 +31,15 @@ async function handler(req, res) {
 
   const apiKey = process.env.OPENTRIPMAP_KEY
   if (!apiKey) {
-    console.error('[OTM Proxy] OPENTRIPMAP_KEY not configured')
-    return res.status(503).json({ error: 'OpenTripMap not configured' })
+    // OpenTripMap is an OPTIONAL data source. Returning a hard error
+    // here makes the entire Discover feed look broken if anyone forgets
+    // to set the key (or the key gets revoked, as the OTM service has
+    // been winding down operations and silently invalidating keys).
+    // The client treats this proxy as best-effort, falling back to
+    // Overpass for the bulk of places. Return an empty payload so the
+    // client moves on cleanly.
+    console.warn('[OTM Proxy] OPENTRIPMAP_KEY not configured — returning empty')
+    return res.status(200).json({ places: [], unavailable: true })
   }
 
   const { lat, lng, radius = '5000', kinds } = req.query
@@ -69,13 +77,20 @@ async function handler(req, res) {
       const errorText = await response.text().catch(() => '')
       console.error(`[OTM Proxy] API error: ${response.status} - ${errorText}`)
 
-      if (response.status === 401) {
-        return res.status(503).json({ error: 'OpenTripMap API key invalid or expired' })
+      // 401 = key invalid/revoked. OTM has been silently revoking keys
+      // for months as they wind down the service. Don't kill the feed
+      // for the user — return empty so the client falls back to
+      // Overpass. Same treatment for any non-2xx now: OTM is treated as
+      // best-effort, never load-bearing.
+      if (response.status === 401 || response.status === 403) {
+        return res.status(200).json({ places: [], unavailable: true, reason: 'auth' })
       }
       if (response.status === 429) {
-        return res.status(429).json({ error: 'OpenTripMap rate limit exceeded' })
+        return res.status(200).json({ places: [], unavailable: true, reason: 'rate-limited' })
       }
-      return res.status(response.status).json({ error: `OpenTripMap API error: ${response.status}` })
+      // 5xx and others — still degrade gracefully rather than 500-ing
+      // the user's discover feed.
+      return res.status(200).json({ places: [], unavailable: true, reason: 'upstream-error' })
     }
 
     const data = await response.json()
@@ -97,8 +112,11 @@ async function handler(req, res) {
     return res.status(200).json({ places })
 
   } catch (error) {
+    // Network errors talking to OTM (DNS, timeout, etc) — degrade
+    // gracefully so the client falls back to Overpass instead of
+    // breaking the Discover feed.
     console.error('[OTM Proxy] Error:', error.message)
-    return res.status(500).json({ error: 'Failed to fetch places' })
+    return res.status(200).json({ places: [], unavailable: true, reason: 'network-error' })
   }
 }
 

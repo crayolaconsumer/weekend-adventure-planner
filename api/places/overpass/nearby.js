@@ -85,8 +85,13 @@ function validateOverpassQuery(query) {
   const hasTimeout = /\[timeout:\d+\]/.test(normalizedQuery)
 
   // Check for essential Overpass QL statements
-  // Must have at least one query statement (node, way, relation, nwr, area) or a recursion/output
-  const hasQueryStatement = /(^|\s|;|\()(node|way|relation|nwr|area)\s*[[({]/.test(normalizedQuery)
+  // Must have at least one query statement or a recursion/output.
+  // Accepts the full type set: node, way, relation, plus the combined
+  // shorthands nw (node+way), nr (node+relation), wr (way+relation),
+  // and nwr (all three) — all are valid Overpass QL keywords. The
+  // production client uses `nw["key"~"..."]` for compact queries, so
+  // dropping these shorthands here silently breaks place discovery.
+  const hasQueryStatement = /(^|\s|;|\()(node|way|relation|nwr|nw|nr|wr|area)\s*[[({]/.test(normalizedQuery)
   const hasRecursion = /[<>]/.test(normalizedQuery) // Recurse up/down
   const hasOutput = /\bout\b/.test(normalizedQuery) // Output statement
 
