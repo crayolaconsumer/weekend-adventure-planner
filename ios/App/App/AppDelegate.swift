@@ -11,6 +11,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
+    // MARK: - Push notifications
+    //
+    // The Capacitor PushNotifications plugin needs these AppDelegate methods
+    // to wire APNs events into the JS layer. Without them:
+    //   1. PushNotifications.register() shows the permission prompt
+    //   2. User taps Allow
+    //   3. iOS hands the APNs device token to didRegisterForRemoteNotifications…
+    //   4. …which doesn't exist, so the token is silently discarded
+    //   5. The 'registration' JS event never fires, our usePushNotifications
+    //      hook hits its 10s timeout, and the user sees "registration timed
+    //      out" with no notifications working.
+    // The plugin listens for these NSNotificationCenter posts and rebroadcasts
+    // them as Capacitor events.
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
     func applicationWillResignActive(_ application: UIApplication) {
         // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
         // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
