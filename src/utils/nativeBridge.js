@@ -23,6 +23,13 @@
 // to www avoids the redirect entirely. This was the root cause of Events,
 // Discover, and Apple sign-in all failing silently on native iOS.
 const API_ORIGIN = 'https://www.go-roam.uk'
+
+// The canonical public web origin — used for share URLs that recipients
+// will click on. Hardcoded rather than read from window.location so
+// links shared from native iOS (window.location.origin === 'capacitor://localhost')
+// and from preview deploys (window.location.origin === 'https://my-pr-...vercel.app')
+// always point at production where the share is actually viewable.
+const PUBLIC_WEB_ORIGIN = 'https://www.go-roam.uk'
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 
@@ -69,6 +76,28 @@ export function isIosNative() {
  */
 export function getApiBaseUrl() {
   return isNative() ? API_ORIGIN : ''
+}
+
+/**
+ * Build a fully-qualified URL someone else can click on.
+ *
+ *   getPublicShareUrl('/plan/share/abc') → 'https://www.go-roam.uk/plan/share/abc'
+ *
+ * Use this anywhere we generate a URL for copying / sharing / posting
+ * to another service — NOT for in-app navigation. iOS Capacitor's
+ * window.location.origin is 'capacitor://localhost', which is useless
+ * to recipients. Preview deploys would otherwise produce vercel.app
+ * URLs that 404 once the deploy expires. This always returns the
+ * canonical production URL so share links survive both contexts.
+ *
+ * Universal Links will eventually let these same URLs open the app
+ * directly when the recipient has it installed (apple-app-site-association
+ * + applinks: entitlement) — for now they open in Safari which is the
+ * correct fallback either way.
+ */
+export function getPublicShareUrl(path = '') {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  return `${PUBLIC_WEB_ORIGIN}${cleanPath}`
 }
 
 function getStoredToken() {

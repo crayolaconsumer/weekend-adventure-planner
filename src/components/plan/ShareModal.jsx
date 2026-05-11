@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { downloadICS, getGoogleCalendarUrl } from './CalendarExport'
+import { getPublicShareUrl } from '../../utils/nativeBridge'
 import './ShareModal.css'
 
 const CloseIcon = () => (
@@ -63,12 +64,20 @@ export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode
 
   const planTitle = `${vibe || 'My'} ROAM Adventure`
   const shareText = `Check out my ${vibe || ''} adventure with ${itinerary?.length || 0} stops!`
-  // Use share link if we have a shareCode, otherwise current URL
+  // Build a fully-qualified public URL — window.location.origin is
+  // 'capacitor://localhost' on native iOS, which produced broken share
+  // links like "capacitor://localhost/plan/share/XXX". Always point at
+  // production www so recipients can actually open the link.
+  // The unsaved-plan fallback (no shareCode) is intentionally null —
+  // there's nothing to share until the plan is saved server-side.
   const shareUrl = shareCode
-    ? `${window.location.origin}/plan/share/${shareCode}`
-    : window.location.href
+    ? getPublicShareUrl(`/plan/share/${shareCode}`)
+    : null
 
   const handleCopyLink = async () => {
+    // Without a shareCode there's no public URL to share — guard so we
+    // don't write literal "null" into the clipboard.
+    if (!shareUrl) return
     try {
       await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`)
       setCopied(true)
@@ -87,6 +96,7 @@ export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode
   }
 
   const handleNativeShare = async () => {
+    if (!shareUrl) return
     if (navigator.share) {
       try {
         await navigator.share({

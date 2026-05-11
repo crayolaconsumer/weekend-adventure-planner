@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { generatePlaceCard, shareContent, downloadBlob } from '../utils/shareCard'
+import { getPublicShareUrl } from '../utils/nativeBridge'
 import './ShareButton.css'
 
 // Icons
@@ -53,7 +54,9 @@ export default function ShareButton({ place, variant = 'icon' }) {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const shareUrl = `${window.location.origin}/place/${place.id}`
+  // Public URL — window.location.origin is 'capacitor://localhost' on
+  // native iOS, which would produce an unclickable link for recipients.
+  const shareUrl = getPublicShareUrl(`/place/${place.id}`)
   const shareTitle = place.name
   const shareText = place.description
     ? `Check out ${place.name}: "${place.description}"`

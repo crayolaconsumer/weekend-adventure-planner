@@ -23,6 +23,7 @@ import UpgradePrompt from '../components/UpgradePrompt'
 import { formatDisplayName } from '../utils/displayName'
 import { useSubscription } from '../hooks/useSubscription'
 import PremiumBadge from '../components/PremiumBadge'
+import { getPublicShareUrl } from '../utils/nativeBridge'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -155,8 +156,9 @@ export default function VisitedMapPage() {
 
   const handleShare = async () => {
     // Use the share-prerender redirect URL so og:image meta tags fire
-    // for link unfurlers (iMessage/WhatsApp/Slack/Twitter).
-    const url = `${window.location.origin}/api/share/user-map/${encodeURIComponent(username)}`
+    // for link unfurlers (iMessage/WhatsApp/Slack/Twitter). Public URL
+    // — window.location.origin is 'capacitor://localhost' on native iOS.
+    const url = getPublicShareUrl(`/api/share/user-map/${encodeURIComponent(username)}`)
     const title = `${formatDisplayName(data?.user) || username}'s ROAM map`
     const text = `Check out the places ${formatDisplayName(data?.user) || username} has visited on ROAM`
     if (navigator.share) {
