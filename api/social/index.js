@@ -115,6 +115,7 @@ async function getFollowers(req, res, userId, currentUser, limit, offset) {
     FROM follows f
     JOIN users u ON f.follower_id = u.id
     WHERE f.following_id = ?
+    AND u.is_banned = FALSE
     ORDER BY f.created_at DESC
     LIMIT ? OFFSET ?
   `
@@ -125,9 +126,12 @@ async function getFollowers(req, res, userId, currentUser, limit, offset) {
 
   const followers = await query(sql, params)
 
-  // Get total count
+  // Get total count — banned followers excluded so the displayed total
+  // matches the visible list.
   const countResult = await queryOne(
-    'SELECT COUNT(*) as total FROM follows WHERE following_id = ?',
+    `SELECT COUNT(*) as total FROM follows f
+       JOIN users u ON f.follower_id = u.id
+      WHERE f.following_id = ? AND u.is_banned = FALSE`,
     [parseInt(userId)]
   )
 
@@ -175,6 +179,7 @@ async function getFollowing(req, res, userId, currentUser, limit, offset) {
     FROM follows f
     JOIN users u ON f.following_id = u.id
     WHERE f.follower_id = ?
+    AND u.is_banned = FALSE
     ORDER BY f.created_at DESC
     LIMIT ? OFFSET ?
   `
@@ -185,9 +190,10 @@ async function getFollowing(req, res, userId, currentUser, limit, offset) {
 
   const following = await query(sql, params)
 
-  // Get total count
   const countResult = await queryOne(
-    'SELECT COUNT(*) as total FROM follows WHERE follower_id = ?',
+    `SELECT COUNT(*) as total FROM follows f
+       JOIN users u ON f.following_id = u.id
+      WHERE f.follower_id = ? AND u.is_banned = FALSE`,
     [parseInt(userId)]
   )
 
@@ -289,6 +295,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
+      AND u.is_banned = FALSE
       AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
       GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at
       HAVING contribution_count > 0
@@ -334,6 +341,7 @@ async function discoverUsers(req, res, currentUser, limit) {
     WHERE sp2.place_id IN (SELECT place_id FROM saved_places WHERE user_id = ?)
     AND u.id != ?
     AND u.username IS NOT NULL
+    AND u.is_banned = FALSE
     AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
     AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
     GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at, ups.is_private_account
@@ -372,6 +380,7 @@ async function discoverUsers(req, res, currentUser, limit) {
       LEFT JOIN follows f_check ON f_check.follower_id = ? AND f_check.following_id = u.id
       WHERE u.id NOT IN (${excludeIds.map(() => '?').join(',')})
       AND u.username IS NOT NULL
+      AND u.is_banned = FALSE
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
       AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
       AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)

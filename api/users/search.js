@@ -63,6 +63,7 @@ async function handler(req, res) {
       FROM users u
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
+      AND u.is_banned = FALSE
       AND (
         u.username LIKE ?
         OR u.display_name LIKE ?
@@ -111,6 +112,7 @@ async function handler(req, res) {
       SELECT COUNT(*) as total FROM users u
       LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
+      AND u.is_banned = FALSE
       AND (u.username LIKE ? OR u.display_name LIKE ?)
       AND (ups.show_in_search IS NULL OR ups.show_in_search = TRUE)
     `

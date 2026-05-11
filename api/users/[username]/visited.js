@@ -41,7 +41,7 @@ async function handler(req, res) {
 
   try {
     const target = await queryOne(
-      `SELECT id, username, display_name, avatar_url, tier, subscription_expires_at
+      `SELECT id, username, display_name, avatar_url, tier, is_banned, subscription_expires_at
        FROM users
        WHERE username = ?`,
       [username]
@@ -52,6 +52,12 @@ async function handler(req, res) {
 
     const viewer = await getUserFromRequest(req)
     const isOwner = viewer?.id === target.id
+
+    // Banned users disappear from public view; owner can still load
+    // their own data for GDPR export/delete.
+    if (target.is_banned && !isOwner) {
+      return res.status(404).json({ error: 'Not found' })
+    }
 
     // Block check (bidirectional)
     if (viewer && !isOwner) {

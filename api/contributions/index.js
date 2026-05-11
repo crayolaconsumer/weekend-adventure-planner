@@ -99,6 +99,16 @@ async function handleGet(req, res) {
   }
   sql += `)`
 
+  // Hide contributions by banned authors from everyone except the
+  // author themselves (so banned users can still see their own data
+  // for the GDPR-mandated export/delete flows).
+  if (currentUser) {
+    sql += ` AND (u.is_banned = FALSE OR c.user_id = ?)`
+    params.push(currentUser.id)
+  } else {
+    sql += ` AND u.is_banned = FALSE`
+  }
+
   // Enforce visibility rules
   // - public: visible to everyone
   // - followers_only: visible to author and their followers
@@ -240,7 +250,6 @@ async function handlePost(req, res) {
       throw err
     }
   }
-  const id = insertId
 
   // Award contribution badges (non-blocking)
   const contributionCount = await queryOne(

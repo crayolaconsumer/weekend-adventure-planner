@@ -27,7 +27,7 @@ async function handler(req, res) {
 
   try {
     const target = await queryOne(
-      `SELECT u.id, u.username, u.display_name,
+      `SELECT u.id, u.username, u.display_name, u.is_banned,
               ups.is_private_account
        FROM users u
        LEFT JOIN user_privacy_settings ups ON ups.user_id = u.id
@@ -37,7 +37,8 @@ async function handler(req, res) {
 
     const isPrivateAccount = target ? (target.is_private_account === null ? true : !!target.is_private_account) : true
 
-    if (!target || isPrivateAccount) {
+    // Banned users — public share links go cold immediately.
+    if (!target || isPrivateAccount || target.is_banned) {
       return res.redirect(302, '/')
     }
 

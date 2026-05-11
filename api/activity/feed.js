@@ -155,6 +155,7 @@ async function handler(req, res) {
         FROM visited_places vp
         JOIN users u ON vp.user_id = u.id
         WHERE vp.user_id IN (${placeholders})
+        AND u.is_banned = FALSE
         ${privacyFilter}
         ${distanceFilter}
       `)
@@ -212,6 +213,7 @@ async function handler(req, res) {
         JOIN users u ON c.user_id = u.id
         WHERE c.user_id IN (${placeholders})
         AND c.status = 'approved'
+        AND u.is_banned = FALSE
         ${privacyFilter}
         ${contribTypeFilter}
       `)
@@ -257,6 +259,7 @@ async function handler(req, res) {
         LEFT JOIN visited_places vp ON vp.user_id = pr.user_id AND vp.place_id = pr.place_id
         LEFT JOIN saved_places sp ON sp.user_id = pr.user_id AND sp.place_id = pr.place_id
         WHERE pr.user_id IN (${placeholders})
+        AND u.is_banned = FALSE
         ${privacyFilter}
       `)
       params.push(...followingIds)

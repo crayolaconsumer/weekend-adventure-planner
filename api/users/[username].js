@@ -40,6 +40,7 @@ async function handler(req, res) {
         avatar_url,
         created_at,
         tier,
+        is_banned,
         subscription_expires_at
       FROM users
       WHERE username = ?`,
@@ -47,6 +48,14 @@ async function handler(req, res) {
     )
 
     if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    // Banned users disappear from public view (other than to themselves
+    // — they may still be logged in via direct API to handle GDPR
+    // export/delete). Same 404 shape as a non-existent username so we
+    // don't reveal the ban via response shape.
+    if (user.is_banned && (!currentUser || currentUser.id !== user.id)) {
       return res.status(404).json({ error: 'User not found' })
     }
 

@@ -109,6 +109,7 @@ async function handler(req, res) {
       JOIN users u ON sp.user_id = u.id
       WHERE sp.place_id IN (${placeIdPlaceholders})
         AND sp.user_id IN (${followingPlaceholders})
+        AND u.is_banned = FALSE
         AND NOT EXISTS (
           SELECT 1 FROM user_privacy_settings ups
           WHERE ups.user_id = u.id
@@ -133,6 +134,7 @@ async function handler(req, res) {
       JOIN users u ON vp.user_id = u.id
       WHERE vp.place_id IN (${placeIdPlaceholders})
         AND vp.user_id IN (${followingPlaceholders})
+        AND u.is_banned = FALSE
         AND NOT EXISTS (
           SELECT 1 FROM user_privacy_settings ups
           WHERE ups.user_id = u.id
