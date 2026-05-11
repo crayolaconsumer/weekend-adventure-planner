@@ -254,13 +254,20 @@ export default async function handler(request) {
       const data = await response.json()
       markEndpointHealthy(endpoint)
 
-      // Return with aggressive caching headers
-      // Edge cache for 1 hour, stale-while-revalidate for 2 hours
+      // Return with aggressive caching headers.
+      // Upstream Overpass servers cold-cache hit 20+ seconds during peak
+      // (Playwright QA observed 22.8s on a Plan-generation request).
+      // OSM data changes slowly — a tile worth of POIs is essentially
+      // static at the day scale. Bumping the edge cache from 1h to 24h
+      // means the FIRST user in an area pays the cold-cache cost, and
+      // every user after them in the same 24h window gets a sub-100ms
+      // edge hit. SWR window doubled to 48h so stale-but-revalidating
+      // also lasts longer.
       return new Response(JSON.stringify(data), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 's-maxage=3600, stale-while-revalidate=7200',
+          'Cache-Control': 's-maxage=86400, stale-while-revalidate=172800',
           'X-Overpass-Endpoint': endpoint.replace('https://', '').split('/')[0],
           ...CORS_HEADERS
         }

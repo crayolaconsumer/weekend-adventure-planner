@@ -42,11 +42,16 @@ async function handler(req, res) {
     return res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' })
   }
 
-  // Validate API key exists
+  // Skiddle is a SUPPLEMENTARY events source — Ticketmaster carries the
+  // bulk of the events feed. When SKIDDLE_KEY isn't configured (which
+  // is currently the case in production), return an empty result set
+  // instead of erroring. Same defensive pattern as the OpenTripMap
+  // proxy: secondary sources should fail silently so the client falls
+  // back to whatever's working without surfacing a console error.
   const apiKey = process.env.SKIDDLE_KEY
   if (!apiKey) {
-    console.error('SKIDDLE_KEY not configured in Vercel environment')
-    return res.status(500).json({ error: 'API not configured' })
+    console.warn('Skiddle proxy: SKIDDLE_KEY not configured — returning empty')
+    return res.status(200).json({ results: [], unavailable: true, reason: 'not-configured' })
   }
 
   // Get and validate query parameters
@@ -101,8 +106,10 @@ async function handler(req, res) {
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        console.error('Skiddle API: Invalid API key')
-        return res.status(500).json({ error: 'API authentication failed' })
+        // Upstream auth failure — same degrade-silently treatment as
+        // missing key. Don't surface a 500 to the client.
+        console.error('Skiddle API: Invalid API key — returning empty')
+        return res.status(200).json({ results: [], unavailable: true, reason: 'auth' })
       }
       if (response.status === 429) {
         return res.status(429).json({ error: 'Skiddle rate limit exceeded' })
