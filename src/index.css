@@ -624,11 +624,24 @@ p {
    they're brief enough not to look stuck.
    ═══════════════════════════════════════════════════════ */
 @media (hover: none) and (pointer: coarse) {
-  *:hover {
+  /* History: this block used to start with `*:hover { transform: none
+     !important }` to flatten stuck hover-lift effects on touch
+     devices. The wildcard was too greedy — iOS Safari fires `:hover`
+     while the user is touching/dragging an element, and the
+     !important override then squashed ANY inline transform set
+     during drag. The Discover swipe card couldn't translate because
+     of this exact rule: in-app debug overlay showed `inline:
+     translate3d(-137px, 36px, 0)` while `computed: none`. !important
+     on a wildcard beats inline style. Removed.
+     The original intent (no stuck hover after tap) is preserved via
+     the targeted rule below — buttons / links / role=button are the
+     elements that historically had translateY hover lifts. Cards and
+     other draggable surfaces are intentionally not in that set so
+     their drag transforms survive. */
+  button:hover,
+  a:hover,
+  [role="button"]:hover {
     transform: none !important;
-  }
-  /* Buttons / cards with hover lift effects flatten on touch */
-  button:hover, a:hover, [role="button"]:hover {
     box-shadow: inherit;
   }
 }
