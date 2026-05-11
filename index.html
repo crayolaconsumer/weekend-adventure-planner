@@ -3,7 +3,13 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- maximum-scale + user-scalable=no disables pinch-zoom of the page itself.
+       Without this, accidental two-finger pinches in iOS WKWebView zoom the
+       chrome out of place (and recovery is awkward). Inner content that wants
+       its own zoom (maps, photo viewers) handles it via gestures inside its
+       own component. Web a11y trade-off accepted because native apps don't
+       expose page-zoom either — system Display Zoom + Dynamic Type still work. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
   <!-- Primary Meta Tags -->
   <title>ROAM — Stop scrolling. Start roaming.</title>
