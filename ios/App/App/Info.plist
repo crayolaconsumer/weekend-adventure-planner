@@ -73,6 +73,14 @@
 				<string>roam</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.goroam.app.googlesignin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.716567148133-lpqnbc7f8aajjrbkqge1r6n6sfq7b4sv</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
