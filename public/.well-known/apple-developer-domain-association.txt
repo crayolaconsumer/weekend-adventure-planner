@@ -1,0 +1,13 @@
+PASTE_DOMAIN_ASSOCIATION_CONTENT_FROM_APPLE_DEVELOPER_PORTAL_HERE
+
+# Replace this entire file with the contents Apple displays in:
+# Apple Developer Portal → Certificates, Identifiers & Profiles →
+# Identifiers → Services IDs → com.goroam.app.signin → Configure
+# (next to "Sign in with Apple") → Domains and Subdomains section
+# → after adding go-roam.uk + www.go-roam.uk, click "Download" next
+# to "Domain Association File".
+#
+# Apple fetches this file at https://www.go-roam.uk/.well-known/
+# apple-developer-domain-association.txt during the verification step.
+# If the contents don't match, web Sign in with Apple fails with
+# "sign-up not completed" or a similar generic error.
