@@ -20,7 +20,12 @@
   width: auto;
   height: auto;
   margin: 0 auto;
-  max-width: 380px;
+  /* On phones, let the card claim the full available width — the
+     previous 380px cap left visible gutters on iPhone Pro Max widths
+     (430px) and made the card look smaller than the chrome around it.
+     The cap is restored at the tablet breakpoint below so the layout
+     doesn't get cartoonishly large on iPad. */
+  max-width: 100%;
   aspect-ratio: 3/4;
   max-height: 100%;
   border-radius: var(--radius-xl);

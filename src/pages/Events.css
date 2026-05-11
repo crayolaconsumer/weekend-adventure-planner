@@ -238,7 +238,10 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--space-sm) var(--space-md);
+  /* Tight horizontal padding so the event card claims as much of the
+     viewport as possible — previously --space-md (16px) on each side
+     left visible gutters that read as wasted space on iPhone widths. */
+  padding: var(--space-sm) var(--space-xs);
   -webkit-overflow-scrolling: touch;
 }
 
@@ -264,7 +267,9 @@
 .events-filter-panel {
   position: relative;
   z-index: 100;
-  margin: 0 var(--space-md);
+  /* Pull the panel almost edge-to-edge — the prior --space-md margin
+     left big side gutters that wasted screen real estate on phones. */
+  margin: 0 var(--space-sm);
   background: linear-gradient(165deg, #fdfcf8 0%, #f8f6f0 100%);
   border-radius: 20px;
   box-shadow:
@@ -274,10 +279,10 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
   /* Was overflow: hidden + no max-height — on iPhones the panel grew
      taller than the viewport with no way for the user to reach the
-     bottom (PRICE RANGE was cut off). Clamp to 80dvh and let the
-     inner content scroll. */
+     bottom (PRICE RANGE was cut off). Clamp to 88dvh (was 80) so the
+     panel claims more vertical room and feels less cramped. */
   overflow: hidden;
-  max-height: 80dvh;
+  max-height: 88dvh;
   display: flex;
   flex-direction: column;
 }
