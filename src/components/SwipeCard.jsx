@@ -74,6 +74,7 @@ export default function SwipeCard({
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
   const [usingFallback, setUsingFallback] = useState(false)
+  const cardRef = useRef(null)
   const formatDistance = useFormatDistance()
 
   const topTip = topContribution
@@ -257,6 +258,47 @@ export default function SwipeCard({
   const nopeOpacity = useTransform(x, [-100, 0], [1, 0])
   const goOpacity = useTransform(y, [-100, 0], [1, 0])
 
+  // iOS Safari can demote the .swipe-card off its GPU compositor layer
+  // when Framer Motion's style binding writes a 2D `translateX/rotate`
+  // mid-drag — the layer dies, the browser stops repainting until the
+  // touch sequence ends. Confirmed via Playwright: Framer Motion writes
+  // exactly that 2D transform string. So we also write a forced-3D
+  // version DIRECTLY to the DOM from a rAF callback subscribed to the
+  // motion-value `change` event. Two writes hit the same property; the
+  // later (rAF) wins, and crucially it's always `translate3d(...)` so
+  // the compositor layer survives every frame.
+  //
+  // The opacity-using indicator children continue to read x/y via
+  // useTransform — that path was always working on iOS, no change.
+  useEffect(() => {
+    if (!isTop) return
+    let frame = 0
+    const schedule = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const node = cardRef.current
+        if (!node) return
+        const xv = x.get()
+        const yv = y.get()
+        const rv = rotate.get()
+        node.style.transform = `translate3d(${xv}px, ${yv}px, 0) rotate(${rv}deg)`
+      })
+    }
+    const unsubX = x.on('change', schedule)
+    const unsubY = y.on('change', schedule)
+    const unsubR = rotate.on('change', schedule)
+    // Apply initial state so we don't leave the card in whatever
+    // transform Framer Motion last wrote.
+    schedule()
+    return () => {
+      unsubX()
+      unsubY()
+      unsubR()
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [isTop, x, y, rotate])
+
   // Honour OS-level reduced-motion preference. When true we leave drag
   // disabled and the card stays static; users still skip/save/go via
   // the action buttons. Also doubles as a fail-safe: anyone who can't
@@ -379,6 +421,7 @@ export default function SwipeCard({
 
   return (
     <motion.div
+      ref={cardRef}
       className={`swipe-card ${isDragging ? 'dragging' : ''}`}
       style={{
         x,
