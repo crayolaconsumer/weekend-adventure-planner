@@ -28,7 +28,7 @@ export default function Place() {
     title: place?.name || 'Place Details',
     description: place?.description || (place?.name ? `Discover ${place.name} on ROAM` : 'View place details on ROAM'),
     image: place?.photo,
-    url: `https://go-roam.uk/place/${id}`
+    url: `https://www.go-roam.uk/place/${id}`
   })
 
   useEffect(() => {

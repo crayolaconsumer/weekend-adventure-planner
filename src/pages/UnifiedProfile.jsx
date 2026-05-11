@@ -166,7 +166,7 @@ export default function UnifiedProfile() {
     description: profile?.stats
       ? `${displayName} on ROAM — ${profile.stats.contributions || 0} tips shared, ${profile.stats.followers || 0} followers`
       : `${displayName}'s profile on ROAM`,
-    url: `https://go-roam.uk/user/${username}`
+    url: `https://www.go-roam.uk/user/${username}`
   })
 
   // Modal states

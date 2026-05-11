@@ -21,13 +21,18 @@ export async function nativeAppleSignIn() {
     throw new Error('Native Apple Sign In only available on iOS')
   }
   const { SignInWithApple } = await import('@capacitor-community/apple-sign-in')
+  // crypto.randomUUID requires iOS 15.4+ in WKWebView — fall back to a
+  // random hex string on iOS 14 so the call doesn't throw "is not a function".
+  const nonce = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36)
   // The clientId must be the App Bundle ID for the native flow (not the Services ID)
   const result = await SignInWithApple.authorize({
     clientId: 'com.goroam.app',
-    redirectURI: 'https://go-roam.uk/api/auth/apple/callback',
+    redirectURI: 'https://www.go-roam.uk/api/auth/apple/callback',
     scopes: 'email name',
     state: 'capacitor-native',
-    nonce: crypto.randomUUID()
+    nonce
   })
   // Plugin returns flat { identityToken, authorizationCode, user, email,
   // givenName, familyName }. Map to the shape the server expects.

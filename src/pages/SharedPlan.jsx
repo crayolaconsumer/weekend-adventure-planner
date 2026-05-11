@@ -56,7 +56,7 @@ export default function SharedPlan() {
   useSEO({
     title: planTitle,
     description: `${vibeLabel} ${placeCount} places to explore — shared via ROAM`,
-    url: `https://go-roam.uk/plan/share/${code}`
+    url: `https://www.go-roam.uk/plan/share/${code}`
   })
 
   useEffect(() => {

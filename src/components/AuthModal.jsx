@@ -397,12 +397,14 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
             </button>
           )}
 
-          {/* Google Sign-In Button — hidden on native iOS until the
-              native plugin is wired up. Google blocks its JS SDK in
-              WKWebViews (UA fingerprinting), so the web flow gets
-              stuck on "loading, please try again". Apple sign-in
-              and email/password cover the iOS path until then. */}
-          {!(isNative() && getPlatform() === 'ios') && (
+          {/* Google Sign-In Button — hidden on ALL native (iOS + Android)
+              until the native plugin is wired up. Google blocks its JS
+              SDK in WebViews (UA fingerprinting), so the web flow gets
+              stuck on "loading, please try again" on iOS and silently
+              fails to open the popup on Android. Apple sign-in
+              (iOS only) and email/password cover the native path
+              until then. */}
+          {!isNative() && (
             <button
               className="auth-google-btn"
               onClick={() => handleGoogleLogin()}

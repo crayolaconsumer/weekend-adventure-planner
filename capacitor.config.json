@@ -11,7 +11,7 @@
   },
   "server": {
     "iosScheme": "capacitor",
-    "allowNavigation": ["go-roam.uk", "*.go-roam.uk"]
+    "allowNavigation": ["go-roam.uk", "www.go-roam.uk", "*.go-roam.uk"]
   },
   "plugins": {
     "SplashScreen": {

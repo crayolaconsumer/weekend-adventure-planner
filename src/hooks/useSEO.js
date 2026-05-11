@@ -92,7 +92,7 @@ export function useSEO({
       setMetaTag('og:title', originals.ogTitle || DEFAULT_TITLE, true)
       setMetaTag('og:description', originals.ogDescription || DEFAULT_DESCRIPTION, true)
       setMetaTag('og:type', originals.ogType || 'website', true)
-      setMetaTag('og:url', originals.ogUrl || 'https://go-roam.uk/', true)
+      setMetaTag('og:url', originals.ogUrl || 'https://www.go-roam.uk/', true)
       setMetaTag('twitter:title', originals.twitterTitle || DEFAULT_TITLE, true)
       setMetaTag('twitter:description', originals.twitterDescription || DEFAULT_DESCRIPTION, true)
 

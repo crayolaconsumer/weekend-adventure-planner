@@ -35,6 +35,7 @@ import { checkAndAutoExpire } from './utils/offlinePack'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
+import { getCurrentPosition as nativeGetCurrentPosition } from './utils/nativePlugins'
 
 // Icons as components
 const CompassIcon = () => (
@@ -318,46 +319,40 @@ function App() {
     // Don't request location while onboarding is showing
     if (showOnboarding) return
 
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
-        },
-        (error) => {
-          setLocationError(error.message)
-          // Default to London as fallback
-          setLocation({ lat: 51.5074, lng: -0.1278 })
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      )
-    } else {
-      // Geolocation not available, use London as fallback
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial state setup, runs once
-      setLocationError('Geolocation not supported')
-      setLocation({ lat: 51.5074, lng: -0.1278 })
-    }
+    // Route via the native plugin on Capacitor — Android REQUIRES the
+    // plugin to trigger the runtime permission dialog (the web
+    // navigator.geolocation path in Capacitor's WebView won't ask for
+    // ACCESS_FINE_LOCATION). On iOS native, the plugin also gives
+    // better accuracy and uses the entitlement string we set in
+    // Info.plist (NSLocationWhenInUseUsageDescription). On web,
+    // nativeGetCurrentPosition falls through to navigator.geolocation.
+    nativeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000 })
+      .then((position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        })
+      })
+      .catch((error) => {
+        setLocationError(error?.message || 'Geolocation failed')
+        // Default to London as fallback
+        setLocation({ lat: 51.5074, lng: -0.1278 })
+      })
   }, [showOnboarding])
 
   // Retry location permission
   const retryLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          })
-          setLocationError(null)
-        },
-        (error) => {
-          setLocationError(error.message)
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      )
-    }
+    nativeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000 })
+      .then((position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        })
+        setLocationError(null)
+      })
+      .catch((error) => {
+        setLocationError(error?.message || 'Geolocation failed')
+      })
   }
 
   return (
