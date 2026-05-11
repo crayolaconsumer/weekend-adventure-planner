@@ -333,18 +333,26 @@ export default function SwipeCard({
         const swipeThreshold = 100
         const velocityThreshold = 0.5
 
-        if (mx > swipeThreshold || (vx > velocityThreshold && dx > 0)) {
-          // Swipe right - Like
-          animate(x, 500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('like'), 200)
-        } else if (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0)) {
-          // Swipe left - Nope
-          animate(x, -500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('nope'), 200)
-        } else if (my < -swipeThreshold || (vy > velocityThreshold && dy < 0)) {
+        // Pick the dominant axis FIRST, then check direction. Previously
+        // the if-chain checked horizontal first, so any swipe-up with
+        // even slight rightward drift triggered "Save" instead of "Go".
+        // User reported this exact mis-fire on real iPhone.
+        // Vertical wins when |my| > |mx| (no bias needed — finger-paths
+        // that read as "up" to a human have my dominant by a clear margin).
+        const verticalDominant = Math.abs(my) > Math.abs(mx)
+
+        if (verticalDominant && (my < -swipeThreshold || (vy > velocityThreshold && dy < 0))) {
           // Swipe up - Go now
           animate(y, -500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('go'), 200)
+        } else if (!verticalDominant && (mx > swipeThreshold || (vx > velocityThreshold && dx > 0))) {
+          // Swipe right - Like
+          animate(x, 500, { duration: 0.3 })
+          setTimeout(() => onSwipe?.('like'), 200)
+        } else if (!verticalDominant && (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0))) {
+          // Swipe left - Nope
+          animate(x, -500, { duration: 0.3 })
+          setTimeout(() => onSwipe?.('nope'), 200)
         } else {
           // Spring back to origin
           animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
@@ -503,7 +511,12 @@ export default function SwipeCard({
               {category.label}
             </span>
           )}
-          <PlaceBadges place={place} variant="compact" maxVisible={2} />
+          {/* PlaceBadges (independent / outdoor space / no-charge etc.)
+             intentionally removed from the swipe card. The default emoji
+             rendering reads as clutter against the card's photo + the
+             clean category chip, and we don't have branded SVG variants
+             for them. They still surface in the PlaceDetail modal when
+             the user taps in — that's the right place for "deeper" info. */}
         </div>
 
         <h2 className="swipe-card-name">{place.name}</h2>

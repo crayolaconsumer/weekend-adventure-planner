@@ -446,7 +446,31 @@ async function handleApple(req, res) {
       audience: [APPLE_SERVICES_ID, APPLE_BUNDLE_ID],
     })
     payload = verified.payload
-  } catch {
+  } catch (err) {
+    // Log enough to diagnose without dumping the full token. jose
+    // error codes are stable: ERR_JWT_CLAIM_VALIDATION_FAILED (with
+    // claim name) covers the common audience/issuer mismatches.
+    // Previous catch swallowed everything — user reported a 401 with
+    // no logs and we had nothing to debug.
+    let aud = null, iss = null
+    try {
+      const parts = identityToken.split('.')
+      if (parts.length === 3) {
+        const claimsJson = Buffer.from(parts[1], 'base64').toString('utf8')
+        const claims = JSON.parse(claimsJson)
+        aud = claims.aud
+        iss = claims.iss
+      }
+    } catch { /* token wasn't a JWT */ }
+    console.error('[apple-auth] JWT verification failed', {
+      code: err?.code,
+      message: err?.message,
+      claim: err?.claim,
+      reason: err?.reason,
+      token_aud: aud,
+      token_iss: iss,
+      expected_audiences: [APPLE_SERVICES_ID, APPLE_BUNDLE_ID],
+    })
     return res.status(401).json({ error: 'Invalid Apple identity token' })
   }
 
