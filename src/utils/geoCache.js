@@ -161,7 +161,16 @@ export function setCache(key, data, ttl = DEFAULT_TTL) {
  * @returns {Promise<{data: any, fresh: boolean, stale: boolean}>}
  */
 export async function getWithSWR(key, fetchFn, options = {}) {
-  const { ttl = DEFAULT_TTL, onBackgroundRefresh } = options
+  const { ttl = DEFAULT_TTL, onBackgroundRefresh, force = false } = options
+
+  // Force flag: skip cache entirely. Used when the user explicitly
+  // taps Refresh on an empty state — otherwise the SWR layer returns
+  // the same stale data and the button feels broken.
+  if (force) {
+    const data = await fetchFn()
+    setCache(key, data, ttl)
+    return { data, fresh: true, stale: false }
+  }
 
   let entry = memoryCache.get(key)
 

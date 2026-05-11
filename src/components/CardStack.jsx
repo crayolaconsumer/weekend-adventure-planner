@@ -393,6 +393,21 @@ export default function CardStack({
   const isSwipedThrough = mergedPlaces.length > 0 && currentIndex >= mergedPlaces.length
   const hasNoPlaces = mergedPlaces.length === 0
 
+  // Wrap onRefresh so the empty-state button always produces a visible
+  // change. Two things were silently making "Discover More" do nothing:
+  //   (a) when the user has swiped through every card, currentIndex >=
+  //       mergedPlaces.length stays true even after a refresh if the
+  //       data comes back identical — the user sees the same empty
+  //       state forever. Reset currentIndex here so the cards reappear
+  //       from the start while any background refetch runs.
+  //   (b) when the cache returns the same places, the parent's places
+  //       prop never re-renders, so the useEffect that resets index
+  //       on [places] doesn't fire. Resetting locally covers that.
+  const handleRefresh = onRefresh ? () => {
+    setCurrentIndex(0)
+    onRefresh()
+  } : null
+
   // Show loading state when fetching more cards
   if (loadingMore && isSwipedThrough) {
     return (
@@ -426,7 +441,7 @@ export default function CardStack({
         subtitle: activeFiltersCount > 0
           ? `You've seen all ${activeFiltersCount} filtered result${activeFiltersCount !== 1 ? 's' : ''}. Try removing some filters or expanding your search.`
           : "You've explored all nearby places. Try expanding your travel radius or adjusting filters.",
-        primaryAction: onRefresh ? { label: 'Discover More', icon: <RefreshIcon />, action: onRefresh } : null,
+        primaryAction: handleRefresh ? { label: 'Discover More', icon: <RefreshIcon />, action: handleRefresh } : null,
         secondaryAction: onOpenSettings ? { label: 'Adjust Filters', icon: <SettingsIcon />, action: onOpenSettings } : null
       }
     } else if (emptyReason === 'filters') {
@@ -437,14 +452,14 @@ export default function CardStack({
           ? `Your ${activeFiltersCount} active filter${activeFiltersCount !== 1 ? 's are' : ' is'} too restrictive for this area. Try removing some filters to see more places.`
           : "Try adjusting your filters to see more places.",
         primaryAction: onOpenSettings ? { label: 'Adjust Filters', icon: <SettingsIcon />, action: onOpenSettings } : null,
-        secondaryAction: onRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: onRefresh } : null
+        secondaryAction: handleRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: handleRefresh } : null
       }
     } else if (emptyReason === 'error') {
       emptyConfig = {
         icon: '😕',
         title: 'Something went wrong',
         subtitle: "We couldn't load places right now. Check your connection and try again.",
-        primaryAction: onRefresh ? { label: 'Try Again', icon: <RefreshIcon />, action: onRefresh } : null,
+        primaryAction: handleRefresh ? { label: 'Try Again', icon: <RefreshIcon />, action: handleRefresh } : null,
         secondaryAction: null
       }
     } else {
@@ -457,7 +472,7 @@ export default function CardStack({
         title: 'No places nearby',
         subtitle: `We couldn't find adventures in this area. ${radiusHint}`,
         primaryAction: onOpenSettings ? { label: 'Expand Radius', icon: <SettingsIcon />, action: onOpenSettings } : null,
-        secondaryAction: onRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: onRefresh } : null
+        secondaryAction: handleRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: handleRefresh } : null
       }
     }
 

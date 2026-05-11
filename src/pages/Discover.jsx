@@ -370,7 +370,7 @@ export default function Discover({ location }) {
   // Note: weather is intentionally NOT a dependency to prevent cascading reloads
   // Uses SWR pattern for faster initial loads
   // Now works with memoized filtering - only sets basePlaces, useMemo handles the rest
-  const loadPlaces = useCallback(async (currentWeather = null) => {
+  const loadPlaces = useCallback(async (currentWeather = null, { force = false } = {}) => {
     if (!effectiveLocation) return
 
     const requestId = ++latestLoadRequestRef.current
@@ -381,9 +381,12 @@ export default function Discover({ location }) {
     const resolvedWeather = currentWeather ?? weather
 
     // OPTIMIZATION: Check cache synchronously BEFORE setting loading state
-    // If we have usable cache (fresh or stale), render it immediately without spinner
+    // If we have usable cache (fresh or stale), render it immediately without spinner.
+    // EXCEPTION: when force=true (user explicitly tapped Refresh from the empty state)
+    // we skip the cache entirely and hit the network — otherwise the user gets the
+    // same stale data and the button feels broken.
     const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
-    const cacheCheck = hasCacheSync(cacheKey)
+    const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
 
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
       // Render cached data immediately - no loading spinner!
@@ -433,7 +436,9 @@ export default function Discover({ location }) {
               return [...prev, ...unique]
             })
           }
-        }
+        },
+        // Force flag — bypass SWR cache when the user explicitly tapped Refresh.
+        { force }
       )
 
       // Context for smart scoring (time of day, weather)
@@ -1080,7 +1085,7 @@ export default function Discover({ location }) {
             onSwipe={handleSwipe}
             onExpand={(place) => setSelectedPlace(place)}
             onEmpty={() => {}}
-            onRefresh={() => loadPlaces(weather)}
+            onRefresh={() => loadPlaces(weather, { force: true })}
             onOpenSettings={() => setShowFilterModal(true)}
             onLoadMore={loadMorePlaces}
             loading={loading}

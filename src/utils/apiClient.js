@@ -1249,7 +1249,7 @@ function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
  * @param {Function} onRefresh - Callback when fresh data is available
  * @returns {Promise<{data: Array, fresh: boolean, stale: boolean}>}
  */
-export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null, onProgress = null) {
+export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null, onProgress = null, { force = false } = {}) {
   const cacheKey = makeCacheKey(lat, lng, radius, category)
 
   return getWithSWR(
@@ -1257,7 +1257,8 @@ export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = nul
     () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress),
     {
       ttl: 10 * 60 * 1000, // 10 minute freshness
-      onBackgroundRefresh: onRefresh
+      onBackgroundRefresh: onRefresh,
+      force
     }
   )
 }
