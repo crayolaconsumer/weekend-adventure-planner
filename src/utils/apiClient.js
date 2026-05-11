@@ -206,6 +206,11 @@ async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
     const startTime = Date.now()
 
     try {
+      // Direct-from-client fallback — only runs if our server proxy is
+      // down. Browsers forbid setting a custom User-Agent on fetch(),
+      // so OSM sees the user's browser UA (acceptable per their TOS).
+      // The proxy at /api/places/overpass/nearby sets a proper UA when
+      // the request is server-side; this path is a degraded fallback.
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

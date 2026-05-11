@@ -237,7 +237,11 @@ export default async function handler(request) {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
+          // OSM Foundation Overpass usage policy requires an identifying
+          // User-Agent with a contact URL. Without this, OSM operators
+          // can (and have) blocked anonymous traffic at the IP range.
+          'User-Agent': 'ROAM/1.0 (+https://www.go-roam.uk; support@extrastaff.com)'
         },
         body: `data=${encodeURIComponent(query)}`,
         signal: controller.signal
@@ -290,9 +294,11 @@ export default async function handler(request) {
   // All attempts failed
   console.error('[Overpass Proxy] All endpoints failed:', lastError?.message)
 
+  // Detail kept server-side only — the lastError message can include
+  // upstream URLs, timeouts, and infra hints we shouldn't echo to clients.
   return new Response(JSON.stringify({
     error: 'Overpass API unavailable',
-    message: lastError?.message || 'All endpoints failed'
+    message: 'All upstream endpoints failed. Please retry in a moment.'
   }), {
     status: 503,
     headers: {

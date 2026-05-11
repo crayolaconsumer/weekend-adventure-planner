@@ -130,6 +130,24 @@ export async function getUserFromRequest(req) {
 }
 
 /**
+ * Require authentication — returns the user, or writes a 401 to the
+ * response and returns null. Callers can do `if (!user) return` and
+ * the response is already terminated.
+ *
+ * @param {Object} req - Request
+ * @param {Object} res - Response
+ * @returns {Promise<Object|null>} User object or null (after 401 sent)
+ */
+export async function requireAuth(req, res) {
+  const user = await getUserFromRequest(req)
+  if (!user) {
+    res.status(401).json({ error: 'Authentication required' })
+    return null
+  }
+  return user
+}
+
+/**
  * Create auth cookie string
  * @param {string} token - JWT token
  * @param {boolean} remember - If true, set longer expiry
@@ -268,6 +286,7 @@ export default {
   verifyToken,
   extractToken,
   getUserFromRequest,
+  requireAuth,
   createAuthCookie,
   createLogoutCookie,
   isValidEmail,

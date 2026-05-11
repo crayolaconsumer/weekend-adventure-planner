@@ -102,19 +102,18 @@ async function handler(req, res) {
       countryCode: 'GB'
     })
 
-    // Add browser-like headers to avoid bot detection
+    // Identify ourselves honestly to Ticketmaster — the previous spoofed
+    // browser User-Agent violated their terms of service ("Don't
+    // misrepresent the API caller"). The API key in the query params
+    // is how Ticketmaster authenticates us; the UA is for analytics
+    // and abuse handling on their side.
     const response = await fetch(
       `https://app.ticketmaster.com/discovery/v2/events.json?${params}`,
       {
         headers: {
-          'Accept': 'application/json, text/plain, */*',
+          'Accept': 'application/json',
           'Accept-Language': 'en-GB,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Origin': 'https://www.go-roam.uk',
-          'Referer': 'https://www.go-roam.uk/',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+          'User-Agent': 'ROAM-EventsProxy/1.0 (+https://www.go-roam.uk)'
         }
       }
     )

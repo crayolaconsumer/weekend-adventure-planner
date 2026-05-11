@@ -54,9 +54,11 @@ export default async function handler(req, res) {
     })
   } catch (error) {
     console.error('Visit reminders cron error:', error)
+    // Don't echo error.message to the response — this is a cron endpoint
+    // but any caller could probe internal errors (DB hostnames, query
+    // fragments, etc.). Full detail stays in server logs.
     return res.status(500).json({
-      error: 'Failed to process visit reminders',
-      message: error.message
+      error: 'Failed to process visit reminders'
     })
   }
 }

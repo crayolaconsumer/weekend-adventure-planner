@@ -11,7 +11,6 @@
  * Returns: { url: string }
  */
 
-/* global process */
 import { requireAuth } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
@@ -61,21 +60,52 @@ async function handler(req, res) {
   }
 
   try {
-    // Validate content type
-    const contentType = req.headers['content-type']
-    if (!contentType || !contentType.startsWith('image/')) {
-      return res.status(400).json({ error: 'Only image uploads are allowed' })
+    // Validate content type — strict allowlist (no SVG, no HTML masquerading
+    // as image/foo). The header is still client-controlled but at minimum the
+    // file extension we save can't be an executable type.
+    const CONTENT_TYPE_TO_EXT = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+    }
+    const rawContentType = req.headers['content-type'] || ''
+    // Some clients append "; charset=..." — strip params for the lookup.
+    const contentType = rawContentType.split(';')[0].trim().toLowerCase()
+    const ext = CONTENT_TYPE_TO_EXT[contentType]
+    if (!ext) {
+      return res.status(400).json({ error: 'Only JPEG, PNG, GIF, WebP, or HEIC images are allowed' })
     }
 
-    // Validate file size (max 5MB)
+    // Validate file size (max 5MB). Content-Length is client-controlled —
+    // a more robust enforcement happens at the Vercel edge body-size limit
+    // (4.5MB on Hobby, 100kB above which uploads stream) and inside the Blob
+    // client when it reads the stream. This header check rejects the
+    // obvious cases without spending the upload bandwidth.
     const contentLength = parseInt(req.headers['content-length'], 10)
+    if (!Number.isFinite(contentLength) || contentLength <= 0) {
+      return res.status(400).json({ error: 'Missing or invalid Content-Length' })
+    }
     if (contentLength > 5 * 1024 * 1024) {
       return res.status(400).json({ error: 'File too large. Maximum size is 5MB' })
     }
 
-    // Generate unique filename
-    const ext = contentType.split('/')[1] || 'jpg'
+    // Generate unique filename — extension comes from our allowlist, NOT
+    // the raw content-type string (which could be "image/../../etc.html").
     const filename = `contributions/${user.id}/${Date.now()}.${ext}`
+
+    // TODO(privacy): strip EXIF before storing. JPEG/HEIC from iOS contain
+    // GPS coordinates in metadata. Two options:
+    //   1. Server-side: install `sharp` and `sharp(buf).rotate().toBuffer()`
+    //      (which discards EXIF by default). Heavy cold-start hit on Vercel.
+    //   2. Client-side: pre-process the image through canvas.toBlob() before
+    //      upload — canvas strips EXIF naturally. Cheaper, but only effective
+    //      if every upload path goes through that helper.
+    // Until then, our privacy policy must disclose precise-location storage,
+    // and Apple's App Store data-collection disclosures must match.
 
     // Upload to Vercel Blob
     const blob = await blobPut(filename, req, {

@@ -97,10 +97,11 @@ async function handleGetMe(req, res) {
       createdAt: user.created_at,
       tier: user.tier,
       isAdmin: user.is_admin === true,
-      subscription_id: user.subscription_id,
       subscription_expires_at: user.subscription_expires_at,
-      subscription_cancelled_at: user.subscription_cancelled_at,
-      stripe_customer_id: user.stripe_customer_id
+      subscription_cancelled_at: user.subscription_cancelled_at
+      // stripe_customer_id and subscription_id deliberately omitted —
+      // internal payment-processor identifiers that the client never
+      // needs and shouldn't be able to probe with.
     }
   })
 }
@@ -168,10 +169,8 @@ async function handleLogin(req, res) {
       avatarUrl: user.avatar_url,
       emailVerified: user.email_verified,
       tier: user.tier,
-      subscription_id: user.subscription_id,
       subscription_expires_at: user.subscription_expires_at,
-      subscription_cancelled_at: user.subscription_cancelled_at,
-      stripe_customer_id: user.stripe_customer_id
+      subscription_cancelled_at: user.subscription_cancelled_at
     },
     token
   })
@@ -257,10 +256,8 @@ async function handleRegister(req, res) {
       avatarUrl: user.avatar_url,
       emailVerified: user.email_verified,
       tier: user.tier,
-      subscription_id: user.subscription_id,
       subscription_expires_at: user.subscription_expires_at,
-      subscription_cancelled_at: user.subscription_cancelled_at,
-      stripe_customer_id: user.stripe_customer_id
+      subscription_cancelled_at: user.subscription_cancelled_at
     },
     token
   })
@@ -399,10 +396,8 @@ async function handleGoogle(req, res) {
       avatarUrl: user.avatar_url,
       emailVerified: user.email_verified,
       tier: user.tier,
-      subscription_id: user.subscription_id,
       subscription_expires_at: user.subscription_expires_at,
-      subscription_cancelled_at: user.subscription_cancelled_at,
-      stripe_customer_id: user.stripe_customer_id
+      subscription_cancelled_at: user.subscription_cancelled_at
     },
     token,
     isNewUser: !user.last_login_at
@@ -467,6 +462,11 @@ async function handleApple(req, res) {
     } catch (decodeErr) {
       decodeError = decodeErr?.message
     }
+    // Do NOT log prefix/suffix of the token — the prefix is the JWS
+    // header + start of payload (includes key ID), the suffix is the
+    // tail of the signature. Length + parts + decoded aud/iss are
+    // enough to diagnose every realistic failure mode without
+    // shipping pieces of a real identity token into log storage.
     console.error('[apple-auth] JWT verification failed', {
       code: err?.code,
       message: err?.message,
@@ -476,8 +476,6 @@ async function handleApple(req, res) {
       token_iss: iss,
       token_length: identityToken.length,
       token_parts: parts.length,
-      token_prefix: identityToken.slice(0, 30),
-      token_suffix: identityToken.slice(-20),
       decode_error: decodeError,
       expected_audiences: [APPLE_SERVICES_ID, APPLE_BUNDLE_ID],
     })
@@ -580,10 +578,8 @@ async function handleApple(req, res) {
       avatarUrl: user.avatar_url,
       emailVerified: user.email_verified,
       tier: user.tier,
-      subscription_id: user.subscription_id,
       subscription_expires_at: user.subscription_expires_at,
-      subscription_cancelled_at: user.subscription_cancelled_at,
-      stripe_customer_id: user.stripe_customer_id
+      subscription_cancelled_at: user.subscription_cancelled_at
     },
     token,
     isNewUser: !user.last_login_at
@@ -655,7 +651,9 @@ async function handleDeleteAccount(req, res) {
 
   // Cancel any active Stripe subscription so the user isn't billed after
   // deletion. Best-effort — never block deletion if Stripe call fails.
-  if (fresh?.stripe_customer_id || user.stripe_subscription_id) {
+  // Note: `user.stripe_subscription_id` was a typo — the column is
+  // `subscription_id`. The corrected check covers either source.
+  if (fresh?.stripe_customer_id || fresh?.subscription_id || user.subscription_id) {
     try {
       const subRow = await queryOne(
         'SELECT subscription_id FROM users WHERE id = ?',
@@ -805,10 +803,8 @@ async function handleUpdateProfile(req, res) {
       avatarUrl: updatedUser.avatar_url,
       emailVerified: updatedUser.email_verified,
       tier: updatedUser.tier,
-      subscription_id: updatedUser.subscription_id,
       subscription_expires_at: updatedUser.subscription_expires_at,
-      subscription_cancelled_at: updatedUser.subscription_cancelled_at,
-      stripe_customer_id: updatedUser.stripe_customer_id
+      subscription_cancelled_at: updatedUser.subscription_cancelled_at
     }
   })
 }
