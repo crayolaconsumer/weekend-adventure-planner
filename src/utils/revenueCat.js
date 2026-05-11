@@ -49,6 +49,18 @@ export async function initRevenueCat() {
       return false
     }
 
+    // RC's native SDK refuses to initialize in production-signed builds
+    // (TestFlight + App Store) when the key has the `test_` prefix —
+    // and instead of just refusing, it calls exit() with a dialog
+    // explaining the test key. That crashes the app on every launch.
+    // Detect the prefix here and skip init entirely so the rest of the
+    // app continues to work. IAP stays dormant until a production
+    // `appl_` key is set in Vercel env.
+    if (typeof apiKey === 'string' && apiKey.startsWith('test_')) {
+      console.warn('[RevenueCat] Test key detected — skipping init to avoid SDK exit() in production build.')
+      return false
+    }
+
     try {
       const { Purchases, LOG_LEVEL } = await import('@revenuecat/purchases-capacitor')
       // Verbose only in dev — production logs would noise up the Xcode console.
