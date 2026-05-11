@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { isNative, getPlatform } from '../utils/nativeBridge'
-import { nativeAppleSignIn } from '../utils/nativePlugins'
+import { nativeAppleSignIn, nativeGoogleSignIn } from '../utils/nativePlugins'
 import './AuthModal.css'
 
 // Icons
@@ -121,7 +121,35 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
 
   const handleGoogleLogin = useCallback(async (credential) => {
     if (!credential) {
-      // Button clicked - use popup flow directly (avoids blocked popups after async callbacks)
+      // Button clicked.
+      // ─── Native (iOS / Android Capacitor) ──────────────────────────
+      // The web GIS popup is blocked inside WebViews by Google's UA
+      // policy. Route through @capgo/capacitor-social-login which
+      // uses native Google SDKs. Returns an idToken that our server's
+      // action: 'google' handler already verifies via verifyIdToken
+      // (audience = web client ID, set as iOSServerClientId so the
+      // token's aud claim matches).
+      if (isNative()) {
+        try {
+          setIsSubmitting(true)
+          const { credential: idToken } = await nativeGoogleSignIn()
+          const result = await loginWithGoogle(idToken)
+          setIsSubmitting(false)
+          if (result.success) onClose()
+          else setLocalError(result.error)
+        } catch (err) {
+          setIsSubmitting(false)
+          // Plugin throws on user cancel — don't surface that as an error.
+          const cancelled = /cancel/i.test(err?.message || '') || err?.code === '12501'
+          if (!cancelled) {
+            setLocalError(err?.message || 'Google sign-in failed')
+          }
+        }
+        return
+      }
+
+      // ─── Web ───────────────────────────────────────────────────────
+      // Popup flow directly (avoids blocked popups after async callbacks)
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
       if (!clientId) {
         setLocalError('Google Sign-In is not configured')
@@ -397,23 +425,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
             </button>
           )}
 
-          {/* Google Sign-In Button — hidden on ALL native (iOS + Android)
-              until the native plugin is wired up. Google blocks its JS
-              SDK in WebViews (UA fingerprinting), so the web flow gets
-              stuck on "loading, please try again" on iOS and silently
-              fails to open the popup on Android. Apple sign-in
-              (iOS only) and email/password cover the native path
-              until then. */}
-          {!isNative() && (
-            <button
-              className="auth-google-btn"
-              onClick={() => handleGoogleLogin()}
-              disabled={isSubmitting}
-            >
-              <GoogleIcon />
-              <span>Continue with Google</span>
-            </button>
-          )}
+          {/* Google Sign-In Button — visible on web AND on native
+              (iOS / Android Capacitor). On native we route through
+              @capgo/capacitor-social-login which uses the system
+              Google SDK; the web flow uses Google Identity Services
+              directly. Both produce an idToken that the server's
+              action: 'google' path verifies the same way. */}
+          <button
+            className="auth-google-btn"
+            onClick={() => handleGoogleLogin()}
+            disabled={isSubmitting}
+          >
+            <GoogleIcon />
+            <span>Continue with Google</span>
+          </button>
 
           <div className="auth-divider">
             <span>or</span>

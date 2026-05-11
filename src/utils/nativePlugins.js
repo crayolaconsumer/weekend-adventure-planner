@@ -48,6 +48,68 @@ export async function nativeAppleSignIn() {
   }
 }
 
+// ─── Sign in with Google (native iOS + Android) ──────────────────
+// Web flow uses Google Identity Services directly in AuthModal.
+// Native uses @capgo/capacitor-social-login because Google blocks its
+// JS SDK inside WKWebView and Android WebView (UA fingerprinting).
+//
+// Returns an idToken that the server's /api/auth { action: 'google',
+// credential: idToken } path already accepts and verifies via
+// google-auth-library's verifyIdToken (audience = our web client ID,
+// which is iOSServerClientId in the plugin config — that's how the
+// token's audience matches even when issued for the iOS client).
+
+let socialLoginInitialized = false
+
+async function ensureSocialLoginInitialized() {
+  if (socialLoginInitialized) return
+  const { SocialLogin } = await import('@capgo/capacitor-social-login')
+  const webClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  const iosClientId = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID
+  if (!webClientId || !iosClientId) {
+    throw new Error('Google client IDs not configured (VITE_GOOGLE_CLIENT_ID + VITE_GOOGLE_IOS_CLIENT_ID)')
+  }
+  await SocialLogin.initialize({
+    google: {
+      webClientId,
+      iOSClientId: iosClientId,
+      // iOSServerClientId MUST equal the web client ID so the idToken's
+      // audience claim matches what our server verifies against. Without
+      // this, jwtVerify on the server rejects with "Wrong recipient".
+      iOSServerClientId: webClientId,
+      mode: 'online'
+    }
+  })
+  socialLoginInitialized = true
+}
+
+export async function nativeGoogleSignIn() {
+  if (!isNative()) {
+    throw new Error('Native Google Sign In only available on native shells')
+  }
+  await ensureSocialLoginInitialized()
+  const { SocialLogin } = await import('@capgo/capacitor-social-login')
+  const result = await SocialLogin.login({
+    provider: 'google',
+    options: { scopes: ['email', 'profile'] }
+  })
+  // Plugin response: { provider: 'google', result: { idToken, accessToken,
+  // profile: { email, name, ... } } }
+  const r = result?.result
+  const idToken = r?.idToken
+  if (!idToken) {
+    throw new Error('Google did not return an idToken')
+  }
+  return {
+    credential: idToken,
+    userInfo: {
+      email: r?.profile?.email || null,
+      name: r?.profile?.name || null,
+      avatarUrl: r?.profile?.imageUrl || null
+    }
+  }
+}
+
 // ─── Share (native share sheet) ──────────────────────────────────
 
 export async function shareContent({ title, text, url, dialogTitle }) {
@@ -216,6 +278,7 @@ export async function configureKeyboard() {
 
 export default {
   nativeAppleSignIn,
+  nativeGoogleSignIn,
   shareContent,
   openExternalUrl,
   getCurrentPosition,
