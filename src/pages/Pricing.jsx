@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
@@ -334,9 +335,14 @@ export default function Pricing() {
                     )}
                   </p>
                   <p className="pricing-legal-links">
-                    <a href="https://www.go-roam.uk/terms" onClick={(e) => { e.preventDefault(); openExternalUrl('https://www.go-roam.uk/terms') }}>Terms of Use</a>
+                    {/* In-app navigation only on iOS native — opening an
+                        external Safari for /terms or /privacy from the
+                        purchase screen reads as "go pay outside the app"
+                        even though these are just legal docs. Keep the
+                        user inside the app. */}
+                    <Link to="/terms">Terms of Use</Link>
                     {' · '}
-                    <a href="https://www.go-roam.uk/privacy" onClick={(e) => { e.preventDefault(); openExternalUrl('https://www.go-roam.uk/privacy') }}>Privacy Policy</a>
+                    <Link to="/privacy">Privacy Policy</Link>
                   </p>
                 </>
               ) : (
@@ -365,7 +371,11 @@ export default function Pricing() {
         >
           <div className="pricing-trust-item">
             <strong>Secure</strong>
-            <span>Stripe handles payments — your card never touches our servers.</span>
+            <span>
+              {isIosNative()
+                ? 'Apple handles payments through your Apple ID — your card never touches our servers.'
+                : 'Stripe handles payments — your card never touches our servers.'}
+            </span>
           </div>
           <div className="pricing-trust-item">
             <strong>Fair</strong>
@@ -396,7 +406,11 @@ export default function Pricing() {
             </div>
             <div className="faq-item">
               <h4>Is my payment secure?</h4>
-              <p>Yes. All payments are handled by Stripe. We never see your card details.</p>
+              <p>
+                {isIosNative()
+                  ? 'Yes. Payments are processed by Apple through your Apple ID. We never see your card details.'
+                  : 'Yes. All payments are handled by Stripe. We never see your card details.'}
+              </p>
             </div>
             <div className="faq-item">
               <h4>Will my price ever go up?</h4>

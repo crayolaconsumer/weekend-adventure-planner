@@ -1,10 +1,10 @@
 import { useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import { isIosNative } from '../utils/nativeBridge'
-import { openExternalUrl } from '../utils/nativePlugins'
 import './UpgradePrompt.css'
 
 // Sparkle icon
@@ -70,6 +70,7 @@ export default function UpgradePrompt({
 }) {
   const { user } = useAuth()
   const { startCheckout, loading, error } = useSubscription()
+  const navigate = useNavigate()
 
   const config = PROMPT_CONFIGS[type] || PROMPT_CONFIGS.saves
 
@@ -83,16 +84,18 @@ export default function UpgradePrompt({
       onClose?.()
       return
     }
-    // App Store 3.1.1 — iOS native cannot show a Stripe checkout. Route
-    // the user to the web pricing page in the system Safari view.
+    // On iOS native, navigate to the in-app Pricing page which uses the
+    // RevenueCat IAP flow (Apple's payment sheet). Previously this
+    // opened https://go-roam.uk/pricing in Safari — that's a 3.1.1
+    // steering violation ("Continue on the web" → external Stripe
+    // checkout). Pricing.jsx already has the full native RC path.
     if (isIosNative()) {
-      openExternalUrl('https://go-roam.uk/pricing')
       onClose?.()
+      navigate('/pricing')
       return
     }
 
     const url = await startCheckout('premium_monthly')
-    // Only call onUpgrade if checkout succeeded (URL returned means redirect happening)
     if (url) {
       onUpgrade?.()
     }
@@ -163,7 +166,7 @@ export default function UpgradePrompt({
                   whileHover={loading ? {} : { scale: 1.02 }}
                   whileTap={loading ? {} : { scale: 0.98 }}
                 >
-                  {loading ? 'Loading...' : isIosNative() ? 'Continue on the web' : config.cta}
+                  {loading ? 'Loading...' : config.cta}
                 </motion.button>
 
                 {/* Secondary action */}
