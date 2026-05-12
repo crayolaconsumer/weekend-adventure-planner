@@ -64,13 +64,16 @@ const ICONS = {
 
   // ─── Travel modes ───────────────────────────────────────────────
 
-  /* Walking — Lucide "person-standing" with one leg striding. */
+  /* Walking — Material Design "directions_walk" silhouette. Filled,
+      not stroked, so it overrides the wrapper svg's fill="none" /
+      stroke="currentColor" defaults. Single compound path: head circle
+      + walking body in one statement. */
   walking: (
-    <>
-      <circle cx="13" cy="4" r="2" />
-      <path d="M15 22v-4l-3-3 2-6 3 4 3 1" />
-      <path d="M12 9v3l-4 5 2 4" />
-    </>
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7"
+    />
   ),
 
   /* Transit — Lucide "bus-front". Friendly bus pictogram. */

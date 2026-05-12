@@ -20,9 +20,14 @@ import { selectBestImage } from './imageScoring'
 import { groupTypesByKey, countQueryClauses } from './osmTagMapping'
 import { recordApiCall } from './apiTelemetry'
 
+// Public Overpass instances — full list per OSM wiki at
+// https://wiki.openstreetmap.org/wiki/Overpass_API. Two main, two
+// regional mirrors. All accept the same QL and emit CORS headers so
+// browser fetch() works directly without a proxy.
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
 ]
 
@@ -141,17 +146,41 @@ const PROXY_RETRY_DELAY = 60000 // 1 minute before retrying proxy after failure
  * @returns {Promise<Object>} Overpass response data
  */
 async function fetchFromOverpass(query, signal = null, meta = {}) {
-  // Try proxy first if it hasn't failed recently
+  // The proxy is meant to give us CDN-cached responses, but Vercel
+  // doesn't cache POSTs by default — so on cache miss we eat the full
+  // upstream latency (sometimes 60s+ for dense urban bboxes, after
+  // which Vercel kills the function with 504). Meanwhile, calling
+  // overpass-api.de directly from the browser/Capacitor takes 1-3s
+  // for the same query because the public Overpass instance has its
+  // own internal cache and no Vercel timeout in the path.
+  //
+  // Strategy: try the proxy with a SHORT abort timeout (so if it's
+  // going to time out, we know within 8s, not 60s). On any failure
+  // or timeout, immediately fall back to direct fetch. We still
+  // benefit from the proxy when it succeeds (cache miss is rare on
+  // popular tiles after a few minutes), and we no longer leave users
+  // staring at a spinner for a minute when it doesn't.
+  const PROXY_CLIENT_TIMEOUT_MS = 8000
+
   const now = Date.now()
   if (now - proxyLastFailed > PROXY_RETRY_DELAY) {
+    const proxyAbort = new AbortController()
+    const proxyTimeoutId = setTimeout(() => proxyAbort.abort(), PROXY_CLIENT_TIMEOUT_MS)
+    // Chain external cancellation so we still abort if the caller cancels
+    const onExternalAbort = () => proxyAbort.abort()
+    if (signal) signal.addEventListener('abort', onExternalAbort, { once: true })
+
     try {
       const startTime = Date.now()
       const response = await fetch(OVERPASS_PROXY, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
-        signal
+        signal: proxyAbort.signal
       })
+
+      clearTimeout(proxyTimeoutId)
+      if (signal) signal.removeEventListener('abort', onExternalAbort)
 
       if (response.ok) {
         const data = await response.json()
@@ -173,11 +202,16 @@ async function fetchFromOverpass(query, signal = null, meta = {}) {
       // Proxy returned error — mark failed, fall through to direct
       proxyLastFailed = now
     } catch (error) {
-      if (error.name === 'AbortError') {
-        throw error
-      }
+      clearTimeout(proxyTimeoutId)
+      if (signal) signal.removeEventListener('abort', onExternalAbort)
+
+      // Caller cancelled — re-throw
+      if (signal?.aborted) throw error
+
+      // Otherwise this is either our 8s timeout firing OR a network
+      // error — both are "proxy not viable, go direct."
       proxyLastFailed = now
-      console.warn('[Overpass] Proxy failed, falling back to direct:', error.message)
+      console.warn('[Overpass] Proxy slow/failed, going direct:', error.message)
     }
   }
 
