@@ -24,6 +24,7 @@ import AdminRoute from './components/AdminRoute'
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
+import DebugHud from './components/DebugHud'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
@@ -458,6 +459,7 @@ function App() {
             </div>
           </ErrorBoundary>
           </BrowserRouter>
+          <DebugHud />
         </ToastProvider>
       </DistanceProvider>
     </AuthProvider>

@@ -14,6 +14,56 @@ import { initNativeAppLifecycle } from './utils/nativeAppLifecycle'
 // analytics, even though those don't fetch directly during init).
 installFetchInterceptor()
 
+// DEBUG HUD — persistent on-device network observability.
+//
+// Wraps the (already-patched) fetch one more time and pushes every /api/*
+// request's status + timing into a global ring buffer. The DebugHud
+// component (src/components/DebugHud.jsx) reads from this buffer and
+// renders a draggable overlay. Triple-tap anywhere on the app to toggle.
+//
+// Native-only: web has DevTools, native doesn't, and the on-device error
+// toasts we had before don't survive a navigation. This HUD persists.
+if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
+  const RING_SIZE = 60
+  const ring = []
+  window.__roamNetLog = ring
+  window.__roamNetLogVersion = 0
+  const dispatch = () => {
+    window.__roamNetLogVersion++
+    window.dispatchEvent(new CustomEvent('roam:netlog'))
+  }
+  const wrapped = globalThis.fetch
+  globalThis.fetch = async function hudFetch(input, init) {
+    const url = typeof input === 'string' ? input : input?.url || String(input)
+    const isApi = url.includes('/api/')
+    if (!isApi) return wrapped(input, init)
+    const entry = {
+      t: Date.now(),
+      method: (init?.method || 'GET').toUpperCase(),
+      url: url.replace(/^https?:\/\/[^/]+/, ''),
+      status: null,
+      ms: null,
+      err: null,
+    }
+    ring.unshift(entry)
+    if (ring.length > RING_SIZE) ring.pop()
+    dispatch()
+    const t0 = performance.now()
+    try {
+      const res = await wrapped(input, init)
+      entry.status = res.status
+      entry.ms = Math.round(performance.now() - t0)
+      dispatch()
+      return res
+    } catch (e) {
+      entry.err = `${e?.name || 'Error'}: ${e?.message || 'unknown'}`
+      entry.ms = Math.round(performance.now() - t0)
+      dispatch()
+      throw e
+    }
+  }
+}
+
 // Capacitor App lifecycle listeners — fire-and-forget. No-op on web.
 // Module dynamically imports @capacitor/app, so the web bundle stays
 // thin (Vite tree-shakes the import chain when isNative() is false).
