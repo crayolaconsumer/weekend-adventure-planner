@@ -34,7 +34,7 @@ export default function Terms() {
           Don't post: anything illegal, harassing, defamatory, or that infringes someone else's rights; spam or commercial promotions without our consent; private information about other people; or content that misrepresents a place.
         </p>
         <p>
-          We may remove content and suspend accounts that violate these terms. You can report content via the Report button on any post, or by emailing <a href="mailto:hello@go-roam.com">hello@go-roam.com</a> — we aim to act within 24 hours.
+          We may remove content and suspend accounts that violate these terms. You can report content via the Report button on any post, or by emailing <a href="mailto:hello@go-roam.uk">hello@go-roam.uk</a> — we aim to act within 24 hours.
         </p>
 
         <h2>ROAM+ subscriptions</h2>
@@ -77,7 +77,7 @@ export default function Terms() {
 
         <h2>Contact</h2>
         <p>
-          Email: <a href="mailto:hello@go-roam.com">hello@go-roam.com</a>
+          Email: <a href="mailto:hello@go-roam.uk">hello@go-roam.uk</a>
         </p>
       </article>
     </div>

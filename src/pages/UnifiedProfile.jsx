@@ -898,7 +898,7 @@ function SettingsTab({ user, onLogout }) {
     } else if (result.code === 'STALE_SESSION') {
       setDeleteError('For security, please sign in again before deleting your account.')
     } else {
-      setDeleteError(result.error || 'Account deletion failed. Try again or email hello@go-roam.com')
+      setDeleteError(result.error || 'Account deletion failed. Try again or email hello@go-roam.uk')
     }
   }
 

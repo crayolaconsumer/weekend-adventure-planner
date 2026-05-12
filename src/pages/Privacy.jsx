@@ -51,7 +51,7 @@ export default function Privacy() {
           You can access, edit and delete your data at any time via Settings → Profile, or by deleting your account entirely (Settings → Delete account). Deletion removes your user record and cascades to your saved places, reviews, photos, follows, and subscription. We may keep anonymized event logs for security and analytics for up to 90 days after deletion.
         </p>
         <p>
-          You can withdraw consent for push notifications and product analytics at any time via Settings. To exercise UK GDPR rights (access, rectification, erasure, portability), email <a href="mailto:hello@go-roam.com">hello@go-roam.com</a>.
+          You can withdraw consent for push notifications and product analytics at any time via Settings. To exercise UK GDPR rights (access, rectification, erasure, portability), email <a href="mailto:hello@go-roam.uk">hello@go-roam.uk</a>.
         </p>
 
         <h2>Children</h2>
@@ -71,7 +71,7 @@ export default function Privacy() {
 
         <h2>Contact</h2>
         <p>
-          Email: <a href="mailto:hello@go-roam.com">hello@go-roam.com</a>
+          Email: <a href="mailto:hello@go-roam.uk">hello@go-roam.uk</a>
         </p>
       </article>
     </div>

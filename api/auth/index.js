@@ -704,7 +704,7 @@ async function handleDeleteAccount(req, res) {
     })
   } catch (err) {
     console.error('Account deletion failed:', err)
-    return res.status(500).json({ error: 'Account deletion failed. Please contact hello@go-roam.com' })
+    return res.status(500).json({ error: 'Account deletion failed. Please contact hello@go-roam.uk' })
   }
 
   // Clear cookies and signal client to log out

@@ -149,7 +149,7 @@ export function useSubscription() {
           return null
         }
         if (data.code === 'CUSTOMER_NOT_FOUND') {
-          setError('Billing account not found. Please contact support at hello@go-roam.com')
+          setError('Billing account not found. Please contact support at hello@go-roam.uk')
           return null
         }
 
