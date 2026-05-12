@@ -12,6 +12,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { formatDisplayName } from '../../utils/displayName'
+import Avatar from '../Avatar'
 import './TeaserLanding.css'
 
 export default function TeaserLanding({ user, placesAbstract = [], total }) {
@@ -43,9 +44,7 @@ export default function TeaserLanding({ user, placesAbstract = [], total }) {
 
   return (
     <div className="teaser-landing">
-      {user.avatarUrl && (
-        <img src={user.avatarUrl} alt="" className="teaser-landing-avatar" />
-      )}
+      <Avatar user={user} size={72} className="teaser-landing-avatar" alt="" />
       <h2 className="teaser-landing-title">{displayName}'s map</h2>
       <p className="teaser-landing-count">
         {total} {total === 1 ? 'place visited' : 'places visited'}

@@ -23,6 +23,7 @@ import UpgradePrompt from '../components/UpgradePrompt'
 import { formatDisplayName } from '../utils/displayName'
 import { useSubscription } from '../hooks/useSubscription'
 import PremiumBadge from '../components/PremiumBadge'
+import Avatar from '../components/Avatar'
 import { getPublicShareUrl } from '../utils/nativeBridge'
 import './VisitedMapPage.css'
 
@@ -209,12 +210,10 @@ export default function VisitedMapPage() {
           <ArrowLeftIcon />
         </button>
         <Link to={`/user/${data.user.username}`} className="visited-map-user">
-          {data.user.avatarUrl && (
-            <span className="avatar-with-premium">
-              <img src={data.user.avatarUrl} alt="" className="visited-map-avatar" />
-              {data.user.isPremium && <PremiumBadge size="sm" />}
-            </span>
-          )}
+          <span className="avatar-with-premium">
+            <Avatar user={data.user} size={40} className="visited-map-avatar" alt="" />
+            {data.user.isPremium && <PremiumBadge size="sm" />}
+          </span>
           <div className="visited-map-user-text">
             <span className="visited-map-user-name">
               {formatDisplayName(data.user)}

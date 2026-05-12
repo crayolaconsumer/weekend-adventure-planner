@@ -20,6 +20,7 @@ import LocationAwareFeed from '../components/LocationAwareFeed'
 import TrendingPlaces from '../components/TrendingPlaces'
 import { formatDisplayName } from '../utils/displayName'
 import PremiumBadge from '../components/PremiumBadge'
+import Avatar from '../components/Avatar'
 import './SocialHub.css'
 
 // Icons
@@ -312,11 +313,7 @@ export default function SocialHub({ location }) {
         <h1 className="social-hub-title">Social</h1>
         {isAuthenticated && user && (
           <Link to={`/user/${user.username}`} className="social-hub-profile-link">
-            <img
-              src={user.avatar_url || user.avatarUrl || '/default-avatar.png'}
-              alt=""
-              className="social-hub-profile-link-avatar"
-            />
+            <Avatar user={user} size={36} className="social-hub-profile-link-avatar" alt="" />
             <span className="social-hub-profile-link-text">My Profile</span>
             <ChevronRightIcon />
           </Link>

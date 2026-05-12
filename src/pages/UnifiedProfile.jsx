@@ -33,6 +33,8 @@ import CategoryChart from '../components/stats/CategoryChart'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
 import MapPreviewBand from '../components/profile/MapPreviewBand'
 import PremiumBadge from '../components/PremiumBadge'
+import { isIosNative } from '../utils/nativeBridge'
+import { openExternalLink } from '../utils/navigation'
 import PrivacySettings from '../components/PrivacySettings'
 import UserSearchBar from '../components/UserSearchBar'
 import OfflinePackCard from '../components/OfflinePackCard'
@@ -1100,12 +1102,27 @@ function SettingsTab({ user, onLogout }) {
             )}
             <button
               className="premium-manage-btn"
-              onClick={manageSubscription}
+              onClick={() => {
+                // On iOS native, subscription management lives in the
+                // system Settings app, not the Stripe portal. Deep-link
+                // straight to the user's subscriptions list — required
+                // by App Store Review 3.1.2 to give users a one-tap
+                // path to cancel/modify auto-renew subscriptions.
+                if (isIosNative()) {
+                  openExternalLink('https://apps.apple.com/account/subscriptions')
+                  return
+                }
+                manageSubscription()
+              }}
               disabled={subLoading}
             >
               {subLoading ? 'Loading...' : 'Manage Subscription'}
             </button>
-            {subError && (
+            {/* Hide the iap-not-available code from users — it's the
+                internal signal that this surface should route through
+                Apple's subscription manager (handled by the click above),
+                not a real error worth displaying. */}
+            {subError && subError !== 'iap-not-available' && (
               <div className="premium-manage-error-container">
                 <p className="premium-manage-error">{subError}</p>
                 {subError.includes('Subscribe') && (

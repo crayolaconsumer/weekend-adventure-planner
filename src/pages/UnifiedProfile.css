@@ -1371,7 +1371,11 @@
 }
 
 .unified-profile-settings-segment-btn.active {
-  background: var(--roam-forest, #2d5a27);
+  /* Match the Privacy section toggle accent so Preferences /
+     Appearance / Notifications use the same brand colour family
+     for their "selected" state as the Privacy toggles. Was forest;
+     now terracotta so all settings sections feel consistent. */
+  background: var(--color-accent);
   color: white;
   font-weight: 600;
 }
