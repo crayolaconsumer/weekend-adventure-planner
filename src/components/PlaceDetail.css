@@ -275,6 +275,45 @@
   opacity: 0.6;
 }
 
+/* Community Tips header row — title on the left, "Share a tip" CTA
+   on the right so the affordance is visible whether or not tips
+   exist. Was previously a bare title with the section only rendered
+   when contributions.length > 0, leaving no way for the user to be
+   the first to contribute. */
+.place-detail-tips-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: 4px;
+}
+
+.place-detail-tip-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--roam-gold) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--roam-gold) 45%, transparent);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.place-detail-tip-add:hover {
+  background: color-mix(in srgb, var(--roam-gold) 24%, transparent);
+  border-color: var(--roam-gold);
+}
+.place-detail-tip-add:active {
+  transform: scale(0.96);
+}
+.place-detail-tip-add svg {
+  color: var(--roam-gold);
+}
+
 .place-detail-description {
   font-size: var(--text-base);
   line-height: 1.7;

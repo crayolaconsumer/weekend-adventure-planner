@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { formatDisplayName } from '../utils/displayName'
 import { useVote } from '../hooks/useContributions'
 import ModerationMenu from './ModerationMenu'
+import Avatar from './Avatar'
 import './ContributionDisplay.css'
 
 // Upvote icon
@@ -147,17 +148,7 @@ export function ContributionCard({ contribution, onVoteChange }) {
     <div className="contribution-card">
       <div className="contribution-card-header">
         <div className="contribution-card-user">
-          {localContribution.user.avatarUrl ? (
-            <img
-              src={localContribution.user.avatarUrl}
-              alt=""
-              className="contribution-avatar"
-            />
-          ) : (
-            <div className="contribution-avatar-placeholder">
-              {formatDisplayName(localContribution.user)[0].toUpperCase()}
-            </div>
-          )}
+          <Avatar user={localContribution.user} size={36} className="contribution-avatar" alt="" />
           <div>
             <span className="contribution-username">
               @{localContribution.user.username || 'user'}
@@ -176,7 +167,23 @@ export function ContributionCard({ contribution, onVoteChange }) {
         />
       </div>
 
-      <p className="contribution-card-content">{localContribution.content}</p>
+      {/* Photo contributions: render the uploaded image. The URL lives
+          on metadata.photoUrl since the upload flow stashes it there
+          when the contribution is type=photo. Without this branch the
+          photo never displayed and the card just showed empty body
+          text. */}
+      {localContribution.type === 'photo' && localContribution.metadata?.photoUrl && (
+        <img
+          src={localContribution.metadata.photoUrl}
+          alt={localContribution.content || 'Place photo'}
+          className="contribution-card-photo"
+          loading="lazy"
+        />
+      )}
+
+      {localContribution.content && (
+        <p className="contribution-card-content">{localContribution.content}</p>
+      )}
 
       <div className="contribution-card-footer">
         <div className="contribution-votes">

@@ -159,6 +159,20 @@
   line-height: 1.5;
 }
 
+/* Photo contributions — the uploaded image renders above the caption
+   (or alone if there's no caption). Previously the photo URL was
+   saved into metadata.photoUrl but never rendered, so users saw
+   blank cards for what should have been visual contributions. */
+.contribution-card-photo {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin: 0 0 var(--space-sm) 0;
+  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+}
+
 .contribution-card-footer {
   display: flex;
   align-items: center;

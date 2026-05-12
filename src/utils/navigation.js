@@ -39,9 +39,30 @@ export function openDirections(lat, lng, name = null) {
 }
 
 /**
- * Open a URL in a new tab (for non-navigation links)
+ * Open a URL externally — out of the Capacitor WebView on native, new tab
+ * on web. Was `window.open(url, '_blank')` which on iOS Capacitor opens
+ * INSIDE the app's webview context, so e.g. apps.apple.com/account/
+ * subscriptions didn't deep-link into the iOS Subscriptions UI and Safari
+ * couldn't take over. Now uses the Capacitor Browser plugin which routes
+ * through SFSafariViewController (iOS) / Custom Tabs (Android) and lets
+ * the OS handle protocol-specific URLs (apps.apple.com → Settings,
+ * itms-apps:// etc.) — required for App Store Review 3.1.2's one-tap
+ * Manage Subscription path.
+ *
  * @param {string} url - URL to open
  */
-export function openExternalLink(url) {
+export async function openExternalLink(url) {
+  const isNative = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.()
+  if (isNative) {
+    try {
+      const { Browser } = await import('@capacitor/browser')
+      await Browser.open({ url })
+      return
+    } catch (err) {
+      // Fall through to window.open if the plugin import fails — better
+      // to open something than nothing.
+      console.warn('[openExternalLink] Capacitor Browser failed, falling back:', err?.message)
+    }
+  }
   window.open(url, '_blank', 'noopener,noreferrer')
 }

@@ -14,6 +14,7 @@ import ShareButton from './ShareButton'
 import CollectionManager from './CollectionManager'
 import PlanVisitSheet from './PlanVisitSheet'
 import { ContributionList } from './ContributionDisplay'
+import ContributionPrompt from './ContributionPrompt'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
@@ -156,6 +157,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const [wikiSummary, setWikiSummary] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
   const [showPlanVisit, setShowPlanVisit] = useState(false)
+  const [showTipPrompt, setShowTipPrompt] = useState(false)
   const [animationComplete, setAnimationComplete] = useState(false)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
   const { updatePlannedDate } = useSavedPlaces()
@@ -640,22 +642,37 @@ export default function PlaceDetail({ place, onClose, onGo }) {
             {/* User Review */}
             <PlaceReviews placeId={place.id} />
 
-            {/* Community Tips */}
-            {(contributions.length > 0 || contributionsLoading) && (
-              <motion.div
-                className="place-detail-section"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.45 }}
-              >
+            {/* Community Tips — always shown so the "share a tip" CTA
+                is reachable even when there are no tips yet. Previously
+                the section was hidden until at least one tip existed,
+                which left users with no way to be first. */}
+            <motion.div
+              className="place-detail-section place-detail-tips-section"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45 }}
+            >
+              <div className="place-detail-tips-header">
                 <h3 className="place-detail-section-title">Community Tips</h3>
-                <ContributionList
-                  contributions={contributions}
-                  loading={contributionsLoading}
-                  emptyMessage="No tips yet"
-                />
-              </motion.div>
-            )}
+                <button
+                  type="button"
+                  className="place-detail-tip-add"
+                  onClick={() => setShowTipPrompt(true)}
+                  aria-label="Share a tip about this place"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Share a tip</span>
+                </button>
+              </div>
+              <ContributionList
+                contributions={contributions}
+                loading={contributionsLoading}
+                emptyMessage="Be the first to share what's special here."
+              />
+            </motion.div>
 
             {/* Go Button */}
             <motion.button
@@ -691,6 +708,20 @@ export default function PlaceDetail({ place, onClose, onGo }) {
           updatePlannedDate?.(place.id, date)
         }}
       />
+
+      {/* Share a Tip Prompt — text contribution attached to this place */}
+      <AnimatePresence>
+        {showTipPrompt && (
+          <ContributionPrompt
+            place={enrichedPlace}
+            onClose={() => setShowTipPrompt(false)}
+            onSuccess={() => {
+              setShowTipPrompt(false)
+              refreshContributions?.()
+            }}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }
