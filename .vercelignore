@@ -1,0 +1,28 @@
+# iOS / Android native build outputs — Vercel only needs the web bundle.
+# The build/ dir alone is ~22k files of Xcode archive output; without this
+# .vercelignore the deploy upload step was taking 40s+ just to extract.
+build/
+ios/
+android/
+
+# Local screenshots and Playwright artifacts
+screenshots/
+.playwright-mcp/
+*.png
+!public/**/*.png
+
+# Local env files (Vercel injects its own)
+.env.local
+.env.production
+.env.development
+
+# Editor / tooling
+.DS_Store
+.vscode/
+.idea/
+
+# Local secrets
+.appstoreconnect.env
+
+# Local docs the user keeps on disk (gitignored already, just being explicit)
+docs/
