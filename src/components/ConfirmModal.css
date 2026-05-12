@@ -1,3 +1,8 @@
+/*
+ * ConfirmModal — theme-aware (was hardcoded forest #1a3a2f and
+ * parchment #f5f0e6 throughout, so it stayed light-on-light in dark
+ * mode with the title disappearing into the bg).
+ */
 .confirm-modal-overlay {
   position: fixed;
   inset: 0;
@@ -17,19 +22,19 @@
 
 .confirm-modal {
   position: relative;
-  background: var(--roam-cream);
+  background: var(--color-surface);
   border-radius: 16px 16px 0 0;
   padding: 24px;
   width: 100%;
   max-width: 420px;
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
 }
 @media (min-width: 640px) {
   .confirm-modal {
     border-radius: 16px;
     padding-bottom: 24px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -37,14 +42,14 @@
   margin: 0 0 8px;
   font-family: 'Newsreader', 'Fraunces', serif;
   font-size: 1.25rem;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   font-weight: 500;
   line-height: 1.25;
 }
 
 .confirm-modal-message {
   margin: 0 0 20px;
-  color: rgba(26, 58, 47, 0.72);
+  color: var(--color-text-secondary);
   font-size: 0.95rem;
   line-height: 1.45;
 }
@@ -63,19 +68,19 @@
   cursor: pointer;
   border: 1px solid transparent;
   transition: transform 0.1s ease, opacity 0.1s ease;
-  min-height: 44px; /* iOS Human Interface Guidelines tap target */
+  min-height: 44px; /* iOS HIG tap target */
 }
 .confirm-modal-btn:active { transform: scale(0.97); }
 
 .confirm-modal-btn-cancel {
   background: transparent;
-  color: #1a3a2f;
-  border-color: rgba(26, 58, 47, 0.2);
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
 }
 
 .confirm-modal-btn-confirm {
-  background: #1a3a2f;
-  color: #f5f0e6;
+  background: var(--color-text-primary);
+  color: var(--color-surface);
 }
 .confirm-modal-btn-confirm.destructive {
   background: #b22d2d;

@@ -1,3 +1,4 @@
+/* Theme-aware (was hardcoded parchment + forest throughout). */
 .report-modal-overlay {
   position: fixed;
   inset: 0;
@@ -17,7 +18,7 @@
 
 .report-modal {
   position: relative;
-  background: var(--roam-paper, #fff);
+  background: var(--color-surface);
   border-radius: 16px 16px 0 0;
   padding: 22px;
   width: 100%;
@@ -25,6 +26,7 @@
   max-height: 88dvh;
   overflow-y: auto;
   padding-bottom: calc(22px + env(safe-area-inset-bottom, 0));
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.3);
 }
 @media (min-width: 640px) {
   .report-modal { border-radius: 16px; padding-bottom: 22px; }
@@ -34,13 +36,13 @@
   margin: 0 0 4px;
   font-family: 'Newsreader', 'Fraunces', serif;
   font-size: 1.25rem;
-  color: var(--roam-forest, #1a3a2f);
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 .report-modal-subtitle {
   margin: 0 0 16px;
   font-size: 0.9rem;
-  color: var(--roam-stone, #6b6b6b);
+  color: var(--color-text-secondary);
   line-height: 1.4;
 }
 
@@ -55,41 +57,41 @@
   padding: 12px 14px;
   min-height: 44px;
   background: transparent;
-  border: 1.5px solid rgba(26, 58, 47, 0.15);
+  border: 1.5px solid color-mix(in srgb, var(--color-text-primary) 15%, transparent);
   border-radius: 10px;
-  color: var(--roam-forest, #1a3a2f);
+  color: var(--color-text-primary);
   font-size: 0.95rem;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.report-modal-reason:hover { background: rgba(26, 58, 47, 0.04); }
+.report-modal-reason:hover { background: color-mix(in srgb, var(--color-text-primary) 4%, transparent); }
 .report-modal-reason.selected {
-  background: rgba(212, 168, 85, 0.12);
-  border-color: #d4a855;
-  color: #1a3a2f;
+  background: color-mix(in srgb, var(--roam-gold) 12%, transparent);
+  border-color: var(--roam-gold);
+  color: var(--color-text-primary);
 }
 
 .report-modal-details-label {
   display: block;
   margin: 4px 0 6px;
   font-size: 0.85rem;
-  color: var(--roam-stone, #6b6b6b);
+  color: var(--color-text-secondary);
 }
 .report-modal-details {
   width: 100%;
   min-height: 80px;
   padding: 10px 12px;
-  border: 1.5px solid rgba(26, 58, 47, 0.15);
+  border: 1.5px solid color-mix(in srgb, var(--color-text-primary) 15%, transparent);
   border-radius: 10px;
   font-family: inherit;
   font-size: 0.95rem;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   background: var(--color-surface-elevated);
   resize: vertical;
 }
 .report-modal-details:focus {
   outline: none;
-  border-color: #d4a855;
+  border-color: var(--roam-gold);
 }
 
 .report-modal-error {
@@ -115,11 +117,11 @@
 }
 .report-modal-btn.cancel {
   background: transparent;
-  color: #1a3a2f;
-  border-color: rgba(26, 58, 47, 0.2);
+  color: var(--color-text-primary);
+  border-color: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
 }
 .report-modal-btn.submit {
-  background: #1a3a2f;
-  color: #fdfcf8;
+  background: var(--color-text-primary);
+  color: var(--color-surface);
 }
 .report-modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
