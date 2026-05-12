@@ -38,13 +38,12 @@ const FEATURES = [
   { key: 'community', label: 'See what locals recommend', free: true, premium: true },
   { key: 'saves', label: 'Save places to revisit', free: '10', premium: 'Unlimited' },
   { key: 'collections', label: 'Build themed lists', free: '3', premium: 'Unlimited' },
-  { key: 'whoSaved', label: 'See who shares your taste', free: false, premium: true },
-  { key: 'filters', label: 'Find exactly what you want', free: 'Basic', premium: 'All filters' },
+  { key: 'filters', label: "Locals' picks & off-peak filters", free: false, premium: true },
   { key: 'radius', label: 'Reach further afield', free: 'Up to 30km', premium: 'Up to 150km' },
   { key: 'offline', label: 'Explore when signal drops', free: false, premium: 'Offline maps' },
   { key: 'adFree', label: 'Distraction-free browsing', free: false, premium: 'No ads, ever' },
-  { key: 'export', label: 'Keep your adventures forever', free: false, premium: 'Posters & calendar export' },
-  { key: 'earlyAccess', label: 'Try new features first', free: false, premium: true }
+  { key: 'poster', label: 'Print your visited map', free: false, premium: 'Poster export' },
+  { key: 'badge', label: 'Scout badge on your profile', free: false, premium: true }
 ]
 
 export default function Pricing() {

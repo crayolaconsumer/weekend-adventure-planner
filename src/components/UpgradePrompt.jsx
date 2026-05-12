@@ -43,15 +43,15 @@ const PROMPT_CONFIGS = {
     benefit: 'Explore anywhere, anytime'
   },
   export: {
-    title: 'Export is a premium feature',
-    description: 'Export your adventures as PDF or add to your calendar.',
-    cta: 'Unlock Exports',
-    benefit: 'Share and plan with ease'
+    title: 'Poster export is a premium feature',
+    description: 'Export your visited map as a high-res printable poster.',
+    cta: 'Unlock Poster Export',
+    benefit: 'Print your year of adventures'
   },
   filters: {
-    title: 'Advanced filters',
-    description: 'Get access to all filtering options to find exactly what you want.',
-    cta: 'Unlock All Filters',
+    title: 'Premium filters',
+    description: "Unlock Locals' picks and Off-peak filters to find exactly what you want.",
+    cta: 'Unlock Premium Filters',
     benefit: 'Find your perfect spot'
   },
   radius: {

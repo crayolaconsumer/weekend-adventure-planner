@@ -36,9 +36,8 @@ export function useSubscription() {
     unlimitedCollections: isPremium,
     offlineMaps: isPremium,
     adFree: isPremium,
-    advancedFilters: isPremium,
-    exportAdventures: isPremium,
-    earlyAccess: isPremium,
+    premiumFilters: isPremium, // Locals' picks + Off-peak
+    posterExport: isPremium,
     extendedRadius: isPremium, // Day Trip (75km) and Explorer (150km) modes
     // Limits for free users
     saveLimit: isPremium ? Infinity : 10,

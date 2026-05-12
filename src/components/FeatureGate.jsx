@@ -36,7 +36,7 @@ export default function FeatureGate({
     collections: { limit: 'collectionLimit', promptType: 'collections' },
     offline: { limit: null, promptType: 'offline' },
     export: { limit: null, promptType: 'export' },
-    advancedFilters: { limit: null, promptType: 'filters' }
+    premiumFilters: { limit: null, promptType: 'filters' }
   }
 
   const config = featureConfig[feature] || { limit: null, promptType: feature }
@@ -126,7 +126,7 @@ export function useFeatureGate(feature) {
     collections: { limit: 'collectionLimit', promptType: 'collections' },
     offline: { limit: null, promptType: 'offline' },
     export: { limit: null, promptType: 'export' },
-    advancedFilters: { limit: null, promptType: 'filters' }
+    premiumFilters: { limit: null, promptType: 'filters' }
   }
 
   const config = featureConfig[feature] || { limit: null, promptType: feature }

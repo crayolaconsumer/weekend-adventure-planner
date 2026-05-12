@@ -1088,7 +1088,7 @@ function SettingsTab({ user, onLogout }) {
                 ROAM+ Member
               </span>
             </div>
-            <p className="premium-status-perks">Unlimited saves, offline maps, all filters, no ads.</p>
+            <p className="premium-status-perks">Unlimited saves, offline maps, ad-free, and your scout badge.</p>
             {expiresAt && (
               <p className="premium-status-expiry">
                 {isCancelled
