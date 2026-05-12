@@ -38,3 +38,5 @@ docs/
 .claude/settings.local.json
 .claude/mcp.json
 .mcp.json
+.appstoreconnect.env
+.env.production
