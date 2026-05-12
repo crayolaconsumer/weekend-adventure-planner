@@ -30,7 +30,6 @@ import ModerationMenu from '../components/ModerationMenu'
 import UserCard from '../components/UserCard'
 import { ContributionCard } from '../components/ContributionDisplay'
 import CategoryChart from '../components/stats/CategoryChart'
-import DistanceStats from '../components/stats/DistanceStats'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
 import MapPreviewBand from '../components/profile/MapPreviewBand'
 import PremiumBadge from '../components/PremiumBadge'
@@ -849,7 +848,6 @@ function JourneyTab({ username, stats, level, levelProgress, nextLevelRequiremen
         <div className="unified-profile-viz-section">
           <div className="unified-profile-viz-grid">
             <CategoryChart places={visitedPlaces} />
-            <DistanceStats places={visitedPlaces} />
           </div>
           <div className="unified-profile-viz-grid">
             <MonthlyTrends places={visitedPlaces} />
@@ -1210,6 +1208,29 @@ function SettingsTab({ user, onLogout }) {
             </span>
           </div>
         )}
+
+        {/* Save/Cancel — sits inside the Account block so it's visible
+            right next to the inputs being edited. Previously this was
+            below Preferences, three scroll-screens away, and testers
+            consistently thought the form was broken. */}
+        {isEditing && (
+          <div className="unified-profile-settings-actions">
+            <button
+              className="unified-profile-settings-cancel-btn"
+              onClick={handleCancel}
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button
+              className="unified-profile-settings-save-btn"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Preferences */}
@@ -1363,26 +1384,6 @@ function SettingsTab({ user, onLogout }) {
         </div>
       </div>
 
-      {/* Save/Cancel Buttons (when editing account info) */}
-      {isEditing && (
-        <div className="unified-profile-settings-actions">
-          <button
-            className="unified-profile-settings-cancel-btn"
-            onClick={handleCancel}
-            disabled={isSaving}
-          >
-            Cancel
-          </button>
-          <button
-            className="unified-profile-settings-save-btn"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      )}
-
       {/* Notifications Section */}
       <NotificationsSection />
 
@@ -1401,28 +1402,19 @@ function SettingsTab({ user, onLogout }) {
           three must be reachable from within the app. */}
       <div className="unified-profile-settings-section">
         <h3 className="unified-profile-section-title">Legal & Support</h3>
-        <a
-          href="/privacy"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="unified-profile-settings-link-row"
-        >
+        {/* In-app navigation — `<a target="_blank">` is a dead-end inside
+            the Capacitor WKWebView (no SFSafariViewController plugin wired),
+            and we have full-fledged /privacy /terms /support routes
+            already, so the legal pages render natively inside the app. */}
+        <Link to="/privacy" className="unified-profile-settings-link-row">
           Privacy Policy
-        </a>
-        <a
-          href="/terms"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="unified-profile-settings-link-row"
-        >
+        </Link>
+        <Link to="/terms" className="unified-profile-settings-link-row">
           Terms of Use
-        </a>
-        <a
-          href="mailto:hello@go-roam.com"
-          className="unified-profile-settings-link-row"
-        >
+        </Link>
+        <Link to="/support" className="unified-profile-settings-link-row">
           Contact Support
-        </a>
+        </Link>
       </div>
 
       {/* Sign Out */}

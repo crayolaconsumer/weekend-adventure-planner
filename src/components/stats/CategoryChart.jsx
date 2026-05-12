@@ -7,10 +7,20 @@ export default function CategoryChart({ places }) {
   const chartData = useMemo(() => {
     if (!places || places.length === 0) return null
 
-    // Count by category
+    // Visited places end up here from two shapes:
+    //   - Flat (legacy statsUtils.saveVisitedPlace): { category: 'food' }
+    //   - Nested (useVisitedPlaces / API): { placeData: { category: { key: 'food' } } }
+    // Handle both, else everything bucketed as 'unknown' (the bug).
     const counts = {}
     for (const place of places) {
-      const cat = place.category || 'unknown'
+      const cat =
+        place.category?.key ||
+        place.category ||
+        place.placeData?.category?.key ||
+        place.placeData?.category ||
+        place.placeData?.categoryKey ||
+        place.categoryKey ||
+        'unknown'
       counts[cat] = (counts[cat] || 0) + 1
     }
 

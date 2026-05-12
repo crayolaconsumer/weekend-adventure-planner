@@ -77,49 +77,33 @@ export function useVisitedPlaces() {
     }
   }, [isAuthenticated])
 
-  // Sync local visited to API on login
+  // PRIVACY FIX: do NOT auto-sync local visited cache to the server on
+  // login. That logic was designed for offline-first "mark visited while
+  // logged out, then sync on login" — but in practice the localStorage
+  // cache persisted across logout/login transitions, so when a user
+  // signed into a SECOND account on the same device the previous user's
+  // visited places got POSTed into the new account. We observed three
+  // accounts ending up with identical 3-4 visits at distinct mass-sync
+  // timestamps, each "leak" line up exactly with a fresh-login.
+  //
+  // New behaviour: source-of-truth for authenticated users is the
+  // server. The localStorage cache is read-only for offline display and
+  // gets refreshed from /api/users/visited via loadVisited(). It is
+  // also wiped on logout (see authResetEffect below) so it never
+  // crosses an account boundary again.
   useEffect(() => {
-    if (authLoading || !isAuthenticated || syncedRef.current) return
+    if (authLoading || !isAuthenticated) return
+    syncedRef.current = true
+  }, [isAuthenticated, authLoading])
 
-    const syncLocalVisited = async () => {
-      const token = getAuthToken()
-      if (!token) return
-
-      const local = loadLocalVisited()
-      if (local.length === 0) return
-
-      try {
-        // Batch sync: process 10 visited places at a time for better performance
-        const validItems = local.filter(item => item.placeId)
-        const BATCH_SIZE = 10
-
-        for (let i = 0; i < validItems.length; i += BATCH_SIZE) {
-          const batch = validItems.slice(i, i + BATCH_SIZE)
-          await Promise.all(
-            batch.map(item =>
-              fetch('/api/users/visited', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                  placeId: item.placeId,
-                  placeData: item.placeData || item,
-                  rating: coerceRating(item.rating)
-                })
-              }).catch(() => {}) // Ignore individual errors
-            )
-          )
-        }
-        syncedRef.current = true
-      } catch (err) {
-        console.error('Error syncing visited places:', err)
-      }
+  // On logout, clear locally cached visited list so the next user on
+  // this device starts fresh.
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated && syncedRef.current) {
+      localStorage.removeItem(STORAGE_KEY)
+      setVisitedPlaces([])
+      syncedRef.current = false
     }
-
-    syncLocalVisited()
   }, [isAuthenticated, authLoading])
 
   useEffect(() => {
