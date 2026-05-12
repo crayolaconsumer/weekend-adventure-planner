@@ -60,13 +60,35 @@ function clearAuthCookie(req, res) {
   res.setHeader('Set-Cookie', createLogoutCookie())
 }
 
+// Safely read req.body. Vercel's stricter @vercel/node runtime throws
+// synchronously from the `req.body` getter when the body is missing,
+// malformed JSON, or has an unexpected Content-Type — and `req.body || {}`
+// doesn't catch the throw because the throw happens before the `||`
+// evaluates. Wrap once here so a bad body becomes a clean 400 instead of
+// a generic 500 (and so the rest of the handler can rely on req.body
+// being a plain object or null).
+function safeBody(req) {
+  try {
+    return req.body ?? null
+  } catch {
+    return null
+  }
+}
+
 async function handler(req, res) {
   try {
     switch (req.method) {
       case 'GET':
         return await handleGetMe(req, res)
       case 'POST': {
-        const { action } = req.body || {}
+        const body = safeBody(req)
+        if (!body || typeof body !== 'object') {
+          return res.status(400).json({ error: 'Request body must be JSON' })
+        }
+        // Mutate req.body so downstream handlers can keep reading from
+        // the conventional location without each needing their own guard.
+        req.body = body
+        const { action } = body
         switch (action) {
           case 'login':
             return await handleLogin(req, res)
