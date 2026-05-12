@@ -22,7 +22,10 @@ export const config = {
   runtime: 'nodejs'
 }
 
-// Overpass endpoints with failover
+// Overpass endpoints with failover.
+// All three accept the same query format; we round-robin via
+// selectEndpoint() and track per-endpoint health so a slow/unhealthy
+// endpoint gets deprioritized for the next 5 min.
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
@@ -38,29 +41,29 @@ const OVERPASS_ENDPOINTS = [
 const endpointHealth = new Map()
 
 /**
- * Select the best available Overpass endpoint
+ * Return endpoints in priority order: healthy ones first (most-recently
+ * healthy at the front), unhealthy ones at the back as last-resort
+ * fallback. The caller iterates this list until one succeeds.
+ *
+ * Previously this returned a SINGLE randomly-picked healthy endpoint.
+ * That was a problem because the caller's retry loop then had to pick
+ * again on failure, and the random pick could repeat or land on the
+ * one slow endpoint that had eaten the function budget last time.
  */
-function selectEndpoint() {
+function endpointsByPriority() {
   const now = Date.now()
+  const stale = 5 * 60 * 1000 // 5 min cooldown for failed endpoints
 
-  // Filter out endpoints that failed recently (last 5 minutes)
-  const healthyEndpoints = OVERPASS_ENDPOINTS.filter(endpoint => {
-    const lastFailure = endpointHealth.get(endpoint)
-    return !lastFailure || now - lastFailure > 5 * 60 * 1000
+  return [...OVERPASS_ENDPOINTS].sort((a, b) => {
+    const aFail = endpointHealth.get(a) || 0
+    const bFail = endpointHealth.get(b) || 0
+    const aHealthy = !aFail || now - aFail > stale
+    const bHealthy = !bFail || now - bFail > stale
+    if (aHealthy && !bHealthy) return -1
+    if (!aHealthy && bHealthy) return 1
+    // Both same health bucket: prefer the one that failed longer ago
+    return aFail - bFail
   })
-
-  // If all endpoints have failed recently, try the one that failed longest ago
-  if (healthyEndpoints.length === 0) {
-    const sorted = OVERPASS_ENDPOINTS.sort((a, b) => {
-      const aFail = endpointHealth.get(a) || 0
-      const bFail = endpointHealth.get(b) || 0
-      return aFail - bFail
-    })
-    return sorted[0]
-  }
-
-  // Random selection from healthy endpoints for load distribution
-  return healthyEndpoints[Math.floor(Math.random() * healthyEndpoints.length)]
 }
 
 /**
@@ -226,22 +229,18 @@ export default async function handler(request) {
     })
   }
 
-  // Try endpoints with failover
+  // Try endpoints in priority order with a short per-endpoint timeout.
+  // 18s × 3 endpoints = 54s, fits inside the 60s function budget.
+  // Previously each endpoint had a 55s timeout, so if the first picked
+  // endpoint was slow we'd burn the entire budget on it and never get
+  // to try the others — Vercel killed the function at 60s with 504.
   let lastError = null
-  const triedEndpoints = new Set()
+  const PER_ENDPOINT_TIMEOUT_MS = 18000
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const endpoint = selectEndpoint()
-
-    // Don't retry the same endpoint twice
-    if (triedEndpoints.has(endpoint)) continue
-    triedEndpoints.add(endpoint)
-
+  for (const endpoint of endpointsByPriority()) {
     try {
       const controller = new AbortController()
-      // Node serverless on Pro plan: maxDuration 60s. Use 55s to leave a
-      // 5s buffer for response transit + JSON parse before Vercel kills us.
-      const timeoutId = setTimeout(() => controller.abort(), 55000)
+      const timeoutId = setTimeout(() => controller.abort(), PER_ENDPOINT_TIMEOUT_MS)
 
       const response = await fetch(endpoint, {
         method: 'POST',

@@ -157,7 +157,6 @@ async function fetchFromOverpass(query, signal = null, meta = {}) {
         const data = await response.json()
         const duration = Date.now() - startTime
 
-        // Record successful proxy call
         recordApiCall({
           source: 'overpass_proxy',
           endpoint: OVERPASS_PROXY,
@@ -171,19 +170,17 @@ async function fetchFromOverpass(query, signal = null, meta = {}) {
         return data
       }
 
-      // Proxy returned error - mark as failed and fall through to direct
+      // Proxy returned error — mark failed, fall through to direct
       proxyLastFailed = now
     } catch (error) {
       if (error.name === 'AbortError') {
-        throw error // Re-throw cancellation
+        throw error
       }
-      // Proxy failed - mark and fall through to direct fetch
       proxyLastFailed = now
       console.warn('[Overpass] Proxy failed, falling back to direct:', error.message)
     }
   }
 
-  // Direct Overpass fetch (fallback)
   return fetchFromOverpassDirect(query, signal, meta)
 }
 
