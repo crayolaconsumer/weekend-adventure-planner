@@ -834,14 +834,19 @@ export default function Events({ location }) {
               onClick={() => setFiltersOpen(false)}
             />
 
-            {/* Panel */}
+            {/* Panel — bottom sheet, mirrors FilterModal (Discover) so all
+                filter surfaces in the app share the same vocabulary: slides
+                up from the bottom, edge-to-edge on phones, centred max-500
+                on tablets. Top-anchored drawer was the odd one out. */}
             <motion.div
               className="events-filter-panel"
-              initial={{ opacity: 0, y: -20, height: 0 }}
-              animate={{ opacity: 1, y: 0, height: 'auto' }}
-              exit={{ opacity: 0, y: -20, height: 0 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              initial={{ opacity: 0, y: '100%' }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: '100%' }}
+              transition={{ type: 'spring', stiffness: 400, damping: 38 }}
             >
+              {/* Drag handle visual — matches FilterModal */}
+              <div className="events-filter-panel-handle" aria-hidden="true" />
               <div className="events-filter-panel-inner">
                 {/* Radius Section */}
                 <motion.div

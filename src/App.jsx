@@ -24,7 +24,13 @@ import AdminRoute from './components/AdminRoute'
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
-import DebugHud from './components/DebugHud'
+// DebugHud disabled — it was a triple-tap-anywhere overlay used to
+// diagnose the WKWebView auth failure. Now that auth + the network
+// stack are healthy, the triple-tap was firing accidentally during
+// normal swipe/scroll interactions and was getting in the way.
+// Keeping the file in tree (src/components/DebugHud.jsx + the fetch
+// instrumentation in src/main.jsx) so we can re-enable when needed.
+// import DebugHud from './components/DebugHud'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
@@ -462,7 +468,7 @@ function App() {
             </div>
           </ErrorBoundary>
           </BrowserRouter>
-          <DebugHud />
+          {/* <DebugHud /> — see import note above */}
         </ToastProvider>
       </DistanceProvider>
     </AuthProvider>

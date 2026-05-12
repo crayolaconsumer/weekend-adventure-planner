@@ -264,33 +264,41 @@
   z-index: 90;
 }
 
+/* Bottom sheet — mirrors FilterModal (Discover). Was a top-anchored
+   drawer that grew downward from below the filter button; now it's
+   pinned to the bottom of the viewport, slides up, and goes edge-to-
+   edge on phones / centred max-500 on tablets. Same visual vocabulary
+   across the app's filter surfaces. */
 .events-filter-panel {
-  position: relative;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 100;
-  /* Pull the panel almost edge-to-edge — the prior --space-md margin
-     left big side gutters that wasted screen real estate on phones. */
-  margin: 0 var(--space-sm);
-  /* Theme-aware sheet bg. Was hardcoded #fdfcf8 → #f8f6f0 parchment, so
-     in dark mode the sheet stayed light while the chips inside resolved
-     to dark surface-elevated — dark-on-light chip text was unreadable. */
-  background: linear-gradient(165deg,
-    var(--color-surface-elevated) 0%,
-    color-mix(in srgb, var(--color-surface-elevated) 92%, var(--color-text-primary) 8%) 100%
-  );
-  border-radius: 20px;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 500px;
+  background: var(--color-surface);
+  border-radius: 20px 20px 0 0;
   box-shadow:
-    0 4px 6px rgba(0, 0, 0, 0.06),
-    0 10px 20px rgba(0, 0, 0, 0.08),
-    0 20px 40px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 color-mix(in srgb, var(--color-surface-elevated) 60%, white);
-  /* Was overflow: hidden + no max-height — on iPhones the panel grew
-     taller than the viewport with no way for the user to reach the
-     bottom (PRICE RANGE was cut off). Clamp to 88dvh (was 80) so the
-     panel claims more vertical room and feels less cramped. */
+    0 -8px 40px rgba(0, 0, 0, 0.25),
+    0 -2px 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   max-height: 88dvh;
   display: flex;
   flex-direction: column;
+  /* Account for iPhone home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Drag handle visual — matches FilterModal */
+.events-filter-panel-handle {
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  margin: 8px auto 4px;
+  background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
+  border-radius: 2px;
 }
 
 .events-filter-panel-inner {
@@ -1569,15 +1577,11 @@
     padding: 8px 10px;
   }
 
-  /* On phones the filter sheet goes full-bleed: edge-to-edge width,
-     near-full height, only top corners rounded so it reads as a sheet
-     anchored to the bottom of the screen. Was a centred mini-modal
-     that ate ~half the viewport and required scrolling inside the
-     sheet to reach Sort By. */
+  /* On phones the sheet already goes edge-to-edge (max-width 500 +
+     left/right 0). Just bump the max-height + min-content-height for
+     a more fullscreen-y feel. */
   .events-filter-panel {
-    margin: 0;
-    max-height: 95dvh;
-    border-radius: 20px 20px 0 0;
+    max-height: 92dvh;
   }
 
   .events-filter-panel-inner {
@@ -1585,7 +1589,7 @@
     /* Bump the on-phone min-height so the sheet feels properly
        fullscreen — was 72vh which was still leaving a void at the
        bottom on iPhone SE. */
-    min-height: 88vh;
+    min-height: 85vh;
   }
 
   .events-category-option {

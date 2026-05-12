@@ -963,18 +963,18 @@ export default function Discover({ location }) {
           <button
             className="discover-filters-trigger"
             onClick={() => setShowFilterModal(true)}
-            aria-label="Open filter options"
+            aria-label={selectedCategories.length > 0
+              ? `Open filters (${selectedCategories.length} active)`
+              : 'Open filters'}
           >
             <span className="discover-filters-trigger-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
               </svg>
             </span>
-            <span className="discover-filters-trigger-text">
-              {selectedCategories.length > 0
-                ? `${selectedCategories.length} filter${selectedCategories.length !== 1 ? 's' : ''}`
-                : 'All categories'}
-            </span>
+            {selectedCategories.length > 0 && (
+              <span className="discover-filters-trigger-badge">{selectedCategories.length}</span>
+            )}
           </button>
         </div>
       </header>

@@ -297,31 +297,37 @@
    MOBILE FILTER TRIGGER BUTTON
    ═══════════════════════════════════════════════════════ */
 
+/* Filter trigger — circle icon button. Was a pill with "All categories"
+   text which duplicated the function of the icon itself and ate space
+   in the status row. Now sits next to the weather + mode chips as a
+   tight 36px circle. On larger screens it promotes to a bottom-left
+   FAB so it doesn't crowd the header (see media query below). */
 .discover-filters-trigger {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: 10px 16px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: var(--color-surface-elevated);
-  border: 1.5px solid var(--roam-parchment);
-  border-radius: var(--radius-full);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 500;
+  border: 1.5px solid color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  border-radius: 50%;
   color: var(--color-text-primary);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
 .discover-filters-trigger:hover {
-  background: var(--roam-parchment);
-  border-color: var(--roam-stone);
+  border-color: var(--roam-gold);
+  background: color-mix(in srgb, var(--roam-gold) 10%, var(--color-surface-elevated));
 }
 
 .discover-filters-trigger:active {
-  transform: scale(0.97);
+  transform: scale(0.93);
 }
 
 .discover-filters-trigger-icon {
@@ -331,8 +337,58 @@
   color: var(--roam-forest);
 }
 
-.discover-filters-trigger-text {
-  color: var(--roam-ink);
+[data-theme="dark"] .discover-filters-trigger-icon {
+  color: var(--roam-gold);
+}
+
+/* Tiny gold badge when filters are active — mirrors NotificationBell's
+   unread count pattern so the active-filter affordance is consistent
+   across the two header circles. */
+.discover-filters-trigger-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--roam-gold);
+  color: var(--roam-forest);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  border-radius: 9px;
+  text-align: center;
+  border: 1.5px solid var(--color-surface-elevated);
+}
+
+/* On larger screens promote the filter trigger to a bottom-left FAB,
+   mirroring NotificationBell's bottom-right pattern. Removes header
+   clutter and keeps the filter affordance reachable. On phones it
+   stays inline in the status row where it currently sits — bottom-
+   anchored FABs collide with the action buttons on small viewports. */
+@media (min-width: 768px) {
+  .discover-filters-trigger {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    width: 56px;
+    height: 56px;
+    z-index: 50;
+    box-shadow: var(--shadow-md);
+  }
+  .discover-filters-trigger-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .discover-filters-trigger-badge {
+    top: -4px;
+    right: -4px;
+    min-width: 22px;
+    height: 22px;
+    font-size: 12px;
+    line-height: 22px;
+    border-radius: 11px;
+  }
 }
 
 @media (max-width: 767px) {

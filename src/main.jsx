@@ -14,16 +14,15 @@ import { initNativeAppLifecycle } from './utils/nativeAppLifecycle'
 // analytics, even though those don't fetch directly during init).
 installFetchInterceptor()
 
-// DEBUG HUD — persistent on-device network observability.
+// DEBUG HUD — DISABLED for normal builds.
 //
-// Wraps the (already-patched) fetch one more time and pushes every /api/*
-// request's status + timing into a global ring buffer. The DebugHud
-// component (src/components/DebugHud.jsx) reads from this buffer and
-// renders a draggable overlay. Triple-tap anywhere on the app to toggle.
-//
-// Native-only: web has DevTools, native doesn't, and the on-device error
-// toasts we had before don't survive a navigation. This HUD persists.
-if (typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
+// Triple-tap-anywhere overlay used to diagnose the WKWebView auth
+// failure. The triple-tap detector was firing accidentally during
+// normal swipe/scroll on the device, so it's off by default now.
+// Flip ENABLE_DEBUG_HUD to true (or wire it to an env var) when you
+// need on-device fetch tracing again.
+const ENABLE_DEBUG_HUD = false
+if (ENABLE_DEBUG_HUD && typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
   const RING_SIZE = 60
   const ring = []
   window.__roamNetLog = ring
