@@ -9,6 +9,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import './PlanVisitSheet.css'
 
 // Icons
@@ -142,12 +143,7 @@ export default function PlanVisitSheet({
   }, [isOpen, onClose])
 
   // Prevent body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      return () => { document.body.style.overflow = '' }
-    }
-  }, [isOpen])
+  useLockBodyScroll(isOpen)
 
   const handleSelectDate = (option) => {
     setSelectedDate(option.date)

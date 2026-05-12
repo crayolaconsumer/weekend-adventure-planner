@@ -10,6 +10,7 @@ import { useCollections } from '../hooks/useCollections'
 import { COLLECTION_EMOJIS } from '../utils/collections'
 import CategoryIcon from './icons/CategoryIcon'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { useToast } from '../hooks/useToast'
 import { useSubscription } from '../hooks/useSubscription'
 import UpgradePrompt from './UpgradePrompt'
@@ -76,17 +77,10 @@ export default function CollectionManager({ place, isOpen, onClose }) {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (!isOpen) return
-
-    const originalOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = originalOverflow
-    }
-  }, [isOpen])
+  // Prevent body scroll when modal is open — ref-counted via shared
+  // hook so stacked modals (e.g. CollectionManager + nested
+  // UpgradePrompt) restore overflow correctly on close.
+  useLockBodyScroll(isOpen)
 
   const handleToggleCollection = async (collectionId) => {
     const collection = collections.find(c => c.id === collectionId)

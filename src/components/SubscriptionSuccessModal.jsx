@@ -8,6 +8,7 @@
 import { useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import './SubscriptionSuccessModal.css'
 
 // Brand colors for confetti
@@ -86,14 +87,7 @@ export default function SubscriptionSuccessModal({ isOpen, onClose }) {
   }, [onClose, checkAuth])
 
   // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = ''
-      }
-    }
-  }, [isOpen])
+  useLockBodyScroll(isOpen)
 
   // Handle escape key
   useEffect(() => {

@@ -16,6 +16,7 @@ import PlanVisitSheet from './PlanVisitSheet'
 import { ContributionList } from './ContributionDisplay'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
@@ -273,13 +274,10 @@ export default function PlaceDetail({ place, onClose, onGo }) {
     return () => window.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
+  // Prevent body scroll when modal is open. PlaceDetail only mounts
+  // when the user opens a place, so the lock is always-on while
+  // mounted — pass true unconditionally.
+  useLockBodyScroll(true)
 
   const category = enrichedPlace.category
 

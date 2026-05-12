@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { isNative, getPlatform } from '../utils/nativeBridge'
 import { nativeAppleSignIn, nativeGoogleSignIn } from '../utils/nativePlugins'
 import './AuthModal.css'
@@ -82,14 +83,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   }, [isOpen, initialMode, clearError])
 
   // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = ''
-      }
-    }
-  }, [isOpen])
+  useLockBodyScroll(isOpen)
 
   const handleSubmit = async (e) => {
     e.preventDefault()

@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatEventDate, formatPriceRange, getSourceInfo } from '../utils/eventsApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import './EventDetail.css'
 
@@ -126,13 +127,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
   }, [event, onClose])
 
   // Prevent body scroll when modal is open - must be before any conditional returns
-  useEffect(() => {
-    if (!event) return
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [event])
+  useLockBodyScroll(!!event)
 
   // Focus trap for accessibility
   const focusTrapRef = useFocusTrap(!!event)

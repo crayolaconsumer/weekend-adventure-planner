@@ -12,6 +12,7 @@ import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import './JustGoModal.css'
 
 // Icons (use simple SVGs matching existing app patterns)
@@ -141,12 +142,7 @@ export default function JustGoModal({
   }, [isOpen, showCelebration, onClose])
 
   // Prevent body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      return () => { document.body.style.overflow = '' }
-    }
-  }, [isOpen])
+  useLockBodyScroll(isOpen)
 
   const current = recommendations[currentIndex]
   const reasons = useMemo(() =>

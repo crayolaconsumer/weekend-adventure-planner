@@ -14,18 +14,18 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: var(--surface-secondary, #f5f5f5);
+  background: var(--color-surface-elevated);
   border-radius: 12px;
   transition: all 0.2s ease;
 }
 
 .user-search-input-wrapper:focus-within {
-  background: var(--surface-color, #fff);
-  box-shadow: 0 0 0 2px var(--primary-color, #E07A5F);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .user-search-input-wrapper svg {
-  color: var(--text-tertiary, #999);
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
@@ -34,12 +34,12 @@
   border: none;
   background: transparent;
   font-size: 0.95rem;
-  color: var(--text-primary, #1a1a1a);
+  color: var(--color-text-primary);
   outline: none;
 }
 
 .user-search-input::placeholder {
-  color: var(--text-tertiary, #999);
+  color: var(--color-text-muted);
 }
 
 .user-search-clear {
@@ -48,24 +48,24 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: var(--surface-color, #fff);
+  background: var(--color-surface);
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--text-tertiary, #999);
+  color: var(--color-text-muted);
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .user-search-clear:hover {
-  color: var(--text-primary, #1a1a1a);
-  background: var(--surface-hover, #eee);
+  color: var(--color-text-primary);
+  background: var(--color-surface-elevated);
 }
 
 .user-search-count {
   display: block;
   font-size: 0.8rem;
-  color: var(--text-secondary, #666);
+  color: var(--color-text-secondary);
   margin-top: 0.5rem;
   padding-left: 0.25rem;
 }
@@ -76,7 +76,7 @@
   top: calc(100% + 0.5rem);
   left: 0;
   right: 0;
-  background: var(--surface-color, #fff);
+  background: var(--color-surface);
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
   max-height: 400px;
@@ -100,14 +100,14 @@
 }
 
 .user-search-results-list > div:hover .user-card {
-  background: var(--surface-secondary, #f5f5f5);
+  background: var(--color-surface-elevated);
 }
 
 /* Empty State */
 .user-search-empty {
   padding: 2rem 1rem;
   text-align: center;
-  color: var(--text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .user-search-empty p {
@@ -119,12 +119,12 @@
 .user-search-load-more {
   width: 100%;
   padding: 0.75rem;
-  background: var(--surface-secondary, #f5f5f5);
+  background: var(--color-surface-elevated);
   border: none;
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
-  color: var(--primary-color, #E07A5F);
+  color: var(--color-accent);
   cursor: pointer;
   margin-top: 0.5rem;
   transition: all 0.2s ease;
