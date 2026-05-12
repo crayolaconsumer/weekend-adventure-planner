@@ -952,18 +952,23 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  /* Centre the card vertically so the empty space is balanced top
+     and bottom on short viewports (iPhone SE etc) instead of all
+     collecting under the deck. */
+  justify-content: center;
   height: 100%;
-  padding: var(--space-xs) 0 0;
+  padding: var(--space-xs) 0;
 }
 
 .events-swipe-stack {
   position: relative;
   width: 100%;
   max-width: 340px;
-  /* Use calculated height based on viewport, not aspect-ratio */
+  /* Fill more of the viewport on small phones so the empty area
+     above the bottom nav is minimised. Cap at 560px so the deck
+     doesn't bloat on tablets / desktop. */
   height: calc(100% - 60px); /* Leave room for progress bar */
-  max-height: 480px;
+  max-height: 560px;
   margin: 0 auto;
 }
 

@@ -5,6 +5,7 @@ import EventCard from '../components/EventCard'
 import CategoryIcon from '../components/icons/CategoryIcon'
 import CollectionManager from '../components/CollectionManager'
 import VisitedPrompt from '../components/VisitedPrompt'
+import PlaceDetail from '../components/PlaceDetail'
 import { useSavedEvents } from '../hooks/useSavedEvents'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useUserPlans } from '../hooks/useUserPlans'
@@ -130,6 +131,10 @@ export default function Wishlist() {
   // Collection manager state
   const [selectedPlace, setSelectedPlace] = useState(null)
   const [showCollectionManager, setShowCollectionManager] = useState(false)
+  // Tapping a saved-place card opens the same PlaceDetail overlay used
+  // on Discover, so the user can see full info / open hours / map /
+  // contributed photos without leaving the wishlist.
+  const [detailPlace, setDetailPlace] = useState(null)
 
   // Visited places state
   const { isVisited } = useVisitedPlaces()
@@ -325,6 +330,11 @@ export default function Wishlist() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ delay: Math.min(index, 11) * 0.05 }}
+                      onClick={() => setDetailPlace(place)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === 'Enter') setDetailPlace(place) }}
+                      style={{ cursor: 'pointer' }}
                     >
                       <div
                         className={`wishlist-card-image${getCardPhotoUrl(place) ? '' : ' wishlist-card-image--no-photo'}`}
@@ -371,10 +381,10 @@ export default function Wishlist() {
                           Saved {formatSavedDate(place.savedAt)}
                         </span>
 
-                        <div className="wishlist-card-actions">
+                        <div className="wishlist-card-actions" onClick={e => e.stopPropagation()}>
                           <button
                             className="wishlist-card-btn go"
-                            onClick={() => goToPlace(place)}
+                            onClick={(e) => { e.stopPropagation(); goToPlace(place) }}
                           >
                             <NavigationIcon />
                             Go
@@ -382,7 +392,7 @@ export default function Wishlist() {
                           {!isVisited(place.id) && (
                             <button
                               className="wishlist-card-btn visited"
-                              onClick={() => setVisitPromptPlace(place)}
+                              onClick={(e) => { e.stopPropagation(); setVisitPromptPlace(place) }}
                               aria-label={`Mark ${place.name} as visited`}
                             >
                               <CheckCircleIcon />
@@ -390,14 +400,14 @@ export default function Wishlist() {
                           )}
                           <button
                             className="wishlist-card-btn collection"
-                            onClick={() => openCollectionManager(place)}
+                            onClick={(e) => { e.stopPropagation(); openCollectionManager(place) }}
                             aria-label={`Add ${place.name} to collection`}
                           >
                             <FolderPlusIcon />
                           </button>
                           <button
                             className="wishlist-card-btn remove"
-                            onClick={() => removeFromWishlist(place.id, place.name)}
+                            onClick={(e) => { e.stopPropagation(); removeFromWishlist(place.id, place.name) }}
                             aria-label={`Remove ${place.name} from wishlist`}
                           >
                             <TrashIcon />
@@ -580,6 +590,15 @@ export default function Wishlist() {
             setSelectedPlace(null)
           }}
           place={selectedPlace}
+        />
+      )}
+
+      {/* Place Detail overlay — opens when user taps a saved-place card */}
+      {detailPlace && (
+        <PlaceDetail
+          place={detailPlace}
+          onClose={() => setDetailPlace(null)}
+          onGo={() => { goToPlace(detailPlace); setDetailPlace(null) }}
         />
       )}
 

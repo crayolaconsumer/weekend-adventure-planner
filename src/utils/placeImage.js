@@ -285,7 +285,15 @@ function pickStockImage(place) {
 export async function resolvePlaceImageAsync(place) {
   const sync = resolvePlaceImageSync(place)
   if (sync) return sync
-  const resolved = await fetchEnhancedImage(place)
-  if (resolved) return resolved
+  // fetchEnhancedImage can throw on network / abort / parse errors.
+  // We must still return a URL so CardStack's permanent "already tried"
+  // bookkeeping doesn't leave the place imageless forever — fall to the
+  // category stock photo on any failure.
+  try {
+    const resolved = await fetchEnhancedImage(place)
+    if (resolved) return resolved
+  } catch (err) {
+    console.warn('[placeImage] enhanced fetch failed, using stock:', err?.message)
+  }
   return pickStockImage(place)
 }

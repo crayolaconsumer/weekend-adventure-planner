@@ -400,7 +400,10 @@ export default function Events({ location }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [displayLimit, setDisplayLimit] = useState(EVENTS_PAGE_SIZE)
   const [activeFilter, setActiveFilter] = useState('all')
-  const [viewMode, setViewMode] = useState(VIEW_MODES.SWIPE)
+  // Default to GRID (list-like). Swipe mode is opt-in via the toggle —
+  // most users want to scan a list of upcoming events, not flick through
+  // them card-by-card the way they would on the Discover tab.
+  const [viewMode, setViewMode] = useState(VIEW_MODES.GRID)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const { events: savedEventsList, saveEvent, unsaveEvent, isEventSaved: checkEventSaved } = useSavedEvents()
