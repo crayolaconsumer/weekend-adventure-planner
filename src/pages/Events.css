@@ -270,13 +270,19 @@
   /* Pull the panel almost edge-to-edge — the prior --space-md margin
      left big side gutters that wasted screen real estate on phones. */
   margin: 0 var(--space-sm);
-  background: linear-gradient(165deg, #fdfcf8 0%, #f8f6f0 100%);
+  /* Theme-aware sheet bg. Was hardcoded #fdfcf8 → #f8f6f0 parchment, so
+     in dark mode the sheet stayed light while the chips inside resolved
+     to dark surface-elevated — dark-on-light chip text was unreadable. */
+  background: linear-gradient(165deg,
+    var(--color-surface-elevated) 0%,
+    color-mix(in srgb, var(--color-surface-elevated) 92%, var(--color-text-primary) 8%) 100%
+  );
   border-radius: 20px;
   box-shadow:
-    0 4px 6px rgba(26, 58, 47, 0.04),
-    0 10px 20px rgba(26, 58, 47, 0.06),
-    0 20px 40px rgba(26, 58, 47, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 4px 6px rgba(0, 0, 0, 0.06),
+    0 10px 20px rgba(0, 0, 0, 0.08),
+    0 20px 40px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 color-mix(in srgb, var(--color-surface-elevated) 60%, white);
   /* Was overflow: hidden + no max-height — on iPhones the panel grew
      taller than the viewport with no way for the user to reach the
      bottom (PRICE RANGE was cut off). Clamp to 88dvh (was 80) so the
@@ -456,14 +462,18 @@
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  background: var(--color-surface-elevated);
-  border: 1.5px solid var(--roam-parchment);
+  /* Chip bg + text mixed against the surface so the chip stays visible
+     and the label legible regardless of theme. Previously the chip used
+     a hardcoded parchment border and stone text — in dark mode the chip
+     went forest-on-forest and the label faded out. */
+  background: color-mix(in srgb, var(--color-text-primary) 7%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--color-text-primary) 14%, transparent);
   border-radius: var(--radius-full);
   font-size: var(--text-sm);
-  color: var(--roam-stone);
+  font-weight: 500;
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(26, 58, 47, 0.04);
 }
 
 .events-category-option:hover {

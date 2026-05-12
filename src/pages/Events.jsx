@@ -752,8 +752,12 @@ export default function Events({ location }) {
           <div className="events-view-segmented" role="group" aria-label="View mode">
             <motion.div
               className="events-view-indicator"
-              layout
-              initial={false}
+              /* Explicit initial position so on first render the pill
+                 sits under the currently-active segment instead of
+                 defaulting to Cards. initial={false} alone wasn't enough
+                 — framer was rendering the pill at x=0 (Cards) on first
+                 paint even though viewMode started as GRID. */
+              initial={{ x: viewMode === VIEW_MODES.SWIPE ? 0 : '100%' }}
               animate={{ x: viewMode === VIEW_MODES.SWIPE ? 0 : '100%' }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             />
