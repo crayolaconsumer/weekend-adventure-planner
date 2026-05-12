@@ -285,7 +285,7 @@
   font-family: var(--font-display);
   font-size: 22px;
   font-weight: 600;
-  color: var(--roam-forest);
+  color: var(--color-text-primary);
   margin: 0 0 10px;
   letter-spacing: -0.02em;
 }
@@ -293,13 +293,17 @@
 .plan-prompt-text {
   font-family: var(--font-body);
   font-size: 15px;
-  color: var(--roam-ink-muted);
+  color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.5;
 }
 
 .plan-prompt-text strong {
-  color: var(--roam-ink);
+  /* Place name highlight — was hardcoded forest/ink which became
+     unreadable on the dark-mode cream-on-forest backdrop. Theme token
+     keeps contrast against either background, and the gold underline
+     stays brand-coherent in both. */
+  color: var(--color-text-primary);
   font-weight: 600;
   background: linear-gradient(
     180deg,

@@ -319,6 +319,17 @@
 /* Ensure the brand pin div has no white box */
 .place-detail-leaflet-pin { background: transparent; border: none; }
 
+/* CARTO dark_all is near-black with very dim labels — at 160px height
+   it reads as an opaque void. Lift the tile pixels with brightness +
+   slight desaturate so streets and labels become legible without
+   reverting to the light theme. Pin element is positioned absolute on
+   top so the filter doesn't dim it (Leaflet renders pins outside the
+   tile pane). Light theme is unaffected. */
+[data-theme="dark"] .place-detail-map-leaflet .leaflet-tile-pane {
+  filter: brightness(1.55) saturate(0.85) contrast(0.92);
+}
+[data-theme="dark"] .place-detail-map-leaflet { background: var(--roam-ink); }
+
 .place-detail-map::after {
   content: '';
   position: absolute;

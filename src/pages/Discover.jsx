@@ -704,15 +704,31 @@ export default function Discover({ location }) {
         )
       }
 
-      // Show plan prompt occasionally (not every save - every 3rd or after 30s)
+      // Plan prompt — show RARELY. Previous logic (every 3rd save OR
+      // every 30s) felt constant during batch-saving. New rules:
+      //   1. Show on a user's very first save ever (intro the feature)
+      //   2. After that, only re-show if BOTH:
+      //      - it's been >7 days since the last time we showed it
+      //      - the user has saved ≥5 more places since the last show
+      //   3. Once per session max — if they dismiss, they won't see it
+      //      again until the next cold-launch.
       const now = Date.now()
-      const timeSinceLastPrompt = now - lastPlanPromptRef.current
-      const saveCount = parseInt(localStorage.getItem('roam_save_count') || '0', 10) + 1
-      localStorage.setItem('roam_save_count', String(saveCount))
+      const totalSaves = parseInt(localStorage.getItem('roam_save_count') || '0', 10) + 1
+      localStorage.setItem('roam_save_count', String(totalSaves))
 
-      // Show prompt every 3rd save OR if more than 30 seconds since last prompt
-      if (saveCount % 3 === 0 || timeSinceLastPrompt > 30000) {
+      const lastShownAt = parseInt(localStorage.getItem('roam_plan_prompt_last_shown_at') || '0', 10)
+      const savesAtLastShow = parseInt(localStorage.getItem('roam_plan_prompt_saves_at_last_show') || '0', 10)
+      const sessionShown = lastPlanPromptRef.current > 0
+      const daysSinceLastShow = (now - lastShownAt) / 86400000
+      const savesSinceLastShow = totalSaves - savesAtLastShow
+
+      const isFirstEverSave = lastShownAt === 0 && totalSaves === 1
+      const isCooledDown = daysSinceLastShow >= 7 && savesSinceLastShow >= 5
+
+      if (!sessionShown && (isFirstEverSave || isCooledDown)) {
         lastPlanPromptRef.current = now
+        localStorage.setItem('roam_plan_prompt_last_shown_at', String(now))
+        localStorage.setItem('roam_plan_prompt_saves_at_last_show', String(totalSaves))
         // Small delay so user sees the swipe complete
         setTimeout(() => setPlanPromptPlace(place), 400)
       }

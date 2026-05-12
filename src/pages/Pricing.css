@@ -384,11 +384,14 @@
   max-width: 580px;
   margin: 8px auto 0;
   font-size: 1.05rem;
-  color: rgba(26, 58, 47, 0.78);
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 .pricing-hero-sub strong {
-  color: #1a3a2f;
+  /* Brand gold so the value-line pops in both themes — in dark mode
+     the previous solid forest blended into the bg and was unreadable. */
+  color: var(--roam-gold);
+  font-weight: 700;
 }
 
 /* Trust strip — three short trust signals */
