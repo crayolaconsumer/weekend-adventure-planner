@@ -576,8 +576,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(26, 58, 47, 0.06);
-  color: #1a3a2f;
+  background: color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  color: var(--color-text-primary);
   padding: 8px 12px;
   border-radius: 8px;
   text-decoration: none;
