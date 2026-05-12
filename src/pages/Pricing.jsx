@@ -33,6 +33,63 @@ const XIcon = () => (
 // (legacy SparkleIcon dropped — replaced by PremiumBadge component for brand consistency)
 
 // Outcome-led copy. Each row reads as a thing the user gets to do, not
+// Inline feature glyphs — 20px stroke icons, currentColor so they
+// inherit the row's text colour and look consistent in light/dark.
+const FEATURE_ICONS = {
+  discover: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="10" r="3" /><path d="M12 22s8-7.5 8-12a8 8 0 1 0-16 0c0 4.5 8 12 8 12z" />
+    </svg>
+  ),
+  community: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  saves: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  collections: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  filters: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="4" y1="6" x2="20" y2="6" /><circle cx="9" cy="6" r="2.2" fill="currentColor" />
+      <line x1="4" y1="12" x2="20" y2="12" /><circle cx="15" cy="12" r="2.2" fill="currentColor" />
+      <line x1="4" y1="18" x2="20" y2="18" /><circle cx="11" cy="18" r="2.2" fill="currentColor" />
+    </svg>
+  ),
+  radius: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.5" fill="currentColor" /><path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+    </svg>
+  ),
+  offline: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  ),
+  adFree: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+  poster: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="1.5" fill="currentColor" /><path d="M21 15l-5-5L5 21" />
+    </svg>
+  ),
+  badge: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="9" r="6" /><path d="M8.5 14L7 21l5-3 5 3-1.5-7" /><path d="M12 6l1.2 2.4 2.6.4-1.9 1.9.4 2.6L12 12.1l-2.3 1.2.4-2.6-1.9-1.9 2.6-.4z" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 // a feature checkbox. Free column shows the ceiling; ROAM+ shows freedom.
 const FEATURES = [
   { key: 'discover', label: 'Discover places near you', free: true, premium: true },
@@ -212,6 +269,7 @@ export default function Pricing() {
             <ul className="pricing-features">
               {FEATURES.map(feature => (
                 <li key={feature.key} className="pricing-feature">
+                  <span className="pricing-feature-icon">{FEATURE_ICONS[feature.key]}</span>
                   {renderFeatureValue(feature.free)}
                   <span>{feature.label}</span>
                 </li>
@@ -265,6 +323,7 @@ export default function Pricing() {
             <ul className="pricing-features">
               {FEATURES.map(feature => (
                 <li key={feature.key} className="pricing-feature">
+                  <span className="pricing-feature-icon">{FEATURE_ICONS[feature.key]}</span>
                   {renderFeatureValue(feature.premium)}
                   <span>{feature.label}</span>
                 </li>
