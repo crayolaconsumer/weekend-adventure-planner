@@ -48,6 +48,8 @@ export function applyCors(req, res) {
   // setting Access-Control-Allow-Origin — browser blocks the request.
   // Vercel preview deployments end in vercel.app — also allow those for
   // QA/testing flows.
+  const isCapacitorOrigin = origin === 'capacitor://localhost' || origin === 'https://localhost'
+
   if (origin) {
     if (ALLOWED_ORIGINS.has(origin) || /^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
@@ -58,7 +60,7 @@ export function applyCors(req, res) {
       // (TypeError: Load failed) when the response also carries Set-Cookie
       // — even though the request was non-credentialed. The web origins
       // still need credentialed mode for the same-origin cookie session.
-      if (origin !== 'capacitor://localhost' && origin !== 'https://localhost') {
+      if (!isCapacitorOrigin) {
         res.setHeader('Access-Control-Allow-Credentials', 'true')
       }
     }
@@ -66,7 +68,20 @@ export function applyCors(req, res) {
 
   res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS)
   res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS)
-  res.setHeader('Access-Control-Max-Age', '86400') // 24h cache for preflight
+  // Web origins: cache preflight aggressively. Capacitor: do NOT cache —
+  // WKWebView holds onto cached preflights for the full Max-Age window
+  // (24h) so an old preflight from before today's CORS changes can pin
+  // the app to a stale credentialed/cookie response policy and trip
+  // every subsequent POST with the opaque "TypeError: Load failed".
+  // Setting Max-Age=0 + Cache-Control:no-store forces a fresh preflight
+  // every time on native so any future server change takes effect on
+  // the very next request without waiting for the cache window to age.
+  if (isCapacitorOrigin) {
+    res.setHeader('Access-Control-Max-Age', '0')
+    res.setHeader('Cache-Control', 'no-store')
+  } else {
+    res.setHeader('Access-Control-Max-Age', '86400') // 24h cache for preflight
+  }
 
   if (req.method === 'OPTIONS') {
     res.status(204).end()
