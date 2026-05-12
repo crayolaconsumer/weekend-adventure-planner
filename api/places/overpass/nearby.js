@@ -13,17 +13,14 @@
 // Switched from Edge to Node serverless: Edge has a hard 25-30s ceiling
 // (depends on plan). Overpass cold-cache hits routinely take 22-28s and
 // were returning 504 to the client before the function could respond.
+// Node runtime gives us enough headroom for upstream to actually complete
+// (maxDuration is set per-route in vercel.json — see "functions" block).
 //
-// Pinned to explicit nodejs22.x rather than 'nodejs' because the
-// generic 'nodejs' alias on this project lands the function on Vercel's
-// new Fluid Compute model, which reuses function instances across
-// concurrent requests. Fluid Compute + the long-lived endpointHealth
-// Map at module scope was producing 60s FUNCTION_INVOCATION_TIMEOUT
-// even when every upstream Overpass mirror returned in 1–3s. Pinning
-// the runtime version forces traditional per-invocation isolation.
+// Vercel only accepts "edge", "experimental-edge", or "nodejs" as a
+// file-level runtime value — versioned strings like "nodejs22.x" break
+// the build. Node.js minor version is pinned at the project level.
 export const config = {
-  runtime: 'nodejs22.x',
-  maxDuration: 60
+  runtime: 'nodejs'
 }
 
 // Overpass endpoints with failover.
