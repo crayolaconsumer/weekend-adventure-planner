@@ -11,6 +11,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
+import CategoryIcon from './icons/CategoryIcon'
 import './JustGoModal.css'
 
 // Icons (use simple SVGs matching existing app patterns)
@@ -79,12 +80,22 @@ function getRecommendationReasons(place, context, formatDistance) {
 
   // Rating
   if (place.rating && place.rating >= 4.5) {
-    reasons.push({ icon: '⭐', text: 'Highly rated' })
+    reasons.push({
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
+        </svg>
+      ),
+      text: 'Highly rated'
+    })
   }
 
   // Category match (fallback)
   if (reasons.length < 2 && place.category) {
-    reasons.push({ icon: place.category.icon || null, text: `Popular ${place.category.label}` })
+    reasons.push({
+      icon: <CategoryIcon name={place.category.key} size="xs" />,
+      text: `Popular ${place.category.label}`
+    })
   }
 
   return reasons.slice(0, 3) // Max 3 reasons
@@ -236,7 +247,8 @@ export default function JustGoModal({
                   <PlaceImage place={current} alt={current.name} />
                   {current.category && (
                     <span className="just-go-card-category">
-                      {current.category.icon} {current.category.label}
+                      <CategoryIcon name={current.category.key} size="xs" />
+                      <span>{current.category.label}</span>
                     </span>
                   )}
                 </div>

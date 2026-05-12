@@ -165,13 +165,16 @@ function ProfileRedirect({ onOpenAuth }) {
         height: '100px',
         borderRadius: '50%',
         background: 'var(--roam-parchment)',
+        color: 'var(--roam-forest)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '48px',
         marginBottom: '24px'
       }}>
-        👤
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
       </div>
       <h2 style={{
         fontFamily: 'var(--font-display)',
