@@ -159,21 +159,6 @@ export function getPlaceSocialProof(placeId) {
 }
 
 /**
- * Get user's recent reviews with place info
- * @param {number} limit - Max number of reviews to return
- * @returns {Array<{placeId: string, rating: PlaceRating}>}
- */
-export function getRecentReviews(limit = 10) {
-  const ratings = getAllRatings()
-
-  return Object.entries(ratings)
-    .map(([placeId, rating]) => ({ placeId, rating }))
-    .filter(r => r.rating.review) // Only include entries with text reviews
-    .sort((a, b) => b.rating.visitedAt - a.rating.visitedAt)
-    .slice(0, limit)
-}
-
-/**
  * Vibe options for quick feedback
  */
 export const VIBE_OPTIONS = [

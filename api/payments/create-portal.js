@@ -34,6 +34,21 @@ async function handler(req, res) {
       return res.status(401).json({ error: 'Authentication required' })
     }
 
+    // Apple / Google IAP subscribers can't be managed via Stripe's
+    // billing portal — Apple manages those subs in iOS Settings.
+    // Return a specific code so the client can show the right
+    // affordance ("Manage in iOS Settings → Apple ID → Subscriptions")
+    // instead of an opaque "No subscription found" error.
+    if (user.subscription_source === 'apple' || user.subscription_source === 'google') {
+      return res.status(400).json({
+        error: 'Subscription managed outside Stripe',
+        message: user.subscription_source === 'apple'
+          ? 'Your subscription is managed via your Apple ID. Open Settings → [your name] → Subscriptions to manage it.'
+          : 'Your subscription is managed via Google Play. Open the Play Store → Subscriptions to manage it.',
+        code: user.subscription_source === 'apple' ? 'APPLE_SUBSCRIPTION' : 'GOOGLE_SUBSCRIPTION'
+      })
+    }
+
     let stripeCustomerId = user.stripe_customer_id
 
     // If user doesn't have a Stripe customer ID, try to find/create one

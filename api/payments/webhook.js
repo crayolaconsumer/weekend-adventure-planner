@@ -270,13 +270,22 @@ async function handleSubscriptionDeleted(subscription, conn) {
     return
   }
 
-  // Downgrade user to free tier
+  // Downgrade user to free tier — but ONLY if their current source is
+  // still Stripe. Edge case the guard exists for: user paid via Stripe,
+  // cancelled, then later subscribed via Apple IAP. Stripe still emits
+  // `customer.subscription.deleted` for that old cancelled subscription
+  // (sometimes after a long delay). Without this guard, that late event
+  // would stomp their active Apple entitlement and they'd lose premium
+  // mid-period despite paying Apple.
+  // Cleared columns are also gated so a Stripe-deleted event can't blank
+  // out the Apple expiry timestamp.
   await conn.query(
     `UPDATE users
      SET tier = 'free',
          subscription_id = NULL,
          subscription_expires_at = NULL
-     WHERE id = ?`,
+     WHERE id = ?
+       AND (subscription_source = 'stripe' OR subscription_source IS NULL)`,
     [user.id]
   )
 
