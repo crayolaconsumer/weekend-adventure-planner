@@ -4,7 +4,8 @@
  * Shows the user's review and feedback for a place.
  */
 
-import { getRating, VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
+import { VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
+import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import RatingIcon from './icons/RatingIcon'
 import './PlaceReviews.css'
 
@@ -29,6 +30,11 @@ function getOptionLabel(options, value) {
 }
 
 export default function PlaceReviews({ placeId }) {
+  // Use the hook's getRating — its in-memory state is loaded from the
+  // server on mount, so signed-in users see ratings they made on any
+  // device. The util's getRating reads localStorage only, which would
+  // miss reviews made on a different device.
+  const { getRating } = usePlaceRatings()
   const rating = getRating(placeId)
 
   if (!rating) {
