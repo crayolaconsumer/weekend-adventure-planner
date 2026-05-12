@@ -1827,19 +1827,19 @@
 .profile-upgrade-card-headline {
   font-family: 'Newsreader', 'Fraunces', serif;
   font-size: 1.15rem;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   font-weight: 500;
   line-height: 1.25;
 }
 .profile-upgrade-card-sub {
   font-size: 0.875rem;
-  color: rgba(26, 58, 47, 0.72);
+  color: var(--color-text-secondary);
   line-height: 1.4;
 }
 .profile-upgrade-card-cta {
   margin-top: 4px;
   font-size: 0.875rem;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
