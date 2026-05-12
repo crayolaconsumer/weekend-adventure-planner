@@ -6,7 +6,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createCollection, COLLECTION_EMOJIS } from '../utils/collections'
+import { COLLECTION_EMOJIS } from '../utils/collections'
+import { useCollections } from '../hooks/useCollections'
 import './CreateCollectionForm.css'
 
 // Icons
@@ -22,8 +23,14 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
   const [description, setDescription] = useState('')
   const [emoji, setEmoji] = useState(COLLECTION_EMOJIS[0])
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  // Use the hook's createCollection — it's the one that hits the server.
+  // The util/collections.js helper of the same name only writes to
+  // localStorage and was causing creates to silently disappear when
+  // signed-in users reload (the Collections page reads from the server).
+  const { createCollection } = useCollections()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (!name.trim()) {
@@ -36,8 +43,9 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
       return
     }
 
+    setSubmitting(true)
     try {
-      createCollection({
+      await createCollection({
         name: name.trim(),
         description: description.trim(),
         emoji
@@ -50,8 +58,10 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
       setError('')
 
       onCreated?.()
-    } catch {
-      setError('Failed to create collection')
+    } catch (err) {
+      setError(err?.message || 'Failed to create collection')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -141,8 +151,12 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
               <div className="create-collection-error">{error}</div>
             )}
 
-            <button type="submit" className="create-collection-submit">
-              Create Collection
+            <button
+              type="submit"
+              className="create-collection-submit"
+              disabled={submitting}
+            >
+              {submitting ? 'Creating…' : 'Create Collection'}
             </button>
           </form>
         </motion.div>
