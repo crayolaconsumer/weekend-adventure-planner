@@ -39,6 +39,27 @@ const APPLE_BUNDLE_ID = (process.env.APPLE_BUNDLE_ID || 'com.goroam.app').trim()
 // Apple's public keys, fetched + cached + auto-rotated by jose
 const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
 
+// Capacitor native iOS/Android use Bearer-token auth and never read cookies
+// (the WKWebView cookie jar is partitioned away from the capacitor:// origin).
+// Emitting Set-Cookie on these responses combined with the CORS preflight
+// trips WKWebView's cookie-acceptance policy and aborts the response with
+// the opaque "TypeError: Load failed" — which is what was killing every
+// /api/auth POST from the iOS app. Web origins still set cookies normally.
+function isCapacitorOrigin(req) {
+  const origin = req.headers?.origin
+  return origin === 'capacitor://localhost' || origin === 'https://localhost'
+}
+
+function setAuthCookie(req, res, token, remember = false) {
+  if (isCapacitorOrigin(req)) return
+  res.setHeader('Set-Cookie', createAuthCookie(token, remember))
+}
+
+function clearAuthCookie(req, res) {
+  if (isCapacitorOrigin(req)) return
+  res.setHeader('Set-Cookie', createLogoutCookie())
+}
+
 async function handler(req, res) {
   try {
     switch (req.method) {
@@ -159,7 +180,7 @@ async function handleLogin(req, res) {
   await update('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id])
 
   const token = generateToken(user)
-  res.setHeader('Set-Cookie', createAuthCookie(token, remember))
+  setAuthCookie(req, res, token, remember)
 
   return res.status(200).json({
     user: {
@@ -247,7 +268,7 @@ async function handleRegister(req, res) {
   )
 
   const token = generateToken(user)
-  res.setHeader('Set-Cookie', createAuthCookie(token))
+  setAuthCookie(req, res, token)
 
   return res.status(201).json({
     user: {
@@ -387,8 +408,7 @@ async function handleGoogle(req, res) {
   }
 
   const token = generateToken(user)
-  const cookie = createAuthCookie(token, true)
-  res.setHeader('Set-Cookie', cookie)
+  setAuthCookie(req, res, token, true)
 
   return res.status(200).json({
     user: {
@@ -570,8 +590,7 @@ async function handleApple(req, res) {
   }
 
   const token = generateToken(user)
-  const cookie = createAuthCookie(token, true)
-  res.setHeader('Set-Cookie', cookie)
+  setAuthCookie(req, res, token, true)
 
   return res.status(200).json({
     user: {
@@ -595,7 +614,7 @@ async function handleApple(req, res) {
  * POST action=logout - Clear auth cookie
  */
 async function handleLogout(req, res) {
-  res.setHeader('Set-Cookie', createLogoutCookie())
+  clearAuthCookie(req, res)
   return res.status(200).json({ success: true })
 }
 
@@ -689,7 +708,7 @@ async function handleDeleteAccount(req, res) {
   }
 
   // Clear cookies and signal client to log out
-  res.setHeader('Set-Cookie', createLogoutCookie())
+  clearAuthCookie(req, res)
   return res.status(200).json({ success: true })
 }
 

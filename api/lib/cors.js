@@ -52,7 +52,15 @@ export function applyCors(req, res) {
     if (ALLOWED_ORIGINS.has(origin) || /^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Vary', 'Origin') // prevent CDN cache poisoning across origins
-      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      // Capacitor native (capacitor://localhost, https://localhost) uses
+      // Bearer-token auth, never cookies. Emitting Allow-Credentials:true
+      // on those responses triggers WKWebView's cookie-policy abort
+      // (TypeError: Load failed) when the response also carries Set-Cookie
+      // — even though the request was non-credentialed. The web origins
+      // still need credentialed mode for the same-origin cookie session.
+      if (origin !== 'capacitor://localhost' && origin !== 'https://localhost') {
+        res.setHeader('Access-Control-Allow-Credentials', 'true')
+      }
     }
   }
 
