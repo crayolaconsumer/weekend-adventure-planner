@@ -13,13 +13,13 @@
 // Switched from Edge to Node serverless: Edge has a hard 25-30s ceiling
 // (depends on plan). Overpass cold-cache hits routinely take 22-28s and
 // were returning 504 to the client before the function could respond.
-// Node runtime + maxDuration=60 gives us enough headroom for upstream
-// to actually complete. We lose edge-distributed caching, but Vercel's
-// CDN still caches via the Cache-Control headers we set below, so the
-// first-user cost is paid once per region per 24h, same as before.
+// Node runtime gives us enough headroom for upstream to actually complete
+// (maxDuration is set per-route in vercel.json — see "functions" block).
+// We lose edge-distributed caching, but Vercel's CDN still caches via
+// the Cache-Control headers we set below, so the first-user cost is
+// paid once per region per 24h, same as before.
 export const config = {
-  runtime: 'nodejs20.x',
-  maxDuration: 60
+  runtime: 'nodejs'
 }
 
 // Overpass endpoints with failover
