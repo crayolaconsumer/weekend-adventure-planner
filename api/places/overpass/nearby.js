@@ -184,53 +184,43 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400'
 }
 
-export default async function handler(request) {
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS })
+function applyCorsHeaders(res) {
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    res.setHeader(key, value)
+  }
+}
+
+export default async function handler(req, res) {
+  applyCorsHeaders(res)
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
   }
 
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
-    })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
-    })
-  }
-
+  // Vercel Node runtime parses JSON automatically when Content-Type is
+  // application/json — req.body is already the parsed object. If it
+  // isn't (different content-type, edge case), accept that gracefully.
+  const body = (req.body && typeof req.body === 'object') ? req.body : {}
   const { query } = body
 
   if (!query || typeof query !== 'string') {
-    return new Response(JSON.stringify({ error: 'query is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
-    })
+    return res.status(400).json({ error: 'query is required' })
   }
 
   // Query size limit to prevent abuse (check early to avoid processing huge strings)
   const MAX_QUERY_SIZE = 10000
   if (query.length > MAX_QUERY_SIZE) {
-    return new Response(JSON.stringify({ error: 'Query too large', maxSize: MAX_QUERY_SIZE }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
-    })
+    return res.status(400).json({ error: 'Query too large', maxSize: MAX_QUERY_SIZE })
   }
 
   // Validate Overpass QL structure
   const validationError = validateOverpassQuery(query)
   if (validationError) {
-    return new Response(JSON.stringify({ error: validationError }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
-    })
+    return res.status(400).json({ error: validationError })
   }
 
   // Try endpoints in priority order with a short per-endpoint timeout.
@@ -279,15 +269,9 @@ export default async function handler(request) {
       // every user after them in the same 24h window gets a sub-100ms
       // edge hit. SWR window doubled to 48h so stale-but-revalidating
       // also lasts longer.
-      return new Response(JSON.stringify(data), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 's-maxage=86400, stale-while-revalidate=172800',
-          'X-Overpass-Endpoint': endpoint.replace('https://', '').split('/')[0],
-          ...CORS_HEADERS
-        }
-      })
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+      res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
+      return res.status(200).json(data)
 
     } catch (error) {
       markEndpointFailed(endpoint)
@@ -308,15 +292,9 @@ export default async function handler(request) {
 
   // Detail kept server-side only — the lastError message can include
   // upstream URLs, timeouts, and infra hints we shouldn't echo to clients.
-  return new Response(JSON.stringify({
+  res.setHeader('Retry-After', '60')
+  return res.status(503).json({
     error: 'Overpass API unavailable',
     message: 'All upstream endpoints failed. Please retry in a moment.'
-  }), {
-    status: 503,
-    headers: {
-      'Content-Type': 'application/json',
-      'Retry-After': '60',
-      ...CORS_HEADERS
-    }
   })
 }
