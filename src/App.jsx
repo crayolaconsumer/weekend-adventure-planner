@@ -36,6 +36,7 @@ import { checkAndAutoExpire } from './utils/offlinePack'
 import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { getCurrentPosition as nativeGetCurrentPosition } from './utils/nativePlugins'
 
 // Icons as components
@@ -357,6 +358,7 @@ function App() {
   }
 
   return (
+    <ThemeProvider>
     <AuthProvider>
       <DistanceProvider>
         <ToastProvider>
@@ -457,6 +459,7 @@ function App() {
         </ToastProvider>
       </DistanceProvider>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
 

@@ -177,7 +177,7 @@
   justify-content: center;
   gap: 4px;
   padding: var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
@@ -760,7 +760,7 @@
   font-weight: 600;
   color: var(--roam-forest);
   text-align: center;
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-forest);
   border-radius: var(--radius-sm);
   outline: none;

@@ -111,7 +111,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -207,7 +207,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-md);
   font-size: var(--text-xl);
@@ -222,7 +222,7 @@
 .collection-manager-form input {
   flex: 1;
   padding: var(--space-sm) var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -245,7 +245,7 @@
   grid-template-columns: repeat(8, 1fr);
   gap: 4px;
   padding: var(--space-sm);
-  background: white;
+  background: var(--color-surface-elevated);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-sm);
 }
@@ -297,7 +297,7 @@
 }
 
 .collection-form-cancel:hover {
-  background: white;
+  background: var(--color-surface-elevated);
   border-color: var(--roam-stone);
 }
 

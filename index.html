@@ -11,6 +11,27 @@
        expose page-zoom either — system Display Zoom + Dynamic Type still work. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 
+  <!-- Theme bootstrap — runs synchronously before any CSS or React loads.
+       Apply the user's saved theme preference (or follow the OS) BEFORE
+       first paint, so the page never flashes light-mode while the dark
+       preference is being read. The script is intentionally tiny and
+       inline so it doesn't add a render-blocking request. -->
+  <script>
+    (function () {
+      try {
+        var pref = localStorage.getItem('roam_theme') || 'system'
+        var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        var dark = pref === 'dark' || (pref === 'system' && systemDark)
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark')
+        // Update the iOS Safari address-bar color too so the browser
+        // chrome matches the theme on first load.
+        var themeColor = dark ? '#0d1b16' : '#1a3a2f'
+        var meta = document.querySelector('meta[name="theme-color"]')
+        if (meta) meta.setAttribute('content', themeColor)
+      } catch (e) { /* localStorage unavailable — ship light mode */ }
+    })()
+  </script>
+
   <!-- Primary Meta Tags -->
   <title>ROAM — Stop scrolling. Start roaming.</title>
   <meta name="title" content="ROAM — Stop scrolling. Start roaming." />

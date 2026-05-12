@@ -86,7 +86,7 @@
 
 .place-badges-filter .place-badge:hover {
   border-color: var(--roam-stone);
-  background: white;
+  background: var(--color-surface-elevated);
 }
 
 .place-badges-filter .place-badge.selected {

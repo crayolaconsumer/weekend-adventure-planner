@@ -252,9 +252,19 @@ export async function configureStatusBar() {
   if (!isNative()) return
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar')
-    await StatusBar.setStyle({ style: Style.Light })
+    // Read the active theme from the document attribute that index.html's
+    // bootstrap script set before any React mounts. After mount, the
+    // ThemeContext takes over and calls applyNativeStatusBar() on every
+    // theme change — but on first launch we want the status bar style
+    // correct from the splash hand-off, so read it here.
+    const isDark = typeof document !== 'undefined' &&
+      document.documentElement.getAttribute('data-theme') === 'dark'
+    // Capacitor convention is inverted from "what the user sees":
+    //   Style.Light = LIGHT icons (use on DARK bg)
+    //   Style.Dark  = DARK icons (use on LIGHT bg)
+    await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark })
     if (getPlatform() === 'android') {
-      await StatusBar.setBackgroundColor({ color: '#1a3a2f' })
+      await StatusBar.setBackgroundColor({ color: isDark ? '#0d1b16' : '#1a3a2f' })
     }
   } catch {
     /* ignore */

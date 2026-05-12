@@ -61,7 +61,7 @@
 }
 
 .admin-report {
-  background: #fff;
+  background: var(--color-surface-elevated);
   border: 1px solid rgba(26, 58, 47, 0.1);
   border-left-width: 4px;
   border-radius: 10px;
@@ -124,13 +124,13 @@
   border-left: 2px solid rgba(26, 58, 47, 0.15);
   font-size: 0.9rem;
   color: var(--roam-forest, #1a3a2f);
-  background: #fbfaf3;
+  background: var(--roam-paper);
   border-radius: 0 6px 6px 0;
 }
 
 .admin-report-ai {
   padding: 10px 12px;
-  background: #f6f3ec;
+  background: var(--roam-parchment);
   border-radius: 6px;
   font-size: 0.85rem;
   color: #1a3a2f;
@@ -147,7 +147,7 @@
 
 .admin-report-content {
   padding: 10px 12px;
-  background: #fdfcf8;
+  background: var(--color-surface-elevated);
   border: 1px solid rgba(26, 58, 47, 0.08);
   border-radius: 6px;
   font-size: 0.9rem;

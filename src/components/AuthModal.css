@@ -82,7 +82,7 @@
   justify-content: center;
   gap: var(--space-sm);
   padding: var(--space-md) var(--space-lg);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 1px solid var(--roam-parchment-dark);
   border-radius: var(--radius-lg);
   font-size: var(--text-base);
@@ -330,7 +330,7 @@
 .auth-loading-dot {
   width: 8px;
   height: 8px;
-  background: white;
+  background: var(--color-surface-elevated);
   border-radius: 50%;
   animation: auth-loading-bounce 1.4s ease-in-out infinite both;
 }

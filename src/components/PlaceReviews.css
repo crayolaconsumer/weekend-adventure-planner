@@ -64,7 +64,7 @@
   align-items: center;
   gap: 3px;
   padding: 3px 8px;
-  background: white;
+  background: var(--color-surface-elevated);
   border: 1px solid var(--roam-parchment);
   border-radius: var(--radius-full);
   font-size: 11px;

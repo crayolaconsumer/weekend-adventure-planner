@@ -163,7 +163,7 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-lg) var(--space-xl);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-lg);
   cursor: pointer;
@@ -284,7 +284,7 @@
 
 .feedback-chip:hover {
   border-color: var(--roam-forest-light);
-  background: white;
+  background: var(--color-surface-elevated);
 }
 
 .feedback-chip.selected {
@@ -319,7 +319,7 @@
 .review-textarea {
   width: 100%;
   padding: var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-md);
   font-family: var(--font-body);

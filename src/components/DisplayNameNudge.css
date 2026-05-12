@@ -45,7 +45,7 @@
   border: 1px solid rgba(26, 58, 47, 0.2);
   border-radius: 8px;
   font: inherit;
-  background: #fafaf6;
+  background: var(--roam-paper);
 }
 .display-name-nudge-input:focus {
   outline: none;

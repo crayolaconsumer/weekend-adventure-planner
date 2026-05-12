@@ -21,7 +21,7 @@
 }
 
 .share-button:hover {
-  background: white;
+  background: var(--color-surface-elevated);
   border-color: var(--roam-stone);
   color: var(--roam-forest);
 }

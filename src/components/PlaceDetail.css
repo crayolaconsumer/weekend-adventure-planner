@@ -131,7 +131,7 @@
 }
 
 .place-detail-close:hover {
-  background: white;
+  background: var(--color-surface-elevated);
   transform: scale(1.05);
 }
 

@@ -14,8 +14,13 @@ import L from 'leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import 'leaflet/dist/leaflet.css'
 import './VisitedMapLeaflet.css'
+import { useTheme } from '../../contexts/ThemeContext'
 
-const TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+// Voyager = warm paper-coloured CARTO tiles (matches light theme).
+// Dark Matter = minimal dark tiles (matches dark theme). Both free,
+// no API key, OSM-attributed.
+const TILE_URL_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILE_URL_DARK = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
 const ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 function colorFor(rating) {
@@ -51,6 +56,8 @@ function FlyToFocused({ places, focusedPlaceId }) {
 }
 
 export default function VisitedMapLeaflet({ places, onPinTap, focusedPlaceId }) {
+  const { resolved: theme } = useTheme()
+  const tileUrl = theme === 'dark' ? TILE_URL_DARK : TILE_URL_LIGHT
   const normalizedPlaces = useMemo(
     () => (places || [])
       .map(p => {
@@ -86,7 +93,7 @@ export default function VisitedMapLeaflet({ places, onPinTap, focusedPlaceId }) 
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
-        <TileLayer url={TILE_URL} attribution={ATTRIBUTION} detectRetina />
+        <TileLayer url={tileUrl} attribution={ATTRIBUTION} detectRetina key={tileUrl} />
         <FitToBounds places={normalizedPlaces} />
         <FlyToFocused places={normalizedPlaces} focusedPlaceId={focusedPlaceId} />
         <MarkerClusterGroup chunkedLoading maxClusterRadius={45}>

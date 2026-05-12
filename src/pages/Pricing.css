@@ -63,7 +63,7 @@
 }
 
 .billing-option.active {
-  background: white;
+  background: var(--color-surface-elevated);
   color: var(--roam-forest);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -92,7 +92,7 @@
 }
 
 .pricing-card {
-  background: white;
+  background: var(--color-surface-elevated);
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
   position: relative;
@@ -107,7 +107,7 @@
 
 .pricing-card.premium {
   border-color: var(--roam-gold);
-  background: linear-gradient(135deg, white 0%, #fffdf7 100%);
+  background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--roam-parchment) 100%);
 }
 
 .pricing-card-badge {

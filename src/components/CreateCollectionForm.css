@@ -95,7 +95,7 @@
 .create-collection-field input,
 .create-collection-field textarea {
   padding: var(--space-sm) var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 1px solid var(--roam-parchment);
   border-radius: var(--radius-md);
   font-family: var(--font-body);
@@ -134,7 +134,7 @@
   align-items: center;
   justify-content: center;
   font-size: 1.25rem;
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-md);
   cursor: pointer;

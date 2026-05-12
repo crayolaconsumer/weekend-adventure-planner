@@ -84,7 +84,7 @@
   font-family: inherit;
   font-size: 0.95rem;
   color: #1a3a2f;
-  background: #fff;
+  background: var(--color-surface-elevated);
   resize: vertical;
 }
 .report-modal-details:focus {

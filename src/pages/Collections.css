@@ -169,7 +169,7 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border-radius: var(--radius-md);
   border: 1px solid var(--roam-parchment);
 }
@@ -288,7 +288,7 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-md);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 1px solid var(--roam-parchment);
   border-radius: var(--radius-lg);
   cursor: pointer;

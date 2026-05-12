@@ -182,7 +182,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--color-surface-elevated);
   border-radius: var(--radius-full);
   font-size: var(--text-xl);
   color: var(--roam-forest);
@@ -248,7 +248,7 @@
   align-items: center;
   gap: var(--space-xs);
   padding: 10px 16px;
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-full);
   font-size: var(--text-sm);
@@ -314,7 +314,7 @@
   gap: var(--space-sm);
   width: 100%;
   padding: var(--space-md) var(--space-xl);
-  background: white;
+  background: var(--color-surface-elevated);
   border: 2px solid var(--roam-parchment);
   border-radius: var(--radius-full);
   color: var(--color-text-primary);

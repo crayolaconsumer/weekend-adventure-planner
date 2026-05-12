@@ -122,6 +122,72 @@
   --z-sticky: 200;
   --z-modal: 300;
   --z-toast: 400;
+
+  /* Native form controls follow this hint when picking system colors.
+     Important for iOS WKWebView so <input>, <select>, autofill, scrollbars
+     all match the app's current theme (light by default; flipped below
+     in dark mode). */
+  color-scheme: light;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DARK THEME — applied when <html data-theme="dark"> is set
+   ═══════════════════════════════════════════════════════
+
+   Design philosophy: "ROAM at night", not "ROAM but inverted".
+   Cream paper tones become a deep forest base. Forest, terracotta,
+   gold, sage stay at their brand hues so the app still feels like
+   ROAM — they sit on a dark surface instead of cream. Ink (text)
+   becomes warm cream so it carries the same "ink on paper" feel.
+
+   We override the brand neutral tokens (cream / paper / parchment /
+   ink) because the bulk of CSS uses them directly. We do NOT change
+   the saturated brand tokens (forest / gold / terracotta / etc).
+   This preserves brand accent colors everywhere they're used as
+   buttons, badges, illustrations, gradients.
+   ═══════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* Surfaces — flipped from warm paper to deep forest */
+  --roam-cream: #0d1b16;           /* deepest — base background */
+  --roam-paper: #142822;           /* one step up — section bg */
+  --roam-parchment: #1f3a30;       /* card / elevated surface */
+  --roam-parchment-dark: #2a4a3e;  /* borders, dividers */
+  --roam-stone: #2a4a3e;
+
+  /* Text — flipped from dark ink to warm cream */
+  --roam-ink: #f4ecdc;             /* primary text */
+  --roam-ink-light: #d0c5b0;       /* secondary text */
+  --roam-ink-muted: #8a8275;       /* tertiary / hints */
+
+  /* Forest variants — slightly brighter so they read on dark
+     when used as text/icon color. Brand-saturated forest stays
+     visually present but doesn't disappear into the background. */
+  --roam-forest: #6ea58a;           /* used as accent text on cards */
+  --roam-forest-light: #8fbfa3;
+  --roam-forest-dark: #4a7c63;
+
+  /* Semantic re-aliases — most match the brand overrides above,
+     but a few want explicit dark-mode values for contrast. */
+  --color-background: var(--roam-cream);
+  --color-surface: var(--roam-paper);
+  --color-surface-elevated: var(--roam-parchment);
+  --color-text-primary: var(--roam-ink);
+  --color-text-secondary: var(--roam-ink-light);
+  --color-text-muted: var(--roam-ink-muted);
+  --color-text-tertiary: var(--roam-ink-muted);
+  --color-border: var(--roam-parchment-dark);
+  --color-text: var(--roam-ink);
+  --roam-text: var(--roam-ink);
+  --roam-text-muted: var(--roam-ink-muted);
+
+  /* Shadow tint — dark mode needs darker shadows to read on dark bg */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
 }
 
 /* ═══════════════════════════════════════════════════════

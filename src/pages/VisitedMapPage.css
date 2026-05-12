@@ -1,7 +1,7 @@
 .visited-map-page {
   position: fixed;
   inset: 0;
-  background: #f5f0e6;
+  background: var(--roam-cream);
   display: flex;
   flex-direction: column;
   z-index: 10;
@@ -106,7 +106,7 @@
   min-height: 0;
   overflow-y: auto;
   border-top: 1px solid rgba(26, 58, 47, 0.08);
-  background: #fafaf6;
+  background: var(--roam-paper);
 }
 
 .visited-map-placeholder,

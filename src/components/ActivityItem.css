@@ -154,12 +154,12 @@ a.activity-item-place-name:hover {
 }
 
 .activity-item-rating.positive {
-  background: #e8f5e9;
+  background: rgba(34, 197, 94, 0.12);
   color: #2e7d32;
 }
 
 .activity-item-rating.negative {
-  background: #ffebee;
+  background: rgba(220, 38, 38, 0.12);
   color: #c62828;
 }
 

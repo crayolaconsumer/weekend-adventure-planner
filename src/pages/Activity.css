@@ -227,7 +227,7 @@
 
 .activity-search-input-wrapper:focus-within {
   border-color: var(--roam-forest, #1a3a2f);
-  background: white;
+  background: var(--color-surface-elevated);
   box-shadow: 0 2px 8px rgba(26, 58, 47, 0.08);
 }
 

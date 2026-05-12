@@ -17,7 +17,7 @@
 
 .confirm-modal {
   position: relative;
-  background: #f5f0e6;
+  background: var(--roam-cream);
   border-radius: 16px 16px 0 0;
   padding: 24px;
   width: 100%;

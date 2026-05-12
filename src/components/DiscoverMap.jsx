@@ -14,6 +14,7 @@ import CategoryIcon from './icons/CategoryIcon'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import 'leaflet/dist/leaflet.css'
 import './DiscoverMap.css'
+import { useTheme } from '../contexts/ThemeContext'
 
 // Fix Leaflet's default icon path issue with bundlers
 delete L.Icon.Default.prototype._getIconUrl
@@ -144,10 +145,22 @@ export default function DiscoverMap({
   const markersRef = useRef({})
   const mapInstanceRef = useRef(null)
   const formatDistance = useFormatDistance()
+  const { resolved: theme } = useTheme()
+  // Theme picks the initial tile URL. The fallback at handleTileError
+  // below swaps to plain OSM if CARTO ever fails 3x. Re-derive when
+  // theme flips so a runtime toggle updates the map immediately.
   const [tileUrl, setTileUrl] = useState(
-    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+    theme === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
   )
   const [tileAttribution, setTileAttribution] = useState('&copy; <a href="https://carto.com/">CARTO</a>')
+  // Keep tile URL in sync with theme changes after first render
+  useEffect(() => {
+    setTileUrl(theme === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png')
+  }, [theme])
   const tileErrorCountRef = useRef(0)
 
   // Calculate map center

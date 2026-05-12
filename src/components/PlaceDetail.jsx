@@ -26,6 +26,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './PlaceDetail.css'
+import { useTheme } from '../contexts/ThemeContext'
 
 // Brand-coloured map pin — drop-shape with gold dot inside a forest field.
 // Uses divIcon so we don't have to ship a PNG asset; SVG inline = sharp at any DPI.
@@ -44,6 +45,7 @@ const brandPinIcon = L.divIcon({
   iconAnchor: [16, 44],
 })
 const VOYAGER_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
 const VOYAGER_ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 const WEEKDAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 }
@@ -143,6 +145,8 @@ const CalendarPlusIcon = () => (
 // only come from place_data or Wikipedia (resolved via PlaceImage).
 
 export default function PlaceDetail({ place, onClose, onGo }) {
+  const { resolved: theme } = useTheme()
+  const mapTile = theme === 'dark' ? DARK_TILE : VOYAGER_TILE
   const [enrichedPlace, setEnrichedPlace] = useState(place)
   const [loading, setLoading] = useState(true)
   const [loadedSrc, setLoadedSrc] = useState(null)
@@ -557,7 +561,7 @@ export default function PlaceDetail({ place, onClose, onGo }) {
                     className="place-detail-map-leaflet"
                     attributionControl={false}
                   >
-                    <TileLayer url={VOYAGER_TILE} attribution={VOYAGER_ATTRIBUTION} detectRetina />
+                    <TileLayer url={mapTile} attribution={VOYAGER_ATTRIBUTION} detectRetina key={mapTile} />
                     <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} />
                   </MapContainer>
                 </div>

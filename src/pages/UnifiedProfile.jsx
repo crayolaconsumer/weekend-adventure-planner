@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { useSubscription } from '../hooks/useSubscription'
 import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import AchievementBadge from '../components/icons/AchievementBadge'
@@ -879,6 +880,7 @@ function SettingsTab({ user, onLogout }) {
   const { updateProfile, deleteAccount } = useAuth()
   const { isPremium, manageSubscription, loading: subLoading, error: subError, expiresAt, isCancelled } = useSubscription()
   const { distanceUnit, setDistanceUnit } = useDistance()
+  const { preference: themePref, setPreference: setThemePref } = useTheme()
   const navigate = useNavigate()
 
   // Delete-account confirm flow — App Store Review 5.1.1(v)
@@ -1255,6 +1257,38 @@ function SettingsTab({ user, onLogout }) {
               disabled={isSaving}
             >
               Miles
+            </button>
+          </div>
+        </div>
+
+        {/* Appearance — 3-state: System / Light / Dark.
+            "System" follows the user's iOS / browser preference and
+            flips automatically if they change it. "Light" / "Dark"
+            override. Default is "System" so most users get the right
+            theme without ever touching settings. */}
+        <div className="unified-profile-settings-field">
+          <span className="unified-profile-settings-label">Appearance</span>
+          <div className="unified-profile-settings-segment">
+            <button
+              className={`unified-profile-settings-segment-btn ${themePref === 'system' ? 'active' : ''}`}
+              onClick={() => setThemePref('system')}
+              disabled={isSaving}
+            >
+              System
+            </button>
+            <button
+              className={`unified-profile-settings-segment-btn ${themePref === 'light' ? 'active' : ''}`}
+              onClick={() => setThemePref('light')}
+              disabled={isSaving}
+            >
+              Light
+            </button>
+            <button
+              className={`unified-profile-settings-segment-btn ${themePref === 'dark' ? 'active' : ''}`}
+              onClick={() => setThemePref('dark')}
+              disabled={isSaving}
+            >
+              Dark
             </button>
           </div>
         </div>
