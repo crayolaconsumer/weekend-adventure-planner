@@ -228,14 +228,64 @@ async function fetchEnhancedImage(place) {
 }
 
 /**
- * Returns the best-known image URL, falling back to:
- *   - Wikipedia thumbnail (via wikipedia tag)
- *   - Wikidata P18 image (via wikidata QID)
- *   - Wikimedia Commons geosearch (via lat/lng, finds geotagged photos within 300m)
- * Returns null if nothing is available — caller renders the stylized placeholder.
+ * Last-resort stock photos keyed by category. Used only when the
+ * multi-source resolver returns null — sparse OSM nodes (e.g., a node
+ * tagged `leisure=garden` with no website/wikipedia/wikidata/commons)
+ * have no real image source available, and an empty gradient card looks
+ * broken. Stock photos give every card a sense of place even when we
+ * can't find a photo of THAT specific spot.
+ *
+ * All images are royalty-free from Unsplash. Two per category so cards
+ * in the same swipe don't all look identical.
+ */
+const CATEGORY_STOCK = {
+  food:          ['https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&q=80',
+                  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80'],
+  nature:        ['https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80',
+                  'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80'],
+  culture:       ['https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=800&q=80',
+                  'https://images.unsplash.com/photo-1499426600726-a950358acf16?w=800&q=80'],
+  historic:      ['https://images.unsplash.com/photo-1543349689-9a4d426bee8e?w=800&q=80',
+                  'https://images.unsplash.com/photo-1564507592333-c60657eea523?w=800&q=80'],
+  entertainment: ['https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=800&q=80',
+                  'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&q=80'],
+  nightlife:     ['https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=800&q=80',
+                  'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=800&q=80'],
+  active:        ['https://images.unsplash.com/photo-1502904550040-7534597429ae?w=800&q=80',
+                  'https://images.unsplash.com/photo-1530549387789-4c1017266635?w=800&q=80'],
+  hidden_gems:   ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80',
+                  'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&q=80'],
+  shopping:      ['https://images.unsplash.com/photo-1481437156560-3205f6a55735?w=800&q=80',
+                  'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80'],
+  default:       ['https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80',
+                  'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80'],
+}
+
+function pickStockImage(place) {
+  const data = place?.placeData || place || {}
+  const rawCategory = data.category ?? place?.category
+  const key = typeof rawCategory === 'string'
+    ? rawCategory
+    : (rawCategory && typeof rawCategory === 'object' ? rawCategory.key : 'default')
+  const bucket = CATEGORY_STOCK[key] || CATEGORY_STOCK.default
+  // Deterministic by place id so the same place always shows the same
+  // stock image (no flicker if the card is re-mounted).
+  const id = String(data.id ?? place?.id ?? data.placeId ?? '')
+  const idx = id ? Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % bucket.length : 0
+  return bucket[idx]
+}
+
+/**
+ * Returns the best-known image URL, falling back through:
+ *   1. Sync image fields already on the place
+ *   2. Multi-source server resolver (Wiki/Wikidata/Commons/website/geosearch)
+ *   3. Category stock photo (Unsplash) — last resort so every card has a photo
+ * Always returns a URL. Callers don't need a placeholder anymore.
  */
 export async function resolvePlaceImageAsync(place) {
   const sync = resolvePlaceImageSync(place)
   if (sync) return sync
-  return await fetchEnhancedImage(place)
+  const resolved = await fetchEnhancedImage(place)
+  if (resolved) return resolved
+  return pickStockImage(place)
 }

@@ -5,6 +5,7 @@ import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { fetchWikipediaImage, fetchWikidataImage, fetchOpenTripMapDetails, enrichPlace } from '../utils/apiClient'
+import { resolvePlaceImageAsync } from '../utils/placeImage'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
 import { openDirections } from '../utils/navigation'
@@ -135,55 +136,31 @@ export default function CardStack({
   // Using ref since this doesn't need to trigger re-renders
   const fetchedImageIdsRef = useRef(new Set())
 
-  // Fetch image for a place from various sources if it doesn't have one
+  // Fetch image for a place using the multi-source resolver.
+  // resolvePlaceImageAsync hits /api/places/image-resolve which runs
+  // Wikipedia + Wikidata + wikimedia_commons + website-og-image +
+  // Commons geosearch by lat/lng in parallel server-side and returns
+  // the first hit. Previously this function only checked xid/wiki/
+  // wikidata tags directly — most OSM places have none of those, so
+  // most cards rendered with the green category placeholder even
+  // though Commons or the place's website would have served a real
+  // photo. Now we always attempt resolution and let the server-side
+  // chain do its job.
   const fetchPlaceImage = useCallback(async (place) => {
     if (!place || fetchedImageIdsRef.current.has(place.id)) return null
     fetchedImageIdsRef.current.add(place.id)
 
-    // Already has an image
     if (place.photo || place.image) return null
 
     try {
-      // Try OpenTripMap first (has curated images)
-      if (place.xid) {
-        const details = await fetchOpenTripMapDetails(place.xid)
-        if (details?.image) {
-          setEnrichedImages(prev => ({
-            ...prev,
-            [place.id]: { url: details.image, source: 'opentripmap' }
-          }))
-          fetchAndCacheImage(details.image, place.id).catch(() => {})
-          return details.image
-        }
-      }
-
-      // Try Wikipedia (better quality images)
-      if (place.wikipedia) {
-        const title = place.wikipedia.includes(':')
-          ? place.wikipedia.split(':')[1]
-          : place.wikipedia
-        const imageUrl = await fetchWikipediaImage(title)
-        if (imageUrl) {
-          setEnrichedImages(prev => ({
-            ...prev,
-            [place.id]: { url: imageUrl, source: 'wikipedia' }
-          }))
-          fetchAndCacheImage(imageUrl, place.id).catch(() => {})
-          return imageUrl
-        }
-      }
-
-      // Try Wikidata
-      if (place.wikidata) {
-        const imageUrl = await fetchWikidataImage(place.wikidata)
-        if (imageUrl) {
-          setEnrichedImages(prev => ({
-            ...prev,
-            [place.id]: { url: imageUrl, source: 'wikidata' }
-          }))
-          fetchAndCacheImage(imageUrl, place.id).catch(() => {})
-          return imageUrl
-        }
+      const imageUrl = await resolvePlaceImageAsync(place)
+      if (imageUrl) {
+        setEnrichedImages(prev => ({
+          ...prev,
+          [place.id]: { url: imageUrl, source: 'resolver' }
+        }))
+        fetchAndCacheImage(imageUrl, place.id).catch(() => {})
+        return imageUrl
       }
     } catch (err) {
       console.warn(`[CardStack] Image fetch failed for ${place.id}:`, err.message)
@@ -205,8 +182,12 @@ export default function CardStack({
       if (imageUrl) {
         // Already has image - just cache it
         fetchAndCacheImage(imageUrl, place.id).catch(() => {})
-      } else if (place.xid || place.wikipedia || place.wikidata) {
-        // No image but has enrichment data - try to fetch one
+      } else {
+        // No image yet — always attempt resolution. The server-side
+        // resolver short-circuits if there's truly nothing to look up
+        // (no wiki/wikidata/commons/website AND no name AND no
+        // coordinates). For any normal OSM POI at least one of those
+        // is present, so this is usually a hit.
         fetchPlaceImage(place)
       }
     }
