@@ -119,15 +119,25 @@ function getStoredToken() {
  */
 export function installFetchInterceptor() {
   if (installed) return
-  if (!isNative()) {
-    installed = true // mark installed even on web so we don't re-check
-    return
-  }
   if (typeof globalThis.fetch !== 'function') return
+  installed = true
 
   const originalFetch = globalThis.fetch.bind(globalThis)
 
   globalThis.fetch = async function patchedFetch(input, init = {}) {
+    // Re-check isNative() at fetch-time, not at install-time. The
+    // native runtime injects window.Capacitor asynchronously and we
+    // had a regression where main.jsx ran *before* Capacitor was
+    // available: isNative() returned false, the interceptor early-
+    // returned without patching, every later /api/* call resolved
+    // against capacitor://localhost and WKWebView blew up with
+    // "TypeError: Load failed". By patching unconditionally and
+    // gating the rewrite on each call, we work regardless of the
+    // injection-vs-execution ordering Vite happens to land on.
+    if (!isNative()) {
+      return originalFetch(input, init)
+    }
+
     let url = typeof input === 'string'
       ? input
       : input instanceof URL
@@ -148,17 +158,19 @@ export function installFetchInterceptor() {
       return originalFetch(input, init)
     }
 
-    // Auth header injection — only for our own API
+    // Auth header injection — only for our own API. Sanitize first:
+    // if the stored token contains whitespace/newlines (we've seen
+    // Vercel-pasted env vars do this), headers.set() rejects them
+    // with an InvalidCharacterError and the entire fetch throws.
     const headers = new Headers(init.headers || {})
     if (!headers.has('Authorization')) {
-      const token = getStoredToken()
+      const rawToken = getStoredToken()
+      const token = rawToken && rawToken.replace(/[\r\n\s]+/g, '')
       if (token) headers.set('Authorization', `Bearer ${token}`)
     }
 
     return originalFetch(request, { ...init, headers })
   }
-
-  installed = true
 }
 
 /**
