@@ -169,7 +169,24 @@ export function installFetchInterceptor() {
       if (token) headers.set('Authorization', `Bearer ${token}`)
     }
 
-    return originalFetch(request, { ...init, headers })
+    // Strip `credentials: 'include'` on native. The web app sets that
+    // flag widely so cookies (roam_token, refresh state) cross the
+    // same-origin boundary — but WKWebView's CORS implementation
+    // rejects credentialed cross-origin POSTs from the capacitor://
+    // origin even when the server sends matching Allow-Credentials/
+    // Allow-Origin headers, causing every credentialed /api/* fetch
+    // to fail with the generic "TypeError: Load failed". On native we
+    // don't need cookies anyway — the Authorization Bearer header
+    // above carries the session JWT and the server's /api/auth
+    // response includes the JWT in the body so we can stash it in
+    // localStorage. Same auth result, no cookie ambiguity, no CORS
+    // credentialed-mode tripwire.
+    const safeInit = { ...init, headers }
+    if (safeInit.credentials === 'include') {
+      delete safeInit.credentials
+    }
+
+    return originalFetch(request, safeInit)
   }
 }
 
