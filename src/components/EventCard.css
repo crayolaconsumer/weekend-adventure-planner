@@ -125,7 +125,11 @@
 
 .event-card-full .event-card-image {
   width: 100%;
-  height: 180px;
+  /* Was 180px — felt skinny on small phones, lots of empty space
+     between the card and the bottom nav. Viewport-relative height
+     so the image claims a fair share of the screen, capped at 280px
+     so it doesn't bloat on tablets / desktop. */
+  height: min(38vh, 280px);
   overflow: hidden;
   position: relative;
   background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-light) 100%);

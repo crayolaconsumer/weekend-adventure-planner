@@ -300,6 +300,13 @@
   gap: var(--space-lg);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Claim more of the viewport on phones — was auto-sizing to content
+     and only filling ~55% of the screen on iPhone SE, leaving the
+     bottom rows (Price Range, etc) cut off. min-height pushes the
+     sheet to take 70vh so the visible categories+radius+price fit
+     without ambiguous "is there more?" cropping. Max stays at the
+     panel-level 88dvh ceiling. */
+  min-height: min(72vh, 580px);
   /* Bottom padding accounts for the iPhone home indicator safe area */
   padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0));
 }
