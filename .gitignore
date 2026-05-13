@@ -40,3 +40,14 @@ docs/
 .mcp.json
 .appstoreconnect.env
 .env.production
+.env.production.bak
+.env.production.audit
+
+# Local build artifacts (regenerable)
+build/
+ios/App/build-sim/
+ios/App/build/
+
+# One-off screenshots dropped at repo root during dev
+/darkmode-*.png
+/iap-review-screenshot*.png
