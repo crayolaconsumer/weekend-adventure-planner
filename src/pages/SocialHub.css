@@ -338,7 +338,12 @@
 
 .social-hub-discover-skeleton {
   height: 56px;
-  background: linear-gradient(90deg, var(--roam-cream) 25%, var(--roam-parchment) 50%, var(--roam-cream) 75%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-text-primary) 16%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 100%
+  );
   background-size: 200% 100%;
   border-radius: 12px;
   animation: social-hub-shimmer 1.5s infinite;

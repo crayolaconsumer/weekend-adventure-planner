@@ -193,7 +193,7 @@
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  background: linear-gradient(to bottom, var(--roam-cream), transparent);
+  background: linear-gradient(to bottom, var(--color-surface), transparent);
   flex-shrink: 0;
 }
 

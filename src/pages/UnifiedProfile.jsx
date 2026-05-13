@@ -20,7 +20,7 @@ import ToggleIcon from '../components/icons/SettingsIcon'
 import FilterIcon from '../components/icons/FilterIcon'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
-import ActivityItem from '../components/ActivityItem'
+import ActivityItem, { ActivityItemSkeleton } from '../components/ActivityItem'
 import { getVisitedPlaces } from '../utils/statsUtils'
 import { useToast } from '../hooks/useToast'
 import { useSEO } from '../hooks/useSEO'
@@ -591,9 +591,11 @@ function ActivityTab({ contributions, activities, loading, user, isOwnProfile, i
 
   if (loading) {
     return (
-      <div className="unified-profile-loading">
-        <div className="unified-profile-spinner" />
-        <span>Loading activity...</span>
+      <div className="unified-profile-activity-loading" role="status" aria-live="polite">
+        {[0, 1, 2, 3].map(i => (
+          <ActivityItemSkeleton key={i} />
+        ))}
+        <span className="visually-hidden">Loading activity</span>
       </div>
     )
   }

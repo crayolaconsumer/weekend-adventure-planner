@@ -280,6 +280,13 @@
   font-size: var(--text-sm, 14px);
 }
 
+.unified-profile-activity-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-md, 12px) 0;
+}
+
 .unified-profile-spinner {
   width: 20px;
   height: 20px;
