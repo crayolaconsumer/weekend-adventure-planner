@@ -15,6 +15,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
+import { GOOD_CATEGORIES } from '../utils/categories'
+import CategoryIcon from './icons/CategoryIcon'
 import './PlaceImage.css'
 
 function getCategoryKey(place, override) {
@@ -23,12 +25,6 @@ function getCategoryKey(place, override) {
   if (typeof cat === 'string') return cat.toLowerCase()
   if (cat && typeof cat === 'object' && typeof cat.key === 'string') return cat.key
   return 'default'
-}
-
-function getCategoryIcon(place) {
-  const cat = place?.category ?? place?.placeData?.category
-  if (cat && typeof cat === 'object') return cat.icon || null
-  return null
 }
 
 export default function PlaceImage({
@@ -72,16 +68,25 @@ export default function PlaceImage({
   }, [place, srcProp])
 
   const categoryKey = getCategoryKey(place, categoryKeyProp)
-  const icon = getCategoryIcon(place)
 
   if (!src || errored) {
+    // Brand-consistent placeholder: gradient keyed to the category +
+    // the brand CategoryIcon SVG. Previously rendered an emoji which
+    // (a) was only present when category was a full object — strings
+    // got no icon at all and the card looked broken — and (b) emoji
+    // glyphs render inconsistently across iOS WebView vs web.
     return (
       <div
         className={`place-image place-image--placeholder place-image--cat-${categoryKey} ${rounded ? 'place-image--rounded' : ''} ${className}`}
         role="img"
         aria-label={alt || 'Place image'}
       >
-        {icon && <span className="place-image-placeholder-icon">{icon}</span>}
+        <span className="place-image-placeholder-icon" aria-hidden="true">
+          <CategoryIcon
+            name={GOOD_CATEGORIES[categoryKey] ? categoryKey : 'default'}
+            size="lg"
+          />
+        </span>
       </div>
     )
   }

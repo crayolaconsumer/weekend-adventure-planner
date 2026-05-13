@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
 import CategoryIcon from '../components/icons/CategoryIcon'
+import PlaceImage from '../components/PlaceImage'
 import CollectionManager from '../components/CollectionManager'
 import VisitedPrompt from '../components/VisitedPrompt'
 import PlaceDetail from '../components/PlaceDetail'
@@ -15,6 +16,7 @@ import { useToast } from '../hooks/useToast'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections } from '../utils/navigation'
+import { GOOD_CATEGORIES } from '../utils/categories'
 import './Wishlist.css'
 
 // Icons
@@ -181,13 +183,27 @@ export default function Wishlist() {
     return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   }
 
-  // Get unique categories from wishlist
-  const categories = [...new Set(wishlist.map(p => p.category?.key).filter(Boolean))]
+  // Get unique categories from wishlist. A few legacy rows have a
+  // double-nested category (key was set to the whole category object
+  // by an earlier save-handler bug); unwrap to the string key so the
+  // chip strip never renders an empty pill.
+  const normaliseCategoryKey = (raw) => {
+    if (!raw) return null
+    if (typeof raw === 'string') return raw
+    if (typeof raw === 'object') return raw.key || raw.name || null
+    return null
+  }
+  const categories = [...new Set(
+    wishlist.map(p => normaliseCategoryKey(p.category?.key) || normaliseCategoryKey(p.category)).filter(Boolean)
+  )]
 
   // Filter wishlist
   const filteredWishlist = filter === 'all'
     ? wishlist
-    : wishlist.filter(p => p.category?.key === filter)
+    : wishlist.filter(p => {
+        const key = normaliseCategoryKey(p.category?.key) || normaliseCategoryKey(p.category)
+        return key === filter
+      })
 
   // Paginated items
   const displayedPlaces = filteredWishlist.slice(0, placesDisplayLimit)
@@ -301,6 +317,11 @@ export default function Wishlist() {
                   </button>
                   {categories.map(cat => {
                     const category = wishlist.find(p => p.category?.key === cat)?.category
+                    // Some legacy saves stored category as the bare key
+                    // (or with the key/label mangled) so the label can be
+                    // missing — fall back to the canonical GOOD_CATEGORIES
+                    // label so the filter pill never renders blank.
+                    const label = category?.label || GOOD_CATEGORIES[cat]?.label || cat
                     return (
                       <button
                         key={cat}
@@ -310,7 +331,7 @@ export default function Wishlist() {
                           setPlacesDisplayLimit(PAGE_SIZE)
                         }}
                       >
-                        {category?.label}
+                        {label}
                       </button>
                     )
                   })}
@@ -334,27 +355,27 @@ export default function Wishlist() {
                       onKeyDown={e => { if (e.key === 'Enter') setDetailPlace(place) }}
                       style={{ cursor: 'pointer' }}
                     >
-                      <div
-                        className={`wishlist-card-image${getCardPhotoUrl(place) ? '' : ' wishlist-card-image--no-photo'}`}
-                        style={
-                          getCardPhotoUrl(place)
-                            ? { backgroundImage: `url(${getCardPhotoUrl(place)})` }
-                            : undefined
-                        }
-                      >
+                      <div className="wishlist-card-image">
+                        {/* PlaceImage renders the real photo when one
+                            exists in place data, falls back to the
+                            shared brand placeholder when not — same
+                            look as Discover swipe cards + activity
+                            thumbnails so an imageless saved place
+                            stays on-brand instead of looking broken. */}
+                        <PlaceImage
+                          place={place}
+                          src={getCardPhotoUrl(place) || undefined}
+                          alt={place.name}
+                          className="wishlist-card-image-inner"
+                        />
                         <div className="wishlist-card-gradient" />
                         {place.category && (
                           <span className="wishlist-card-category">
-                            <CategoryIcon name={place.category.key} size="sm" />
+                            <CategoryIcon
+                              name={normaliseCategoryKey(place.category?.key) || normaliseCategoryKey(place.category)}
+                              size="sm"
+                            />
                           </span>
-                        )}
-                        {/* Big centred category icon when no photo —
-                            reads as an intentional placeholder, not a
-                            broken image. */}
-                        {!getCardPhotoUrl(place) && place.category && (
-                          <div className="wishlist-card-image-fallback-icon">
-                            <CategoryIcon name={place.category.key} size="lg" />
-                          </div>
                         )}
                       </div>
 

@@ -14,6 +14,7 @@ import { formatDistanceToNow } from '../utils/dateUtils'
 import { formatDisplayName } from '../utils/displayName'
 import PremiumBadge from './PremiumBadge'
 import ModerationMenu from './ModerationMenu'
+import PlaceImage from './PlaceImage'
 import './ActivityItem.css'
 
 // Category icons mapping
@@ -131,20 +132,18 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
     >
-      {/* Place image/thumbnail */}
+      {/* Place image/thumbnail — uses the shared PlaceImage so it
+          renders the same brand placeholder + async image upgrade as
+          the rest of the app instead of a one-off broken-image fallback
+          when the activity API doesn't include a thumbnail. */}
       <div className="activity-item-media">
-        {placeImage ? (
-          <img
-            src={placeImage}
-            alt={activity.place?.name || 'Place'}
-            className="activity-item-image"
-            loading="lazy"
-          />
-        ) : (
-          <div className="activity-item-image-placeholder">
-            <span className="activity-item-category-icon">{categoryIcon}</span>
-          </div>
-        )}
+        <PlaceImage
+          place={activity.place}
+          src={placeImage || undefined}
+          alt={activity.place?.name || 'Place'}
+          className="activity-item-image"
+          imgProps={{ loading: 'lazy' }}
+        />
         {activity.place?.category && (
           <span className="activity-item-category-badge" title={getCategoryLabel(activity.place.category)}>
             {categoryIcon}

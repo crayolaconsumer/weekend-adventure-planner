@@ -163,34 +163,18 @@
 .wishlist-card-image {
   position: relative;
   height: 140px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--roam-parchment);
+  overflow: hidden;
+  background-color: var(--color-surface);
 }
 
-/* No-photo state — slightly deeper background so the centred icon
-   has enough contrast. Previously a generic Unsplash photo was rotated
-   into every imageless card; now an intentional brand placeholder. */
-.wishlist-card-image--no-photo {
-  background: linear-gradient(135deg, var(--roam-parchment) 0%, rgba(212, 168, 85, 0.18) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.wishlist-card-image-fallback-icon {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--roam-forest);
-  opacity: 0.5;
-  z-index: 1;
-}
-
-.wishlist-card-image-fallback-icon svg {
-  width: 56px;
-  height: 56px;
+/* PlaceImage fills the slot so the real photo OR brand placeholder
+   sits behind the gradient + category badge layers. */
+.wishlist-card-image-inner,
+.wishlist-card-image .place-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .wishlist-card-gradient {

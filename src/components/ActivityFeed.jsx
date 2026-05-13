@@ -38,19 +38,32 @@ export default function ActivityFeed() {
     return visitedPlaces.some(vp => vp.placeId === placeId || vp.place_id === placeId)
   }, [visitedPlaces])
 
-  // Handle saving a place from the feed. The activity API gives us
-  // category as a bare string key — but Wishlist's filter pill reads
-  // `place.category.label`, so saving with just { key } leaves the
-  // pill blank. Look up the full label/icon from GOOD_CATEGORIES so
-  // the saved place renders correctly downstream.
+  // Handle saving a place from the feed. The activity API echoes back
+  // whatever was originally serialised into place_data, which can be
+  // either a full category object {key, label, icon} (places saved
+  // from Discover) OR a bare string key (older rows, partial saves).
+  // Wishlist filter pills read `place.category.label`, so we have to
+  // normalise to a full {key, label} object regardless of the input
+  // shape — otherwise the pill renders as a blank green chip.
   const handleSavePlace = useCallback(async (place) => {
     if (place && place.id) {
       let category = null
-      if (place.category) {
-        const entry = GOOD_CATEGORIES[place.category]
-        category = entry
-          ? { key: place.category, label: entry.label, icon: entry.icon }
-          : { key: place.category, label: place.category }
+      const raw = place.category
+      if (raw && typeof raw === 'object') {
+        const key = raw.key || raw.name
+        const entry = key ? GOOD_CATEGORIES[key] : null
+        category = {
+          key: key || null,
+          label: raw.label || entry?.label || key || 'Other',
+          icon: raw.icon || entry?.icon
+        }
+      } else if (typeof raw === 'string' && raw) {
+        const entry = GOOD_CATEGORIES[raw]
+        category = {
+          key: raw,
+          label: entry?.label || raw,
+          icon: entry?.icon
+        }
       }
       await savePlace({
         id: place.id,
