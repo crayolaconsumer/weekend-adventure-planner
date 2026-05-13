@@ -74,6 +74,11 @@ export default function SwipeCard({
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
   const [usingFallback, setUsingFallback] = useState(false)
+  // When the resolved photo URL fails irrecoverably (broken Wikipedia
+  // thumb, blocked Unsplash, etc.) we render the brand PlaceImage
+  // placeholder instead of leaving a transparent <img> over the
+  // container's forest-gradient background.
+  const [imageFailed, setImageFailed] = useState(false)
   const cardRef = useRef(null)
   const formatDistance = useFormatDistance()
 
@@ -186,22 +191,15 @@ export default function SwipeCard({
     setImageLoaded(true)
   }, [])
 
-  // Handle image load error - fall back to placeholder
+  // Handle image load error - fall back to brand placeholder
   const handleImageError = useCallback(() => {
     const currentSrc = cachedImageUrl || sourceImageUrl
-
-    // If we're already using placeholder or this is a placeholder, just mark as loaded
-    if (usingFallback || currentSrc?.includes('unsplash.com')) {
-      setImageLoaded(true)
-      return
-    }
 
     // Mark this URL as failed
     if (currentSrc) {
       failedUrlsRef.current.add(currentSrc)
-      // Invalidate from cache to prevent retrying
       invalidateCachedImage(currentSrc).catch(() => {})
-      console.warn(`[SwipeCard] Image failed to load: ${currentSrc.substring(0, 80)}...`)
+      console.warn(`[SwipeCard] Image failed: ${currentSrc.substring(0, 80)}...`)
     }
 
     // Clean up pending blob URL if it failed
@@ -210,14 +208,21 @@ export default function SwipeCard({
       pendingBlobUrlRef.current = null
     }
 
-    // Fall back to placeholder
-    setUsingFallback(true)
-    setCachedImageUrl(placeholderUrl)
+    // No usable URL left — switch to the brand PlaceImage placeholder
+    // so we never leave a transparent <img> sitting over the forest
+    // container gradient. Previously fell back to a null placeholderUrl
+    // which left the img element with the failed src and rendered as
+    // empty/blank on WKWebView (no broken-image icon shows on iOS).
+    setImageFailed(true)
     setImageLoaded(true)
-  }, [cachedImageUrl, sourceImageUrl, usingFallback, placeholderUrl])
+  }, [cachedImageUrl, sourceImageUrl])
 
   // Load image on mount and when source changes
   useEffect(() => {
+    // Reset failed state on source change so an enriched image can
+    // re-attempt after a previous URL failed.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImageFailed(false)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Image loader sets state internally; intentional sync from prop
     loadImage(sourceImageUrl)
 
@@ -452,7 +457,7 @@ export default function SwipeCard({
     >
       {/* Background Image */}
       <div className="swipe-card-image-container">
-        {sourceImageUrl ? (
+        {sourceImageUrl && !imageFailed ? (
           <>
             {!imageLoaded && <div className="swipe-card-image-placeholder" />}
             <img
@@ -464,11 +469,10 @@ export default function SwipeCard({
             />
           </>
         ) : (
-          // No real photo for this place. Render the stylized brand
-          // placeholder via PlaceImage — it'll async-upgrade to a
-          // Wikipedia thumbnail if the place has a wikipedia/wikidata
-          // tag, otherwise stays as a brand-coloured gradient with the
-          // category icon. Never an iconic landmark photo.
+          // No usable photo (no source, or every fetch attempt failed).
+          // PlaceImage renders the brand placeholder — category icon
+          // medallion over a theme-aware radial — so the card never
+          // shows up as a transparent blank.
           <PlaceImage
             place={place}
             alt={place.name}

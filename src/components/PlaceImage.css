@@ -48,21 +48,22 @@ img.place-image {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38%;
-  max-width: 96px;
-  min-width: 32px;
-  aspect-ratio: 1 / 1;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-surface) 65%, transparent);
   color: var(--roam-forest);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.08),
-    0 4px 12px rgba(0, 0, 0, 0.06);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.18));
+}
+
+/* Override CategoryIcon's inline sizing so the icon scales to the
+   container — small thumbnails get a small icon, big swipe cards get
+   a big one. !important is required to beat the component's inline
+   width/height. */
+.place-image-placeholder-icon > span {
+  width: clamp(28px, 24%, 88px) !important;
+  height: clamp(28px, 24%, 88px) !important;
 }
 
 .place-image-placeholder-icon svg {
-  width: 56%;
-  height: 56%;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* Removed per-category hardcoded gradients — they used bright hex

@@ -82,9 +82,13 @@ export default function PlaceImage({
         aria-label={alt || 'Place image'}
       >
         <span className="place-image-placeholder-icon" aria-hidden="true">
+          {/* The visual size is driven by CSS clamp() so the icon
+              scales from 28px on small thumbnails up to 88px on full
+              swipe cards. The prop size is just a baseline that the
+              CSS overrides via !important. */}
           <CategoryIcon
             name={GOOD_CATEGORIES[categoryKey] ? categoryKey : 'default'}
-            size="lg"
+            size={48}
           />
         </span>
       </div>
