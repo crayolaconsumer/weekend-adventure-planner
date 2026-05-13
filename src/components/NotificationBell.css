@@ -36,29 +36,31 @@
   width: 52px;
   height: 52px;
   padding: 0;
-  background: var(--roam-cream, #faf8f5);
+  background: var(--color-surface-elevated);
+  /* Subtle highlight that ADAPTS to theme — was a 60% white radial
+     blob and 50% white inset that read as a bright "shine" on the
+     dark forest button in dark mode. color-mix on text-primary gives
+     a gentle hint of the opposite of the surface in either theme. */
   background-image: radial-gradient(
     ellipse at 30% 30%,
-    rgba(255, 255, 255, 0.6) 0%,
+    color-mix(in srgb, var(--color-surface) 60%, transparent) 0%,
     transparent 50%
   );
-  border: 2px solid var(--roam-gold, #d4a855);
+  border: 2px solid var(--roam-gold);
   border-radius: 50%;
-  color: var(--roam-forest, #1a3a2f);
+  color: var(--color-text-primary);
   cursor: pointer;
   box-shadow:
-    0 2px 4px rgba(42, 37, 32, 0.08),
-    0 4px 12px rgba(42, 37, 32, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.22);
   transition: all 0.2s ease;
 }
 
 .notification-bell-btn:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 4px 8px rgba(42, 37, 32, 0.12),
-    0 8px 20px rgba(42, 37, 32, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    0 4px 8px rgba(0, 0, 0, 0.22),
+    0 8px 20px rgba(0, 0, 0, 0.28);
 }
 
 .notification-bell-btn:active {
@@ -73,17 +75,15 @@
 @keyframes bell-pulse {
   0%, 100% {
     box-shadow:
-      0 2px 4px rgba(42, 37, 32, 0.08),
-      0 4px 12px rgba(42, 37, 32, 0.12),
-      0 0 0 0 rgba(212, 168, 85, 0),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      0 2px 4px rgba(0, 0, 0, 0.18),
+      0 4px 12px rgba(0, 0, 0, 0.22),
+      0 0 0 0 rgba(212, 168, 85, 0);
   }
   50% {
     box-shadow:
-      0 2px 4px rgba(42, 37, 32, 0.08),
-      0 4px 12px rgba(42, 37, 32, 0.12),
-      0 0 0 8px rgba(212, 168, 85, 0.15),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      0 2px 4px rgba(0, 0, 0, 0.18),
+      0 4px 12px rgba(0, 0, 0, 0.22),
+      0 0 0 8px rgba(212, 168, 85, 0.18);
   }
 }
 
