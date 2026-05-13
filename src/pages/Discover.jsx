@@ -8,8 +8,6 @@ import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
-import StreakIndicator from '../components/StreakIndicator'
-import FilterIcon from '../components/icons/FilterIcon'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -26,8 +24,11 @@ import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
 import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
-import { SettingsIcon, StackIcon, MapIcon, ListIcon } from './Discover/icons'
+import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
 import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure } from './Discover/applyFilters'
+import { buildWentOutPatch, readPersistedStats } from './Discover/stats'
+import ErrorRecovery from './Discover/ErrorRecovery'
+import DiscoverHeader from './Discover/DiscoverHeader'
 import './Discover.css'
 
 // Lazy load desktop-only components to keep mobile bundle small
@@ -762,103 +763,18 @@ export default function Discover({ location }) {
 
   return (
     <div className="page discover-page">
-      {/* Hero / Header */}
-      <header className="discover-header">
-        <motion.div
-          className="discover-hero"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="discover-wordmark">ROAM</h1>
-          <p className="discover-tagline">Stop scrolling. Start roaming.</p>
-          <StreakIndicator streak={stats.currentStreak || 0} />
-        </motion.div>
-
-        {/* The banner-style premium nudge used to live here, but it
-            pushed the boredom CTA below the fold on iPhone. The save-cap
-            case now surfaces as a bubble from the SwipeCard heart
-            button so it never reflows the Discover header. */}
-
-
-        {/* Filter Button — the only filter trigger on Discover. Was
-            previously duplicated by a "All categories" pill in the status
-            row below; that pill has been removed in favour of this single
-            top-left settings cog. Shows a gold count badge when filters
-            are active so the user can tell at a glance. */}
-        <button
-          className="discover-settings-btn"
-          onClick={() => setShowFilterModal(true)}
-          aria-label={selectedCategories.length > 0
-            ? `Open filters (${selectedCategories.length} active)`
-            : 'Open filters'}
-        >
-          <SettingsIcon />
-          {selectedCategories.length > 0 && (
-            <span className="discover-settings-btn-badge" aria-hidden="true">
-              {selectedCategories.length}
-            </span>
-          )}
-        </button>
-
-        {/* I'm Bored Button - opens personalized recommendations */}
-        <div className="boredom-btn-wrapper">
-          <motion.button
-            className="boredom-btn"
-            onClick={() => setShowJustGo(true)}
-            disabled={!effectiveLocation || places.length === 0}
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            whileHover={effectiveLocation && places.length > 0 ? { scale: 1.03, y: -2 } : {}}
-            whileTap={effectiveLocation && places.length > 0 ? { scale: 0.97 } : {}}
-            transition={{
-              delay: 0.2,
-              type: 'spring',
-              stiffness: 300,
-              damping: 20
-            }}
-            title={!effectiveLocation ? 'Waiting for location...' : places.length === 0 ? 'Loading places...' : 'Get a random recommendation!'}
-          >
-            <div className="boredom-btn-content">
-              <motion.span
-                className="boredom-btn-emoji"
-                animate={{ rotate: [0, 10, -10, 0] }}
-                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-              >
-                🎲
-              </motion.span>
-              <span className="boredom-btn-text">I'm Bored</span>
-            </div>
-          </motion.button>
-          {/* Tooltip explaining disabled state */}
-          {(!effectiveLocation || places.length === 0) && !loading && (
-            <motion.span
-              className="boredom-btn-tooltip"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-            >
-              {!effectiveLocation ? 'Getting your location...' : 'Finding places nearby...'}
-            </motion.span>
-          )}
-        </div>
-
-        {/* Weather & Mode indicator */}
-        <div className="discover-status">
-          {weather && (
-            <div className="discover-weather">
-              <span>{Math.round(weather.temperature)}°</span>
-              <span>{weather.description}</span>
-            </div>
-          )}
-          <div className="discover-mode">
-            <FilterIcon name={travelMode} size={18} />
-            <span>{currentMode.label}</span>
-          </div>
-          {/* Filter pill removed — was duplicating the top-left
-              settings cog. Active filter count now badges on the cog. */}
-        </div>
-      </header>
+      <DiscoverHeader
+        streak={stats.currentStreak || 0}
+        activeFiltersCount={selectedCategories.length}
+        hasLocation={Boolean(effectiveLocation)}
+        placesCount={places.length}
+        loading={loading}
+        weather={weather}
+        travelMode={travelMode}
+        travelModeLabel={currentMode.label}
+        onOpenFilters={() => setShowFilterModal(true)}
+        onTriggerJustGo={() => setShowJustGo(true)}
+      />
 
       {/* Active filters indicator (desktop only, mobile shows in trigger) */}
       {(showFreeOnly || accessibilityMode || showOpenOnly) && (
@@ -901,78 +817,15 @@ export default function Discover({ location }) {
 
       {/* Main Content Area - conditionally render based on view mode */}
       <div className={`discover-content ${isDesktop ? `view-${viewMode}` : ''}`}>
-        {/* Error Recovery UI - with specific error types and recovery actions */}
-        {loadError && !loading && places.length === 0 && (() => {
-          // Determine error type and provide specific recovery guidance
-          const isNetworkError = loadError.includes('network') || loadError.includes('fetch') || loadError.includes('Failed to fetch')
-          const isTimeoutError = loadError.includes('timeout') || loadError.includes('Timeout')
-          const isRateLimitError = loadError.includes('429') || loadError.includes('rate limit') || loadError.includes('Too many')
-          const isServerError = loadError.includes('500') || loadError.includes('502') || loadError.includes('503') || loadError.includes('server')
-
-          let errorConfig = {
-            title: 'Something went wrong',
-            message: 'We couldn\'t load places near you. This might be a temporary issue.',
-            primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
-            secondaryAction: { label: 'Check Filters', onClick: () => setShowFilterModal(true) }
-          }
-
-          if (isNetworkError) {
-            errorConfig = {
-              title: 'Connection issue',
-              message: 'Check your internet connection and try again. Make sure you\'re not in airplane mode.',
-              primaryAction: { label: 'Retry Connection', onClick: () => loadPlaces(weather) },
-              secondaryAction: null
-            }
-          } else if (isTimeoutError) {
-            errorConfig = {
-              title: 'Taking too long',
-              message: 'The request is taking longer than expected. Try reducing your travel radius or selecting fewer categories.',
-              primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
-              secondaryAction: { label: 'Reduce Radius', onClick: () => setShowFilterModal(true) }
-            }
-          } else if (isRateLimitError) {
-            errorConfig = {
-              title: 'Too many requests',
-              message: 'You\'ve been exploring a lot! Please wait a moment before trying again.',
-              primaryAction: { label: 'Wait & Retry', onClick: () => setTimeout(() => loadPlaces(weather), 3000) },
-              secondaryAction: null
-            }
-          } else if (isServerError) {
-            errorConfig = {
-              title: 'Service temporarily unavailable',
-              message: 'Our servers are having a moment. This usually resolves itself quickly.',
-              primaryAction: { label: 'Try Again', onClick: () => loadPlaces(weather) },
-              secondaryAction: null
-            }
-          }
-
-          return (
-            <motion.div
-              className="discover-error-recovery"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <h3>{errorConfig.title}</h3>
-              <p>{errorConfig.message}</p>
-              <div className="discover-error-actions">
-                <button
-                  className="discover-error-retry"
-                  onClick={errorConfig.primaryAction.onClick}
-                >
-                  {errorConfig.primaryAction.label}
-                </button>
-                {errorConfig.secondaryAction && (
-                  <button
-                    className="discover-error-settings"
-                    onClick={errorConfig.secondaryAction.onClick}
-                  >
-                    {errorConfig.secondaryAction.label}
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )
-        })()}
+        {/* Error Recovery UI — see Discover/ErrorRecovery for the error
+            classification logic + action mapping. */}
+        {loadError && !loading && places.length === 0 && (
+          <ErrorRecovery
+            loadError={loadError}
+            onRetry={() => loadPlaces(weather)}
+            onOpenFilters={() => setShowFilterModal(true)}
+          />
+        )}
 
         {/* Card Stack (always on mobile, conditional on desktop) */}
         {(viewMode === 'swipe' || !isDesktop) && !loadError && (
@@ -1048,30 +901,8 @@ export default function Discover({ location }) {
             place={selectedPlace}
             onClose={() => setSelectedPlace(null)}
             onGo={(place) => {
-              // Save as pending visit for later prompt
               setPendingVisit(place)
-
-              // Track via hook (syncs to API)
-              const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-              const today = new Date().toDateString()
-              const lastDate = stats.lastStreakDate
-              let currentStreak = stats.currentStreak || 0
-              let bestStreak = stats.bestStreak || 0
-
-              if (lastDate !== today) {
-                const yesterday = new Date()
-                yesterday.setDate(yesterday.getDate() - 1)
-                currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
-                bestStreak = Math.max(bestStreak, currentStreak)
-              }
-
-              updateStats({
-                timesWentOut: (stats.timesWentOut || 0) + 1,
-                lastActivityDate: new Date().toISOString(),
-                currentStreak,
-                bestStreak,
-                lastStreakDate: today
-              })
+              updateStats(buildWentOutPatch(readPersistedStats()))
               setSelectedPlace(null)
             }}
           />
@@ -1148,36 +979,9 @@ export default function Discover({ location }) {
         recommendations={justGoRecommendations}
         weather={weather}
         onGo={(place) => {
-          // Save as pending visit for later prompt
           setPendingVisit(place)
-
-          // Track via hook (syncs to API)
           incrementStat('totalSwipes')
-
-          // Update streak and going out stats
-          const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-          const today = new Date().toDateString()
-          const lastDate = stats.lastStreakDate
-          let currentStreak = stats.currentStreak || 0
-          let bestStreak = stats.bestStreak || 0
-
-          if (lastDate !== today) {
-            const yesterday = new Date()
-            yesterday.setDate(yesterday.getDate() - 1)
-            currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
-            bestStreak = Math.max(bestStreak, currentStreak)
-          }
-
-          updateStats({
-            timesWentOut: (stats.timesWentOut || 0) + 1,
-            justGoUses: (stats.justGoUses || 0) + 1,
-            lastActivityDate: new Date().toISOString(),
-            currentStreak,
-            bestStreak,
-            lastStreakDate: today
-          })
-
-          // Close modal (navigation handled by modal itself)
+          updateStats(buildWentOutPatch(readPersistedStats(), { fromJustGo: true }))
           setShowJustGo(false)
         }}
       />
