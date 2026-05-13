@@ -2,14 +2,13 @@
    Refined glassmorphism with warm paper tones */
 
 .stats-card {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid var(--roam-parchment);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
-  backdrop-filter: blur(12px);
   box-shadow:
-    0 1px 3px rgba(42, 37, 32, 0.04),
-    0 4px 12px rgba(42, 37, 32, 0.06);
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .stats-card.empty {

@@ -36,7 +36,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--roam-cream, #f5f0e6) 0%, var(--roam-sage-light, #e8efe8) 100%);
+  background: linear-gradient(135deg, var(--color-surface-elevated) 0%, var(--color-surface) 100%);
 }
 
 .activity-item-category-icon {
