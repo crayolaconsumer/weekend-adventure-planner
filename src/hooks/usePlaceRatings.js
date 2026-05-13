@@ -20,6 +20,27 @@ export function usePlaceRatings() {
   const [loading, setLoading] = useState(true)
   const syncedRef = useRef(false)
 
+  // Normalise the server-side rating row (numeric `rating` + createdAt/
+  // updatedAt timestamps) into the shape PlaceReviews + the rest of the
+  // app actually reads (`recommended` boolean + `visitedAt`). Merge any
+  // local quick-feedback fields (vibe / noiseLevel / valueForMoney /
+  // categoryKey) on top so they survive a refresh — those only live in
+  // localStorage today since the API row doesn't have columns for them.
+  function normaliseServerRating(serverRow, localRow) {
+    const visitedAt = serverRow.updatedAt || serverRow.createdAt || Date.now()
+    return {
+      placeId: serverRow.placeId,
+      recommended: serverRow.rating >= 4,
+      review: serverRow.review || null,
+      visitedAt,
+      // Local-only extras — preserve if we have them on this device
+      vibe: localRow?.vibe || null,
+      noiseLevel: localRow?.noiseLevel || null,
+      valueForMoney: localRow?.valueForMoney || null,
+      categoryKey: localRow?.categoryKey || null,
+    }
+  }
+
   // Load ratings
   const loadRatings = useCallback(async () => {
     setLoading(true)
@@ -34,10 +55,13 @@ export function usePlaceRatings() {
 
         if (response.ok) {
           const data = await response.json()
-          // Convert array to object keyed by placeId
+          // Convert array to object keyed by placeId, normalising each
+          // server row → the canonical local shape so PlaceReviews etc.
+          // read `recommended` and `visitedAt` consistently.
+          const localRatings = getAllRatings()
           const ratingsMap = {}
           for (const r of data.ratings || []) {
-            ratingsMap[r.placeId] = r
+            ratingsMap[r.placeId] = normaliseServerRating(r, localRatings[r.placeId])
           }
           setRatings(ratingsMap)
         } else {
@@ -120,15 +144,22 @@ export function usePlaceRatings() {
     }
     saveLocalRating(placeId, localRating)
 
-    // Optimistic update
+    // Optimistic update — match the canonical shape so PlaceReviews
+    // reads recommended/visitedAt correctly without a reload. Previously
+    // this wrote the server-row shape (numeric `rating`, createdAt) into
+    // state, which is what caused the "Not recommended" + Invalid Date
+    // bug after every save.
     setRatings(prev => ({
       ...prev,
       [placeId]: {
         placeId,
-        rating: recommended ? 5 : 1,
+        recommended: recommended === true,
         review: review || null,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+        visitedAt: Date.now(),
+        vibe: vibe || null,
+        noiseLevel: noiseLevel || null,
+        valueForMoney: valueForMoney || null,
+        categoryKey: categoryKey || null,
       }
     }))
 

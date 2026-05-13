@@ -1,3 +1,6 @@
+/* Theme-aware (was hardcoded #1a3a2f forest + #f5f0e6 parchment
+   throughout — invisible in dark mode). */
+
 .visited-list {
   padding: 8px 0 24px;
 }
@@ -14,10 +17,10 @@
   /* Safe-area inset on top — sticky control bar would otherwise sit
      under the notch on a black-translucent status bar. */
   padding: calc(8px + env(safe-area-inset-top, 0)) 16px 12px;
-  border-bottom: 1px solid rgba(26, 58, 47, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text-primary) 5%, transparent);
   position: sticky;
   top: 0;
-  background: rgba(250, 250, 246, 0.95);
+  background: color-mix(in srgb, var(--color-background) 95%, transparent);
   backdrop-filter: blur(6px);
   z-index: 1;
   flex-wrap: wrap;
@@ -32,11 +35,11 @@
 .visited-list-sort label { color: color-mix(in srgb, var(--color-text-primary) 70%, transparent); }
 .visited-list-sort select {
   background: transparent;
-  border: 1px solid rgba(26, 58, 47, 0.15);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 15%, transparent);
   border-radius: 6px;
   padding: 4px 8px;
   font: inherit;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
 }
 
 .visited-list-filter {
@@ -46,24 +49,24 @@
 }
 .visited-filter-chip {
   padding: 4px 10px;
-  border: 1px solid rgba(26, 58, 47, 0.15);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 15%, transparent);
   background: transparent;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   border-radius: 999px;
   font-size: 0.8rem;
   cursor: pointer;
 }
 .visited-filter-chip.active {
-  background: #1a3a2f;
-  color: #f5f0e6;
-  border-color: #1a3a2f;
+  background: var(--color-text-primary);
+  color: var(--color-surface);
+  border-color: var(--color-text-primary);
 }
 
 .visited-list-rows { list-style: none; padding: 0; margin: 0; }
 .visited-list-row {
-  border-bottom: 1px solid rgba(26, 58, 47, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text-primary) 5%, transparent);
 }
-.visited-list-row.open { background: rgba(26, 58, 47, 0.02); }
+.visited-list-row.open { background: color-mix(in srgb, var(--color-text-primary) 2%, transparent); }
 
 .visited-list-row-summary {
   display: flex;
@@ -88,7 +91,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(26, 58, 47, 0.08);
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   font-size: 1.25rem;
 }
 
@@ -100,7 +103,7 @@
 }
 .visited-list-name {
   font-weight: 600;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -121,7 +124,7 @@
 }
 .visited-list-review {
   margin: 0 0 12px;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   white-space: pre-wrap;
 }
 .visited-list-review-empty { color: color-mix(in srgb, var(--color-text-primary) 50%, transparent); font-style: italic; }
@@ -132,9 +135,9 @@
 }
 .visited-list-action {
   padding: 6px 12px;
-  border: 1px solid rgba(26, 58, 47, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 20%, transparent);
   background: transparent;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   border-radius: 6px;
   font-size: 0.875rem;
   cursor: pointer;
@@ -142,7 +145,7 @@
   display: inline-block;
 }
 .visited-list-action-primary {
-  background: #1a3a2f;
-  color: #f5f0e6;
-  border-color: #1a3a2f;
+  background: var(--color-text-primary);
+  color: var(--color-surface);
+  border-color: var(--color-text-primary);
 }
