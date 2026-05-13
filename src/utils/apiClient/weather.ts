@@ -4,19 +4,30 @@
  * Heavily cached in-memory (30 min) because the Discover page calls
  * fetchWeather on every refresh + every time the user pans, and the
  * WMO weather_code is the input to TIME / WEATHER boosts in placeFilter.
- * We don't need fresh-to-the-minute data here.
  */
 
+export interface WeatherData {
+  temperature: number
+  weatherCode: number
+  description: string
+}
+
+interface WeatherCacheEntry {
+  data: WeatherData
+  timestamp: number
+}
+
 // In-memory weather cache (more aggressive than general cache)
-const weatherCache = new Map()
+const weatherCache = new Map<string, WeatherCacheEntry>()
 const WEATHER_CACHE_TTL = 30 * 60 * 1000 // 30 minutes
 
 /**
- * Get weather description from WMO code
+ * Get weather description from WMO code.
  * Source: https://open-meteo.com/en/docs (WMO weather interpretation codes)
  */
-export function getWeatherDescription(code) {
-  const descriptions = {
+export function getWeatherDescription(code: number | null | undefined): string {
+  if (code == null) return 'Unknown'
+  const descriptions: Record<number, string> = {
     0: 'Clear sky',
     1: 'Mainly clear',
     2: 'Partly cloudy',
@@ -43,12 +54,8 @@ export function getWeatherDescription(code) {
 /**
  * Fetch weather for a location. In-memory cached 30 minutes per
  * 0.01° lat/lng bucket; on fetch failure returns stale cache if any.
- *
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
- * @returns {Promise<{temperature: number, weatherCode: number, description: string}|null>}
  */
-export async function fetchWeather(lat, lng) {
+export async function fetchWeather(lat: number, lng: number): Promise<WeatherData | null> {
   const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`
 
   // Check in-memory cache first
@@ -63,8 +70,10 @@ export async function fetchWeather(lat, lng) {
     )
 
     if (response.ok) {
-      const data = await response.json()
-      const weather = {
+      const data = await response.json() as {
+        current: { temperature_2m: number; weather_code: number }
+      }
+      const weather: WeatherData = {
         temperature: data.current.temperature_2m,
         weatherCode: data.current.weather_code,
         description: getWeatherDescription(data.current.weather_code),

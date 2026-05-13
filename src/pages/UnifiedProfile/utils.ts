@@ -2,11 +2,24 @@
  * Helpers used by UnifiedProfile and its child tabs.
  */
 
+export interface ProfileStats {
+  totalSwipes: number
+  timesWentOut: number
+  boredomBusts: number
+  bestStreak: number
+  lastActivityDate: string | null
+  currentStreak: number
+  wishlistCount: number
+  adventuresCreated: number
+  // Tolerate arbitrary keys read from localStorage by older versions.
+  [key: string]: unknown
+}
+
 /**
  * Read the auth token from local/session storage. Matches the storage
  * keys used everywhere else in the app.
  */
-export function getAuthToken() {
+export function getAuthToken(): string | null {
   return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
 }
 
@@ -14,21 +27,15 @@ export function getAuthToken() {
  * Hydrate a stats object from localStorage with sane defaults +
  * streak-reset logic that mirrors Discover.jsx (so the two surfaces
  * agree on whether the streak is broken).
- *
- * Returns:
- *   {
- *     totalSwipes, timesWentOut, boredomBusts, bestStreak, lastActivityDate,
- *     currentStreak, wishlistCount, adventuresCreated, ...rest
- *   }
  */
-export function loadStatsFromStorage() {
-  const savedStats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-  const wishlist = JSON.parse(localStorage.getItem('roam_wishlist') || '[]')
-  const adventures = JSON.parse(localStorage.getItem('roam_adventures') || '[]')
+export function loadStatsFromStorage(): ProfileStats {
+  const savedStats = JSON.parse(localStorage.getItem('roam_stats') || '{}') as Record<string, unknown>
+  const wishlist = JSON.parse(localStorage.getItem('roam_wishlist') || '[]') as unknown[]
+  const adventures = JSON.parse(localStorage.getItem('roam_adventures') || '[]') as unknown[]
 
   // Use lastStreakDate (not lastActivityDate) - this matches Discover.jsx logic
-  const lastStreakDate = savedStats.lastStreakDate
-  let currentStreak = savedStats.currentStreak || 0
+  const lastStreakDate = savedStats.lastStreakDate as string | undefined
+  let currentStreak = (savedStats.currentStreak as number) || 0
 
   if (lastStreakDate) {
     // Check if streak should be reset (more than 1 day since last streak update)
@@ -57,5 +64,5 @@ export function loadStatsFromStorage() {
     currentStreak,
     wishlistCount: wishlist.length,
     adventuresCreated: adventures.length,
-  }
+  } as ProfileStats
 }

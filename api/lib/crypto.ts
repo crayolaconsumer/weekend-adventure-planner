@@ -8,11 +8,11 @@ import { randomBytes, timingSafeEqual } from 'crypto'
 
 /**
  * Generate a cryptographically secure random string
- * @param {number} length - Desired length of the string
- * @param {string} charset - Characters to use (default: alphanumeric lowercase)
- * @returns {string} Random string
  */
-export function generateSecureCode(length = 16, charset = 'abcdefghijklmnopqrstuvwxyz0123456789') {
+export function generateSecureCode(
+  length: number = 16,
+  charset: string = 'abcdefghijklmnopqrstuvwxyz0123456789',
+): string {
   const charsetLength = charset.length
   const bytes = randomBytes(length)
   let result = ''
@@ -27,36 +27,29 @@ export function generateSecureCode(length = 16, charset = 'abcdefghijklmnopqrstu
 /**
  * Generate a share code for plans
  * Uses 16 characters (36^16 ≈ 7.9 x 10^24 possibilities)
- * @returns {string} Share code
  */
-export function generateShareCode() {
+export function generateShareCode(): string {
   return generateSecureCode(16, 'abcdefghijklmnopqrstuvwxyz0123456789')
 }
 
 /**
- * Generate a verification token
- * @returns {string} 32-character token
+ * Generate a verification token (32-char hex)
  */
-export function generateVerificationToken() {
+export function generateVerificationToken(): string {
   return randomBytes(16).toString('hex')
 }
 
 /**
- * Generate a password reset token
- * @returns {string} 32-character token
+ * Generate a password reset token (32-char hex)
  */
-export function generatePasswordResetToken() {
+export function generatePasswordResetToken(): string {
   return randomBytes(16).toString('hex')
 }
 
 /**
  * Constant-time string comparison to prevent timing attacks
- * Uses Node.js crypto.timingSafeEqual for proper constant-time comparison
- * @param {string} a - First string
- * @param {string} b - Second string
- * @returns {boolean} True if equal
  */
-export function secureCompare(a, b) {
+export function secureCompare(a: unknown, b: unknown): boolean {
   if (typeof a !== 'string' || typeof b !== 'string') {
     return false
   }
@@ -76,5 +69,5 @@ export default {
   generateShareCode,
   generateVerificationToken,
   generatePasswordResetToken,
-  secureCompare
+  secureCompare,
 }

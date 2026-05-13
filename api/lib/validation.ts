@@ -2,20 +2,39 @@
  * Input Validation Utilities
  *
  * Centralized validation functions for API inputs.
- * All functions return { valid: boolean, message?: string }
+ * All functions return { valid: boolean, message?: string } unless
+ * they also parse and return the parsed value.
  */
 
-/**
- * Validate geographic coordinates
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
- * @returns {{ valid: boolean, message?: string }}
- */
-export function validateCoordinates(lat, lng) {
-  if (typeof lat !== 'number' || isNaN(lat)) {
+export interface ValidationResult {
+  valid: boolean
+  message?: string
+}
+
+export interface ParsedCoordinatesResult extends ValidationResult {
+  lat?: number
+  lng?: number
+}
+
+export interface PaginationResult extends ValidationResult {
+  limit?: number
+  offset?: number
+}
+
+export interface IdResult extends ValidationResult {
+  id?: number
+}
+
+export interface PlaceIdResult extends ValidationResult {
+  placeId?: string
+}
+
+/** Validate geographic coordinates */
+export function validateCoordinates(lat: unknown, lng: unknown): ValidationResult {
+  if (typeof lat !== 'number' || Number.isNaN(lat)) {
     return { valid: false, message: 'Latitude must be a valid number' }
   }
-  if (typeof lng !== 'number' || isNaN(lng)) {
+  if (typeof lng !== 'number' || Number.isNaN(lng)) {
     return { valid: false, message: 'Longitude must be a valid number' }
   }
   if (lat < -90 || lat > 90) {
@@ -27,14 +46,8 @@ export function validateCoordinates(lat, lng) {
   return { valid: true }
 }
 
-/**
- * Parse and validate coordinates from query/body
- * Handles string or number inputs
- * @param {any} lat - Latitude value
- * @param {any} lng - Longitude value
- * @returns {{ valid: boolean, lat?: number, lng?: number, message?: string }}
- */
-export function parseCoordinates(lat, lng) {
+/** Parse and validate coordinates from query/body (string or number) */
+export function parseCoordinates(lat: unknown, lng: unknown): ParsedCoordinatesResult {
   const parsedLat = typeof lat === 'string' ? parseFloat(lat) : lat
   const parsedLng = typeof lng === 'string' ? parseFloat(lng) : lng
 
@@ -43,15 +56,11 @@ export function parseCoordinates(lat, lng) {
     return validation
   }
 
-  return { valid: true, lat: parsedLat, lng: parsedLng }
+  return { valid: true, lat: parsedLat as number, lng: parsedLng as number }
 }
 
-/**
- * Validate collection name
- * @param {string} name - Collection name
- * @returns {{ valid: boolean, message?: string }}
- */
-export function validateCollectionName(name) {
+/** Validate collection name */
+export function validateCollectionName(name: unknown): ValidationResult {
   if (!name || typeof name !== 'string') {
     return { valid: false, message: 'Collection name is required' }
   }
@@ -66,7 +75,6 @@ export function validateCollectionName(name) {
     return { valid: false, message: 'Collection name must be 40 characters or less' }
   }
 
-  // Check for potentially malicious content
   if (/<script|javascript:|data:/i.test(trimmed)) {
     return { valid: false, message: 'Collection name contains invalid characters' }
   }
@@ -74,28 +82,18 @@ export function validateCollectionName(name) {
   return { valid: true }
 }
 
-/**
- * Validate emoji (single emoji character)
- * Uses a regex pattern that matches most emoji
- * @param {string} emoji - Emoji string
- * @returns {{ valid: boolean, message?: string }}
- */
-export function validateEmoji(emoji) {
+/** Validate emoji */
+export function validateEmoji(emoji: unknown): ValidationResult {
   if (!emoji || typeof emoji !== 'string') {
     return { valid: false, message: 'Emoji is required' }
   }
 
-  // Emoji regex pattern - matches common emoji including compound emoji
-  // This is a simplified pattern; for production, consider a library like emoji-regex
   const emojiPattern = /^[\p{Emoji}\p{Emoji_Component}]+$/u
 
-  // Allow common emoji ranges and emoji sequences
-  // Length check: most emoji are 1-4 characters due to ZWJ sequences
   if (emoji.length > 8) {
     return { valid: false, message: 'Invalid emoji' }
   }
 
-  // Basic check for emoji-like content
   if (!emojiPattern.test(emoji) && !/[\u{1F300}-\u{1FAD6}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(emoji)) {
     return { valid: false, message: 'Invalid emoji' }
   }
@@ -103,12 +101,8 @@ export function validateEmoji(emoji) {
   return { valid: true }
 }
 
-/**
- * Validate plan title
- * @param {string} title - Plan title
- * @returns {{ valid: boolean, message?: string }}
- */
-export function validatePlanTitle(title) {
+/** Validate plan title */
+export function validatePlanTitle(title: unknown): ValidationResult {
   if (!title || typeof title !== 'string') {
     return { valid: false, message: 'Title is required' }
   }
@@ -123,7 +117,6 @@ export function validatePlanTitle(title) {
     return { valid: false, message: 'Title must be 100 characters or less' }
   }
 
-  // Check for potentially malicious content
   if (/<script|javascript:|data:/i.test(trimmed)) {
     return { valid: false, message: 'Title contains invalid characters' }
   }
@@ -131,13 +124,8 @@ export function validatePlanTitle(title) {
   return { valid: true }
 }
 
-/**
- * Validate content text (tips, stories, etc.)
- * @param {string} content - Content text
- * @param {number} maxLength - Maximum allowed length
- * @returns {{ valid: boolean, message?: string }}
- */
-export function validateContent(content, maxLength = 280) {
+/** Validate content text (tips, stories, etc.) */
+export function validateContent(content: unknown, maxLength: number = 280): ValidationResult {
   if (!content || typeof content !== 'string') {
     return { valid: false, message: 'Content is required' }
   }
@@ -152,7 +140,6 @@ export function validateContent(content, maxLength = 280) {
     return { valid: false, message: `Content must be ${maxLength} characters or less` }
   }
 
-  // Check for potentially malicious content
   if (/<script|javascript:|data:/i.test(trimmed)) {
     return { valid: false, message: 'Content contains invalid characters' }
   }
@@ -160,17 +147,12 @@ export function validateContent(content, maxLength = 280) {
   return { valid: true }
 }
 
-/**
- * Validate share code format
- * @param {string} code - Share code
- * @returns {{ valid: boolean, message?: string }}
- */
-export function validateShareCode(code) {
+/** Validate share code format (12-16 char alphanumeric lowercase) */
+export function validateShareCode(code: unknown): ValidationResult {
   if (!code || typeof code !== 'string') {
     return { valid: false, message: 'Share code is required' }
   }
 
-  // Share codes are 16 characters, alphanumeric (lowercase)
   if (!/^[a-z0-9]{12,16}$/.test(code)) {
     return { valid: false, message: 'Invalid share code format' }
   }
@@ -178,22 +160,16 @@ export function validateShareCode(code) {
   return { valid: true }
 }
 
-/**
- * Validate pagination parameters
- * @param {any} limit - Limit value
- * @param {any} offset - Offset value
- * @param {number} maxLimit - Maximum allowed limit
- * @returns {{ valid: boolean, limit?: number, offset?: number, message?: string }}
- */
-export function validatePagination(limit, offset, maxLimit = 100) {
-  let parsedLimit = parseInt(limit, 10)
-  let parsedOffset = parseInt(offset, 10)
+/** Validate pagination parameters */
+export function validatePagination(limit: unknown, offset: unknown, maxLimit: number = 100): PaginationResult {
+  let parsedLimit = parseInt(String(limit), 10)
+  let parsedOffset = parseInt(String(offset), 10)
 
-  if (isNaN(parsedLimit) || parsedLimit < 1) {
+  if (Number.isNaN(parsedLimit) || parsedLimit < 1) {
     parsedLimit = 20 // Default
   }
 
-  if (isNaN(parsedOffset) || parsedOffset < 0) {
+  if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
     parsedOffset = 0 // Default
   }
 
@@ -204,35 +180,27 @@ export function validatePagination(limit, offset, maxLimit = 100) {
   return { valid: true, limit: parsedLimit, offset: parsedOffset }
 }
 
-/**
- * Validate integer ID
- * @param {any} id - ID value
- * @returns {{ valid: boolean, id?: number, message?: string }}
- */
-export function validateId(id) {
-  const parsed = parseInt(id, 10)
+/** Validate integer ID */
+export function validateId(id: unknown): IdResult {
+  const parsed = parseInt(String(id), 10)
 
-  if (isNaN(parsed) || parsed < 1 || parsed > Number.MAX_SAFE_INTEGER) {
+  if (Number.isNaN(parsed) || parsed < 1 || parsed > Number.MAX_SAFE_INTEGER) {
     return { valid: false, message: 'Invalid ID' }
   }
 
   return { valid: true, id: parsed }
 }
 
-/**
- * Validate place ID in various formats
- * @param {any} placeId - Place ID value
- * @returns {{ valid: boolean, placeId?: string, message?: string }}
- */
-export function validatePlaceId(placeId) {
+/** Validate place ID in various formats */
+export function validatePlaceId(placeId: unknown): PlaceIdResult {
   if (typeof placeId !== 'string' || !placeId) {
     return { valid: false, message: 'Place ID must be a non-empty string' }
   }
 
   // Supported formats:
-  // - OSM-style: node/12345, way/67890, relation/111
-  // - Plain numeric: 12345
-  // - Wikipedia: wiki_12345678
+  //   - OSM-style: node/12345, way/67890, relation/111
+  //   - Plain numeric: 12345
+  //   - Wikipedia: wiki_12345678
   const osmPattern = /^(node|way|relation)\/\d+$/
   const numericPattern = /^\d+$/
   const wikiPattern = /^wiki_\d+$/
@@ -241,7 +209,6 @@ export function validatePlaceId(placeId) {
     return { valid: false, message: 'Invalid place ID format' }
   }
 
-  // Limit length to prevent abuse
   if (placeId.length > 50) {
     return { valid: false, message: 'Place ID too long' }
   }
@@ -249,34 +216,26 @@ export function validatePlaceId(placeId) {
   return { valid: true, placeId }
 }
 
-/**
- * Sanitize string for safe database storage
- * Removes null bytes and trims whitespace
- * @param {string} str - Input string
- * @returns {string} Sanitized string
- */
-export function sanitizeString(str) {
+/** Sanitize string for safe database storage */
+export function sanitizeString(str: unknown): string {
   if (typeof str !== 'string') return ''
   return str.replace(/\0/g, '').trim()
 }
 
-/**
- * Whitelist object fields
- * Returns new object with only allowed fields
- * @param {Object} obj - Input object
- * @param {string[]} allowedFields - Array of allowed field names
- * @returns {Object} Filtered object
- */
-export function whitelistFields(obj, allowedFields) {
+/** Whitelist object fields — returns new object with only allowed fields */
+export function whitelistFields<T extends Record<string, unknown>>(
+  obj: T | null | undefined | unknown,
+  allowedFields: string[],
+): Partial<T> {
   if (!obj || typeof obj !== 'object') return {}
 
-  const result = {}
+  const result: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (Object.prototype.hasOwnProperty.call(obj, field)) {
-      result[field] = obj[field]
+      result[field] = (obj as Record<string, unknown>)[field]
     }
   }
-  return result
+  return result as Partial<T>
 }
 
 export default {
@@ -291,5 +250,5 @@ export default {
   validatePagination,
   validateId,
   sanitizeString,
-  whitelistFields
+  whitelistFields,
 }

@@ -4,20 +4,15 @@
  * This dramatically reduces Overpass query size by only querying
  * the OSM keys that actually contain each type.
  *
- * Before: Every type queries ALL 8 keys (16 clauses per type)
- * After: Each type queries only 1-2 relevant keys (~70% reduction)
- *
  * Reference: https://wiki.openstreetmap.org/wiki/Key:amenity
  */
 
 /**
- * Canonical mapping of place types to OSM keys
- * Most types map to a single key; some may appear under multiple keys
+ * Canonical mapping of place types to OSM keys.
+ * Most types map to a single key; some may appear under multiple keys.
  */
-export const TYPE_TO_KEYS = {
-  // ═══════════════════════════════════════════════════════
-  // FOOD & DRINK - mostly 'amenity'
-  // ═══════════════════════════════════════════════════════
+export const TYPE_TO_KEYS: Record<string, string[]> = {
+  // FOOD & DRINK
   restaurant: ['amenity'],
   cafe: ['amenity'],
   bar: ['amenity'],
@@ -34,15 +29,12 @@ export const TYPE_TO_KEYS = {
   deli: ['shop'],
   bistro: ['amenity'],
   brasserie: ['amenity'],
-  // UK-specific food
   fish_and_chips: ['amenity', 'shop'],
   tearoom: ['amenity'],
   farm_shop: ['shop'],
   gastropub: ['amenity'],
 
-  // ═══════════════════════════════════════════════════════
-  // NATURE & OUTDOORS - 'leisure', 'natural', 'landuse'
-  // ═══════════════════════════════════════════════════════
+  // NATURE & OUTDOORS
   park: ['leisure'],
   garden: ['leisure'],
   nature_reserve: ['leisure'],
@@ -58,7 +50,6 @@ export const TYPE_TO_KEYS = {
   peak: ['natural'],
   cliff: ['natural'],
   cave: ['natural'],
-  // UK-specific nature
   common: ['leisure', 'landuse'],
   country_park: ['leisure'],
   wood: ['natural', 'landuse'],
@@ -70,9 +61,7 @@ export const TYPE_TO_KEYS = {
   picnic_site: ['tourism'],
   meadow: ['landuse'],
 
-  // ═══════════════════════════════════════════════════════
-  // ARTS & CULTURE - 'tourism', 'amenity'
-  // ═══════════════════════════════════════════════════════
+  // ARTS & CULTURE
   museum: ['tourism'],
   gallery: ['tourism', 'amenity'],
   theatre: ['amenity'],
@@ -85,14 +74,11 @@ export const TYPE_TO_KEYS = {
   community_centre: ['amenity'],
   cinema: ['amenity'],
   art_gallery: ['tourism', 'amenity'],
-  // UK-specific culture
   heritage_centre: ['tourism'],
   visitor_centre: ['tourism'],
   information: ['tourism'],
 
-  // ═══════════════════════════════════════════════════════
-  // HISTORY & HERITAGE - 'historic', 'amenity', 'building'
-  // ═══════════════════════════════════════════════════════
+  // HISTORY & HERITAGE
   castle: ['historic'],
   monument: ['historic'],
   memorial: ['historic'],
@@ -109,7 +95,6 @@ export const TYPE_TO_KEYS = {
   tower: ['man_made', 'historic'],
   fort: ['historic'],
   battlefield: ['historic'],
-  // UK-specific historic
   stately_home: ['historic', 'tourism'],
   folly: ['historic'],
   priory: ['historic'],
@@ -126,9 +111,7 @@ export const TYPE_TO_KEYS = {
   milestone: ['historic'],
   canal_lock: ['historic', 'waterway'],
 
-  // ═══════════════════════════════════════════════════════
-  // ENTERTAINMENT - 'tourism', 'leisure', 'amenity'
-  // ═══════════════════════════════════════════════════════
+  // ENTERTAINMENT
   bowling_alley: ['leisure'],
   arcade: ['leisure', 'amenity'],
   escape_game: ['leisure'],
@@ -141,7 +124,6 @@ export const TYPE_TO_KEYS = {
   trampoline_park: ['leisure'],
   go_kart: ['leisure'],
   casino: ['amenity'],
-  // UK-specific entertainment
   soft_play: ['leisure'],
   crazy_golf: ['leisure'],
   adventure_playground: ['leisure'],
@@ -150,9 +132,7 @@ export const TYPE_TO_KEYS = {
   model_railway: ['tourism'],
   bingo: ['amenity'],
 
-  // ═══════════════════════════════════════════════════════
-  // NIGHTLIFE - 'amenity', 'leisure'
-  // ═══════════════════════════════════════════════════════
+  // NIGHTLIFE
   nightclub: ['amenity'],
   club: ['amenity', 'leisure'],
   beer_garden: ['amenity', 'leisure'],
@@ -161,14 +141,11 @@ export const TYPE_TO_KEYS = {
   karaoke: ['amenity'],
   lounge: ['amenity'],
   speakeasy: ['amenity'],
-  // UK-specific nightlife
   music_venue: ['amenity'],
   live_music: ['amenity'],
   social_club: ['amenity'],
 
-  // ═══════════════════════════════════════════════════════
-  // ACTIVE & SPORTS - 'leisure', 'amenity', 'sport'
-  // ═══════════════════════════════════════════════════════
+  // ACTIVE & SPORTS
   sports_centre: ['leisure'],
   swimming_pool: ['leisure', 'amenity'],
   gym: ['leisure', 'amenity'],
@@ -183,7 +160,6 @@ export const TYPE_TO_KEYS = {
   dance: ['leisure', 'amenity'],
   martial_arts: ['leisure', 'amenity'],
   horse_riding: ['leisure'],
-  // UK-specific sports
   cricket: ['leisure', 'sport'],
   football: ['leisure', 'sport'],
   rugby: ['leisure', 'sport'],
@@ -198,9 +174,7 @@ export const TYPE_TO_KEYS = {
   lido: ['leisure', 'amenity'],
   paddling_pool: ['leisure'],
 
-  // ═══════════════════════════════════════════════════════
-  // HIDDEN GEMS & UNIQUE - 'tourism', 'man_made', 'amenity'
-  // ═══════════════════════════════════════════════════════
+  // HIDDEN GEMS & UNIQUE
   artwork: ['tourism'],
   fountain: ['amenity'],
   observation: ['tourism', 'man_made'],
@@ -213,7 +187,6 @@ export const TYPE_TO_KEYS = {
   secret_garden: ['leisure'],
   curiosity: ['tourism'],
   unusual: ['tourism'],
-  // UK-specific unique
   bandstand: ['amenity', 'leisure'],
   clock_tower: ['man_made', 'amenity'],
   dovecote: ['historic', 'man_made'],
@@ -225,9 +198,7 @@ export const TYPE_TO_KEYS = {
   maze: ['tourism', 'leisure'],
   grotto: ['tourism', 'natural'],
 
-  // ═══════════════════════════════════════════════════════
-  // MARKETS & SHOPS - 'amenity', 'shop'
-  // ═══════════════════════════════════════════════════════
+  // MARKETS & SHOPS
   marketplace: ['amenity'],
   market: ['shop', 'amenity'],
   flea_market: ['amenity', 'shop'],
@@ -239,7 +210,6 @@ export const TYPE_TO_KEYS = {
   craft_shop: ['shop'],
   gift_shop: ['shop'],
   boutique: ['shop'],
-  // UK-specific shopping
   charity_shop: ['shop'],
   car_boot_sale: ['amenity'],
   indoor_market: ['amenity', 'shop'],
@@ -247,43 +217,30 @@ export const TYPE_TO_KEYS = {
   covered_market: ['amenity'],
   high_street: ['shop'],
 
-  // ═══════════════════════════════════════════════════════
-  // TOURISM BASICS - 'tourism'
-  // ═══════════════════════════════════════════════════════
+  // TOURISM BASICS
   attraction: ['tourism'],
 }
 
 /**
  * Default fallback keys for unmapped types
- * These are the most common keys that contain miscellaneous amenities
  */
 const DEFAULT_KEYS = ['amenity', 'tourism']
 
 /**
- * Get OSM keys for a given type
- *
- * @param {string} type - Place type
- * @returns {string[]} Array of OSM keys
+ * Get OSM keys for a given type.
  */
-export function getKeysForType(type) {
+export function getKeysForType(type: string): string[] {
   return TYPE_TO_KEYS[type] || DEFAULT_KEYS
 }
 
 /**
- * Group types by their OSM keys for efficient query building
+ * Group types by their OSM keys for efficient query building.
  *
- * Instead of:
- *   node["amenity"~"restaurant|cafe"]
- *   node["tourism"~"restaurant|cafe"]  // wasteful - neither exists here
- *
- * We get:
- *   node["amenity"~"restaurant|cafe"]  // only relevant key
- *
- * @param {string[]} types - Array of place types
- * @returns {Object} Map of key -> types that use that key
+ * Returns `Record<key, types[]>` where each type appears under every
+ * key it maps to (deduplicated).
  */
-export function groupTypesByKey(types) {
-  const grouped = {}
+export function groupTypesByKey(types: string[]): Record<string, string[]> {
+  const grouped: Record<string, Set<string>> = {}
 
   for (const type of types) {
     const keys = getKeysForType(type)
@@ -298,19 +255,15 @@ export function groupTypesByKey(types) {
 
   // Convert Sets to Arrays for easier consumption
   return Object.fromEntries(
-    Object.entries(grouped).map(([k, v]) => [k, [...v]])
+    Object.entries(grouped).map(([k, v]) => [k, [...v]]),
   )
 }
 
 /**
- * Count how many query clauses will be generated
- * Useful for telemetry and debugging
- *
- * @param {string[]} types - Array of place types
- * @returns {number} Number of key-based clauses
+ * Count how many query clauses will be generated.
+ * Each key generates 2 clauses (node + way).
  */
-export function countQueryClauses(types) {
+export function countQueryClauses(types: string[]): number {
   const grouped = groupTypesByKey(types)
-  // Each key generates 2 clauses (node + way)
   return Object.keys(grouped).length * 2
 }

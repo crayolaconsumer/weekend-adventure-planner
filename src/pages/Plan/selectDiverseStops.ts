@@ -12,17 +12,24 @@
  *
  * Used by Plan.jsx to assemble the itinerary stop list once the user
  * has picked a vibe + duration.
- *
- * @param {Array} places - Places to choose from (already filtered/scored)
- * @param {number} count - Target number of stops
- * @param {boolean} [isMixed=false] - Strict category rotation
- * @returns {Array} Selected stops, length ≤ count
  */
-export function selectDiverseStops(places, count, isMixed = false) {
+
+interface PlaceLike {
+  id?: string | number
+  name?: string
+  category?: { key?: string } | null
+  [key: string]: unknown
+}
+
+export function selectDiverseStops<T extends PlaceLike>(
+  places: T[],
+  count: number,
+  isMixed: boolean = false,
+): T[] {
   if (places.length === 0) return []
 
   // Group by category
-  const byCategory = {}
+  const byCategory: Record<string, T[]> = {}
   for (const place of places) {
     const key = place.category?.key || 'other'
     if (!byCategory[key]) byCategory[key] = []
@@ -34,7 +41,7 @@ export function selectDiverseStops(places, count, isMixed = false) {
     byCategory[key].sort(() => Math.random() - 0.5)
   }
 
-  const selected = []
+  const selected: T[] = []
 
   // For mixed mode: strictly rotate through different categories
   if (isMixed) {
@@ -42,11 +49,11 @@ export function selectDiverseStops(places, count, isMixed = false) {
     // Shuffle category order
     categoryKeys.sort(() => Math.random() - 0.5)
 
-    const categoryIndices = {}
-    categoryKeys.forEach(k => categoryIndices[k] = 0)
+    const categoryIndices: Record<string, number> = {}
+    categoryKeys.forEach(k => { categoryIndices[k] = 0 })
 
     // Round-robin through categories, never picking same category twice in a row
-    let lastCategory = null
+    let lastCategory: string | null = null
     let attempts = 0
     const maxAttempts = count * categoryKeys.length * 2
 

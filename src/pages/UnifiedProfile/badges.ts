@@ -5,12 +5,33 @@
  *   - BADGES: client-side activity badges (computed from localStorage stats).
  *   - SERVER_BADGE_CONFIG: display config for server-awarded badges (lookup
  *     from `badgeId` returned by /api/users/badges).
- *
- * Keep the BADGES requirement predicates pure — they read directly from
- * the stats object produced by loadStatsFromStorage().
  */
 
-export const BADGES = [
+export interface BadgeStats {
+  timesWentOut: number
+  bestStreak: number
+  justGoUses?: number
+  boredomBusts?: number
+  wishlistCount: number
+  adventuresCreated: number
+  [key: string]: unknown
+}
+
+export interface ClientBadge {
+  id: string
+  name: string
+  icon: string
+  description: string
+  requirement: (s: BadgeStats) => boolean
+}
+
+export interface ServerBadgeConfig {
+  icon: string
+  name: string
+  description: string
+}
+
+export const BADGES: ClientBadge[] = [
   { id: 'first_adventure', name: 'First Steps', icon: '🌱', description: 'Completed your first adventure', requirement: (s) => s.timesWentOut >= 1 },
   { id: 'explorer_5', name: 'Explorer', icon: '🧭', description: 'Visited 5 places', requirement: (s) => s.timesWentOut >= 5 },
   { id: 'explorer_25', name: 'Pathfinder', icon: '🗺️', description: 'Visited 25 places', requirement: (s) => s.timesWentOut >= 25 },
@@ -23,8 +44,7 @@ export const BADGES = [
   { id: 'planner', name: 'Planner', icon: '📋', description: 'Created 5 adventures', requirement: (s) => s.adventuresCreated >= 5 },
 ]
 
-// Server badge display config (maps badge_id to icon/name).
-export const SERVER_BADGE_CONFIG = {
+export const SERVER_BADGE_CONFIG: Record<string, ServerBadgeConfig> = {
   first_contribution: { icon: '✍️', name: 'First Steps', description: 'Made your first contribution' },
   contributor_10: { icon: '📝', name: 'Local Expert', description: 'Made 10 contributions' },
   contributor_50: { icon: '🏆', name: 'Community Pillar', description: 'Made 50 contributions' },

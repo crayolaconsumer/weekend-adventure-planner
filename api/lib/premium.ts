@@ -6,21 +6,23 @@
  * A user is premium iff:
  *   - users.tier === 'premium'
  *   - subscription_expires_at is null (lifetime / comped) OR > now()
- *
- * The DB rows we get back from queries vary in shape (snake_case from
- * raw SQL, camelCase from object literals), so the helpers accept both.
  */
 
-export function isPremiumRow(row) {
-  if (!row) return false
-  const tier = row.tier ?? null
+export interface PremiumRow {
+  tier?: string | null
+  subscription_expires_at?: string | Date | null
+  subscriptionExpiresAt?: string | Date | null
+  [key: string]: unknown
+}
+
+export function isPremiumRow(row: PremiumRow | null | undefined | unknown): boolean {
+  if (!row || typeof row !== 'object') return false
+  const r = row as PremiumRow
+  const tier = r.tier ?? null
   if (tier !== 'premium') return false
-  const expires =
-    row.subscription_expires_at ??
-    row.subscriptionExpiresAt ??
-    null
+  const expires = r.subscription_expires_at ?? r.subscriptionExpiresAt ?? null
   if (!expires) return true
-  const t = new Date(expires).getTime()
+  const t = new Date(expires as string | Date).getTime()
   if (Number.isNaN(t)) return true
   return t > Date.now()
 }
@@ -30,7 +32,7 @@ export function isPremiumRow(row) {
  * a users-table alias. Use like:
  *   SELECT u.id, ${IS_PREMIUM_SQL('u')} AS is_premium FROM users u ...
  */
-export function isPremiumSql(alias = 'u') {
+export function isPremiumSql(alias: string = 'u'): string {
   return `(CASE WHEN ${alias}.tier = 'premium'
                 AND (${alias}.subscription_expires_at IS NULL
                      OR ${alias}.subscription_expires_at > NOW())

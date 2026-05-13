@@ -14,12 +14,8 @@ const USER_AGENT = 'ROAM/1.0 (go-roam.uk)'
 
 /**
  * Reverse geocode coordinates to a human-readable address.
- *
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
- * @returns {Promise<string|null>} display_name or null on failure
  */
-export async function reverseGeocode(lat, lng) {
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
     const response = await fetch(
       `${NOMINATIM_API}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18`,
@@ -27,8 +23,8 @@ export async function reverseGeocode(lat, lng) {
     )
 
     if (response.ok) {
-      const data = await response.json()
-      return data.display_name
+      const data = await response.json() as { display_name?: string }
+      return data.display_name ?? null
     }
   } catch (error) {
     console.warn('Reverse geocode failed:', error)
@@ -38,11 +34,8 @@ export async function reverseGeocode(lat, lng) {
 
 /**
  * Geocode an address string to coordinates.
- *
- * @param {string} address - Address text
- * @returns {Promise<{lat: number, lng: number}|null>} or null on failure
  */
-export async function geocodeAddress(address) {
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const response = await fetch(
       `${NOMINATIM_API}/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
@@ -50,7 +43,7 @@ export async function geocodeAddress(address) {
     )
 
     if (response.ok) {
-      const data = await response.json()
+      const data = await response.json() as Array<{ lat: string; lon: string }>
       if (data.length > 0) {
         return {
           lat: parseFloat(data[0].lat),

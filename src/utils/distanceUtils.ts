@@ -10,22 +10,28 @@
 const KM_TO_MILES = 0.621371
 const METERS_TO_FEET = 3.28084
 
+export type DistanceUnit = 'km' | 'mi'
+
+export interface FormatDistanceOptions {
+  /** Include " away" suffix (default: false) */
+  withSuffix?: boolean
+  /** Use short unit labels like "km" / "mi" (default: true) */
+  short?: boolean
+}
+
 /**
  * Format a distance value for display based on unit preference.
- *
- * @param {number} km - Distance in kilometers (always stored in km)
- * @param {string} unit - 'km' or 'mi'
- * @param {object} options - Formatting options
- * @param {boolean} options.withSuffix - Include " away" suffix (default: false)
- * @param {boolean} options.short - Use short unit labels (default: true)
- * @returns {string|null} Formatted distance string or null if invalid
  *
  * Display logic:
  * - km mode: <1km shows meters (e.g., "850m"), >=1km shows km (e.g., "2.3km")
  * - mi mode: <0.1mi shows feet (e.g., "450ft"), >=0.1mi shows miles (e.g., "1.4mi")
  */
-export function formatDistance(km, unit = 'km', options = {}) {
-  if (km == null || isNaN(km)) return null
+export function formatDistance(
+  km: number | null | undefined,
+  unit: DistanceUnit = 'km',
+  options: FormatDistanceOptions = {},
+): string | null {
+  if (km == null || Number.isNaN(km)) return null
 
   const { withSuffix = false, short = true } = options
   const suffix = withSuffix ? ' away' : ''
@@ -65,12 +71,8 @@ export function formatDistance(km, unit = 'km', options = {}) {
 
 /**
  * Get the unit label for display.
- *
- * @param {string} unit - 'km' or 'mi'
- * @param {boolean} short - Use abbreviated form
- * @returns {string} Unit label
  */
-export function getUnitLabel(unit, short = true) {
+export function getUnitLabel(unit: DistanceUnit, short: boolean = true): string {
   if (unit === 'mi') {
     return short ? 'mi' : 'miles'
   }
@@ -79,25 +81,17 @@ export function getUnitLabel(unit, short = true) {
 
 /**
  * Convert a distance in km to the display unit value (for input fields).
- *
- * @param {number} km - Distance in kilometers
- * @param {string} unit - Target unit ('km' or 'mi')
- * @returns {number} Distance in the target unit
  */
-export function convertToDisplayUnit(km, unit) {
-  if (km == null || isNaN(km)) return 0
+export function convertToDisplayUnit(km: number | null | undefined, unit: DistanceUnit): number {
+  if (km == null || Number.isNaN(km)) return 0
   return unit === 'mi' ? km * KM_TO_MILES : km
 }
 
 /**
  * Convert a distance from display unit back to km (for storage).
- *
- * @param {number} value - Distance in display unit
- * @param {string} unit - Source unit ('km' or 'mi')
- * @returns {number} Distance in kilometers
  */
-export function convertToKm(value, unit) {
-  if (value == null || isNaN(value)) return 0
+export function convertToKm(value: number | null | undefined, unit: DistanceUnit): number {
+  if (value == null || Number.isNaN(value)) return 0
   return unit === 'mi' ? value / KM_TO_MILES : value
 }
 

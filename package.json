@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -75,6 +76,7 @@
     "globals": "^16.5.0",
     "happy-dom": "^20.9.0",
     "patch-package": "^8.0.1",
+    "typescript": "^6.0.3",
     "vite": "^7.2.4",
     "vitest": "^4.1.6"
   },

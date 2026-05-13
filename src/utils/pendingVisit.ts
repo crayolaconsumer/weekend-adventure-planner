@@ -3,13 +3,24 @@
  * (when user navigates to a place and returns to the app)
  */
 
+export interface PendingPlace {
+  id: string | number
+  name: string
+  [key: string]: unknown
+}
+
+interface PendingVisitRecord {
+  place: PendingPlace
+  timestamp: number
+}
+
 // Check for pending visit prompts
-export function getPendingVisit() {
+export function getPendingVisit(): PendingPlace | null {
   try {
     const pending = localStorage.getItem('roam_pending_visit')
     if (!pending) return null
 
-    const data = JSON.parse(pending)
+    const data = JSON.parse(pending) as PendingVisitRecord
     const elapsed = Date.now() - data.timestamp
 
     // Only show if 30+ seconds have passed and less than 24 hours
@@ -29,11 +40,11 @@ export function getPendingVisit() {
 }
 
 // Save a place as pending visit
-export function setPendingVisit(place) {
+export function setPendingVisit(place: PendingPlace): void {
   try {
     localStorage.setItem('roam_pending_visit', JSON.stringify({
       place,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }))
   } catch {
     // Storage not available
@@ -41,7 +52,7 @@ export function setPendingVisit(place) {
 }
 
 // Clear pending visit
-export function clearPendingVisit() {
+export function clearPendingVisit(): void {
   try {
     localStorage.removeItem('roam_pending_visit')
   } catch {

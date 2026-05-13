@@ -14,16 +14,26 @@
  * Accepts either snake_case or camelCase shapes (the API exposes
  * displayName, but raw DB rows have display_name).
  */
-export function formatDisplayName(user) {
-  if (!user || typeof user !== 'object') return 'Someone'
-  const display = user.displayName ?? user.display_name ?? null
-  const username = user.username ?? null
 
-  const isClean = (s) => typeof s === 'string' && s.trim().length > 0 && !s.includes('@')
+export interface UserLike {
+  displayName?: string | null
+  display_name?: string | null
+  username?: string | null
+}
+
+export function formatDisplayName(user: UserLike | null | undefined | unknown): string {
+  if (!user || typeof user !== 'object') return 'Someone'
+  const u = user as UserLike
+  const display = u.displayName ?? u.display_name ?? null
+  const username = u.username ?? null
+
+  const isClean = (s: unknown): s is string =>
+    typeof s === 'string' && s.trim().length > 0 && !s.includes('@')
   if (isClean(display)) return display.trim()
   if (isClean(username)) return username.trim()
 
-  const stripDomain = (s) => (typeof s === 'string' ? s.split('@')[0].trim() : '')
+  const stripDomain = (s: unknown): string =>
+    typeof s === 'string' ? s.split('@')[0].trim() : ''
   return stripDomain(display) || stripDomain(username) || 'Someone'
 }
 
@@ -31,9 +41,10 @@ export function formatDisplayName(user) {
  * True if a user's display name needs setting (missing OR email-shaped).
  * Used to surface a one-shot "set a display name" prompt to legacy users.
  */
-export function needsDisplayName(user) {
+export function needsDisplayName(user: UserLike | null | undefined | unknown): boolean {
   if (!user || typeof user !== 'object') return false
-  const display = user.displayName ?? user.display_name ?? null
+  const u = user as UserLike
+  const display = u.displayName ?? u.display_name ?? null
   if (!display) return true
   if (typeof display !== 'string') return true
   return display.includes('@') || display.trim().length === 0

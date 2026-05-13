@@ -6,8 +6,7 @@
  * into the bucket index so the same event always lands on the same image.
  */
 
-// Event category placeholder images
-export const EVENT_IMAGES = {
+export const EVENT_IMAGES: Record<string, string[]> = {
   music: [
     'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80',
     'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=80',
@@ -34,14 +33,15 @@ export const EVENT_IMAGES = {
 /**
  * Pick a placeholder image based on the event's first category, indexed
  * by a hash of the event id so the choice is stable across renders.
- *
- * @param {string|number} eventId
- * @param {string[]|null|undefined} categories
- * @returns {string} image url
  */
-export function getEventPlaceholderImage(eventId, categories) {
+export function getEventPlaceholderImage(
+  eventId: string | number | null | undefined,
+  categories: string[] | null | undefined,
+): string {
   const category = categories?.[0] || 'default'
   const images = EVENT_IMAGES[category] || EVENT_IMAGES.default
-  const index = Math.abs(eventId?.toString().split('').reduce((a, b) => a + b.charCodeAt(0), 0) || 0) % images.length
+  const idStr = eventId?.toString() || ''
+  const hash = idStr.split('').reduce((a, b) => a + b.charCodeAt(0), 0)
+  const index = Math.abs(hash) % images.length
   return images[index]
 }

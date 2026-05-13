@@ -4,12 +4,10 @@
 
 /**
  * Format a date as relative time (e.g., "2 hours ago", "3 days ago")
- * @param {Date} date - The date to format
- * @returns {string} - Human readable relative time
  */
-export function formatDistanceToNow(date) {
+export function formatDistanceToNow(date: Date): string {
   const now = new Date()
-  const diff = now - date
+  const diff = now.getTime() - date.getTime()
   const seconds = Math.floor(diff / 1000)
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
@@ -37,41 +35,34 @@ export function formatDistanceToNow(date) {
 
 /**
  * Format a date in a readable format
- * @param {Date} date - The date to format
- * @param {object} options - Intl.DateTimeFormat options
- * @returns {string} - Formatted date string
  */
-export function formatDate(date, options = {}) {
-  const defaultOptions = {
+export function formatDate(date: Date, options: Intl.DateTimeFormatOptions = {}): string {
+  const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-    ...options
+    ...options,
   }
   return new Intl.DateTimeFormat('en-GB', defaultOptions).format(date)
 }
 
 /**
  * Format a date with time
- * @param {Date} date - The date to format
- * @returns {string} - Formatted date and time string
  */
-export function formatDateTime(date) {
+export function formatDateTime(date: Date): string {
   return new Intl.DateTimeFormat('en-GB', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
-    minute: '2-digit'
+    minute: '2-digit',
   }).format(date)
 }
 
 /**
  * Check if a date is today
- * @param {Date} date - The date to check
- * @returns {boolean}
  */
-export function isToday(date) {
+export function isToday(date: Date): boolean {
   const today = new Date()
   return (
     date.getDate() === today.getDate() &&
@@ -82,10 +73,8 @@ export function isToday(date) {
 
 /**
  * Get the start of day for a date
- * @param {Date} date - The date
- * @returns {Date}
  */
-export function startOfDay(date) {
+export function startOfDay(date: Date): Date {
   const result = new Date(date)
   result.setHours(0, 0, 0, 0)
   return result

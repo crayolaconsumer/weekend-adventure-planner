@@ -5,31 +5,47 @@
  * Higher scores indicate better quality images.
  */
 
+export type ImageSource =
+  | 'wikipedia'
+  | 'wikidata'
+  | 'opentripmap'
+  | 'unsplash'
+  | 'user'
+  | 'placeholder'
+  | string
+
+export interface ImageData {
+  url: string
+  source?: ImageSource
+  width?: number | null
+  height?: number | null
+  [key: string]: unknown
+}
+
+export interface ScoredImage extends ImageData {
+  qualityScore: number
+  scoredAt?: number
+}
+
 // Source reliability scores (0-100 base)
-const SOURCE_SCORES = {
+const SOURCE_SCORES: Record<string, number> = {
   wikipedia: 80,
   wikidata: 75,
   opentripmap: 60,
   unsplash: 50,
   user: 90, // User uploads are highly relevant
-  placeholder: 20
+  placeholder: 20,
 }
 
 /**
- * Score an image based on various quality signals
- * @param {Object} imageData - Image metadata
- * @param {string} imageData.url - Image URL
- * @param {string} imageData.source - Source identifier
- * @param {number} [imageData.width] - Image width in pixels
- * @param {number} [imageData.height] - Image height in pixels
- * @returns {Object} Image data with quality score
+ * Score an image based on various quality signals.
  */
-export function scoreImage(imageData) {
+export function scoreImage(imageData: Partial<ImageData> | null | undefined): ScoredImage {
   if (!imageData?.url) {
-    return { ...imageData, qualityScore: 0 }
+    return { ...(imageData ?? {}), url: imageData?.url ?? '', qualityScore: 0 } as ScoredImage
   }
 
-  let score = SOURCE_SCORES[imageData.source] || 40
+  let score = (imageData.source && SOURCE_SCORES[imageData.source]) || 40
 
   // Resolution bonus
   if (imageData.width) {
@@ -42,11 +58,9 @@ export function scoreImage(imageData) {
   if (imageData.width && imageData.height) {
     const aspectRatio = imageData.width / imageData.height
 
-    // Ideal for cards: 4:3 to 16:9 (1.33 to 1.78)
     if (aspectRatio >= 1.0 && aspectRatio <= 2.0) {
       score += 5
     } else if (aspectRatio < 0.5 || aspectRatio > 2.5) {
-      // Too narrow or too wide
       score -= 15
     }
   }
@@ -54,7 +68,6 @@ export function scoreImage(imageData) {
   // URL quality signals
   const url = imageData.url.toLowerCase()
 
-  // Prefer larger image URLs (common patterns)
   if (url.includes('1280') || url.includes('1200') || url.includes('large')) {
     score += 5
   }
@@ -62,31 +75,28 @@ export function scoreImage(imageData) {
     score -= 10
   }
 
-  // HTTPS bonus
   if (url.startsWith('https://')) {
     score += 2
   }
 
-  // Clamp to 0-100
   const qualityScore = Math.max(0, Math.min(100, score))
 
   return {
     ...imageData,
+    url: imageData.url,
     qualityScore,
-    scoredAt: Date.now()
-  }
+    scoredAt: Date.now(),
+  } as ScoredImage
 }
 
 /**
- * Select the best image from a list of candidates
- * @param {Array} candidates - Array of image data objects
- * @returns {Object|null} Best scoring image or null
+ * Select the best image from a list of candidates.
  */
-export function selectBestImage(candidates) {
+export function selectBestImage(candidates: Partial<ImageData>[] | null | undefined): ScoredImage | null {
   if (!candidates || candidates.length === 0) return null
 
   const scored = candidates
-    .filter(c => c?.url)
+    .filter((c): c is ImageData => Boolean(c?.url))
     .map(scoreImage)
     .sort((a, b) => b.qualityScore - a.qualityScore)
 
@@ -94,35 +104,32 @@ export function selectBestImage(candidates) {
 }
 
 /**
- * Create image metadata object
- * @param {string} url - Image URL
- * @param {string} source - Source identifier
- * @param {Object} [extras] - Additional metadata
- * @returns {Object} Image metadata
+ * Create image metadata object.
  */
-export function createImageMeta(url, source, extras = {}) {
+export function createImageMeta(
+  url: string,
+  source: ImageSource,
+  extras: Partial<ImageData> = {},
+): ImageData {
   return {
     url,
     source,
-    width: extras.width || null,
-    height: extras.height || null,
-    ...extras
+    width: extras.width ?? null,
+    height: extras.height ?? null,
+    ...extras,
   }
 }
 
 /**
- * Validate if a URL is likely a valid image
- * @param {string} url - URL to validate
- * @returns {boolean}
+ * Validate if a URL is likely a valid image.
  */
-export function isValidImageUrl(url) {
+export function isValidImageUrl(url: unknown): boolean {
   if (!url || typeof url !== 'string') return false
 
   try {
     const parsed = new URL(url)
     if (!['http:', 'https:'].includes(parsed.protocol)) return false
 
-    // Check for common image extensions or known image hosts
     const pathname = parsed.pathname.toLowerCase()
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg']
     const imageHosts = ['upload.wikimedia.org', 'images.unsplash.com', 'source.unsplash.com']
@@ -137,12 +144,12 @@ export function isValidImageUrl(url) {
 }
 
 /**
- * Preload an image and get its dimensions
- * @param {string} url - Image URL
- * @param {number} [timeout=5000] - Timeout in ms
- * @returns {Promise<{width: number, height: number, loaded: boolean}>}
+ * Preload an image and get its dimensions.
  */
-export function preloadImage(url, timeout = 5000) {
+export function preloadImage(
+  url: string,
+  timeout: number = 5000,
+): Promise<{ width: number | null; height: number | null; loaded: boolean }> {
   return new Promise((resolve) => {
     const img = new Image()
     const timeoutId = setTimeout(() => {
@@ -155,7 +162,7 @@ export function preloadImage(url, timeout = 5000) {
       resolve({
         width: img.naturalWidth,
         height: img.naturalHeight,
-        loaded: true
+        loaded: true,
       })
     }
 

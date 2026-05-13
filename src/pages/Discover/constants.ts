@@ -2,13 +2,18 @@
  * Discover-page constants.
  *
  * TRAVEL_MODES feed the radius picker — `premium: true` modes are
- * gated behind ROAM+ via useSubscription. Keep this in sync with
- * SettingsTab's `travelModes` mapping if you change keys (currently
- * Settings only exposes walking/driving/transit; the premium modes
- * are activated via the Discover filter modal).
+ * gated behind ROAM+ via useSubscription.
  */
 
-export const TRAVEL_MODES = {
+export interface TravelMode {
+  label: string
+  icon: string
+  maxRadius: number
+  speed: number
+  premium?: boolean
+}
+
+export const TRAVEL_MODES: Record<string, TravelMode> = {
   // Standard modes (all users)
   walking: { label: 'Walking', icon: '🚶', maxRadius: 5000, speed: 5 },
   driving: { label: 'Driving', icon: '🚗', maxRadius: 30000, speed: 40 },
@@ -19,5 +24,6 @@ export const TRAVEL_MODES = {
 }
 
 // Default fallback location (London, UK)
-export const DEFAULT_LOCATION = { lat: 51.5074, lng: -0.1278 }
+export const DEFAULT_LOCATION = { lat: 51.5074, lng: -0.1278 } as const
+
 export const LOCATION_TIMEOUT_MS = 15000 // 15 seconds
