@@ -27,6 +27,7 @@ import { openDirections } from '../utils/navigation'
 import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { SettingsIcon, StackIcon, MapIcon, ListIcon } from './Discover/icons'
+import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure } from './Discover/applyFilters'
 import './Discover.css'
 
 // Lazy load desktop-only components to keep mobile bundle small
@@ -152,10 +153,18 @@ export default function Discover({ location }) {
     window.location.reload()
   }
 
-  const buildFilterKey = useCallback(() => {
-    const categoriesKey = [...selectedCategories].sort().join('|')
-    return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
-  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories])
+  const buildFilterKey = useCallback(
+    () => buildFilterKeyPure({
+      travelMode,
+      showFreeOnly,
+      accessibilityMode,
+      showOpenOnly,
+      showLocalsPicks,
+      showOffPeak,
+      selectedCategories,
+    }),
+    [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories],
+  )
 
   useEffect(() => {
     latestFilterKeyRef.current = buildFilterKey()
@@ -165,90 +174,25 @@ export default function Discover({ location }) {
     basePlacesRef.current = basePlaces
   }, [basePlaces])
 
-  // Memoized filter function - only recreated when absolutely necessary
-  const applyFilters = useCallback((list, currentWeather = weather, currentFriendActivity = friendActivity) => {
-    if (!list || list.length === 0) return []
-
-    // Early return if no filters active - just use filterPlaces
-    const hasActiveFilters = showFreeOnly || accessibilityMode || showOpenOnly ||
-      (showLocalsPicks && isPremium) || (showOffPeak && isPremium)
-
-    let filtered = filterPlaces(list, {
-      categories: selectedCategories.length > 0 ? selectedCategories : null,
-      minScore: 30,
-      maxResults: 50,
-      sortBy: 'smart',
-      weather: currentWeather,
-      ensureDiversity: true,
-      userProfile,
-      friendActivity: currentFriendActivity // Pass friend activity for boost scoring
-    })
-
-    // Skip additional filtering if no filters active
-    if (!hasActiveFilters) return filtered
-
-    // Apply filters in single pass for better performance
-    filtered = filtered.filter(p => {
-      // Free only filter
-      if (showFreeOnly) {
-        const isFree = !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
-        if (!isFree) return false
-      }
-
-      // Accessibility filter
-      if (accessibilityMode) {
-        const isAccessible = p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-        if (!isAccessible) return false
-      }
-
-      // Open now filter
-      if (showOpenOnly) {
-        const openStatus = isPlaceOpen(p)
-        if (openStatus === false) return false
-      }
-
-      // Premium: Locals' picks - filter out tourist traps and chains
-      if (showLocalsPicks && isPremium) {
-        // Check for tourist trap types
-        const isTouristTrap = p.tourism === 'attraction' || p.tourism === 'theme_park'
-        if (isTouristTrap) return false
-
-        // Check for known chains
-        const isChain = p.brand || p.name?.match(/^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Subway|KFC|Burger King|Pizza Hut|Domino|Nando)/i)
-        if (isChain) return false
-
-        // Quality score filter - only if score exists and is below threshold
-        if (typeof p.qualityScore === 'number' && p.qualityScore < 30) return false
-      }
-
-      // Premium: Off-peak times
-      if (showOffPeak && isPremium) {
-        const now = new Date()
-        const hour = now.getHours()
-        const isWeekend = now.getDay() === 0 || now.getDay() === 6
-        const type = p.type || ''
-
-        if (type.includes('restaurant') || type.includes('cafe')) {
-          if ((hour >= 12 && hour <= 14) || (hour >= 18 && hour <= 20)) return false
-        } else if (type.includes('park') || type.includes('nature') || type.includes('viewpoint')) {
-          if (isWeekend && hour >= 10 && hour <= 16) return false
-        } else if (type.includes('museum') || type.includes('attraction') || type.includes('castle')) {
-          if (isWeekend && hour >= 11 && hour <= 15) return false
-        } else if (type.includes('pub') || type.includes('bar')) {
-          if (hour >= 17 && hour <= 21) return false
-        }
-      }
-
-      return true
-    })
-
-    // Sort by quality score if locals picks is active
-    if (showLocalsPicks && isPremium) {
-      filtered.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))
-    }
-
-    return filtered
-  }, [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity])
+  // Memoized filter function - thin closure around the pure applyDiscoverFilters
+  // helper. All filter state is passed through explicitly so the helper stays
+  // testable in isolation.
+  const applyFilters = useCallback(
+    (list, currentWeather = weather, currentFriendActivity = friendActivity) =>
+      applyDiscoverFilters(list, {
+        selectedCategories,
+        showFreeOnly,
+        accessibilityMode,
+        showOpenOnly,
+        showLocalsPicks,
+        showOffPeak,
+        isPremium,
+        userProfile,
+        weather: currentWeather,
+        friendActivity: currentFriendActivity,
+      }),
+    [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity],
+  )
 
   // Memoized filtered places - only recalculates when basePlaces or filter deps change
   const filteredPlaces = useMemo(() => {

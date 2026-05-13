@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom',
     setupFiles: ['./tests/setup.js'],
-    include: ['tests/**/*.{test,spec}.{js,jsx}'],
+    include: ['tests/**/*.{test,spec}.{js,jsx,ts,tsx}'],
     exclude: ['node_modules', 'dist', 'android', 'ios', 'build'],
     css: false,
   },
