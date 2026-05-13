@@ -280,7 +280,13 @@
 }
 
 .activity-item--skeleton .skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  /* Theme-aware shimmer — was hardcoded light greys (#f0f0f0 / #e0e0e0)
+     that flashed white-on-dark in dark mode. */
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 25%,
+    color-mix(in srgb, var(--color-text-primary) 14%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 75%
+  );
   background-size: 200% 100%;
   animation: activity-skeleton-shimmer 1.5s infinite;
   border-radius: 4px;
