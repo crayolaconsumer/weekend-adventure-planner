@@ -222,9 +222,22 @@ export function ContributionCard({ contribution, onVoteChange }) {
 export function ContributionList({ contributions, loading, emptyMessage }) {
   if (loading) {
     return (
-      <div className="contributions-loading">
-        <div className="contributions-loading-spinner" />
-        <span>Loading tips...</span>
+      <div className="contributions-loading" role="status" aria-live="polite">
+        {/* Skeleton placeholders matching the shape of a contribution
+            card — avatar circle + 2 lines of text. Uses the same
+            theme-aware shimmer as ActivityItemSkeleton so the loading
+            idiom is consistent across the app. */}
+        {[0, 1, 2].map(i => (
+          <div key={i} className="contribution-skeleton">
+            <div className="contribution-skeleton-avatar" />
+            <div className="contribution-skeleton-lines">
+              <div className="contribution-skeleton-line" style={{ width: '40%' }} />
+              <div className="contribution-skeleton-line" style={{ width: '95%' }} />
+              <div className="contribution-skeleton-line" style={{ width: '70%' }} />
+            </div>
+          </div>
+        ))}
+        <span className="visually-hidden">Loading tips</span>
       </div>
     )
   }
