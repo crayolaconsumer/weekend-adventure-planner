@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup/transfer rules for Android 12+ (API 31+).
+
+  We disable backups entirely because the app stores auth tokens in
+  SharedPreferences/Keychain-equivalents. Backing those to Google Drive
+  on the user's behalf would leak credentials between devices and
+  violate principle-of-least-privilege.
+
+  Authentication state should live on a single device. If the user
+  signs in again from a fresh device, that's a deliberate sign-in
+  event with our /api/auth flow — no auto-restore needed.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

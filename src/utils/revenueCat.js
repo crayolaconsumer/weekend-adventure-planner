@@ -210,4 +210,41 @@ export function hasActiveEntitlement(customerInfo) {
   return Boolean(customerInfo?.entitlements?.active?.[ENTITLEMENT_ID])
 }
 
+/**
+ * Check whether the current Apple ID / Play account is eligible for
+ * the intro offer (free trial) on a given product.
+ *
+ * Apple enforces one trial per Apple ID per *subscription group* — if
+ * the user previously subscribed to ANY product in our group, they're
+ * ineligible for the trial on every other product. Showing them
+ * "Start 7-day free trial" in that case is dishonest: StoreKit will
+ * charge them at full price immediately.
+ *
+ * Returns one of: 'eligible' | 'ineligible' | 'no_intro' | 'unknown'.
+ * Caller should default to NOT promising a trial unless 'eligible'.
+ *
+ * RC's status codes: 0=unknown, 1=ineligible, 2=eligible, 3=no_intro.
+ */
+export async function checkTrialEligibility(productId) {
+  if (!productId) return 'unknown'
+  if (!await initRevenueCat()) return 'unknown'
+  try {
+    const { Purchases } = await import('@revenuecat/purchases-capacitor')
+    const result = await Purchases.checkTrialOrIntroductoryPriceEligibility({
+      productIdentifiers: [productId]
+    })
+    const entry = result?.[productId]
+    const status = entry?.status
+    switch (status) {
+      case 2: return 'eligible'
+      case 1: return 'ineligible'
+      case 3: return 'no_intro'
+      default: return 'unknown'
+    }
+  } catch (err) {
+    console.warn('[RevenueCat] checkTrialEligibility failed:', err)
+    return 'unknown'
+  }
+}
+
 export { ENTITLEMENT_ID }

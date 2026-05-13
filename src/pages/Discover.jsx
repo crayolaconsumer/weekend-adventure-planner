@@ -9,7 +9,6 @@ import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
 import StreakIndicator from '../components/StreakIndicator'
-import PremiumNudge from '../components/PremiumNudge'
 import FilterIcon from '../components/icons/FilterIcon'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
@@ -888,13 +887,10 @@ export default function Discover({ location }) {
           <StreakIndicator streak={stats.currentStreak || 0} />
         </motion.div>
 
-        {/* Premium nudge — surfaces after engagement signals (streak ≥3 OR
-            5+ saves). Subtle, dismissible. Solves the "ROAM+ is invisible"
-            problem without being pushy at first launch. */}
-        <PremiumNudge
-          streak={stats.currentStreak || 0}
-          savesCount={savedPlaces?.length || 0}
-        />
+        {/* The banner-style premium nudge used to live here, but it
+            pushed the boredom CTA below the fold on iPhone. The save-cap
+            case now surfaces as a bubble from the SwipeCard heart
+            button so it never reflows the Discover header. */}
 
 
         {/* Filter Button — the only filter trigger on Discover. Was
@@ -1105,6 +1101,7 @@ export default function Discover({ location }) {
             loading={loading}
             loadingMore={loadingMore}
             friendActivity={friendActivity}
+            savesCount={savedPlaces?.length || 0}
             emptyReason={
               // Provide contextual reason for empty state
               basePlaces.length === 0 ? 'no-places' :

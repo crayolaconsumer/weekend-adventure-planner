@@ -359,11 +359,26 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  text-decoration: none;
 }
 
 .wishlist-empty-cta:hover {
   background: var(--roam-forest-light);
   transform: translateY(-1px);
+}
+
+/* Dark mode — forest on forest disappears into the page background.
+   Switch to gold (the brand accent that DOESN'T re-theme) so the CTA
+   reads as the primary action it is. White text on gold is readable
+   but slightly low-contrast, so use the deep forest as the text colour
+   to mirror the "ink on cream" feel from light mode, just inverted. */
+[data-theme="dark"] .wishlist-empty-cta {
+  background: var(--roam-gold);
+  color: var(--roam-forest);
+}
+
+[data-theme="dark"] .wishlist-empty-cta:hover {
+  background: var(--roam-gold-light, #e3bd6d);
 }
 
 /* Responsive */

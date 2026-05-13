@@ -13,6 +13,7 @@ import { openDirections } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
+import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
 import './JustGoModal.css'
 
 // Icons (use simple SVGs matching existing app patterns)
@@ -150,6 +151,35 @@ export default function JustGoModal({
     [current, weather, formatDistance]
   )
 
+  // Pre-resolve the image URL for the current recommendation. The
+  // recommendations passed in here are NOT the same merged-with-
+  // enriched-images objects CardStack builds internally, so without
+  // this step PlaceImage would re-do the async resolve each time the
+  // modal opens. Resolving here once and passing the URL as src lets
+  // the modal show the photo immediately for places that already
+  // rendered with one on Discover. Falls back to PlaceImage's own
+  // brand placeholder if no URL ever resolves.
+  const [resolvedImage, setResolvedImage] = useState(() =>
+    current ? resolvePlaceImageSync(current) : null
+  )
+  useEffect(() => {
+    if (!current) {
+      setResolvedImage(null)
+      return
+    }
+    const sync = resolvePlaceImageSync(current)
+    if (sync) {
+      setResolvedImage(sync)
+      return
+    }
+    setResolvedImage(null)
+    let cancelled = false
+    resolvePlaceImageAsync(current).then((url) => {
+      if (!cancelled && url) setResolvedImage(url)
+    })
+    return () => { cancelled = true }
+  }, [current])
+
   const handleShowAnother = () => {
     setCurrentIndex((i) => (i + 1) % recommendations.length)
   }
@@ -236,11 +266,16 @@ export default function JustGoModal({
                 transition={{ duration: 0.3 }}
               >
                 <div className="just-go-card-image">
-                  {/* PlaceImage resolves Wikipedia/Wikidata photos when
-                      available and falls back to a brand-coloured
-                      category placeholder — never the same generic
-                      Unsplash mountain for every imageless place. */}
-                  <PlaceImage place={current} alt={current.name} />
+                  {/* Hand the pre-resolved URL straight to PlaceImage so
+                      it renders the same photo that Discover already
+                      showed for this place. Without this the modal
+                      re-ran the async resolve each time and frequently
+                      stayed on the placeholder. */}
+                  <PlaceImage
+                    place={current}
+                    src={resolvedImage || undefined}
+                    alt={current.name}
+                  />
                   {current.category && (
                     <span className="just-go-card-category">
                       <CategoryIcon name={current.category.key} size="xs" />

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
-import { isIosNative } from '../utils/nativeBridge'
+import { isNative } from '../utils/nativeBridge'
 import './UpgradePrompt.css'
 
 // Sparkle icon
@@ -84,12 +84,13 @@ export default function UpgradePrompt({
       onClose?.()
       return
     }
-    // On iOS native, navigate to the in-app Pricing page which uses the
-    // RevenueCat IAP flow (Apple's payment sheet). Previously this
-    // opened https://go-roam.uk/pricing in Safari — that's a 3.1.1
-    // steering violation ("Continue on the web" → external Stripe
-    // checkout). Pricing.jsx already has the full native RC path.
-    if (isIosNative()) {
+    // On native (iOS + Android), navigate to the in-app Pricing page
+    // which uses RevenueCat for Apple's StoreKit / Google's Play Billing.
+    // Hitting Stripe Checkout from a Capacitor WebView is broken on both
+    // platforms (Apple: 3.1.1 steering violation; Android: WebView
+    // session can't complete the Stripe redirect cookies). Pricing.jsx
+    // handles the native flow for both.
+    if (isNative()) {
       onClose?.()
       navigate('/pricing')
       return
@@ -154,7 +155,7 @@ export default function UpgradePrompt({
                   </div>
                   <div className="upgrade-prompt-benefit">
                     <span className="benefit-check">✓</span>
-                    7-day free trial
+                    Cancel anytime
                   </div>
                 </div>
 
@@ -174,9 +175,11 @@ export default function UpgradePrompt({
                   Maybe later
                 </button>
 
-                {/* Price note */}
+                {/* Price note — neutral so we don't promise a trial to
+                    users who already used theirs. Pricing page does the
+                    authoritative trial-eligibility check. */}
                 <p className="upgrade-prompt-price">
-                  Just {PRICING.currency}{PRICING.monthly}/month after free trial
+                  From {PRICING.currency}{PRICING.monthly}/month — cancel anytime
                 </p>
 
                 {/* Error display — suppress the iOS gating signal which is

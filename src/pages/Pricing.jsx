@@ -6,12 +6,13 @@ import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import PremiumBadge from '../components/PremiumBadge'
 import { track } from '../utils/analytics'
-import { isIosNative, isNative } from '../utils/nativeBridge'
+import { isIosNative, isNative, getPlatform } from '../utils/nativeBridge'
 import { openExternalUrl } from '../utils/nativePlugins'
 import {
   getOfferings as rcGetOfferings,
   purchasePackage as rcPurchasePackage,
-  restorePurchases as rcRestorePurchases
+  restorePurchases as rcRestorePurchases,
+  checkTrialEligibility as rcCheckTrialEligibility
 } from '../utils/revenueCat'
 import './Pricing.css'
 
@@ -112,6 +113,11 @@ export default function Pricing() {
   const [rcLoading, setRcLoading] = useState(false)
   const [rcError, setRcError] = useState(null)
   const [restoring, setRestoring] = useState(false)
+  // Trial eligibility per product id. RevenueCat returns one of
+  // 'eligible' | 'ineligible' | 'no_intro' | 'unknown'. We default to
+  // 'unknown' until we get a verdict back so the UI doesn't flash a
+  // wrong claim. Only 'eligible' shows the "Start free trial" copy.
+  const [trialEligibility, setTrialEligibility] = useState({})
 
   // Fetch RC offerings on mount when on native. Web users skip this
   // entirely — they go through Stripe. Cross-source guard: if the user
@@ -122,8 +128,25 @@ export default function Pricing() {
   useEffect(() => {
     if (!isNative() || subscribedViaWeb) return
     let cancelled = false
-    rcGetOfferings().then((offering) => {
-      if (!cancelled) setRcOffering(offering)
+    rcGetOfferings().then(async (offering) => {
+      if (cancelled) return
+      setRcOffering(offering)
+      // Check trial eligibility for every product up-front so when the
+      // user toggles between monthly/annual we already know whether to
+      // promise a free trial. Apple ties trial eligibility to the
+      // subscription GROUP — if the user already used a trial on
+      // monthly, they're ineligible on annual too, and vice versa.
+      const productIds = (offering?.availablePackages || [])
+        .map(p => p.product?.identifier)
+        .filter(Boolean)
+      if (productIds.length === 0) return
+      const verdicts = await Promise.all(
+        productIds.map(id => rcCheckTrialEligibility(id).then(v => [id, v]))
+      )
+      if (cancelled) return
+      const map = {}
+      for (const [id, v] of verdicts) map[id] = v
+      setTrialEligibility(map)
     })
     return () => { cancelled = true }
   }, [subscribedViaWeb])
@@ -136,6 +159,17 @@ export default function Pricing() {
       ? p.packageType === 'ANNUAL'
       : p.packageType === 'MONTHLY'
   ) || null
+
+  // Resolved trial eligibility for the *currently selected* package.
+  // Treat both 'eligible' and 'unknown' (pre-verdict) as "may show
+  // trial copy" so we never accidentally promise a trial Apple won't
+  // honour. 'ineligible' means the user already used their trial in
+  // this subscription group on this Apple ID — show paid-only copy.
+  const selectedProductId = selectedPackage?.product?.identifier || null
+  const selectedEligibility = selectedProductId
+    ? (trialEligibility[selectedProductId] || 'unknown')
+    : 'unknown'
+  const trialOnOffer = selectedEligibility === 'eligible'
 
   const monthlyPrice = PRICING.monthly
   const annualPrice = PRICING.annual
@@ -158,18 +192,31 @@ export default function Pricing() {
     }
     setRcLoading(true)
     setRcError(null)
-    track('upgrade-clicked', { plan: billingPeriod, surface: 'pricing-page', authed: true, store: 'apple' })
+    const store = getPlatform() === 'android' ? 'google' : 'apple'
+    track('upgrade-clicked', { plan: billingPeriod, surface: 'pricing-page', authed: true, store })
     const result = await rcPurchasePackage(selectedPackage)
     setRcLoading(false)
-    if (result.cancelled) return // silent — user backed out of the StoreKit sheet
+    if (result.cancelled) return // silent — user backed out of the purchase sheet
     if (!result.success) {
       setRcError(result.error || 'Purchase failed')
       return
     }
-    // Webhook will update the DB; re-poll /api/auth so the UI flips to
-    // "Current Plan" without making the user manually refresh.
-    track('upgrade-completed', { plan: billingPeriod, store: 'apple' })
-    await checkAuth()
+    track('upgrade-completed', { plan: billingPeriod, store })
+    // Webhook will update the DB; poll /api/auth until tier flips to
+    // 'premium' so the UI updates without forcing a manual refresh.
+    // Bounded at 30s — if the webhook takes longer than that, the user
+    // will see the UI flip on next checkAuth (next route change /
+    // foreground / etc.) which is acceptable.
+    let attempts = 0
+    const maxAttempts = 15
+    const pollInterval = setInterval(async () => {
+      attempts++
+      await checkAuth()
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval)
+      }
+    }, 2000)
+    await checkAuth() // immediate first pass
   }, [user, billingPeriod, selectedPackage, checkAuth, openAuthModal])
 
   const handleRestorePurchases = useCallback(async () => {
@@ -335,43 +382,61 @@ export default function Pricing() {
                 <button className="pricing-btn primary" disabled>
                   Current Plan
                 </button>
-              ) : isIosNative() && subscribedViaWeb ? (
+              ) : isNative() && subscribedViaWeb ? (
                 /* Cross-source guard — user already paid via Stripe on
-                   web. Don't let them double-pay through Apple. */
+                   web. Don't let them double-pay through Apple/Play. */
                 <button
                   className="pricing-btn primary"
                   onClick={() => openExternalUrl('https://www.go-roam.uk/account')}
                 >
                   Manage subscription on web
                 </button>
-              ) : isIosNative() ? (
-                /* Native iOS purchase via RevenueCat + StoreKit. */
-                <button
-                  className="pricing-btn primary"
-                  onClick={handleNativePurchase}
-                  disabled={rcLoading || !selectedPackage}
-                >
-                  {rcLoading ? 'Loading...' :
-                    !selectedPackage ? 'Subscription unavailable' :
-                    `Start 7-day free trial`}
-                </button>
+              ) : isNative() ? (
+                /* Native purchase via RevenueCat — StoreKit on iOS,
+                   Play Billing on Android. The same RC SDK handles both
+                   platforms transparently; pricing UI is identical. */
+                <>
+                  <button
+                    className="pricing-btn primary"
+                    onClick={handleNativePurchase}
+                    disabled={rcLoading || !selectedPackage}
+                  >
+                    {rcLoading ? 'Loading...' :
+                      !selectedPackage ? 'Subscription unavailable' :
+                      trialOnOffer ? 'Start 7-day free trial' :
+                      `Subscribe — ${selectedPackage.product?.priceString || `£${billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}`}${billingPeriod === 'annual' ? '/year' : '/month'}`}
+                  </button>
+                  {/* Prominent payment-processor attribution directly under
+                      the CTA — makes it unambiguous to the user that the
+                      platform store, not us, is handling their card. */}
+                  <p className="pricing-processor-attribution">
+                    {getPlatform() === 'android'
+                      ? 'Google Play will process your payment'
+                      : 'Apple will process your payment'}
+                  </p>
+                </>
               ) : (
-                <button
-                  className="pricing-btn primary"
-                  onClick={handleUpgrade}
-                  disabled={loading}
-                >
-                  {loading ? 'Loading...' : 'Start 7-day free trial'}
-                </button>
+                <>
+                  <button
+                    className="pricing-btn primary"
+                    onClick={handleUpgrade}
+                    disabled={loading}
+                  >
+                    {loading ? 'Loading...' : 'Start 7-day free trial'}
+                  </button>
+                  <p className="pricing-processor-attribution">
+                    Stripe will process your payment
+                  </p>
+                </>
               )}
               {error && error !== 'iap-not-available' && <p className="pricing-error">{error}</p>}
               {rcError && <p className="pricing-error">{rcError}</p>}
-              {isIosNative() && !isPremium && !subscribedViaWeb && (
+              {isNative() && !isPremium && !subscribedViaWeb && (
                 <>
-                  {/* Restore Purchases — App Store Review Guideline 3.1.1
-                      requires this for any app with non-consumable IAP.
-                      Lets a user who reinstalls, switches devices, or
-                      signed in fresh recover their existing subscription. */}
+                  {/* Restore Purchases — Apple App Review 3.1.1 requires
+                      it for iOS; Play doesn't require it but the same
+                      button works on both platforms via RC and is good
+                      UX for reinstalls / fresh sign-ins. */}
                   <button
                     type="button"
                     className="pricing-restore-link"
@@ -382,17 +447,36 @@ export default function Pricing() {
                   </button>
                 </>
               )}
-              {isIosNative() ? (
+              {isNative() ? (
                 <>
-                  {/* Required disclosures on the purchase screen
-                      (Apple's mandatory subscription terms language). */}
-                  <p className="pricing-trial-note">
-                    {selectedPackage ? (
-                      <>7 days free, then {selectedPackage.product?.priceString || `£${billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}`}{billingPeriod === 'annual' ? '/year' : '/month'}. Auto-renews; cancel anytime in Settings → Apple ID → Subscriptions. Payment will be charged to your Apple ID.</>
-                    ) : (
-                      <>Loading subscription details…</>
-                    )}
-                  </p>
+                  {/* Required disclosures on the purchase screen. Copy
+                      branches on platform — Apple wants "Apple ID",
+                      Google wants "Play Store account" language. */}
+                  {(() => {
+                    const platform = getPlatform()
+                    const billingHome = platform === 'android'
+                      ? 'Google Play Subscriptions'
+                      : 'Settings → Apple ID → Subscriptions'
+                    const accountWord = platform === 'android'
+                      ? 'Google Play account'
+                      : 'Apple ID'
+                    const priceStr = selectedPackage?.product?.priceString
+                      || `£${billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}`
+                    const periodStr = billingPeriod === 'annual' ? '/year' : '/month'
+                    return (
+                      <p className="pricing-trial-note">
+                        {selectedPackage ? (
+                          trialOnOffer ? (
+                            <>7 days free, then {priceStr}{periodStr}. Auto-renews; cancel anytime in {billingHome}. Payment will be charged to your {accountWord}.</>
+                          ) : (
+                            <>{priceStr}{periodStr}, auto-renews. Free trial already used on this {accountWord}. Cancel anytime in {billingHome}. Payment will be charged to your {accountWord}.</>
+                          )
+                        ) : (
+                          <>Loading subscription details…</>
+                        )}
+                      </p>
+                    )
+                  })()}
                   <p className="pricing-legal-links">
                     {/* In-app navigation only on iOS native — opening an
                         external Safari for /terms or /privacy from the
@@ -431,8 +515,10 @@ export default function Pricing() {
           <div className="pricing-trust-item">
             <strong>Secure</strong>
             <span>
-              {isIosNative()
-                ? 'Apple handles payments through your Apple ID — your card never touches our servers.'
+              {isNative()
+                ? (getPlatform() === 'android'
+                    ? 'Google Play handles payments through your Play account — your card never touches our servers.'
+                    : 'Apple handles payments through your Apple ID — your card never touches our servers.')
                 : 'Stripe handles payments — your card never touches our servers.'}
             </span>
           </div>
@@ -466,8 +552,10 @@ export default function Pricing() {
             <div className="faq-item">
               <h4>Is my payment secure?</h4>
               <p>
-                {isIosNative()
-                  ? 'Yes. Payments are processed by Apple through your Apple ID. We never see your card details.'
+                {isNative()
+                  ? (getPlatform() === 'android'
+                      ? 'Yes. Payments are processed by Google Play through your Play account. We never see your card details.'
+                      : 'Yes. Payments are processed by Apple through your Apple ID. We never see your card details.')
                   : 'Yes. All payments are handled by Stripe. We never see your card details.'}
               </p>
             </div>

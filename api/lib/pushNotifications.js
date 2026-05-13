@@ -217,39 +217,105 @@ async function dispatchApns(sub, payload) {
   }
 }
 
-// ─── FCM (Android) ───────────────────────────────────────────────
-// Placeholder — wires up when FIREBASE_SERVER_KEY env var is added
-// and we set up Firebase project. Returns false silently until then
-// so Android subscriptions don't error (just don't deliver).
+// ─── FCM (Android) — HTTP v1 API ─────────────────────────────────
+// Google removed the legacy `fcm/send` endpoint + `Authorization: key=`
+// auth in 2024. The modern v1 API uses an OAuth2 access token minted
+// from the Firebase service account JSON.
+//
+// Config: set FCM_SERVICE_ACCOUNT_JSON in Vercel env to the FULL
+// contents of the service-account JSON downloaded from Firebase
+// Console → Project Settings → Service accounts → Generate new
+// private key. The env value is the raw JSON string (paste exactly).
+//
+// We cache the OAuth access token in memory for ~50 mins (tokens last
+// 1h) so cold-starts don't repeatedly mint new ones.
+
+let fcmAccessTokenCache = null // { token, expiresAt }
+
+async function getFcmAccessToken() {
+  if (fcmAccessTokenCache && fcmAccessTokenCache.expiresAt > Date.now() + 60_000) {
+    return fcmAccessTokenCache.token
+  }
+  const raw = process.env.FCM_SERVICE_ACCOUNT_JSON
+  if (!raw) return null
+  let creds
+  try {
+    creds = JSON.parse(raw)
+  } catch (err) {
+    console.error('FCM_SERVICE_ACCOUNT_JSON is not valid JSON:', err.message)
+    return null
+  }
+  if (!creds.client_email || !creds.private_key || !creds.project_id) {
+    console.error('FCM service account JSON missing required fields')
+    return null
+  }
+  const { GoogleAuth } = await import('google-auth-library')
+  const auth = new GoogleAuth({
+    credentials: {
+      client_email: creds.client_email,
+      private_key: creds.private_key
+    },
+    scopes: ['https://www.googleapis.com/auth/firebase.messaging']
+  })
+  const client = await auth.getClient()
+  const { token } = await client.getAccessToken()
+  if (!token) return null
+  fcmAccessTokenCache = {
+    token,
+    expiresAt: Date.now() + 50 * 60 * 1000,
+    projectId: creds.project_id
+  }
+  return token
+}
+
+function getFcmProjectId() {
+  const raw = process.env.FCM_SERVICE_ACCOUNT_JSON
+  if (!raw) return null
+  try {
+    return JSON.parse(raw).project_id || null
+  } catch {
+    return null
+  }
+}
 
 async function dispatchFcm(sub, payload) {
-  const fcmKey = process.env.FCM_SERVER_KEY
-  if (!fcmKey) return false
+  const accessToken = await getFcmAccessToken()
+  const projectId = getFcmProjectId()
+  if (!accessToken || !projectId) return false
 
   try {
-    const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+    const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `key=${fcmKey}`
+        Authorization: `Bearer ${accessToken}`
       },
       body: JSON.stringify({
-        to: sub.endpoint,
-        notification: {
-          title: payload.title || 'ROAM',
-          body: payload.body,
-          icon: 'ic_launcher',
-          tag: payload.tag || 'roam-notification',
-          click_action: payload.url || '/'
-        },
-        data: { url: payload.url || '/' }
+        message: {
+          token: sub.endpoint,
+          notification: {
+            title: payload.title || 'ROAM',
+            body: payload.body
+          },
+          android: {
+            notification: {
+              icon: 'ic_launcher',
+              tag: payload.tag || 'roam-notification',
+              click_action: payload.url || '/'
+            }
+          },
+          data: { url: payload.url || '/' }
+        }
       })
     })
     if (!res.ok) {
-      // FCM returns 'NotRegistered' or 'InvalidRegistration' for dead tokens
+      // v1 returns 'UNREGISTERED' or 'INVALID_ARGUMENT' for dead tokens.
+      // Clean those up so we don't keep trying.
       const txt = await res.text()
-      if (/NotRegistered|InvalidRegistration/.test(txt)) {
+      if (/UNREGISTERED|INVALID_ARGUMENT|NotRegistered/i.test(txt)) {
         await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
+      } else {
+        console.warn('FCM v1 dispatch non-ok:', res.status, txt.slice(0, 200))
       }
       return false
     }

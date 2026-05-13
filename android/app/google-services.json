@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "967502890015",
+    "project_id": "roam-bf159",
+    "storage_bucket": "roam-bf159.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:967502890015:android:330bab78197dbd3f73812a",
+        "android_client_info": {
+          "package_name": "com.goroam.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD61d-cIYs0W0pqE-jBuHQ-_i31llsmThM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

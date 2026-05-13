@@ -414,6 +414,62 @@
   padding: 0 var(--space-xl);
 }
 
+/* Wrapper around the like button — gives the save-cap bubble a
+   positioning context without reflowing the action row. */
+.swipe-card-like-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Save-cap nudge bubble — anchored above the heart button, never
+   pushes neighbours. Only renders for free users at the save cap. */
+.swipe-card-savecap-bubble {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: -4px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.25));
+}
+
+.swipe-card-savecap-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--roam-gold);
+  color: var(--roam-forest);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.swipe-card-savecap-link:active {
+  transform: scale(0.97);
+}
+
+/* Tail/pointer pointing down at the heart button. */
+.swipe-card-savecap-tail {
+  position: absolute;
+  bottom: -5px;
+  right: 22px;
+  width: 12px;
+  height: 12px;
+  background: var(--roam-gold);
+  transform: rotate(45deg);
+  border-radius: 2px;
+  z-index: -1;
+}
+
 .swipe-card-btn {
   display: flex;
   align-items: center;

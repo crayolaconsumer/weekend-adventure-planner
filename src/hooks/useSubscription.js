@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { isIosNative } from '../utils/nativeBridge'
+import { isNative } from '../utils/nativeBridge'
 
 /**
  * Hook for managing user subscription state and premium features
@@ -62,7 +62,7 @@ export function useSubscription() {
     // go through Apple StoreKit, NOT Stripe. Until RevenueCat is wired,
     // subscribe surfaces on iOS native short-circuit with an info-only
     // path; the call site renders 'Subscribe on the web at go-roam.uk'.
-    if (isIosNative()) {
+    if (isNative()) {
       setError('iap-not-available')
       return null
     }
@@ -113,7 +113,7 @@ export function useSubscription() {
     // subscription through the iOS Settings app (for IAP subs) or via
     // the web (for legacy Stripe subs they bought before iOS launch).
     // The call site renders an informational redirect button instead.
-    if (isIosNative()) {
+    if (isNative()) {
       setError('iap-not-available')
       return null
     }

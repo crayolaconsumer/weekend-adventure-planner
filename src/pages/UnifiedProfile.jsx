@@ -34,7 +34,7 @@ import CategoryChart from '../components/stats/CategoryChart'
 import MonthlyTrends from '../components/stats/MonthlyTrends'
 import MapPreviewBand from '../components/profile/MapPreviewBand'
 import PremiumBadge from '../components/PremiumBadge'
-import { isIosNative } from '../utils/nativeBridge'
+import { isNative, getPlatform } from '../utils/nativeBridge'
 import { openExternalLink } from '../utils/navigation'
 import PrivacySettings from '../components/PrivacySettings'
 import OfflinePackCard from '../components/OfflinePackCard'
@@ -1065,7 +1065,7 @@ function SettingsTab({ user, onLogout }) {
                 Unlimited saves, offline maps, no ads, and a scout badge on your profile.
               </span>
               <span className="profile-upgrade-card-cta">
-                Try free for 7 days →
+                Unlock with ROAM+ →
               </span>
             </div>
           </Link>
@@ -1094,13 +1094,22 @@ function SettingsTab({ user, onLogout }) {
             <button
               className="premium-manage-btn"
               onClick={() => {
-                // On iOS native, subscription management lives in the
-                // system Settings app, not the Stripe portal. Deep-link
-                // straight to the user's subscriptions list — required
-                // by App Store Review 3.1.2 to give users a one-tap
-                // path to cancel/modify auto-renew subscriptions.
-                if (isIosNative()) {
-                  openExternalLink('https://apps.apple.com/account/subscriptions')
+                // Native: subscription management lives in the platform's
+                // own subscription manager — required by App Store Review
+                // 3.1.2 (iOS) and good UX on Android. Deep-link straight
+                // to the user's subscriptions list so they can cancel or
+                // modify with one tap.
+                if (isNative()) {
+                  const platform = getPlatform()
+                  // Android: deep-link with our package + product so
+                  //   Play Store opens the user's ROAM+ subscription
+                  //   directly rather than the all-subs list.
+                  // iOS: https://apps.apple.com auto-redirects to App
+                  //   Store app's Subscriptions page (system handles).
+                  const url = platform === 'android'
+                    ? 'https://play.google.com/store/account/subscriptions?package=com.goroam.app&sku=roam_premium_monthly'
+                    : 'https://apps.apple.com/account/subscriptions'
+                  openExternalLink(url)
                   return
                 }
                 manageSubscription()

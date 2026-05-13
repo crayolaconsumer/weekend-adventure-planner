@@ -107,6 +107,37 @@ async function handler(req, res) {
       )
     }
 
+    // Trial eligibility: a user gets ONE 7-day trial per Stripe customer.
+    // Without this guard, a user who started a trial, cancelled, then
+    // came back through /pricing would get another trial — and could
+    // loop that forever for free.
+    //
+    // Two-layer check:
+    //   1. Our DB: subscription_id set (or ever was) means they used
+    //      the trial slot. Fast path, no Stripe API call.
+    //   2. Stripe: list any subscriptions ever attached to this
+    //      customer (status='all' includes canceled, ended, etc.).
+    //      Catches edge cases where the DB lost the link (webhook
+    //      missed, manual deletion, etc.).
+    let trialEligible = true
+    if (user.subscription_id) {
+      trialEligible = false
+    } else {
+      try {
+        const prior = await stripe.subscriptions.list({
+          customer: stripeCustomerId,
+          status: 'all',
+          limit: 1
+        })
+        if (prior?.data?.length > 0) trialEligible = false
+      } catch (err) {
+        // If Stripe lookup fails, fail CLOSED — no trial. Better to be
+        // mildly annoying than to leak a free week.
+        console.warn('[create-checkout] trial-eligibility lookup failed, defaulting to no-trial:', err.message)
+        trialEligible = false
+      }
+    }
+
     // Determine success and cancel URLs
     const origin = req.headers.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://go-roam.com'
     const successUrl = `${origin}/profile?subscription=success`
@@ -126,10 +157,14 @@ async function handler(req, res) {
       success_url: successUrl,
       cancel_url: cancelUrl,
       subscription_data: {
-        trial_period_days: 7,
+        // Only grant a trial when the user is genuinely eligible —
+        // first time subscribing on this Stripe customer. Returning
+        // customers go straight to paid.
+        ...(trialEligible ? { trial_period_days: 7 } : {}),
         metadata: {
           user_id: user.id.toString(),
-          plan
+          plan,
+          trial_granted: trialEligible ? '1' : '0'
         }
       },
       // Allow promotion codes

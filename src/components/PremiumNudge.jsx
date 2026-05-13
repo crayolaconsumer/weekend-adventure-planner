@@ -88,9 +88,9 @@ export default function PremiumNudge({ streak = 0, savesCount = 0 }) {
   // contextual than generic "Try ROAM+"
   const headline =
     streak >= 7 ? 'Loving the streak? Take it further.' :
-    streak >= 3 ? "You're in a roll. Try ROAM+ free for 7 days." :
+    streak >= 3 ? "You're on a roll. Unlock the full ROAM+ toolkit." :
     savesCount >= 10 ? 'Save without limits' :
-    'Try ROAM+ free for 7 days'
+    'Unlock ROAM+'
   const supporting =
     streak >= 7 ? 'Unlimited saves, offline packs, posters of your map.' :
     streak >= 3 ? 'Unlock the offline pack for your next trip, plus unlimited saves.' :

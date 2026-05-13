@@ -37,7 +37,7 @@ function LockedTeaser() {
         <span className="offline-pack-card-sub">
           Download an area before you head out — perfect for hikes and holidays where signal drops. Tiles, places near you, and reviews all keep working without connection.
         </span>
-        <span className="offline-pack-card-cta">Try free for 7 days →</span>
+        <span className="offline-pack-card-cta">Unlock with ROAM+ →</span>
       </div>
     </Link>
   )

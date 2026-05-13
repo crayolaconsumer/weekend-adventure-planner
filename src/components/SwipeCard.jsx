@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { motion, useMotionValue, useTransform, animate, useReducedMotion } from 'framer-motion'
+import { motion, useMotionValue, useTransform, animate, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
+import { Link } from 'react-router-dom'
 import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
@@ -67,7 +68,8 @@ export default function SwipeCard({
   isTop = false,
   style = {},
   topContribution = null,
-  friendActivity = null
+  friendActivity = null,
+  saveCapNudge = false
 }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -600,14 +602,40 @@ export default function SwipeCard({
           >
             <NavigationIcon />
           </button>
-          <button
-            className="swipe-card-btn like"
-            onPointerDownCapture={(e) => e.stopPropagation()}
-            onClick={() => handleButtonClick('like')}
-            aria-label="Save to wishlist"
-          >
-            <HeartIcon />
-          </button>
+          {/* Heart + optional save-cap bubble. The bubble is absolutely
+              positioned above the heart so it never reflows the row,
+              never pushes the card content out of line, and only shows
+              for free users who have hit the 10-save cap. */}
+          <div className="swipe-card-like-wrap">
+            <AnimatePresence>
+              {saveCapNudge && (
+                <motion.div
+                  className="swipe-card-savecap-bubble"
+                  initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.9 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+                >
+                  <Link
+                    to="/pricing"
+                    className="swipe-card-savecap-link"
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                  >
+                    Save without limits → ROAM+
+                  </Link>
+                  <span className="swipe-card-savecap-tail" aria-hidden="true" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <button
+              className="swipe-card-btn like"
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={() => handleButtonClick('like')}
+              aria-label="Save to wishlist"
+            >
+              <HeartIcon />
+            </button>
+          </div>
         </div>
       )}
     </motion.div>

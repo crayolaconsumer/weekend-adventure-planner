@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+// Release signing credentials live outside the repo (alongside the
+// App Store Connect API key) so they never get committed. If the
+// env file is missing the release build falls back to unsigned — fine
+// for local testing, unshippable to Play.
+def signingEnvFile = new File(System.getProperty('user.home'),
+    '.appstoreconnect/private_keys/roam-android-signing.env')
+def signingProps = new Properties()
+if (signingEnvFile.exists()) {
+    signingEnvFile.withInputStream { signingProps.load(it) }
+}
+
 android {
     namespace = "com.goroam.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,7 +18,7 @@ android {
         applicationId "com.goroam.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode 10
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -16,10 +27,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (signingProps.getProperty('ROAM_ANDROID_KEYSTORE')) {
+                storeFile file(signingProps.getProperty('ROAM_ANDROID_KEYSTORE'))
+                storePassword signingProps.getProperty('ROAM_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias signingProps.getProperty('ROAM_ANDROID_KEY_ALIAS')
+                keyPassword signingProps.getProperty('ROAM_ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingProps.getProperty('ROAM_ANDROID_KEYSTORE')) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

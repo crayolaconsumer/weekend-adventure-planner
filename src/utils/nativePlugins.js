@@ -89,9 +89,17 @@ export async function nativeGoogleSignIn() {
   }
   await ensureSocialLoginInitialized()
   const { SocialLogin } = await import('@capgo/capacitor-social-login')
+  // Don't pass `scopes` here. @capgo/capacitor-social-login's guard
+  // throws "You CANNOT use scopes without modifying the main activity"
+  // whenever an explicit scopes array is present — even when those
+  // scopes (email, profile) are the defaults and would be returned
+  // automatically. MainActivity IS wired up to forward auth intents,
+  // but the plugin's check is pre-flight: it bails out before even
+  // attempting the redirect when it sees scopes. Default sign-in
+  // already returns email + profile, so we just omit options entirely.
   const result = await SocialLogin.login({
     provider: 'google',
-    options: { scopes: ['email', 'profile'] }
+    options: {}
   })
   // Plugin response: { provider: 'google', result: { idToken, accessToken,
   // profile: { email, name, ... } } }

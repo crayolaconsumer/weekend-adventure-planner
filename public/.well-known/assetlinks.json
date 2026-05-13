@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.goroam.app",
+      "sha256_cert_fingerprints": [
+        "38:C6:24:83:20:5F:CA:87:3D:8E:11:F3:1A:58:8F:F9:16:7D:E8:EC:D5:65:AD:AA:9D:6A:51:6A:04:A0:1D:04",
+        "9A:B4:9E:66:D4:10:97:EE:8D:19:BA:1E:EF:9B:26:D5:85:B2:B7:52:A3:3C:93:65:83:DA:A4:1F:0B:18:FF:07",
+        "04:0B:51:DF:C4:2B:44:04:3B:2A:54:05:1C:A4:71:E6:17:5E:9D:6E:BD:25:75:E0:8B:2B:9B:85:98:9C:86:FD"
+      ]
+    }
+  }
+]

@@ -290,6 +290,20 @@
   color: var(--roam-forest-light);
 }
 
+/* Payment-processor attribution sits immediately below the buy button
+   so users know without ambiguity who's handling their card. Smaller
+   than the disclosure block but tagged with a check-mark colour to
+   read as a trust signal. */
+.pricing-processor-attribution {
+  margin-top: var(--space-xs);
+  margin-bottom: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
 .pricing-error {
   margin-top: var(--space-sm);
   font-size: var(--text-sm);
