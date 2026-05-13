@@ -40,18 +40,18 @@
   border-bottom: 2px solid transparent;
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .activity-tab:hover {
-  color: var(--color-text, #333);
+  color: var(--color-text-primary);
 }
 
 .activity-tab.active {
-  color: var(--color-primary, #E07A5F);
-  border-bottom-color: var(--color-primary, #E07A5F);
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 
 /* Content */
@@ -79,13 +79,13 @@
 .activity-login-prompt h2 {
   margin: 0 0 8px;
   font-size: 20px;
-  color: var(--color-text, #333);
+  color: var(--color-text-primary);
 }
 
 .activity-login-prompt p {
   margin: 0 0 24px;
   font-size: 14px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   max-width: 280px;
 }
 
@@ -95,7 +95,7 @@
   justify-content: center;
   min-height: 44px; /* HIG floor */
   padding: 12px 32px;
-  background: var(--color-primary, #E07A5F);
+  background: var(--color-accent);
   color: white;
   font-weight: 600;
   text-decoration: none;
@@ -104,7 +104,7 @@
 }
 
 .activity-login-prompt-btn:hover {
-  background: var(--color-primary-dark, #c96a52);
+  background: var(--color-accent);
 }
 
 /* Discover section */
@@ -123,7 +123,7 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--color-text, #333);
+  color: var(--color-text-primary);
 }
 
 .discover-refresh {
@@ -133,14 +133,14 @@
   border-radius: 16px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .discover-refresh:hover:not(:disabled) {
-  border-color: var(--color-primary, #E07A5F);
-  color: var(--color-primary, #E07A5F);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .discover-refresh:disabled {
@@ -168,7 +168,7 @@
 .discover-subtitle {
   margin: 0 0 16px;
   font-size: 14px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 .discover-empty {
@@ -191,13 +191,13 @@
 .discover-empty h3 {
   margin: 0 0 8px;
   font-size: 18px;
-  color: var(--color-text, #333);
+  color: var(--color-text-primary);
 }
 
 .discover-empty p {
   margin: 0;
   font-size: 14px;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary);
 }
 
 /* ═══════════════════════════════════════════════════════
