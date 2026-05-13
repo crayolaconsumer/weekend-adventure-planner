@@ -7,7 +7,10 @@
   min-height: 100dvh;
   padding: var(--space-xl) var(--space-md);
   padding-bottom: calc(var(--space-xl) + 80px + env(safe-area-inset-bottom, 0));
-  background: linear-gradient(135deg, var(--roam-cream) 0%, var(--roam-cream-dark) 100%);
+  /* Solid bg — was a cream→cream-dark gradient. The gold-accented
+     pricing cards already provide the visual interest; a flat
+     surface keeps the page in sync with the rest of the app. */
+  background: var(--roam-cream);
 }
 
 .pricing-container {

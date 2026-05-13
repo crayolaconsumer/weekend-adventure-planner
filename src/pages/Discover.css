@@ -10,12 +10,11 @@
   min-height: var(--stable-vh, 100dvh);
   height: 100vh;
   height: var(--stable-vh, 100dvh);
-  background: linear-gradient(
-    180deg,
-    var(--roam-cream) 0%,
-    var(--roam-paper) 30%,
-    var(--roam-parchment) 100%
-  );
+  /* Flat surface — every page in the app now shares one bg so the
+     experience reads as one product. Was a cream→paper→parchment
+     gradient that introduced visual difference vs the solid-bg pages
+     (Events/Wishlist/Profile etc) especially in dark mode. */
+  background: var(--roam-cream);
   /* contain: style removed - was breaking Leaflet tile rendering */
   overflow-x: hidden;
   overflow-y: auto;

@@ -15,12 +15,8 @@
      the nav on Pro Max class devices. */
   height: calc(100dvh - 80px - env(safe-area-inset-bottom, 0));
   overflow: hidden;
-  background: linear-gradient(
-    180deg,
-    var(--roam-cream) 0%,
-    var(--roam-paper) 40%,
-    var(--roam-parchment) 100%
-  );
+  /* Solid bg matching every other page in the app. */
+  background: var(--roam-cream);
 }
 
 @media (min-width: 768px) {

@@ -141,12 +141,11 @@
    ═══════════════════════════════════════════════════════ */
 
 .notification-panel {
-  background: linear-gradient(
-    180deg,
-    var(--roam-cream, #faf8f5) 0%,
-    var(--roam-paper, #f7f3ed) 100%
-  );
-  border: 1px solid var(--roam-parchment, #ede7dc);
+  /* Solid surface so the panel matches every other sheet/modal in
+     the app rather than introducing a gradient that reads as a light
+     fade in dark mode. */
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -218,12 +217,11 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--roam-parchment, #ede7dc);
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(237, 231, 220, 0.3) 100%
-  );
+  border-bottom: 1px solid var(--color-border);
+  /* Was a gradient fading from transparent to rgba(237, 231, 220, 0.3) —
+     parchment-with-alpha which renders as a literal white fade in dark
+     mode. Removed for a clean flat surface that matches the panel body. */
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -314,17 +312,17 @@
 }
 
 .notification-item:hover {
-  background: rgba(237, 231, 220, 0.5);
+  background: color-mix(in srgb, var(--color-text-primary) 5%, transparent);
 }
 
 /* Unread state - gold left border accent */
 .notification-item.unread {
-  border-left-color: var(--roam-gold, #d4a855);
-  background: rgba(212, 168, 85, 0.06);
+  border-left-color: var(--roam-gold);
+  background: color-mix(in srgb, var(--roam-gold) 8%, transparent);
 }
 
 .notification-item.unread:hover {
-  background: rgba(212, 168, 85, 0.1);
+  background: color-mix(in srgb, var(--roam-gold) 14%, transparent);
 }
 
 /* Left section - Avatar + Type icon */
@@ -338,7 +336,7 @@
   height: 44px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--roam-parchment, #ede7dc);
+  border: 2px solid var(--color-border);
 }
 
 .notification-item-type-icon {
@@ -350,10 +348,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--roam-cream, #faf8f5);
-  border: 1.5px solid var(--roam-parchment, #ede7dc);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
   border-radius: 50%;
-  color: var(--roam-forest, #1a3a2f);
+  color: var(--color-text-primary);
 }
 
 /* Body section */
@@ -507,23 +505,21 @@
   display: block;
   width: 100%;
   padding: 14px 20px;
-  background: linear-gradient(
-    180deg,
-    rgba(237, 231, 220, 0.3) 0%,
-    rgba(237, 231, 220, 0.5) 100%
-  );
+  /* Flat surface — was a parchment-alpha gradient that read as a
+     white fade in dark mode. */
+  background: transparent;
   border: none;
-  border-top: 1px solid var(--roam-parchment, #ede7dc);
+  border-top: 1px solid var(--color-border);
   font-family: var(--font-body, 'Outfit', sans-serif);
   font-size: 13px;
   font-weight: 500;
-  color: var(--roam-forest, #1a3a2f);
+  color: var(--color-text-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .notification-load-more:hover:not(:disabled) {
-  background: rgba(237, 231, 220, 0.7);
+  background: color-mix(in srgb, var(--color-text-primary) 5%, transparent);
 }
 
 .notification-load-more:disabled {
