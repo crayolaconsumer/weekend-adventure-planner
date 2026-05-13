@@ -40,7 +40,7 @@
 
 .edit-review-title {
   margin: 0 0 4px;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   font-family: 'Fraunces', serif;
 }
 .edit-review-place {
@@ -69,7 +69,7 @@
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.95rem;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
 }
 .edit-review-rec.active.positive {
   background: rgba(22, 163, 74, 0.12);
@@ -116,12 +116,12 @@
 }
 .edit-review-cancel {
   background: transparent;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
 }
 .edit-review-save {
-  background: #1a3a2f;
+  background: var(--roam-forest);
   color: #f5f0e6;
-  border-color: #1a3a2f;
+  border-color: var(--roam-forest);
 }
 .edit-review-save:disabled {
   opacity: 0.5;

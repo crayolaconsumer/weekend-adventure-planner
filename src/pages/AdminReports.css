@@ -39,9 +39,9 @@
   min-height: 34px;
 }
 .admin-reports-chip.active {
-  background: #1a3a2f;
+  background: var(--roam-forest);
   color: #fdfcf8;
-  border-color: #1a3a2f;
+  border-color: var(--roam-forest);
 }
 
 .admin-reports-loading,
@@ -133,7 +133,7 @@
   background: var(--roam-parchment);
   border-radius: 6px;
   font-size: 0.85rem;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   margin-bottom: 10px;
 }
 .admin-report-ai-label {
@@ -163,7 +163,7 @@
 }
 .admin-report-content p {
   margin: 0;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
 }

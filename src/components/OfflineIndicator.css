@@ -10,7 +10,7 @@
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 500;
-  background: #1a3a2f;
+  background: var(--roam-forest);
   color: #f5f0e6;
   box-shadow: 0 2px 12px rgba(26, 58, 47, 0.3);
   z-index: 1000;

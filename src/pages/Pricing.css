@@ -416,7 +416,7 @@
 }
 .pricing-trust-item strong {
   font-family: 'Fraunces', serif;
-  color: #1a3a2f;
+  color: var(--color-text-primary);
   font-size: 0.95rem;
 }
 .pricing-trust-item span {

@@ -157,10 +157,13 @@ export function detectBadges(place) {
     badges.push('historic')
   }
 
-  // Community favorite - user rated highly
-  if (placeRating && placeRating.recommended) {
-    badges.push('community_favorite')
-  }
+  // "Loved" badge intentionally NOT added when the user has rated the
+  // place positively. PlaceDetail already shows a dedicated "You loved
+  // this" indicator below the status row — pushing community_favorite
+  // here duplicated that signal as a gold pill next to "Closed". The
+  // misnomer was historical: the badge was originally meant for places
+  // with high *aggregate* recommendations, but the only consumer is the
+  // current user's own rating. Removed entirely.
 
   // National Trust detection
   const operator = (place.operator || '').toLowerCase()
