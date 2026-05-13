@@ -21,184 +21,20 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import ShareModal from '../components/plan/ShareModal'
 import FilterIcon from '../components/icons/FilterIcon'
+import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS, VIBE_ICONS } from './Plan/constants'
+import {
+  DragIcon,
+  ShuffleIcon,
+  CloseIcon,
+  ShareIcon,
+  SaveIcon,
+  PlusIcon,
+  ChevronIcon,
+  SettingsIcon,
+} from './Plan/icons'
+import { selectDiverseStops } from './Plan/selectDiverseStops'
+import { getAuthToken } from './Plan/utils'
 import './Plan.css'
-
-// Vibe options
-const VIBES = [
-  { key: 'mixed', label: 'Mix', categories: null },
-  { key: 'foodie', label: 'Food', categories: ['food', 'nightlife'] },
-  { key: 'culture', label: 'Culture', categories: ['culture', 'historic'] },
-  { key: 'nature', label: 'Outdoor', categories: ['nature', 'active'] },
-]
-
-const DURATIONS = [
-  { hours: 2, label: '2h', stops: 2 },
-  { hours: 4, label: 'Half Day', stops: 3 },
-  { hours: 6, label: 'Full Day', stops: 4 },
-  { hours: 8, label: 'Epic', stops: 5 },
-]
-
-// Transport modes with average speeds (km/h) accounting for urban conditions
-const TRANSPORT_MODES = [
-  { key: 'walk', label: 'Walking', speed: 5, icon: '🚶' },
-  { key: 'transit', label: 'Transit', speed: 25, icon: '🚇' },
-  { key: 'drive', label: 'Driving', speed: 35, icon: '🚗' },
-]
-
-// Search radius options
-const RADIUS_OPTIONS = [
-  { key: 'nearby', label: 'Nearby', radius: 5000, description: '5km' },
-  { key: 'local', label: 'Local', radius: 10000, description: '10km' },
-  { key: 'area', label: 'Area', radius: 25000, description: '25km' },
-  { key: 'daytrip', label: 'Day Trip', radius: 50000, description: '50km' },
-]
-
-// Vibe icons for the summary card
-const VIBE_ICONS = {
-  mixed: '🎲',
-  foodie: '🍽️',
-  culture: '🏛️',
-  nature: '🌲'
-}
-
-// Icons
-const DragIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <circle cx="9" cy="5" r="2"/><circle cx="15" cy="5" r="2"/>
-    <circle cx="9" cy="12" r="2"/><circle cx="15" cy="12" r="2"/>
-    <circle cx="9" cy="19" r="2"/><circle cx="15" cy="19" r="2"/>
-  </svg>
-)
-
-const ShuffleIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="16,3 21,3 21,8"/><line x1="4" y1="20" x2="21" y2="3"/>
-    <polyline points="21,16 21,21 16,21"/><line x1="15" y1="15" x2="21" y2="21"/>
-    <line x1="4" y1="4" x2="9" y2="9"/>
-  </svg>
-)
-
-const CloseIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-)
-
-const ShareIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-    <polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
-  </svg>
-)
-
-const SaveIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-    <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
-  </svg>
-)
-
-const PlusIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-  </svg>
-)
-
-const ChevronIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6"/>
-  </svg>
-)
-
-const SettingsIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-  </svg>
-)
-
-// Get auth token from storage
-const getAuthToken = () => {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
-
-/**
- * Select stops with strict category diversity
- * Ensures an itinerary has variety - no 3 pubs in a row
- */
-function selectDiverseStops(places, count, isMixed = false) {
-  if (places.length === 0) return []
-
-  // Group by category
-  const byCategory = {}
-  for (const place of places) {
-    const key = place.category?.key || 'other'
-    if (!byCategory[key]) byCategory[key] = []
-    byCategory[key].push(place)
-  }
-
-  // Shuffle within each category
-  for (const key of Object.keys(byCategory)) {
-    byCategory[key].sort(() => Math.random() - 0.5)
-  }
-
-  const selected = []
-  const usedCategories = new Set()
-
-  // For mixed mode: strictly rotate through different categories
-  if (isMixed) {
-    const categoryKeys = Object.keys(byCategory)
-    // Shuffle category order
-    categoryKeys.sort(() => Math.random() - 0.5)
-
-    const categoryIndices = {}
-    categoryKeys.forEach(k => categoryIndices[k] = 0)
-
-    // Round-robin through categories, never picking same category twice in a row
-    let lastCategory = null
-    let attempts = 0
-    const maxAttempts = count * categoryKeys.length * 2
-
-    while (selected.length < count && attempts < maxAttempts) {
-      for (const catKey of categoryKeys) {
-        if (selected.length >= count) break
-        // Skip if same as last pick (prevent back-to-back same category)
-        if (catKey === lastCategory && categoryKeys.length > 1) continue
-
-        const catPlaces = byCategory[catKey]
-        const idx = categoryIndices[catKey]
-
-        if (idx < catPlaces.length) {
-          selected.push(catPlaces[idx])
-          categoryIndices[catKey]++
-          lastCategory = catKey
-        }
-      }
-      attempts++
-    }
-  } else {
-    // For specific vibes: still ensure some variety but less strict
-    const pool = [...places].sort(() => Math.random() - 0.5)
-    for (const place of pool) {
-      if (selected.length >= count) break
-      const cat = place.category?.key || 'other'
-      // Allow max 2 from same category
-      const countInCat = selected.filter(p => (p.category?.key || 'other') === cat).length
-      if (countInCat < 2) {
-        selected.push(place)
-      }
-    }
-    // Fill remaining if needed
-    for (const place of pool) {
-      if (selected.length >= count) break
-      if (!selected.includes(place)) {
-        selected.push(place)
-      }
-    }
-  }
-
-  return selected.slice(0, count)
-}
 
 export default function Plan({ location }) {
   const toast = useToast()
