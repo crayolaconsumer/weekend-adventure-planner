@@ -212,7 +212,7 @@
 }
 
 .activity-feed-discover-link:hover {
-  background: var(--color-primary-dark, #c96a52);
+  background: var(--color-accent);
 }
 
 .activity-feed-discover-link:focus-visible {

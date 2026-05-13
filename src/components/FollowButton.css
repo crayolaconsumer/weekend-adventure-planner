@@ -39,7 +39,7 @@
 }
 
 .follow-button--primary:hover:not(:disabled) {
-  background: var(--color-primary-dark, #c96a52);
+  background: var(--color-accent);
 }
 
 /* Following state */
