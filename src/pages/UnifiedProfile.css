@@ -1571,12 +1571,6 @@
    PRIVACY & SEARCH FEATURES (Phase 8)
    ═══════════════════════════════════════════════════════ */
 
-/* User Search Section */
-.unified-profile-search-section {
-  padding: 0 var(--space-lg, 16px) var(--space-md, 12px);
-  background: var(--roam-cream, #fdfcf8);
-}
-
 /* Private Account Notice (on profile card) */
 .unified-profile-private-notice {
   display: flex;

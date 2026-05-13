@@ -36,7 +36,6 @@ import PremiumBadge from '../components/PremiumBadge'
 import { isIosNative } from '../utils/nativeBridge'
 import { openExternalLink } from '../utils/navigation'
 import PrivacySettings from '../components/PrivacySettings'
-import UserSearchBar from '../components/UserSearchBar'
 import OfflinePackCard from '../components/OfflinePackCard'
 import ConfirmModal from '../components/ConfirmModal'
 import { usePushNotifications } from '../hooks/usePushNotifications'
@@ -292,15 +291,10 @@ export default function UnifiedProfile() {
         <div className="unified-profile-header-spacer" />
       </header>
 
-      {/* User Search - only on own profile */}
-      {isOwnProfile && (
-        <div className="unified-profile-search-section">
-          <UserSearchBar
-            placeholder="Find people to follow..."
-            onResultClick={(clickedUser) => navigate(`/user/${clickedUser.username}`)}
-          />
-        </div>
-      )}
+      {/* User Search removed — Social tab already has a polished
+          UserSearchBar; duplicating it on the Profile header added
+          noise to a page that should be about the current user's own
+          stats and settings. */}
 
       {/* Profile Card */}
       <motion.section
