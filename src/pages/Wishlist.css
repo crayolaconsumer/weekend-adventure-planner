@@ -108,13 +108,35 @@
   color: white;
 }
 
-/* Filters */
+/* Filters — tighter chip sizing scoped to the wishlist so the row
+   reads as a compact filter strip rather than a row of CTA-sized
+   buttons. Overrides the global .chip padding for this context only. */
 .wishlist-filters {
   display: flex;
-  gap: var(--space-sm);
+  gap: 8px;
   margin-bottom: var(--space-lg);
   overflow-x: auto;
   padding-bottom: var(--space-xs);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.wishlist-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.wishlist-filters .chip {
+  padding: 6px 14px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-width: 1px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.wishlist-filters .chip.selected {
+  box-shadow: 0 2px 6px rgba(26, 58, 47, 0.18);
 }
 
 /* Grid */
@@ -185,10 +207,19 @@
   position: absolute;
   top: var(--space-sm);
   left: var(--space-sm);
-  padding: 4px 10px;
+  /* inline-flex with align-items: center vertically centers the SVG
+     icon inside the pill — without this the icon sits on the text
+     baseline of an invisible line-box and reads as offset upward. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   background: rgba(255, 255, 255, 0.9);
   border-radius: var(--radius-full);
-  font-size: var(--text-sm);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  color: var(--roam-forest);
 }
 
 .wishlist-card-content {

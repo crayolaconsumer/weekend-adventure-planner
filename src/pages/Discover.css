@@ -47,6 +47,11 @@
   line-height: 0.85;
   margin-bottom: var(--space-xs);
   position: relative;
+  /* Inline-block so the shimmer pseudo-element (inset: 0) clips to the
+     glyph width rather than the full header row — otherwise the gold
+     gradient sweeps the empty space beside the wordmark instead of the
+     letters themselves. */
+  display: inline-block;
 }
 
 /* Subtle shimmer on the wordmark */
@@ -239,6 +244,7 @@
   padding: 8px 14px;
   background: var(--color-surface-elevated);
   border-radius: var(--radius-full);
+  font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--color-text-secondary);

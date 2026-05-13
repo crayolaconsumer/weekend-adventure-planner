@@ -18,6 +18,8 @@
  * username with size="inline".
  */
 
+import './PremiumBadge.css'
+
 const SIZE_PRESETS = {
   xs: 12,
   sm: 14,

@@ -13,6 +13,7 @@ import { useUnifiedActivityFeed } from '../hooks/useSocial'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import ActivityItem, { ActivityItemSkeleton } from './ActivityItem'
+import { GOOD_CATEGORIES } from '../utils/categories'
 import './ActivityFeed.css'
 
 // Filter options for activity types
@@ -37,13 +38,24 @@ export default function ActivityFeed() {
     return visitedPlaces.some(vp => vp.placeId === placeId || vp.place_id === placeId)
   }, [visitedPlaces])
 
-  // Handle saving a place from the feed
+  // Handle saving a place from the feed. The activity API gives us
+  // category as a bare string key — but Wishlist's filter pill reads
+  // `place.category.label`, so saving with just { key } leaves the
+  // pill blank. Look up the full label/icon from GOOD_CATEGORIES so
+  // the saved place renders correctly downstream.
   const handleSavePlace = useCallback(async (place) => {
     if (place && place.id) {
+      let category = null
+      if (place.category) {
+        const entry = GOOD_CATEGORIES[place.category]
+        category = entry
+          ? { key: place.category, label: entry.label, icon: entry.icon }
+          : { key: place.category, label: place.category }
+      }
       await savePlace({
         id: place.id,
         name: place.name,
-        category: place.category ? { key: place.category } : null,
+        category,
         imageUrl: place.imageUrl
       })
     }

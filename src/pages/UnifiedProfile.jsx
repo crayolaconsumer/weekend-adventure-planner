@@ -21,6 +21,7 @@ import FilterIcon from '../components/icons/FilterIcon'
 import { useUserProfile, useFollowers, useFollowing } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import ActivityItem, { ActivityItemSkeleton } from '../components/ActivityItem'
+import Avatar from '../components/Avatar'
 import { getVisitedPlaces } from '../utils/statsUtils'
 import { useToast } from '../hooks/useToast'
 import { useSEO } from '../hooks/useSEO'
@@ -276,8 +277,6 @@ export default function UnifiedProfile() {
     hideFollowersList,
     hideFollowingList
   } = profile
-  const avatarUrl = user.avatarUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(user))}&background=E07A5F&color=fff&size=200`
 
   return (
     <div className="page unified-profile-page">
@@ -303,20 +302,16 @@ export default function UnifiedProfile() {
         animate={{ opacity: 1, y: 0 }}
       >
         <span className="avatar-with-premium unified-profile-avatar-wrap">
-          <img
-            src={avatarUrl}
-            alt={formatDisplayName(user)}
+          {/* Uses the shared Avatar component so the no-photo fallback
+              renders identical hue-rotated initials as the Social tab's
+              "My Profile" link — previously the profile used a separate
+              ui-avatars.com URL (terracotta + white) which made the same
+              user look different on each screen. */}
+          <Avatar
+            user={user}
+            size={100}
             className="unified-profile-avatar"
-            onError={(e) => {
-              // ui-avatars.com is blocked on some corporate networks; fall
-              // back to the bundled app icon rather than the broken-image
-              // glyph. Guard prevents an infinite onError loop if even the
-              // local icon 404s for some reason.
-              if (!e.currentTarget.dataset.fallback) {
-                e.currentTarget.dataset.fallback = '1'
-                e.currentTarget.src = '/icons/icon-192.png'
-              }
-            }}
+            alt={formatDisplayName(user)}
           />
           {user.isPremium && <PremiumBadge size={32} />}
         </span>
