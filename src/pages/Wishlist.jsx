@@ -6,6 +6,7 @@ import CategoryIcon from '../components/icons/CategoryIcon'
 import CollectionManager from '../components/CollectionManager'
 import VisitedPrompt from '../components/VisitedPrompt'
 import PlaceDetail from '../components/PlaceDetail'
+import LoadingState from '../components/LoadingState'
 import { useSavedEvents } from '../hooks/useSavedEvents'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useUserPlans } from '../hooks/useUserPlans'
@@ -281,10 +282,7 @@ export default function Wishlist() {
         {/* PLACES TAB */}
         {activeTab === TABS.PLACES && (
           placesLoading ? (
-            <div className="wishlist-loading">
-              <div className="wishlist-loading-spinner" />
-              <p>Loading saved places...</p>
-            </div>
+            <LoadingState variant="skeleton" type="cards" />
           ) : wishlist.length > 0 ? (
             <>
               <NearbyVisitedNudge wishlist={wishlist} />
@@ -449,10 +447,7 @@ export default function Wishlist() {
         {/* EVENTS TAB */}
         {activeTab === TABS.EVENTS && (
           eventsLoading ? (
-            <div className="wishlist-loading">
-              <div className="wishlist-loading-spinner" />
-              <p>Loading saved events...</p>
-            </div>
+            <LoadingState variant="skeleton" type="cards" />
           ) : savedEvents.length > 0 ? (
             <>
               <div className="wishlist-events-grid">
@@ -529,10 +524,7 @@ export default function Wishlist() {
             animate={{ opacity: 1, y: 0 }}
           >
             {adventuresLoading ? (
-              <div className="wishlist-loading">
-                <div className="wishlist-loading-spinner" />
-                <p>Loading adventures...</p>
-              </div>
+              <LoadingState variant="skeleton" type="cards" />
             ) : adventures.length === 0 ? (
               <div className="wishlist-empty">
                 <div className="wishlist-empty-icon adventures">

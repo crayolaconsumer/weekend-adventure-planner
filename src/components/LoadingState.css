@@ -64,13 +64,18 @@
   gap: var(--space-sm);
 }
 
+/* Theme-aware skeleton shimmer. Was a parchment → white → parchment
+   gradient — the white mid-stop flashed bright in dark mode (literal
+   white-on-dark-forest "loading flash"). Replaced with color-mix on
+   --color-text-primary so the shimmer is a subtle dark wash in dark
+   mode and a subtle light wash in light mode. */
 .skeleton-line {
   height: 16px;
   background: linear-gradient(
     90deg,
-    var(--roam-parchment) 0%,
-    rgba(255, 255, 255, 0.8) 50%,
-    var(--roam-parchment) 100%
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-text-primary) 16%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 100%
   );
   background-size: 200% 100%;
   border-radius: var(--radius-md);
@@ -88,9 +93,9 @@
   height: 200px;
   background: linear-gradient(
     90deg,
-    var(--roam-parchment) 0%,
-    rgba(255, 255, 255, 0.8) 50%,
-    var(--roam-parchment) 100%
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-text-primary) 16%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 100%
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
@@ -103,28 +108,29 @@
   gap: var(--space-sm);
 }
 
-/* Mini cards for grid loading */
+/* Cards skeleton — vertical grid matching the real Wishlist/Events
+   grid layout. Was horizontal scroll which looked weird as a loading
+   placeholder for a grid list. Renders 4 placeholder cards so the
+   user sees the rough shape of the upcoming content. */
 .loading-state-skeleton-cards {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-md);
-  overflow-x: auto;
   padding: var(--space-md) 0;
 }
 
 .skeleton-mini-card {
-  flex-shrink: 0;
-  width: 200px;
-  height: 180px;
+  width: 100%;
+  height: 220px;
   background: linear-gradient(
     135deg,
-    var(--roam-parchment) 0%,
-    rgba(255, 255, 255, 0.8) 50%,
-    var(--roam-parchment) 100%
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 0%,
+    color-mix(in srgb, var(--color-text-primary) 16%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-primary) 8%, transparent) 100%
   );
   background-size: 200% 200%;
   border-radius: var(--radius-xl);
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
-  box-shadow: var(--shadow-md);
 }
 
 @keyframes skeleton-shimmer {

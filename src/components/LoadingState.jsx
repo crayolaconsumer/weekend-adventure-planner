@@ -63,7 +63,7 @@ function SkeletonLoader({ lines = 3, type = 'text' }) {
   if (type === 'cards') {
     return (
       <div className="loading-state loading-state-skeleton-cards" role="status" aria-live="polite">
-        {[0, 1, 2].map(i => (
+        {[0, 1, 2, 3, 4, 5].map(i => (
           <div key={i} className="skeleton-mini-card" style={{ animationDelay: `${i * 0.15}s` }} />
         ))}
         <span className="visually-hidden">Loading content</span>
@@ -100,7 +100,7 @@ function CardStackLoader({ messages = LOADING_MESSAGES }) {
       </motion.div>
 
       <div className="card-stack-loader-cards">
-        {[0, 1, 2].map(i => (
+        {[0, 1, 2, 3, 4, 5].map(i => (
           <div
             key={i}
             className="loader-card"

@@ -21,6 +21,7 @@ import TrendingPlaces from '../components/TrendingPlaces'
 import { formatDisplayName } from '../utils/displayName'
 import PremiumBadge from '../components/PremiumBadge'
 import Avatar from '../components/Avatar'
+import LoadingState from '../components/LoadingState'
 import './SocialHub.css'
 
 // Icons
@@ -298,10 +299,7 @@ export default function SocialHub({ location }) {
   if (authLoading) {
     return (
       <div className="page social-hub-page">
-        <div className="social-hub-loading">
-          <div className="social-hub-loading-spinner" />
-          <span>Loading...</span>
-        </div>
+        <LoadingState variant="skeleton" type="cards" />
       </div>
     )
   }
