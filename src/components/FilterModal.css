@@ -205,7 +205,7 @@
 .filter-modal-mode-item.active {
   background: var(--roam-forest);
   color: white;
-  border-color: rgba(26, 58, 47, 0.2);
+  border-color: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
 }
 
 .filter-modal-mode-icon {

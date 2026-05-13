@@ -700,7 +700,7 @@
 }
 .wishlist-nearby-title {
   font-size: 0.95rem;
-  color: rgba(26, 58, 47, 0.7);
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
   margin: 0 0 8px;
   font-weight: 500;
 }

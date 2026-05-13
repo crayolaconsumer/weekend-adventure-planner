@@ -126,7 +126,7 @@
 a.activity-item-place-name {
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: rgba(26, 58, 47, 0.18);
+  text-decoration-color: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
   text-underline-offset: 3px;
   transition: text-decoration-color 0.15s ease;
 }

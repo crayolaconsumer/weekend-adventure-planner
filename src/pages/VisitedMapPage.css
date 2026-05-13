@@ -87,7 +87,7 @@
 }
 .visited-map-user-count {
   font-size: 0.8rem;
-  color: rgba(26, 58, 47, 0.6);
+  color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
 }
 
 .visited-map-body {
@@ -118,7 +118,7 @@
   justify-content: center;
   text-align: center;
   padding: 2rem;
-  color: rgba(26, 58, 47, 0.7);
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
   gap: 8px;
 }
 

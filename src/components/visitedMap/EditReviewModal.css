@@ -45,14 +45,14 @@
 }
 .edit-review-place {
   margin: 0 0 20px;
-  color: rgba(26, 58, 47, 0.65);
+  color: color-mix(in srgb, var(--color-text-primary) 65%, transparent);
 }
 
 .edit-review-section { margin-bottom: 20px; }
 .edit-review-label {
   display: block;
   font-size: 0.85rem;
-  color: rgba(26, 58, 47, 0.75);
+  color: color-mix(in srgb, var(--color-text-primary) 75%, transparent);
   margin-bottom: 8px;
 }
 
@@ -96,7 +96,7 @@
   display: block;
   text-align: right;
   font-size: 0.75rem;
-  color: rgba(26, 58, 47, 0.5);
+  color: color-mix(in srgb, var(--color-text-primary) 50%, transparent);
   margin-top: 4px;
 }
 

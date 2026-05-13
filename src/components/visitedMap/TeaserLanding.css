@@ -24,7 +24,7 @@
 }
 .teaser-landing-count {
   margin: 0 0 24px;
-  color: rgba(26, 58, 47, 0.6);
+  color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
 }
 .teaser-landing-constellation {
   position: relative;
@@ -46,7 +46,7 @@
   box-shadow: 0 0 8px rgba(26, 58, 47, 0.3);
 }
 .teaser-landing-explainer {
-  color: rgba(26, 58, 47, 0.7);
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
   margin: 0 0 20px;
   font-size: 0.95rem;
 }
@@ -78,7 +78,7 @@
 }
 .teaser-landing-roam-title {
   margin: 0 0 8px;
-  color: rgba(26, 58, 47, 0.7);
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
   font-size: 0.9rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -86,7 +86,7 @@
 .teaser-landing-roam-blurb {
   max-width: 380px;
   margin: 0;
-  color: rgba(26, 58, 47, 0.8);
+  color: color-mix(in srgb, var(--color-text-primary) 80%, transparent);
   font-size: 0.95rem;
   line-height: 1.5;
 }

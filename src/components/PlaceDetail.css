@@ -481,7 +481,7 @@
 
 .place-detail-action-btn:hover {
   background: rgba(26, 58, 47, 0.12);
-  border-color: rgba(26, 58, 47, 0.2);
+  border-color: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
 }
 
 .place-detail-action-btn:active {

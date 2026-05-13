@@ -8,7 +8,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(26, 58, 47, 0.6);
+  color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
 }
 .visited-map-leaflet .leaflet-container {
   font-family: inherit;
@@ -19,12 +19,12 @@
 .visited-map-leaflet .marker-cluster-small div,
 .visited-map-leaflet .marker-cluster-medium div,
 .visited-map-leaflet .marker-cluster-large div {
-  background-color: rgba(26, 58, 47, 0.85);
+  background-color: color-mix(in srgb, var(--color-text-primary) 85%, transparent);
   color: #f5f0e6;
   font-weight: 600;
 }
 .visited-map-leaflet .marker-cluster-small,
 .visited-map-leaflet .marker-cluster-medium,
 .visited-map-leaflet .marker-cluster-large {
-  background-color: rgba(26, 58, 47, 0.25);
+  background-color: color-mix(in srgb, var(--color-text-primary) 25%, transparent);
 }

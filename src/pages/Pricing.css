@@ -420,7 +420,7 @@
   font-size: 0.95rem;
 }
 .pricing-trust-item span {
-  color: rgba(26, 58, 47, 0.7);
+  color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
   font-size: 0.82rem;
   line-height: 1.4;
 }

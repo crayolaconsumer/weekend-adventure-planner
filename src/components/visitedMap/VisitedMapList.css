@@ -4,7 +4,7 @@
 .visited-list-empty {
   text-align: center;
   padding: 2rem;
-  color: rgba(26, 58, 47, 0.6);
+  color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
 }
 
 .visited-list-controls {
@@ -29,7 +29,7 @@
   gap: 6px;
   font-size: 0.85rem;
 }
-.visited-list-sort label { color: rgba(26, 58, 47, 0.7); }
+.visited-list-sort label { color: color-mix(in srgb, var(--color-text-primary) 70%, transparent); }
 .visited-list-sort select {
   background: transparent;
   border: 1px solid rgba(26, 58, 47, 0.15);
@@ -110,7 +110,7 @@
   align-items: center;
   gap: 8px;
   font-size: 0.8rem;
-  color: rgba(26, 58, 47, 0.6);
+  color: color-mix(in srgb, var(--color-text-primary) 60%, transparent);
 }
 .visited-list-rec.positive { color: #16a34a; font-weight: 500; }
 .visited-list-rec.negative { color: #dc2626; font-weight: 500; }
@@ -124,7 +124,7 @@
   color: #1a3a2f;
   white-space: pre-wrap;
 }
-.visited-list-review-empty { color: rgba(26, 58, 47, 0.5); font-style: italic; }
+.visited-list-review-empty { color: color-mix(in srgb, var(--color-text-primary) 50%, transparent); font-style: italic; }
 .visited-list-row-actions {
   display: flex;
   gap: 8px;
