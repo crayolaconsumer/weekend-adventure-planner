@@ -46,6 +46,32 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
+import { usePushNotifications } from './hooks/usePushNotifications'
+
+/**
+ * Invisible wrapper that re-registers a push token to the server the
+ * moment a user signs in, IF they've already granted OS-level push
+ * permission earlier (e.g. via Onboarding before they had an account).
+ *
+ * Without this: anonymous user grants in onboarding → permission is
+ * stored at the OS, but no user-to-token row on the server, so no
+ * pushes fire. With this: sign-in event triggers a re-subscribe so
+ * the existing OS grant gets associated with the new auth.
+ */
+function PushAuthSync() {
+  const { isAuthenticated, user } = useAuth()
+  const { subscribe, permission, supported } = usePushNotifications()
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return
+    if (!supported) return
+    if (permission !== 'granted') return
+    // Idempotent on the SDK side — safe to call whenever auth flips on.
+    subscribe().catch(() => {})
+  }, [isAuthenticated, user?.id, supported, permission, subscribe])
+
+  return null
+}
 
 // Icons as components
 const CompassIcon = () => (
@@ -456,6 +482,7 @@ function App() {
               <UniversalLinkHandler />
               <DisplayNameNudge />
               <OfflineIndicator />
+              <PushAuthSync />
 
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>

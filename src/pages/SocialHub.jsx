@@ -119,11 +119,16 @@ function UserSearchBar() {
                   className="social-hub-search-result"
                   onClick={() => setShowResults(false)}
                 >
-                  <img
-                    src={user.avatarUrl || '/default-avatar.png'}
-                    alt=""
+                  {/* Avatar component renders the user's image when
+                      available and falls back to brand-coloured initials.
+                      Previously this used `src={... || '/default-avatar.png'}`
+                      but /default-avatar.png doesn't exist in /public, so
+                      anyone without an avatarUrl saw a broken-image glyph. */}
+                  <Avatar
+                    user={user}
+                    size={40}
                     className="social-hub-search-result-avatar"
-                    referrerPolicy="no-referrer"
+                    alt={formatDisplayName(user)}
                   />
                   <div className="social-hub-search-result-info">
                     <span className="social-hub-search-result-name">
@@ -184,11 +189,13 @@ function DiscoverUsers() {
             className="social-hub-discover-user"
           >
             <span className="avatar-with-premium">
-              <img
-                src={user.avatarUrl || '/default-avatar.png'}
-                alt=""
+              {/* Avatar handles its own fallback. See note in search
+                  result block above for why this isn't a raw <img>. */}
+              <Avatar
+                user={user}
+                size={48}
                 className="social-hub-discover-user-avatar"
-                referrerPolicy="no-referrer"
+                alt={formatDisplayName(user)}
               />
               {user.isPremium && <PremiumBadge size="sm" />}
             </span>

@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
+import { usePushNotifications } from '../hooks/usePushNotifications'
 import './PlanVisitSheet.css'
 
 // Icons
@@ -113,11 +114,29 @@ export default function PlanVisitSheet({
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const focusTrapRef = useFocusTrap(isOpen)
 
+  // Push notification prompt — this is the contextual moment where the
+  // OS-level permission dialog makes sense to a user. We promise a
+  // reminder; we should ask permission to actually deliver it. Calling
+  // subscribe() is a no-op if already granted, and on web it's gated
+  // by Notification.permission so we don't re-prompt forever.
+  const { subscribe: subscribePush, permission: pushPermission, supported: pushSupported } = usePushNotifications()
+
   // Use ref pattern to avoid stale closure issues with onPlanVisit callback
   const onPlanVisitRef = useRef(onPlanVisit)
   useEffect(() => {
     onPlanVisitRef.current = onPlanVisit
   }, [onPlanVisit])
+
+  // Fire the push permission prompt once the user commits to a date.
+  // If they've already granted or explicitly denied, this is a no-op.
+  const maybeAskForPushPermission = () => {
+    if (!pushSupported) return
+    if (pushPermission === 'granted' || pushPermission === 'denied') return
+    // Fire-and-forget — subscribe handles its own loading/error state
+    // and we don't want to block the confirmation animation on a slow
+    // permission dialog.
+    subscribePush().catch(() => {})
+  }
 
   const dateOptions = getDateOptions()
 
@@ -152,6 +171,10 @@ export default function PlanVisitSheet({
     // Trigger the callback (using ref to avoid stale closure)
     onPlanVisitRef.current?.(place, option.date)
 
+    // Ask for push permission now — the user just committed to a date
+    // and we just promised a reminder. Best contextual moment.
+    maybeAskForPushPermission()
+
     // Auto-close after showing confirmation
     setTimeout(() => {
       onClose()
@@ -165,8 +188,8 @@ export default function PlanVisitSheet({
     setSelectedDate(date)
     setShowConfirmation(true)
 
-    // Trigger the callback (using ref to avoid stale closure)
     onPlanVisitRef.current?.(place, date)
+    maybeAskForPushPermission()
 
     setTimeout(() => {
       onClose()

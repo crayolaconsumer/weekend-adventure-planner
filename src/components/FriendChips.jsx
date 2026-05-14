@@ -59,17 +59,25 @@ function FriendChips({ placeId, friendActivity }) {
   return (
     <div className="friend-chips" role="group" aria-label={`${friendActivity.friendCount} ${label}`}>
       <div className="friend-chips-avatars">
-        {friends.map((friend, index) => (
-          <img
-            key={friend.id}
-            src={friend.avatarUrl || '/default-avatar.png'}
-            alt={friend.username}
-            className="friend-chips-avatar"
-            style={{ zIndex: friends.length - index }}
-            title={friend.username}
-            referrerPolicy="no-referrer"
-          />
-        ))}
+        {friends.map((friend, index) => {
+          // Fall back to ui-avatars.com's initials-on-coloured-circle
+          // generator when the friend has no uploaded avatar. The previous
+          // fallback (/default-avatar.png) doesn't exist in /public, so
+          // users without an avatarUrl saw a broken-image glyph.
+          const src = friend.avatarUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.username || '?')}&background=E07A5F&color=fff&size=64`
+          return (
+            <img
+              key={friend.id}
+              src={src}
+              alt={friend.username}
+              className="friend-chips-avatar"
+              style={{ zIndex: friends.length - index }}
+              title={friend.username}
+              referrerPolicy="no-referrer"
+            />
+          )
+        })}
       </div>
       <span className="friend-chips-text">
         {extraCount > 0 && `+${extraCount} `}

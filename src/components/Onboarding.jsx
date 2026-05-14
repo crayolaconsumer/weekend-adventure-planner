@@ -21,6 +21,7 @@
 
 import { useCallback } from 'react'
 import { motion } from 'framer-motion'
+import { usePushNotifications } from '../hooks/usePushNotifications'
 import './Onboarding.css'
 
 const ArrowIcon = () => (
@@ -47,18 +48,34 @@ const CompassMark = () => (
 )
 
 export default function Onboarding({ onComplete }) {
+  // Push permission prompt on onboarding completion. The Settings →
+  // Notifications panel is only reachable post-sign-in, so anonymous
+  // users had no way to opt in to pushes before this. Fire the OS
+  // dialog at the "I'm Bored" tap — user-initiated, contextual, and
+  // safe to call before auth (the OS-level grant carries forward;
+  // AuthContext re-registers the token to the user on sign-in).
+  const { subscribe: subscribePush, supported: pushSupported, permission: pushPermission } = usePushNotifications()
+
+  const askForPushPermission = useCallback(() => {
+    if (!pushSupported) return
+    if (pushPermission === 'granted' || pushPermission === 'denied') return
+    subscribePush().catch(() => {})
+  }, [pushSupported, pushPermission, subscribePush])
+
   const handleStart = useCallback(() => {
     localStorage.setItem('roam_onboarded', 'true')
+    askForPushPermission()
     onComplete()
-  }, [onComplete])
+  }, [onComplete, askForPushPermission])
 
   const handleSignIn = useCallback(() => {
     localStorage.setItem('roam_onboarded', 'true')
+    askForPushPermission()
     onComplete()
     // App.jsx listens for this event and opens AuthModal — same path
     // the rest of the app uses for sign-in
     window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }))
-  }, [onComplete])
+  }, [onComplete, askForPushPermission])
 
   return (
     <motion.div

@@ -136,30 +136,38 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
   }, [isAuthenticated, fetchNotifications])
 
   // Listen for badge updates from service worker (replaces polling)
+  //
+  // When a push arrives the SW posts NOTIFICATION_COUNT with the new
+  // unread total. If we just bump unreadCount the dropdown shows "(1)"
+  // but its list is still the stale one from initial mount — the user
+  // sees a badge with nothing behind it until they close + reopen the
+  // app. Refresh the full list whenever the count changes so the badge
+  // and the dropdown stay in lockstep.
   useEffect(() => {
     if (!isAuthenticated) return
 
     const handleMessage = (event) => {
       if (event.data?.type === 'NOTIFICATION_COUNT') {
-        setUnreadCount(event.data.count)
+        fetchNotifications(0)
       }
     }
 
-    // Add listener for service worker messages
     navigator.serviceWorker?.addEventListener('message', handleMessage)
 
     return () => {
       navigator.serviceWorker?.removeEventListener('message', handleMessage)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, fetchNotifications])
 
-  // Fallback polling only if service worker is not available
-  // Re-checks SW status on each interval to stop when SW becomes active
+  // Fallback polling only if service worker is not available.
+  // Like the SW handler above: when polling detects a count change,
+  // refresh the whole list — not just the count — so the dropdown
+  // doesn't show a phantom badge.
   useEffect(() => {
     if (!isAuthenticated || !pollInterval) return
 
     pollingRef.current = setInterval(() => {
-      // Check if service worker is now active - if so, stop polling
+      // SW now active → stop polling; SW handler takes over.
       if (navigator.serviceWorker?.controller) {
         if (pollingRef.current) {
           clearInterval(pollingRef.current)
@@ -168,16 +176,21 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
         return
       }
 
-      // Only poll if no SW controller (fallback mode)
       fetch('/api/notifications?limit=1&unread_only=true', {
         credentials: 'include',
         headers: getAuthHeaders()
       })
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data) {
-            setUnreadCount(data.unreadCount)
-          }
+          if (data == null) return
+          // Functional update so we can compare against the current
+          // count without a stale closure on unreadCount.
+          setUnreadCount(prev => {
+            if (data.unreadCount !== prev) {
+              fetchNotifications(0)
+            }
+            return data.unreadCount
+          })
         })
         .catch(() => {}) // Silently fail polling
     }, pollInterval)
@@ -188,7 +201,7 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
         pollingRef.current = null
       }
     }
-  }, [isAuthenticated, pollInterval])
+  }, [isAuthenticated, pollInterval, fetchNotifications])
 
   return {
     notifications,

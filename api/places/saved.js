@@ -197,15 +197,27 @@ async function handlePatch(req, res, user) {
     return res.status(404).json({ error: 'Saved place not found' })
   }
 
-  // Validate planned_date if provided
+  // Validate planned_date if provided. Accept either a YYYY-MM-DD
+  // local-date string (new clients send this — the user-meant date in
+  // their timezone) or an ISO timestamp (legacy clients). The DB column
+  // is TIMESTAMP and the cron compares DATE(planned_date) = CURDATE()
+  // in UTC, so we normalise to midnight UTC of the chosen date.
   let parsedDate = null
   if (plannedDate) {
     parsedDate = new Date(plannedDate)
     if (isNaN(parsedDate.getTime())) {
       return res.status(400).json({ error: 'Invalid date format' })
     }
-    // Don't allow dates in the past
-    if (parsedDate < new Date()) {
+    // Past-date check compares DATES, not instants. Previously this
+    // rejected anything before the current millisecond, which means
+    // "today" was almost always treated as "in the past" once stored
+    // as a normalised midnight. Compare midnight-UTC-today vs the
+    // picked date.
+    const todayUtcMidnight = new Date()
+    todayUtcMidnight.setUTCHours(0, 0, 0, 0)
+    const pickedUtcMidnight = new Date(parsedDate)
+    pickedUtcMidnight.setUTCHours(0, 0, 0, 0)
+    if (pickedUtcMidnight < todayUtcMidnight) {
       return res.status(400).json({ error: 'Planned date cannot be in the past' })
     }
   }

@@ -178,7 +178,21 @@ export function useSavedPlaces() {
   }, [places])
 
   const updatePlannedDate = useCallback(async (placeId, plannedDate) => {
-    // Optimistic update
+    // Send the YYYY-MM-DD string in the USER's local timezone, not the
+    // ISO UTC string. The cron that fires visit reminders compares
+    // DATE(planned_date) = CURDATE() in UTC; if a UK user picks
+    // "tomorrow" at 23:30 BST, plannedDate.toISOString() returns the
+    // PREVIOUS day in UTC (22:30 UTC the day before midnight local),
+    // so DATE(planned_date) is a day earlier than the user meant and
+    // the reminder fires 24h too early.
+    //
+    // toLocaleDateString('en-CA', ...) yields ISO-shaped "YYYY-MM-DD"
+    // in the user's local zone — exactly the date they meant.
+    const localDateStr = plannedDate.toLocaleDateString('en-CA')
+
+    // Optimistic update — keep the ISO form locally for any UI bits
+    // that need to format/display the picked date, but persist the
+    // local date string against the server.
     setPlaces(prev => prev.map(p =>
       p.id === placeId ? { ...p, plannedDate: plannedDate.toISOString() } : p
     ))
@@ -195,7 +209,7 @@ export function useSavedPlaces() {
           credentials: 'include',
           body: JSON.stringify({
             placeId,
-            plannedDate: plannedDate.toISOString()
+            plannedDate: localDateStr
           })
         })
 
@@ -204,14 +218,12 @@ export function useSavedPlaces() {
         }
         return { success: true }
       } catch (err) {
-        // Revert optimistic update
         setPlaces(prev => prev.map(p =>
           p.id === placeId ? { ...p, plannedDate: null } : p
         ))
         return { success: false, error: err.message }
       }
     } else {
-      // localStorage update
       const saved = localStorage.getItem(STORAGE_KEY)
       const current = saved ? JSON.parse(saved) : []
       const updated = current.map(p =>
