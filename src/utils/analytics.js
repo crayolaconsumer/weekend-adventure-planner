@@ -17,7 +17,11 @@
  */
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY
-const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://eu.posthog.com'
+// Use the ingestion endpoint (eu.i.posthog.com) not the dashboard URL
+// (eu.posthog.com). Events POSTed to the dashboard URL are dropped
+// silently — they only ingest at the `.i.` host. PostHog's onboarding
+// docs reflect this; the old default left every event on the floor.
+const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com'
 
 let initPromise = null
 
