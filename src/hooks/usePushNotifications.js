@@ -40,8 +40,40 @@ export function usePushNotifications() {
         try {
           const { PushNotifications } = await import('@capacitor/push-notifications')
           const status = await PushNotifications.checkPermissions()
-          setPermission(status.receive === 'granted' ? 'granted' :
+          const granted = status.receive === 'granted'
+          setPermission(granted ? 'granted' :
                        status.receive === 'denied' ? 'denied' : 'default')
+
+          // Restore subscription state from server. Previously this
+          // branch only set permission; the subscription state stayed
+          // null on every app launch, so the Settings toggle always
+          // showed OFF after a cold start even when a valid token was
+          // stored and pushes would actually deliver. GET /api/push/
+          // subscribe returns whether a row exists for this user on
+          // the current platform — set state accordingly so the toggle
+          // reflects reality.
+          if (granted) {
+            try {
+              const platform = getPlatform() === 'ios' ? 'ios' : 'android'
+              const res = await fetch(`/api/push/subscribe?platform=${platform}`, {
+                credentials: 'include',
+                headers: getAuthHeaders()
+              })
+              if (res.ok) {
+                const data = await res.json()
+                if (data?.subscribed) {
+                  // Sentinel — the actual token is server-side. The
+                  // hook only consumes !!subscription, so a truthy
+                  // value here is enough to flip isSubscribed on.
+                  setSubscription({ platform, restored: true })
+                }
+              }
+            } catch {
+              // Network error — leave subscription null. Worst case
+              // user sees toggle as OFF and re-toggles, which upserts
+              // their token. No real harm.
+            }
+          }
         } catch {
           setSupported(false)
         }

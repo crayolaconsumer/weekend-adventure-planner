@@ -5,11 +5,49 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { queryOne, insert, update } from '../lib/db.js'
+import { query, queryOne, insert, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
 async function handler(req, res) {
+  // GET — clients (notably the native push toggle) need to know whether
+  // a subscription already exists for this user on the calling platform.
+  // Without this, the toggle reads as OFF on every app launch even when
+  // a valid token is stored and pushes would actually deliver — the UI
+  // lies about the subscription state and the user thinks pushes are
+  // disabled even though they're not.
+  if (req.method === 'GET') {
+    const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'push:status')
+    if (rateLimitError) {
+      return res.status(rateLimitError.status).json(rateLimitError)
+    }
+
+    const user = await getUserFromRequest(req)
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required' })
+    }
+
+    const platform = typeof req.query.platform === 'string' ? req.query.platform : null
+    if (platform && !['web', 'ios', 'android'].includes(platform)) {
+      return res.status(400).json({ error: 'Invalid platform' })
+    }
+
+    const rows = platform
+      ? await query(
+          'SELECT id, platform FROM push_subscriptions WHERE user_id = ? AND platform = ?',
+          [user.id, platform]
+        )
+      : await query(
+          'SELECT id, platform FROM push_subscriptions WHERE user_id = ?',
+          [user.id]
+        )
+
+    return res.status(200).json({
+      subscribed: rows.length > 0,
+      platforms: [...new Set(rows.map(r => r.platform))]
+    })
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
