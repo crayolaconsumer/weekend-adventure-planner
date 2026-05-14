@@ -648,12 +648,27 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
 }
 
 // Geocoding + weather + Wikipedia helpers + OpenTripMap extracted into
-// focused modules; re-exported so every existing call site continues to
-// work unchanged.
+// focused modules. Wikipedia + OpenTripMap helpers are still called from
+// INSIDE this file (fetchEnrichedPlaces, enrichPlace, fetchPlaceById), so
+// we have to import them explicitly — `export { x } from './y'` re-exports
+// to external call sites but does NOT bring `x` into the module's own scope.
+// Geocode + weather have no internal callers so a pure re-export is fine.
 export { reverseGeocode, geocodeAddress } from './apiClient/geocode'
 export { fetchWeather, getWeatherDescription } from './apiClient/weather'
-export { fetchWikipediaImage, fetchWikidataImage, fetchWikipediaSummary } from './apiClient/wikipedia'
-export { fetchOpenTripMapPlaces, fetchOpenTripMapDetails, mapOtmKind } from './apiClient/opentripmap'
+
+import {
+  fetchWikipediaImage,
+  fetchWikidataImage,
+  fetchWikipediaSummary,
+} from './apiClient/wikipedia'
+import {
+  fetchOpenTripMapPlaces,
+  fetchOpenTripMapDetails,
+  mapOtmKind,
+} from './apiClient/opentripmap'
+
+export { fetchWikipediaImage, fetchWikidataImage, fetchWikipediaSummary }
+export { fetchOpenTripMapPlaces, fetchOpenTripMapDetails, mapOtmKind }
 
 // ═══════════════════════════════════════════════════════
 // WIKIPEDIA GEOSEARCH - Notable places discovery
