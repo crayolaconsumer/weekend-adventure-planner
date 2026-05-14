@@ -133,6 +133,62 @@ export async function shareContent({ title, text, url, dialogTitle }) {
   throw new Error('Share not supported in this browser')
 }
 
+// ─── Save / share a generated file (blob → user) ────────────────
+//
+// The web idiom (URL.createObjectURL + <a download>.click()) is a
+// no-op inside Capacitor's WKWebView / Android WebView — the download
+// attribute is unsupported and there's no native download manager
+// wired up. Result: tapping "Export" in the native app appeared to do
+// nothing.
+//
+// On native we write the blob to the cache directory via
+// @capacitor/filesystem, then hand the resulting file URI to the
+// native share sheet (@capacitor/share). The user gets the standard
+// iOS/Android "Save to Photos / Save to Files / AirDrop / Mail / etc."
+// picker. Cache is auto-cleaned by the OS, no manual cleanup needed.
+//
+// On web we keep the existing anchor-click which works in every
+// browser including PWA installs.
+export async function saveOrShareBlob(blob, filename, { title, dialogTitle } = {}) {
+  if (isNative()) {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem')
+    const { Share } = await import('@capacitor/share')
+    // Convert blob → base64 (FileReader is the cheapest path; no native
+    // streaming alternative exists in Capacitor 8 for arbitrary blobs).
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result || ''
+        const comma = String(result).indexOf(',')
+        resolve(comma >= 0 ? String(result).slice(comma + 1) : String(result))
+      }
+      reader.onerror = () => reject(reader.error || new Error('Failed to read blob'))
+      reader.readAsDataURL(blob)
+    })
+    const writeResult = await Filesystem.writeFile({
+      path: filename,
+      data: base64,
+      directory: Directory.Cache
+    })
+    return Share.share({
+      title: title || filename,
+      url: writeResult.uri,
+      dialogTitle: dialogTitle || title || 'Save or share'
+    })
+  }
+  // Web — programmatic anchor click. Works in PWA + every desktop
+  // browser. Revoke after a tick so the download actually starts
+  // before the URL becomes invalid (Safari is particularly strict here).
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 // ─── Browser (in-app browser for external links) ─────────────────
 
 export async function openExternalUrl(url, options = {}) {

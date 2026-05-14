@@ -25,6 +25,7 @@ import { useSubscription } from '../hooks/useSubscription'
 import PremiumBadge from '../components/PremiumBadge'
 import Avatar from '../components/Avatar'
 import { getPublicShareUrl } from '../utils/nativeBridge'
+import { saveOrShareBlob } from '../utils/nativePlugins'
 import './VisitedMapPage.css'
 
 const ArrowLeftIcon = () => (
@@ -139,15 +140,16 @@ export default function VisitedMapPage() {
         throw new Error('Export failed')
       }
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${username}-roam-map.png`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      // Revoke after a tick to let download start
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      // saveOrShareBlob handles native vs web: on iOS/Android it
+      // writes the PNG to cache and opens the native share sheet (save
+      // to Photos / Files / AirDrop / etc); on web it uses the
+      // anchor-download trick. The previous inline anchor.click() was a
+      // silent no-op inside Capacitor's webviews — that's what made
+      // "Export poster" appear to do nothing on iOS and Android.
+      await saveOrShareBlob(blob, `${username}-roam-map.png`, {
+        title: `${formatDisplayName(data?.user) || username}'s ROAM map`,
+        dialogTitle: 'Save your ROAM map'
+      })
     } catch (err) {
       console.error('Poster export failed', err)
     } finally {

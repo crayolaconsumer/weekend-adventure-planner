@@ -6,7 +6,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { generatePlaceCard, shareContent, downloadBlob } from '../utils/shareCard'
+import { generatePlaceCard, shareContent } from '../utils/shareCard'
+import { saveOrShareBlob } from '../utils/nativePlugins'
 import { getPublicShareUrl } from '../utils/nativeBridge'
 import './ShareButton.css'
 
@@ -84,7 +85,14 @@ export default function ShareButton({ place, variant = 'icon' }) {
     try {
       const blob = await generatePlaceCard(place)
       const filename = `roam-${place.name.toLowerCase().replace(/\s+/g, '-')}.png`
-      downloadBlob(blob, filename)
+      // saveOrShareBlob picks the right path per platform. The old
+      // downloadBlob() was anchor-click-only and silently failed inside
+      // Capacitor webviews — same root cause as the broken Export
+      // poster button. Now native users get the system share sheet.
+      await saveOrShareBlob(blob, filename, {
+        title: place.name,
+        dialogTitle: 'Save or share this place'
+      })
       setShowMenu(false)
     } catch (err) {
       console.error('Failed to generate share image:', err)
