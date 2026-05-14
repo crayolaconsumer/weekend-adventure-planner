@@ -24,9 +24,14 @@ async function getApnsClient() {
   if (apnsClient) return apnsClient
   if (apnsClientFailed) return null
 
-  const keyId = process.env.APNS_KEY_ID
-  const teamId = process.env.APPLE_TEAM_ID
-  const bundleId = process.env.APNS_BUNDLE_ID || 'com.goroam.app'
+  // Defensive trim: pasting env-var values into Vercel's web UI often
+  // captures a trailing newline. We've been bitten by this twice now —
+  // once on APPLE_SIGNIN_SERVICES_ID (silent auth failures), now on
+  // APNS_BUNDLE_ID (Apple returns "invalid apns-topic header" because
+  // the trailing \n makes the HTTP header malformed). Trim everything.
+  const keyId = process.env.APNS_KEY_ID?.trim()
+  const teamId = process.env.APPLE_TEAM_ID?.trim()
+  const bundleId = (process.env.APNS_BUNDLE_ID || 'com.goroam.app').trim()
   const signingKey = process.env.APNS_AUTH_KEY
 
   if (!keyId || !teamId || !signingKey) {
@@ -212,7 +217,17 @@ async function dispatchApns(sub, payload) {
       sound: payload.silent ? undefined : 'default',
       data: { url: payload.url || '/' },
       threadId: payload.tag || 'roam-notification',
-      priority: Priority.immediate
+      priority: Priority.immediate,
+      // interruption-level=time-sensitive bypasses iOS Focus modes for
+      // genuinely time-sensitive pushes (visit reminders, fresh
+      // follower notifications). iOS 15+ recognises this; older iOS
+      // and apps lacking the time-sensitive entitlement silently
+      // downgrade to 'active' (the default), so there's no breakage
+      // risk. The entitlement (com.apple.developer.usernotifications.
+      // time-sensitive) is worth adding to App.entitlements in a
+      // follow-up build — without it the system just treats these as
+      // normal-priority and Focus mode may suppress them.
+      interruptionLevel: payload.silent ? 'passive' : 'time-sensitive'
     })
     await client.send(note)
     return true
@@ -327,10 +342,30 @@ async function dispatchFcm(sub, payload) {
             body: payload.body
           },
           android: {
+            // priority=HIGH is what makes Android deliver immediately
+            // instead of batching. Without it, normal-priority FCM
+            // messages can sit on the device for minutes (until the
+            // next sync window) and never wake the screen — testers
+            // reported notifications only appearing after unlocking
+            // the phone. HIGH bypasses doze mode and shows on the
+            // lock screen.
+            priority: 'HIGH',
             notification: {
-              icon: 'ic_launcher',
+              // Don't override the icon here. The manifest declares
+              // ic_stat_notification as default_notification_icon;
+              // setting icon: 'ic_launcher' here would force the
+              // full-colour launcher icon to be used as the small
+              // notification icon, which Android renders as a generic
+              // white square. Letting the manifest default win gives
+              // us the brand compass mark.
               tag: payload.tag || 'roam-notification',
-              click_action: payload.url || '/'
+              click_action: payload.url || '/',
+              // PRIORITY_HIGH = wakes device, shows on lock screen,
+              // makes sound. PRIORITY_MAX would also peek over the
+              // current screen; HIGH is the right default — peeking
+              // for every push is too aggressive.
+              notification_priority: 'PRIORITY_HIGH',
+              default_sound: true
             }
           },
           data: { url: payload.url || '/' }
