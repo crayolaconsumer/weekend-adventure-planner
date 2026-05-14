@@ -234,29 +234,52 @@ async function dispatchApns(sub, payload) {
 // auth in 2024. The modern v1 API uses an OAuth2 access token minted
 // from the Firebase service account JSON.
 //
-// Config: set FCM_SERVICE_ACCOUNT_JSON in Vercel env to the FULL
-// contents of the service-account JSON downloaded from Firebase
-// Console → Project Settings → Service accounts → Generate new
-// private key. The env value is the raw JSON string (paste exactly).
+// Config: set FCM_SERVICE_ACCOUNT_JSON_B64 in Vercel env to the
+// base64-encoded JSON service account (downloaded from Firebase
+// Console → Project Settings → Service accounts). The raw multi-line
+// JSON variant FCM_SERVICE_ACCOUNT_JSON is still supported for back-
+// compat, but Vercel's env-var pipeline and Node's --env-file parser
+// both mangle quoted multi-line strings containing escaped newlines
+// (the \n inside the private_key PEM) — the value silently truncates
+// to a single char in some configs. Base64-encoding it removes every
+// special character from the env value and is bulletproof.
+//
+// To set: `base64 < service-account.json | vercel env add FCM_SERVICE_ACCOUNT_JSON_B64 production`
 //
 // We cache the OAuth access token in memory for ~50 mins (tokens last
 // 1h) so cold-starts don't repeatedly mint new ones.
 
 let fcmAccessTokenCache = null // { token, expiresAt }
 
-async function getFcmAccessToken() {
-  if (fcmAccessTokenCache && fcmAccessTokenCache.expiresAt > Date.now() + 60_000) {
-    return fcmAccessTokenCache.token
+/** Load the Firebase service-account creds from env, preferring the
+ *  base64 variant. Returns parsed object or null if unavailable/invalid. */
+function loadFcmCredentials() {
+  const b64 = process.env.FCM_SERVICE_ACCOUNT_JSON_B64
+  if (b64) {
+    try {
+      const json = Buffer.from(b64, 'base64').toString('utf8')
+      return JSON.parse(json)
+    } catch (err) {
+      console.error('FCM_SERVICE_ACCOUNT_JSON_B64 failed to decode/parse:', err.message)
+      return null
+    }
   }
   const raw = process.env.FCM_SERVICE_ACCOUNT_JSON
   if (!raw) return null
-  let creds
   try {
-    creds = JSON.parse(raw)
+    return JSON.parse(raw)
   } catch (err) {
     console.error('FCM_SERVICE_ACCOUNT_JSON is not valid JSON:', err.message)
     return null
   }
+}
+
+async function getFcmAccessToken() {
+  if (fcmAccessTokenCache && fcmAccessTokenCache.expiresAt > Date.now() + 60_000) {
+    return fcmAccessTokenCache.token
+  }
+  const creds = loadFcmCredentials()
+  if (!creds) return null
   if (!creds.client_email || !creds.private_key || !creds.project_id) {
     console.error('FCM service account JSON missing required fields')
     return null
@@ -281,13 +304,7 @@ async function getFcmAccessToken() {
 }
 
 function getFcmProjectId() {
-  const raw = process.env.FCM_SERVICE_ACCOUNT_JSON
-  if (!raw) return null
-  try {
-    return JSON.parse(raw).project_id || null
-  } catch {
-    return null
-  }
+  return loadFcmCredentials()?.project_id || null
 }
 
 async function dispatchFcm(sub, payload) {
