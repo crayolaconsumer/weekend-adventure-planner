@@ -469,6 +469,16 @@ function NotificationItem({ notification, onClose }) {
             src={avatarUrl}
             alt=""
             className="notification-item-avatar"
+            // See Avatar.jsx for why referrerPolicy=no-referrer is set —
+            // Google's lh3.googleusercontent.com avatars fail to load in
+            // Capacitor's Android WebView without it.
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              // CDN didn't serve the image — hide the broken-image icon
+              // so the type icon (follow / upvote etc) takes the slot
+              // cleanly instead of sitting next to a placeholder.
+              e.currentTarget.style.display = 'none'
+            }}
           />
         )}
         <div className="notification-item-type-icon">

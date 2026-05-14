@@ -51,6 +51,10 @@ export default function UserCard({
             src={avatarUrl}
             alt={formatDisplayName(user)}
             className="user-card-avatar"
+            // See Avatar.jsx for why referrerPolicy=no-referrer is set —
+            // Google's lh3.googleusercontent.com avatars need this to
+            // load in Capacitor's Android WebView.
+            referrerPolicy="no-referrer"
             onError={(e) => {
               if (!e.currentTarget.dataset.fallback) {
                 e.currentTarget.dataset.fallback = '1'

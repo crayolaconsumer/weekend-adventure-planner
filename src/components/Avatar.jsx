@@ -77,6 +77,13 @@ export default function Avatar({ user, size = 40, className = '', alt = '' }) {
       height={size}
       style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
       onError={() => setErrored(true)}
+      // referrerPolicy=no-referrer fixes Google avatar URLs
+      // (lh3.googleusercontent.com) failing to load in Capacitor's
+      // Android WebView, where the default Referer header from the
+      // https://localhost/ origin gets treated as untrusted hotlinking
+      // and the CDN returns nothing. iOS uses capacitor:// and isn't
+      // affected; web browsers send a real origin and aren't affected.
+      referrerPolicy="no-referrer"
     />
   )
 }

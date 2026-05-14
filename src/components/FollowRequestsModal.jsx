@@ -88,6 +88,7 @@ export default function FollowRequestsModal({ onClose }) {
                           `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(request.user))}&background=E07A5F&color=fff&size=80`}
                         alt={formatDisplayName(request.user)}
                         className="follow-request-avatar"
+                        referrerPolicy="no-referrer"
                       />
                       <div className="follow-request-info">
                         <span className="follow-request-name">

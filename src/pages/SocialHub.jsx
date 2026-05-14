@@ -123,6 +123,7 @@ function UserSearchBar() {
                     src={user.avatarUrl || '/default-avatar.png'}
                     alt=""
                     className="social-hub-search-result-avatar"
+                    referrerPolicy="no-referrer"
                   />
                   <div className="social-hub-search-result-info">
                     <span className="social-hub-search-result-name">
@@ -187,6 +188,7 @@ function DiscoverUsers() {
                 src={user.avatarUrl || '/default-avatar.png'}
                 alt=""
                 className="social-hub-discover-user-avatar"
+                referrerPolicy="no-referrer"
               />
               {user.isPremium && <PremiumBadge size="sm" />}
             </span>

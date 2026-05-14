@@ -160,6 +160,7 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
               src={avatarUrl}
               alt={friendlyName}
               className="activity-item-avatar"
+              referrerPolicy="no-referrer"
             />
             {activity.user?.isPremium && <PremiumBadge size="xs" />}
           </Link>

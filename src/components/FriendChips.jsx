@@ -67,6 +67,7 @@ function FriendChips({ placeId, friendActivity }) {
             className="friend-chips-avatar"
             style={{ zIndex: friends.length - index }}
             title={friend.username}
+            referrerPolicy="no-referrer"
           />
         ))}
       </div>

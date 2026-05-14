@@ -81,6 +81,7 @@ export default function BlockedUsersModal({ onClose }) {
                           `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(item.user))}&background=E07A5F&color=fff&size=80`}
                         alt={formatDisplayName(item.user)}
                         className="blocked-user-avatar"
+                        referrerPolicy="no-referrer"
                       />
                       <div className="blocked-user-details">
                         <span className="blocked-user-name">
