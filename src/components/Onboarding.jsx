@@ -21,7 +21,6 @@
 
 import { useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { usePushNotifications } from '../hooks/usePushNotifications'
 import './Onboarding.css'
 
 const ArrowIcon = () => (
@@ -48,34 +47,25 @@ const CompassMark = () => (
 )
 
 export default function Onboarding({ onComplete }) {
-  // Push permission prompt on onboarding completion. The Settings →
-  // Notifications panel is only reachable post-sign-in, so anonymous
-  // users had no way to opt in to pushes before this. Fire the OS
-  // dialog at the "I'm Bored" tap — user-initiated, contextual, and
-  // safe to call before auth (the OS-level grant carries forward;
-  // AuthContext re-registers the token to the user on sign-in).
-  const { subscribe: subscribePush, supported: pushSupported, permission: pushPermission } = usePushNotifications()
-
-  const askForPushPermission = useCallback(() => {
-    if (!pushSupported) return
-    if (pushPermission === 'granted' || pushPermission === 'denied') return
-    subscribePush().catch(() => {})
-  }, [pushSupported, pushPermission, subscribePush])
+  // Push permission isn't asked here — it'd be a false promise. An
+  // anonymous user can grant the OS-level dialog but their device
+  // token can't be associated to a user-id on the server, so no
+  // pushes would actually reach them. The prompt fires automatically
+  // the moment they sign in (see PushAuthSync in App.jsx) and again
+  // contextually in PlanVisitSheet for signed-in users without it.
 
   const handleStart = useCallback(() => {
     localStorage.setItem('roam_onboarded', 'true')
-    askForPushPermission()
     onComplete()
-  }, [onComplete, askForPushPermission])
+  }, [onComplete])
 
   const handleSignIn = useCallback(() => {
     localStorage.setItem('roam_onboarded', 'true')
-    askForPushPermission()
     onComplete()
     // App.jsx listens for this event and opens AuthModal — same path
     // the rest of the app uses for sign-in
     window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }))
-  }, [onComplete, askForPushPermission])
+  }, [onComplete])
 
   return (
     <motion.div

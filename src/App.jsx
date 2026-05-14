@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -49,26 +49,38 @@ import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionSt
 import { usePushNotifications } from './hooks/usePushNotifications'
 
 /**
- * Invisible wrapper that re-registers a push token to the server the
- * moment a user signs in, IF they've already granted OS-level push
- * permission earlier (e.g. via Onboarding before they had an account).
+ * Invisible wrapper that auto-fires the push permission subscribe()
+ * flow the moment a user signs in. The intent is "no manual toggling
+ * needed" — by the time a user authenticates they've shown enough
+ * intent to warrant the OS-level dialog.
  *
- * Without this: anonymous user grants in onboarding → permission is
- * stored at the OS, but no user-to-token row on the server, so no
- * pushes fire. With this: sign-in event triggers a re-subscribe so
- * the existing OS grant gets associated with the new auth.
+ * The subscribe() call is idempotent on the SDK side:
+ *   - permission='granted' → re-registers the token to the now-
+ *     authenticated user on the server. Quietly succeeds.
+ *   - permission='default' → triggers the OS permission dialog. User
+ *     grants or denies. On grant, the registration listener posts the
+ *     token to the server with their auth.
+ *   - permission='denied' → no dialog, returns early. User has to
+ *     enable in OS Settings if they want to change their mind.
+ *
+ * `enrolledRef` tracks whether we've already fired for this auth so
+ * we don't re-prompt on every render of every consumer of useAuth.
  */
 function PushAuthSync() {
   const { isAuthenticated, user } = useAuth()
-  const { subscribe, permission, supported } = usePushNotifications()
+  const { subscribe, supported } = usePushNotifications()
+  const enrolledForUserRef = useRef(null)
 
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) return
+    if (!isAuthenticated || !user?.id) {
+      enrolledForUserRef.current = null
+      return
+    }
     if (!supported) return
-    if (permission !== 'granted') return
-    // Idempotent on the SDK side — safe to call whenever auth flips on.
+    if (enrolledForUserRef.current === user.id) return
+    enrolledForUserRef.current = user.id
     subscribe().catch(() => {})
-  }, [isAuthenticated, user?.id, supported, permission, subscribe])
+  }, [isAuthenticated, user?.id, supported, subscribe])
 
   return null
 }

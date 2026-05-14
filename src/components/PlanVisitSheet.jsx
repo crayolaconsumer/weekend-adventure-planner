@@ -11,6 +11,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+import { useAuth } from '../contexts/AuthContext'
+import { openAppSettings } from '../utils/nativePlugins'
 import './PlanVisitSheet.css'
 
 // Icons
@@ -114,12 +116,13 @@ export default function PlanVisitSheet({
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const focusTrapRef = useFocusTrap(isOpen)
 
-  // Push notification prompt — this is the contextual moment where the
-  // OS-level permission dialog makes sense to a user. We promise a
-  // reminder; we should ask permission to actually deliver it. Calling
-  // subscribe() is a no-op if already granted, and on web it's gated
-  // by Notification.permission so we don't re-prompt forever.
+  // Push permission ask — gated behind sign-in. Anonymous users can save
+  // the planned date locally but their device-to-user mapping doesn't
+  // exist on the server, so no reminder would ever fire. Asking them
+  // for OS permission anyway would be a false promise. For anonymous
+  // users we surface a "Sign in to get a reminder" CTA instead.
   const { subscribe: subscribePush, permission: pushPermission, supported: pushSupported } = usePushNotifications()
+  const { isAuthenticated } = useAuth()
 
   // Use ref pattern to avoid stale closure issues with onPlanVisit callback
   const onPlanVisitRef = useRef(onPlanVisit)
@@ -127,15 +130,17 @@ export default function PlanVisitSheet({
     onPlanVisitRef.current = onPlanVisit
   }, [onPlanVisit])
 
-  // Fire the push permission prompt once the user commits to a date.
-  // If they've already granted or explicitly denied, this is a no-op.
   const maybeAskForPushPermission = () => {
+    if (!isAuthenticated) return
     if (!pushSupported) return
     if (pushPermission === 'granted' || pushPermission === 'denied') return
-    // Fire-and-forget — subscribe handles its own loading/error state
-    // and we don't want to block the confirmation animation on a slow
-    // permission dialog.
     subscribePush().catch(() => {})
+  }
+
+  const openSignInModal = () => {
+    // Match the global pattern used by ContributionPrompt etc.
+    window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'register' } }))
+    onClose()
   }
 
   const dateOptions = getDateOptions()
@@ -294,9 +299,13 @@ export default function PlanVisitSheet({
                 )}
               </div>
 
-              {/* Subtle motivation */}
+              {/* Honest reminder promise. Signed-in users get an actual
+                  push on the day; anonymous users don't, so don't claim
+                  we will. */}
               <p className="plan-visit-hint">
-                We'll send you a reminder so you don't forget
+                {isAuthenticated
+                  ? "We'll send you a reminder so you don't forget"
+                  : "Sign in to get a reminder on the day"}
               </p>
             </>
           ) : (
@@ -315,9 +324,45 @@ export default function PlanVisitSheet({
                 <CheckIcon />
               </motion.div>
               <h3>Perfect!</h3>
-              <p>
-                We'll remind you {selectedDate ? formatDateFriendly(selectedDate) : 'soon'}
-              </p>
+              {/* Three confirmation states based on what we can
+                  actually deliver:
+                  - Anonymous: plan is local-only; offer sign-in.
+                  - Signed in + permission granted (or 'default' — the
+                    OS dialog just fired): promise the reminder.
+                  - Signed in + permission denied: we can't undo their
+                    earlier "no" without an OS-level toggle, so surface
+                    a deep link to the device settings. */}
+              {!isAuthenticated ? (
+                <>
+                  <p>
+                    Plan saved {selectedDate ? formatDateFriendly(selectedDate) : ''}.
+                  </p>
+                  <button
+                    type="button"
+                    className="plan-visit-signin-cta"
+                    onClick={openSignInModal}
+                  >
+                    Sign in to get a reminder →
+                  </button>
+                </>
+              ) : pushSupported && pushPermission === 'denied' ? (
+                <>
+                  <p>
+                    Plan saved {selectedDate ? formatDateFriendly(selectedDate) : ''}.
+                  </p>
+                  <button
+                    type="button"
+                    className="plan-visit-signin-cta"
+                    onClick={() => { openAppSettings() }}
+                  >
+                    Turn on notifications to get a reminder →
+                  </button>
+                </>
+              ) : (
+                <p>
+                  We'll remind you {selectedDate ? formatDateFriendly(selectedDate) : 'soon'}
+                </p>
+              )}
             </motion.div>
           )}
 
