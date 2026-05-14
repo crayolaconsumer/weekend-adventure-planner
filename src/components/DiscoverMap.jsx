@@ -111,7 +111,7 @@ function PlacePopup({ place, onSelect, formatDistance }) {
     <div className="map-popup-content">
       {place.photo && (
         <div className="map-popup-image">
-          <img src={place.photo} alt={place.name} />
+          <img src={place.photo} alt={place.name} referrerPolicy="no-referrer" />
         </div>
       )}
       <div className="map-popup-info">

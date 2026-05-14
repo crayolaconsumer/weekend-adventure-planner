@@ -138,7 +138,7 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
   if (currentUrl) {
     return (
       <div className="photo-upload has-photo">
-        <img src={currentUrl} alt="Uploaded photo" className="photo-upload-preview" />
+        <img src={currentUrl} alt="Uploaded photo" className="photo-upload-preview" referrerPolicy="no-referrer" />
         <button
           type="button"
           className="photo-upload-remove"

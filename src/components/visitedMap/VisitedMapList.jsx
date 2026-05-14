@@ -145,7 +145,7 @@ export default function VisitedMapList({
                 aria-expanded={open}
               >
                 {place.imageUrl ? (
-                  <img src={place.imageUrl} alt="" className="visited-list-thumb" loading="lazy" />
+                  <img src={place.imageUrl} alt="" className="visited-list-thumb" loading="lazy" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="visited-list-thumb visited-list-thumb-placeholder">📍</div>
                 )}

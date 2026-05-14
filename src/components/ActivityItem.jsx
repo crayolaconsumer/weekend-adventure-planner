@@ -224,6 +224,7 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
               alt="Shared photo"
               className="activity-item-photo"
               loading="lazy"
+              referrerPolicy="no-referrer"
             />
           </div>
         )}

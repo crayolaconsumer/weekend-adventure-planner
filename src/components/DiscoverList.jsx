@@ -67,7 +67,7 @@ function ListItem({ place, isSelected, onSelect, onSave, onGo, index, formatDist
       {/* Thumbnail */}
       <div className="list-item-thumb">
         {place.photo ? (
-          <img src={place.photo} alt="" loading="lazy" />
+          <img src={place.photo} alt="" loading="lazy" referrerPolicy="no-referrer" />
         ) : (
           <div className="list-item-thumb-placeholder">
             {/* Use generic icon to avoid duplicate when category badge shows icon */}

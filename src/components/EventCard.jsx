@@ -113,6 +113,7 @@ export default function EventCard({ event, variant = 'compact' }) {
             src={imageUrl}
             alt={event.name}
             loading="lazy"
+            referrerPolicy="no-referrer"
             onError={(e) => {
               // Ticketmaster / Skiddle CDN URLs go stale frequently;
               // hide the <img> rather than show a broken-image glyph
@@ -157,7 +158,7 @@ export default function EventCard({ event, variant = 'compact' }) {
       animate={{ opacity: 1, y: 0 }}
     >
       <div className="event-card-image">
-        <img src={imageUrl} alt={event.name} loading="lazy" />
+        <img src={imageUrl} alt={event.name} loading="lazy" referrerPolicy="no-referrer" />
         {event.isSoldOut && (
           <div className="event-card-sold-out-badge">Sold Out</div>
         )}

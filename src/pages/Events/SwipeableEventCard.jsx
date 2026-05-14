@@ -100,6 +100,7 @@ export default function SwipeableEventCard({ event, onSwipe, onTap, style, isTop
           className={`event-card-image ${imageLoaded ? 'loaded' : ''}`}
           onLoad={() => setImageLoaded(true)}
           onError={() => setImageLoaded(true)}
+          referrerPolicy="no-referrer"
         />
       </div>
 

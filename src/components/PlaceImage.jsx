@@ -103,6 +103,12 @@ export default function PlaceImage({
       className={`place-image ${rounded ? 'place-image--rounded' : ''} ${className}`}
       loading={imgProps.loading ?? 'lazy'}
       onError={() => setErrored(true)}
+      // See Avatar.jsx for the full explanation. tl;dr: Capacitor's
+      // Android WebView serves from https://localhost/ and the Referer
+      // header it sends to some external CDNs (Google avatars, Wikipedia
+      // hot-link guard, etc) gets treated as untrusted, returning empty
+      // bodies. no-referrer makes those CDNs serve the image normally.
+      referrerPolicy="no-referrer"
     />
   )
 }

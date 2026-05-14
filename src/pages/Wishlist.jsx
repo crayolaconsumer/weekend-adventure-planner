@@ -695,6 +695,7 @@ function NearbyVisitedNudge({ wishlist }) {
                   alt=""
                   className="wishlist-nearby-img"
                   loading="lazy"
+                  referrerPolicy="no-referrer"
                   onError={(e) => {
                     // Wikimedia / Wikidata can 403 on hotlink. Replace
                     // the broken <img> with the same brand placeholder.

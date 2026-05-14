@@ -178,6 +178,7 @@ export function ContributionCard({ contribution, onVoteChange }) {
           alt={localContribution.content || 'Place photo'}
           className="contribution-card-photo"
           loading="lazy"
+          referrerPolicy="no-referrer"
         />
       )}
 

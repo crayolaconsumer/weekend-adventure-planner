@@ -468,6 +468,7 @@ export default function SwipeCard({
               className={`swipe-card-image ${imageLoaded ? 'loaded' : ''}`}
               onLoad={handleImageLoad}
               onError={handleImageError}
+              referrerPolicy="no-referrer"
             />
           </>
         ) : (
