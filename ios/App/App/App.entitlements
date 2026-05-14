@@ -10,6 +10,15 @@
 	     iOS users on build 37. -->
 	<key>aps-environment</key>
 	<string>production</string>
+	<!-- Allows the server to mark pushes as `interruption-level:
+	     time-sensitive` so they bypass the user's Focus modes for
+	     genuinely-time-relevant alerts (visit reminders, follow
+	     requests). Without this entitlement iOS silently downgrades
+	     time-sensitive pushes to 'active', which Focus mode can
+	     suppress. This is a normal app capability — no special Apple
+	     review required, but the entitlement must be declared. -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
