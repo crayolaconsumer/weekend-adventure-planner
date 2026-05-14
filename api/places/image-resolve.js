@@ -358,8 +358,8 @@ async function handler(req, res) {
   const lng = lngRaw != null && lngRaw !== '' ? parseFloat(lngRaw) : null
   const validCoords = typeof lat === 'number' && !Number.isNaN(lat) && typeof lng === 'number' && !Number.isNaN(lng)
 
-  if (!wikipedia && !wikidata && !commons && !website && !validCoords) {
-    return res.status(400).json({ error: 'wikipedia, wikidata, commons, website, or lat+lng required' })
+  if (!wikipedia && !wikidata && !commons && !website && !name && !validCoords) {
+    return res.status(400).json({ error: 'wikipedia, wikidata, commons, website, name, or lat+lng required' })
   }
 
   const key = cacheKey({
