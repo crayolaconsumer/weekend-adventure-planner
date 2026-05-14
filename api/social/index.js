@@ -324,10 +324,9 @@ async function getActivityFeed(req, res, currentUser, limit, offset) {
  */
 async function discoverUsers(req, res, currentUser, limit) {
   if (!currentUser) {
-    // For anonymous users, show active contributors (public accounts only).
-    // Default-private (no privacy row) users are excluded — an anonymous
-    // visitor can't send a follow request anyway, so surfacing them just
-    // outs them by username with no actionable path.
+    // For anonymous users, show active contributors. Public-by-default:
+    // users with no privacy row are shown; only explicitly-private users
+    // are excluded.
     const sql = `
       SELECT
         u.id,
@@ -338,10 +337,10 @@ async function discoverUsers(req, res, currentUser, limit) {
         COUNT(c.id) as contribution_count
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
-      INNER JOIN user_privacy_settings ups ON u.id = ups.user_id
+      LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
       AND u.is_banned = FALSE
-      AND ups.is_private_account = FALSE
+      AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
       GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at
       HAVING contribution_count > 0
       ORDER BY contribution_count DESC
@@ -377,10 +376,10 @@ async function discoverUsers(req, res, currentUser, limit) {
       COUNT(DISTINCT sp2.place_id) as common_saves,
       COUNT(DISTINCT CASE WHEN c.status = 'approved' THEN c.id END) as contribution_count,
       MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
-      -- Default to TRUE: a user with no privacy row hasn't opted in to
-      -- being public, so the UI must treat them as private (Request, not
-      -- Follow). Stays in sync with isAccountPrivate() in api/lib/privacy.js.
-      COALESCE(ups.is_private_account, TRUE) as is_private
+      -- Public-by-default: no privacy row means public, so UI shows
+      -- "Follow" (not "Request"). Stays in sync with resolvePrivacy()
+      -- in api/lib/privacy.js.
+      COALESCE(ups.is_private_account, FALSE) as is_private
     FROM users u
     JOIN saved_places sp2 ON u.id = sp2.user_id
     LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
@@ -419,7 +418,7 @@ async function discoverUsers(req, res, currentUser, limit) {
         COUNT(DISTINCT sp.id) as save_count,
         COUNT(DISTINCT vp.id) as visit_count,
         MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
-        COALESCE(ups.is_private_account, TRUE) as is_private
+        COALESCE(ups.is_private_account, FALSE) as is_private
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id
       LEFT JOIN saved_places sp ON u.id = sp.user_id
@@ -431,12 +430,9 @@ async function discoverUsers(req, res, currentUser, limit) {
       AND u.is_banned = FALSE
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
       AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
-      -- Only surface users who've explicitly opted in to being public.
-      -- Default-private (no privacy row) users are still discoverable via
-      -- search and via the similar-users query above; this fallback pool
-      -- is only for the "active strangers" backfill and shouldn't include
-      -- users who haven't consented to being shown to non-followers.
-      AND ups.is_private_account = FALSE
+      -- Public-by-default: include users with no privacy row in the
+      -- active-stranger fill pool; only exclude explicitly-private users.
+      AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
       GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at, ups.is_private_account, u.created_at
       ORDER BY (contribution_count + save_count + visit_count) DESC, u.created_at DESC
       LIMIT ?

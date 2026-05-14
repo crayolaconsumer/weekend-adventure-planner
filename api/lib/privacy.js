@@ -3,29 +3,27 @@
  * does it mean if a user has no user_privacy_settings row?"
  *
  * The schema column defaults (is_private_account DEFAULT 0, etc) describe
- * what a freshly-inserted bare row looks like in MySQL, NOT what a user's
- * effective privacy state is when no row exists at all. New users are
- * created without a privacy row (signup doesn't insert one), so until they
- * visit Settings the answer to "are they private?" comes from JS, not SQL.
+ * what a freshly-inserted bare row looks like in MySQL. New users are
+ * created without a privacy row (signup doesn't insert one), so until
+ * they visit Settings the answer to "are they private?" comes from JS,
+ * not SQL.
  *
- * Treat a missing row as the SECURE default — the user hasn't consented to
- * being public yet, so we don't expose them. This matches the comment in
- * api/users/[username].js: "Default to private if no settings exist
- * (opt-in to public)".
+ * Treat a missing row as PUBLIC — matches Instagram / Twitter / TikTok
+ * defaults. Users opt in to private via Settings → Privacy → Private
+ * Account. This matches the schema defaults exactly, so a freshly
+ * INSERTed bare row produces the same effective state as no row at all.
  *
- * Anywhere in the codebase that reads user_privacy_settings columns should
- * resolve through here. SQL queries that filter on the column should use
- * `COALESCE(..., TRUE)` for is_private_account (or the equivalent for
- * each field), and join via LEFT JOIN so missing rows still get a default.
+ * Anywhere in the codebase that reads user_privacy_settings columns
+ * should resolve through here. SQL queries that filter on the column
+ * should use `COALESCE(..., FALSE)` for is_private_account (or the
+ * equivalent), and LEFT JOIN so missing rows still get a default.
  */
 
 export const PRIVACY_DEFAULTS = Object.freeze({
-  isPrivateAccount: true,
-  // Searchable so other users can find you and send a follow request —
-  // a private account that can't be searched is unreachable.
+  isPrivateAccount: false,
   showInSearch: true,
-  hideFollowersList: true,
-  hideFollowingList: true,
+  hideFollowersList: false,
+  hideFollowingList: false,
   isMapPublic: false,
 })
 
@@ -66,14 +64,14 @@ export function isAccountPrivate(row) {
 
 /**
  * Defaults for a new user_privacy_settings row created on a user's
- * first explicit save. Match the "no row" semantics so a user toggling
- * a single unrelated field (e.g. isMapPublic) doesn't silently flip
- * their account from default-private to default-public.
+ * first explicit save. Match PRIVACY_DEFAULTS so the row INSERT lands a
+ * user in the same effective state they were in before saving — toggling
+ * one setting never silently changes the others.
  */
 export const NEW_ROW_DEFAULTS = Object.freeze({
-  is_private_account: 1,
+  is_private_account: 0,
   show_in_search: 1,
-  hide_followers_list: 1,
-  hide_following_list: 1,
+  hide_followers_list: 0,
+  hide_following_list: 0,
   is_map_public: 0,
 })

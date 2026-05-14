@@ -110,16 +110,14 @@ async function handler(req, res) {
       WHERE sp.place_id IN (${placeIdPlaceholders})
         AND sp.user_id IN (${followingPlaceholders})
         AND u.is_banned = FALSE
-        AND (
-          EXISTS (
-            SELECT 1 FROM user_privacy_settings ups
-            WHERE ups.user_id = u.id
-              AND ups.is_private_account = FALSE
-          )
-          OR EXISTS (
-            SELECT 1 FROM follows
-            WHERE follower_id = ? AND following_id = u.id
-          )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_privacy_settings ups
+          WHERE ups.user_id = u.id
+            AND ups.is_private_account = TRUE
+            AND NOT EXISTS (
+              SELECT 1 FROM follows
+              WHERE follower_id = ? AND following_id = u.id
+            )
         )
       ORDER BY sp.saved_at DESC
     `, [...placeIdList, ...followingIds, currentUser.id])
@@ -137,16 +135,14 @@ async function handler(req, res) {
       WHERE vp.place_id IN (${placeIdPlaceholders})
         AND vp.user_id IN (${followingPlaceholders})
         AND u.is_banned = FALSE
-        AND (
-          EXISTS (
-            SELECT 1 FROM user_privacy_settings ups
-            WHERE ups.user_id = u.id
-              AND ups.is_private_account = FALSE
-          )
-          OR EXISTS (
-            SELECT 1 FROM follows
-            WHERE follower_id = ? AND following_id = u.id
-          )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_privacy_settings ups
+          WHERE ups.user_id = u.id
+            AND ups.is_private_account = TRUE
+            AND NOT EXISTS (
+              SELECT 1 FROM follows
+              WHERE follower_id = ? AND following_id = u.id
+            )
         )
       ORDER BY vp.visited_at DESC
     `, [...placeIdList, ...followingIds, currentUser.id])
