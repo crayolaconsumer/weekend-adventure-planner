@@ -102,7 +102,10 @@
   gap: 14px;
   width: 100%;
   padding: 14px 16px;
-  background: white;
+  /* Theme-aware elevated surface — was `background: white` which
+     pierced the dark modal as a stark white slab in dark mode. */
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
   border: 1.5px solid var(--roam-parchment);
   border-radius: 14px;
   cursor: pointer;

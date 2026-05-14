@@ -233,9 +233,11 @@
   background: var(--roam-paper) !important;
 }
 
-/* Attribution styling */
+/* Attribution styling. Theme-aware semi-transparent surface so the
+   small "Leaflet | © CARTO" strip flips dark with the rest of the
+   map instead of staying as a bright cream slab. */
 .leaflet-control-attribution {
-  background: rgba(250, 248, 245, 0.9) !important;
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent) !important;
   padding: 2px 8px !important;
   font-size: 10px !important;
   color: var(--roam-ink-muted) !important;

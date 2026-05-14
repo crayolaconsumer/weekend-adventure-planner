@@ -17,7 +17,10 @@
 
 .edit-review-modal {
   position: relative;
-  background: #f5f0e6;
+  /* Was hardcoded cream — stayed cream in dark mode while the body
+     content (using theme-aware tokens) flipped, producing illegible
+     cream-on-cream text. */
+  background: var(--roam-cream);
   border-radius: 16px 16px 0 0;
   padding: 24px;
   width: 100%;
@@ -35,7 +38,9 @@
   width: 32px; height: 32px;
   border: none; background: transparent;
   font-size: 1.5rem; line-height: 1;
-  cursor: pointer; color: #1a3a2f;
+  cursor: pointer;
+  /* Was hardcoded forest — disappeared on the dark backdrop. */
+  color: var(--color-text-primary);
 }
 
 .edit-review-title {
@@ -64,7 +69,7 @@
   justify-content: center;
   gap: 6px;
   padding: 10px;
-  border: 1px solid rgba(26, 58, 47, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 22%, transparent);
   background: transparent;
   border-radius: 8px;
   cursor: pointer;
@@ -84,11 +89,14 @@
 
 .edit-review-textarea {
   width: 100%;
-  border: 1px solid rgba(26, 58, 47, 0.15);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 18%, transparent);
   border-radius: 8px;
   padding: 10px;
   font: inherit;
-  background: #fafaf6;
+  /* Use the paper surface so the textarea sits a step lighter/darker
+     than the modal in both themes. Was hardcoded #fafaf6. */
+  background: var(--roam-paper);
+  color: var(--color-text-primary);
   resize: vertical;
   box-sizing: border-box;
 }
@@ -110,7 +118,7 @@
 .edit-review-save {
   padding: 10px 20px;
   border-radius: 8px;
-  border: 1px solid rgba(26, 58, 47, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 22%, transparent);
   cursor: pointer;
   font-size: 0.95rem;
 }

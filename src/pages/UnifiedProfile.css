@@ -1801,8 +1801,10 @@
   align-items: center;
   gap: 14px;
   padding: 16px;
-  background: linear-gradient(135deg, #f5f0e6 0%, #ebe2cf 100%);
-  border: 1px solid rgba(212, 168, 85, 0.4);
+  /* Theme-aware paper-to-parchment gradient — was hardcoded cream
+     gradient that stayed bright in dark mode on the upgrade card. */
+  background: linear-gradient(135deg, var(--roam-paper) 0%, var(--roam-parchment) 100%);
+  border: 1px solid color-mix(in srgb, var(--roam-gold) 50%, transparent);
   border-radius: 14px;
   text-decoration: none;
   color: inherit;

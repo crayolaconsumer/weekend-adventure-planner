@@ -86,6 +86,12 @@
   height: 340px;
 }
 
+/* Skeleton card. Was a parchment → solid-white → parchment shimmer
+   that turned into a bright strobe on the dark background in dark
+   mode. Theme-aware version uses --color-surface (the card surface
+   token) for both ends of the shimmer and a softer text-primary tint
+   for the bright stop, so the highlight reads as a gentle pulse in
+   either theme. */
 .loading-card {
   position: absolute;
   width: 100%;
@@ -93,17 +99,20 @@
   border-radius: var(--radius-xl);
   background: linear-gradient(
     135deg,
-    var(--roam-parchment) 0%,
-    rgba(255, 255, 255, 0.8) 50%,
-    var(--roam-parchment) 100%
+    var(--color-surface) 0%,
+    color-mix(in srgb, var(--color-text-primary) 12%, var(--color-surface)) 50%,
+    var(--color-surface) 100%
   );
   background-size: 200% 200%;
   animation: shimmer-card 2.5s ease-in-out infinite;
   box-shadow: var(--shadow-lg);
-  border: 1px solid rgba(235, 227, 213, 0.6);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 10%, transparent);
 }
 
-/* Skeleton content inside top card */
+/* Skeleton content inside top card — fake caption bar at the bottom.
+   The gradient mimics a photo-overlay scrim and the inner bar mimics
+   a title placeholder. Both now use theme-aware mixes so they don't
+   turn into solid-white blocks in dark mode. */
 .loading-card:nth-child(1)::before {
   content: '';
   position: absolute;
@@ -113,8 +122,8 @@
   height: 40%;
   background: linear-gradient(
     to top,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(255, 255, 255, 0.7) 60%,
+    color-mix(in srgb, var(--color-surface) 95%, transparent) 0%,
+    color-mix(in srgb, var(--color-surface) 70%, transparent) 60%,
     transparent 100%
   );
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
@@ -127,7 +136,7 @@
   left: 20px;
   right: 20px;
   height: 16px;
-  background: var(--roam-parchment);
+  background: color-mix(in srgb, var(--color-text-primary) 18%, transparent);
   border-radius: var(--radius-md);
   animation: pulse-skeleton 1.5s ease-in-out infinite;
 }

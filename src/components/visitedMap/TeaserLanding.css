@@ -6,7 +6,9 @@
   text-align: center;
   padding: 32px 24px 64px;
   overflow-y: auto;
-  background: linear-gradient(180deg, #f5f0e6 0%, #efe8d9 100%);
+  /* Theme-aware paper → cream gradient. Was hardcoded #f5f0e6 → #efe8d9
+     so non-followers viewing a private map saw stark cream in dark mode. */
+  background: linear-gradient(180deg, var(--roam-paper) 0%, var(--roam-cream) 100%);
 }
 .teaser-landing-avatar {
   width: 80px;
@@ -14,7 +16,7 @@
   border-radius: 50%;
   object-fit: cover;
   margin-bottom: 12px;
-  box-shadow: 0 2px 12px rgba(26, 58, 47, 0.15);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--color-text-primary) 17%, transparent);
 }
 .teaser-landing-title {
   margin: 0 0 4px;
@@ -31,8 +33,8 @@
   width: 100%;
   max-width: 360px;
   height: 200px;
-  background: rgba(26, 58, 47, 0.04);
-  border: 1px dashed rgba(26, 58, 47, 0.12);
+  background: color-mix(in srgb, var(--color-text-primary) 5%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--color-text-primary) 14%, transparent);
   border-radius: 12px;
   margin-bottom: 24px;
 }
@@ -68,12 +70,12 @@
 .teaser-landing-cta-secondary {
   background: transparent;
   color: var(--color-text-primary);
-  border: 1px solid rgba(26, 58, 47, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 22%, transparent);
 }
 .teaser-landing-divider {
   width: 60px;
   border: none;
-  border-top: 1px solid rgba(26, 58, 47, 0.15);
+  border-top: 1px solid color-mix(in srgb, var(--color-text-primary) 17%, transparent);
   margin: 32px 0 16px;
 }
 .teaser-landing-roam-title {
