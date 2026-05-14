@@ -8,7 +8,7 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateContent, validateId } from '../lib/validation.js'
-import { notifyContributionUpvote } from '../lib/pushNotifications.js'
+import { notifyContributionUpvote, notifyContributionRemoved } from '../lib/pushNotifications.js'
 import { awardBadge } from '../users/badges.js'
 import { withCors } from '../lib/cors.js'
 
@@ -239,14 +239,18 @@ async function handlePost(req, res) {
     return res.status(409).json({ error: 'You already contributed to this place recently' })
   }
 
-  // Insert contribution with pending status for moderation
-  // Include visibility and place context columns
+  // Auto-approve on insert. Pre-publish AI moderation is too expensive
+  // at scale, and a manual approval queue would gate every tip behind
+  // operator action. Instead: tips go live immediately, and the
+  // community + report flow handles takedown. Downvote threshold in
+  // handleVote auto-rejects content that the community clearly dislikes;
+  // explicit reports route through api/moderation/report.js which can
+  // flip status to 'rejected' for offensive content.
   let insertId
   try {
-    // Try with all columns first
     insertId = await insert(
       `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status, visibility, place_name, place_category, place_image_url)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?)`,
       [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null, safeVisibility, sanitizedPlaceName, sanitizedPlaceCategory, sanitizedPlaceImageUrl]
     )
   } catch (err) {
@@ -254,7 +258,7 @@ async function handlePost(req, res) {
     if (err.code === 'ER_BAD_FIELD_ERROR') {
       insertId = await insert(
         `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status, visibility)
-         VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+         VALUES (?, ?, ?, ?, ?, 'approved', ?)`,
         [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null, safeVisibility]
       )
     } else {
@@ -433,6 +437,33 @@ async function handleVote(req, res) {
   )
   const newUpvotes = updated?.upvotes || 0
   const newDownvotes = updated?.downvotes || 0
+
+  // Community-driven auto-removal. Tips are auto-approved at submit
+  // time (no AI gate, no manual queue), so the downvote system is the
+  // primary defence against bad content. Threshold requires both real
+  // consensus AND a net negative — a controversial-but-popular tip
+  // (10 up / 8 down) survives, a clearly-disliked one (1 up / 6 down)
+  // disappears. Tune DOWNVOTE_FLOOR / NET_NEGATIVE if needed.
+  const DOWNVOTE_FLOOR = 5
+  const NET_NEGATIVE = 3
+  if (
+    voteType === 'down' &&
+    newDownvotes >= DOWNVOTE_FLOOR &&
+    (newDownvotes - newUpvotes) >= NET_NEGATIVE
+  ) {
+    // update() returns affectedRows directly. The WHERE status='approved'
+    // guard means subsequent downvotes after auto-removal return 0, so
+    // we notify exactly once per removal — no spam if the tip keeps
+    // getting downvoted while already hidden.
+    const affectedRows = await update(
+      `UPDATE contributions SET status = 'rejected' WHERE id = ? AND status = 'approved'`,
+      [contributionId]
+    )
+    if (affectedRows === 1) {
+      const placeName = contribution.place_name || 'a place'
+      notifyContributionRemoved(contribution.user_id, placeName).catch(() => {})
+    }
+  }
 
   // Send push notification for upvotes (non-blocking)
   // Only notify on milestone upvote counts to avoid spam

@@ -13,7 +13,6 @@
  * 4. Create database table (see documents/PUSH_NOTIFICATIONS_SETUP.md)
  */
 
-/* global process */
 import { query, queryOne } from './db.js'
 
 // Lazy-load apns2 to keep cold-start fast for endpoints that don't push
@@ -227,7 +226,10 @@ async function dispatchApns(sub, payload) {
       // time-sensitive) is worth adding to App.entitlements in a
       // follow-up build — without it the system just treats these as
       // normal-priority and Focus mode may suppress them.
-      interruptionLevel: payload.silent ? 'passive' : 'time-sensitive'
+      // Caller can override (e.g. notifyContributionRemoved sets 'passive'
+      // for non-urgent moderation notices). Default stays time-sensitive
+      // so visit reminders / new-follower pushes still pierce Focus modes.
+      interruptionLevel: payload.interruptionLevel || (payload.silent ? 'passive' : 'time-sensitive')
     })
     await client.send(note)
     return true
@@ -458,6 +460,31 @@ export async function notifyContributionUpvote(userId, placeName, newVoteCount) 
 }
 
 /**
+ * Send notification when a tip gets auto-removed by community downvotes.
+ * Author dignity — without this push the tip just silently vanishes from
+ * their profile and the place page, which is hostile UX.
+ * Gated on 'new_contribution' preference (same bucket as upvote notifs —
+ * it's activity about your own tip). Uses passive interruption level so
+ * it doesn't pierce Focus modes.
+ */
+export async function notifyContributionRemoved(userId, placeName) {
+  if (!await isNotificationEnabled(userId, 'new_contribution')) {
+    return false
+  }
+
+  const shortPlace = placeName && placeName.length > 32
+    ? `${placeName.slice(0, 32)}…`
+    : (placeName || 'a place')
+
+  return sendPushToUser(userId, {
+    title: 'Your tip was hidden',
+    body: `Your tip about ${shortPlace} was hidden because the community didn't find it helpful. You can write a new one anytime.`,
+    tag: 'contribution-removed',
+    interruptionLevel: 'passive'
+  })
+}
+
+/**
  * Send notification when a follow request is approved
  * @param {number} requesterId - ID of user who requested
  * @param {string} approverUsername - Username who approved
@@ -563,6 +590,7 @@ export default {
   pushNotificationBadge,
   notifyNewFollower,
   notifyContributionUpvote,
+  notifyContributionRemoved,
   notifyFollowRequestApproved,
   notifyPlanShared,
   notifyPlannedVisit,
