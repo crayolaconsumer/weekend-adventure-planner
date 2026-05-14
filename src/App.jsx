@@ -45,7 +45,7 @@ import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { getCurrentPosition as nativeGetCurrentPosition } from './utils/nativePlugins'
+import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
 
 // Icons as components
 const CompassIcon = () => (
@@ -105,6 +105,8 @@ const LocationIcon = () => (
 // Location fallback banner
 function LocationBanner({ error, onRetry }) {
   const [dismissed, setDismissed] = useState(false)
+  const [permState, setPermState] = useState('prompt')
+  const [busy, setBusy] = useState(false)
 
   // Tell the rest of the page to reserve space at the top when the
   // banner is visible. The banner itself is position:fixed (so it
@@ -121,6 +123,46 @@ function LocationBanner({ error, onRetry }) {
     }
   }, [error, dismissed])
 
+  // Read current permission state so the CTA reflects what tapping
+  // will actually do. If the user previously denied at the iOS dialog,
+  // iOS will NEVER re-prompt — we have to send them to Settings.
+  // (This was the App Store rejection: button labelled "Allow Location"
+  // appeared unresponsive because iOS silently rejected the retry.)
+  useEffect(() => {
+    let cancelled = false
+    geolocationPermissionState().then((state) => {
+      if (!cancelled) setPermState(state)
+    })
+    return () => { cancelled = true }
+  }, [error])
+
+  // Apple Review 5.1.1(iv) — "Use words like Continue or Next on the
+  // button instead [of Allow]". The button doesn't itself grant
+  // permission, so labelling it "Allow Location" misleads users.
+  // "Enable Location" describes the goal without claiming an outcome
+  // the button can't directly produce; "Open Settings" makes it
+  // explicit when iOS has already denied and only Settings can flip
+  // the switch.
+  const isDenied = permState === 'denied'
+  const buttonLabel = isDenied ? 'Open Settings' : 'Enable Location'
+
+  const handleClick = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      if (isDenied) {
+        const opened = await openAppSettings()
+        // On web (openAppSettings is a no-op), still retry — the browser
+        // permission may be re-promptable from a user gesture.
+        if (!opened) await onRetry()
+      } else {
+        await onRetry()
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (dismissed || !error) return null
 
   return (
@@ -132,8 +174,8 @@ function LocationBanner({ error, onRetry }) {
     >
       <LocationIcon />
       <span>Using London as default location</span>
-      <button onClick={onRetry} className="location-banner-btn">
-        Allow Location
+      <button onClick={handleClick} className="location-banner-btn" disabled={busy}>
+        {busy ? 'Opening…' : buttonLabel}
       </button>
       <button onClick={() => setDismissed(true)} className="location-banner-close" aria-label="Dismiss location banner">
         &times;

@@ -201,6 +201,47 @@ export async function geolocationPermissionState() {
   return 'prompt'
 }
 
+/**
+ * Open the OS settings page for this app so the user can grant a
+ * permission that was previously denied.
+ *
+ * Why this exists: once iOS has recorded a "Don't Allow" for Location
+ * (or push, or anything else), calling the requesting plugin API again
+ * does NOT re-prompt — iOS silently returns the denied state. The only
+ * recovery path is for the user to flip the toggle in Settings →
+ * Privacy → Location → ROAM. This helper deep-links there.
+ *
+ * Used by the LocationBanner retry button: if permission state is
+ * 'denied' we send the user to Settings; otherwise we retry the
+ * normal geolocation request which will trigger the system prompt.
+ */
+export async function openAppSettings() {
+  if (!isNative()) return false
+  const platform = getPlatform()
+  try {
+    if (platform === 'ios') {
+      // iOS handles 'app-settings:' as a system URL scheme — opens
+      // Settings directly to this app's preferences panel. We use the
+      // direct location assignment (not Browser plugin) because
+      // SFSafariViewController can't open non-http schemes; iOS
+      // intercepts this URL at the system level instead.
+      window.location.href = 'app-settings:'
+      return true
+    }
+    if (platform === 'android') {
+      // Android equivalent: package: URI opens app info / permissions.
+      // Falls through to Browser plugin so Android can route via
+      // Custom Tabs → system handler.
+      const { Browser } = await import('@capacitor/browser')
+      await Browser.open({ url: 'package:com.goroam.app' })
+      return true
+    }
+  } catch (err) {
+    console.warn('[openAppSettings] failed:', err?.message)
+  }
+  return false
+}
+
 // ─── Preferences (secure key-value store on native) ──────────────
 // On native, replaces localStorage for sensitive values (auth token).
 // On web, falls through to localStorage so the same API works
@@ -301,6 +342,7 @@ export default {
   openExternalUrl,
   getCurrentPosition,
   geolocationPermissionState,
+  openAppSettings,
   setPreference,
   getPreference,
   removePreference,
