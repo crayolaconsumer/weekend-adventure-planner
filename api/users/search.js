@@ -49,7 +49,10 @@ async function handler(req, res) {
         ${isPremiumSql('u')} as is_premium,
         (SELECT COUNT(*) FROM contributions WHERE user_id = u.id AND status = 'approved') as contribution_count,
         (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as follower_count,
-        COALESCE(ups.is_private_account, FALSE) as is_private
+        -- Default TRUE: a user with no privacy row hasn't opted in to
+        -- being public, so UI must show "Request" (not "Follow"). Stays
+        -- in sync with resolvePrivacy() in api/lib/privacy.js.
+        COALESCE(ups.is_private_account, TRUE) as is_private
     `
 
     // If logged in, check if current user follows each result

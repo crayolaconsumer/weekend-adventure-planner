@@ -6,6 +6,7 @@
  */
 
 import { query } from '../lib/db.js'
+import { getUserFromRequest } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
@@ -62,11 +63,24 @@ async function handler(req, res) {
     // Get top contribution content for each trending place
     const placeIds = trending.map(t => t.place_id)
 
+    // Optional auth — when signed in, exclude the viewer's blocked users
+    // from the top-tip subtitle so they don't see a blocked author's
+    // username/display_name on a trending card.
+    const currentUser = await getUserFromRequest(req).catch(() => null)
+
     let contributions = []
     let placeData = []
     let photoByPlace = {}
     if (placeIds.length > 0) {
       const placeholders = placeIds.map(() => '?').join(',')
+
+      const blockFilter = currentUser
+        ? `AND NOT EXISTS (
+             SELECT 1 FROM blocked_users
+             WHERE (blocker_id = ? AND blocked_id = c.user_id)
+                OR (blocker_id = c.user_id AND blocked_id = ?)
+           )`
+        : ''
 
       // Fetch top tip contributions (used for the card subtitle)
       contributions = await query(
@@ -83,21 +97,25 @@ async function handler(req, res) {
           AND c.contribution_type = 'tip'
           AND c.status = 'approved'
           AND u.is_banned = FALSE
+          ${blockFilter}
         ORDER BY (c.upvotes - c.downvotes) DESC`,
-        placeIds
+        currentUser ? [...placeIds, currentUser.id, currentUser.id] : placeIds
       )
 
       // Fetch top user-uploaded photo per place. Real user photos beat
       // Wikipedia thumbnails which beat stylized placeholders. Picks
-      // the most-recent approved photo contribution per place.
+      // the most-recent approved photo contribution per place. Same
+      // block filter as the tips query — blocked user's photo should
+      // not become the card hero image.
       const photoRows = await query(
         `SELECT c.place_id, c.metadata, c.created_at
          FROM contributions c
          WHERE c.place_id IN (${placeholders})
            AND c.contribution_type = 'photo'
            AND c.status = 'approved'
+           ${blockFilter}
          ORDER BY c.created_at DESC`,
-        placeIds
+        currentUser ? [...placeIds, currentUser.id, currentUser.id] : placeIds
       )
       for (const row of photoRows) {
         if (photoByPlace[row.place_id]) continue // most recent first; skip rest

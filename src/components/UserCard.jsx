@@ -22,10 +22,18 @@ export default function UserCard({
 }) {
   const [followerCount, setFollowerCount] = useState(user.followerCount || 0)
   const [isFollowing, setIsFollowing] = useState(user.isFollowing || false)
+  // Forward server's "followStatus" when available (e.g. set to 'requested'
+  // if a pending follow request already exists) so the button doesn't
+  // reset to "Follow" between renders. Falls back to isFollowing if the
+  // calling endpoint doesn't provide a status.
+  const [followStatus, setFollowStatus] = useState(
+    user.followStatus || (user.isFollowing ? 'following' : 'not_following')
+  )
 
-  const handleFollowChange = useCallback((newCount, nowFollowing) => {
+  const handleFollowChange = useCallback((newCount, nowFollowing, newStatus) => {
     setFollowerCount(newCount)
     setIsFollowing(nowFollowing)
+    if (newStatus) setFollowStatus(newStatus)
   }, [])
 
   const avatarUrl = user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(formatDisplayName(user))}&background=E07A5F&color=fff`
@@ -81,6 +89,8 @@ export default function UserCard({
           <FollowButton
             userId={user.id}
             initialIsFollowing={isFollowing}
+            initialFollowStatus={followStatus}
+            isPrivateAccount={!!user.isPrivate}
             onFollowChange={handleFollowChange}
             size="small"
           />

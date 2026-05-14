@@ -121,16 +121,25 @@ async function handler(req, res) {
            ) <= ?`
         : ''
 
-      // PRIVACY: Only show activities from non-private accounts OR accounts the user follows
+      // PRIVACY: Only show activities from EXPLICITLY public accounts OR
+      // accounts the current user follows. The previous filter form
+      // (`NOT EXISTS … AND is_private_account = TRUE`) treated a missing
+      // privacy row as PUBLIC — defense-in-depth was off. In practice
+      // this endpoint is already scoped to followingIds below, so the
+      // bug couldn't fire today, but expressing the secure-default form
+      // here keeps things safe if the scope is ever widened. Matches
+      // resolvePrivacy()'s NULL-row-is-private contract.
       const privacyFilter = `
-        AND NOT EXISTS (
-          SELECT 1 FROM user_privacy_settings ups
-          WHERE ups.user_id = u.id
-            AND ups.is_private_account = TRUE
-            AND NOT EXISTS (
-              SELECT 1 FROM follows
-              WHERE follower_id = ? AND following_id = u.id
-            )
+        AND (
+          EXISTS (
+            SELECT 1 FROM user_privacy_settings ups
+            WHERE ups.user_id = u.id
+              AND ups.is_private_account = FALSE
+          )
+          OR EXISTS (
+            SELECT 1 FROM follows
+            WHERE follower_id = ? AND following_id = u.id
+          )
         )`
 
       queryParts.push(`
@@ -175,16 +184,25 @@ async function handler(req, res) {
           ? "AND c.contribution_type = 'tip'"
           : ''
 
-      // PRIVACY: Only show activities from non-private accounts OR accounts the user follows
+      // PRIVACY: Only show activities from EXPLICITLY public accounts OR
+      // accounts the current user follows. The previous filter form
+      // (`NOT EXISTS … AND is_private_account = TRUE`) treated a missing
+      // privacy row as PUBLIC — defense-in-depth was off. In practice
+      // this endpoint is already scoped to followingIds below, so the
+      // bug couldn't fire today, but expressing the secure-default form
+      // here keeps things safe if the scope is ever widened. Matches
+      // resolvePrivacy()'s NULL-row-is-private contract.
       const privacyFilter = `
-        AND NOT EXISTS (
-          SELECT 1 FROM user_privacy_settings ups
-          WHERE ups.user_id = u.id
-            AND ups.is_private_account = TRUE
-            AND NOT EXISTS (
-              SELECT 1 FROM follows
-              WHERE follower_id = ? AND following_id = u.id
-            )
+        AND (
+          EXISTS (
+            SELECT 1 FROM user_privacy_settings ups
+            WHERE ups.user_id = u.id
+              AND ups.is_private_account = FALSE
+          )
+          OR EXISTS (
+            SELECT 1 FROM follows
+            WHERE follower_id = ? AND following_id = u.id
+          )
         )`
 
       queryParts.push(`
@@ -223,16 +241,25 @@ async function handler(req, res) {
 
     // Ratings query (only if not filtering by specific type, or if filtering by rating)
     if (!typeFilter || typeFilter === 'rating') {
-      // PRIVACY: Only show activities from non-private accounts OR accounts the user follows
+      // PRIVACY: Only show activities from EXPLICITLY public accounts OR
+      // accounts the current user follows. The previous filter form
+      // (`NOT EXISTS … AND is_private_account = TRUE`) treated a missing
+      // privacy row as PUBLIC — defense-in-depth was off. In practice
+      // this endpoint is already scoped to followingIds below, so the
+      // bug couldn't fire today, but expressing the secure-default form
+      // here keeps things safe if the scope is ever widened. Matches
+      // resolvePrivacy()'s NULL-row-is-private contract.
       const privacyFilter = `
-        AND NOT EXISTS (
-          SELECT 1 FROM user_privacy_settings ups
-          WHERE ups.user_id = u.id
-            AND ups.is_private_account = TRUE
-            AND NOT EXISTS (
-              SELECT 1 FROM follows
-              WHERE follower_id = ? AND following_id = u.id
-            )
+        AND (
+          EXISTS (
+            SELECT 1 FROM user_privacy_settings ups
+            WHERE ups.user_id = u.id
+              AND ups.is_private_account = FALSE
+          )
+          OR EXISTS (
+            SELECT 1 FROM follows
+            WHERE follower_id = ? AND following_id = u.id
+          )
         )`
 
       queryParts.push(`

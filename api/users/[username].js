@@ -11,6 +11,7 @@ import { hasBlockBetween } from '../social/block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { isPremiumRow } from '../lib/premium.js'
 import { withCors } from '../lib/cors.js'
+import { resolvePrivacy } from '../lib/privacy.js'
 
 async function handler(req, res) {
   // Rate limit profile lookups to prevent enumeration
@@ -95,18 +96,16 @@ async function handler(req, res) {
       }
     }
 
-    // Get privacy settings
-    // SECURITY: Default to private if no settings exist (opt-in to public)
+    // Get privacy settings. resolvePrivacy() defaults a missing row to
+    // the secure-defaults set (private account, hidden followers/following,
+    // map not public) — see api/lib/privacy.js for the single source of
+    // truth. New users have no row until they save Settings, so this
+    // matters for the launch period.
     const privacySettings = await queryOne(
       'SELECT * FROM user_privacy_settings WHERE user_id = ?',
       [user.id]
     )
-
-    // Default to private account if no privacy settings row exists
-    // This ensures new users are private by default until they explicitly choose public
-    const isPrivateAccount = privacySettings === null ? true : !!privacySettings.is_private_account
-    const hideFollowersList = privacySettings === null ? true : !!privacySettings.hide_followers_list
-    const hideFollowingList = privacySettings === null ? true : !!privacySettings.hide_following_list
+    const { isPrivateAccount, hideFollowersList, hideFollowingList } = resolvePrivacy(privacySettings)
 
     // Determine if current user can see full profile
     const canSeeFullProfile = isOwnProfile || !isPrivateAccount || isFollowing

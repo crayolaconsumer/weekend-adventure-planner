@@ -6,6 +6,7 @@
  */
 
 import { query } from '../lib/db.js'
+import { getUserFromRequest } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
@@ -39,9 +40,21 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'Maximum 50 place IDs per request' })
     }
 
-    // Fetch top contribution for each place
-    // Using a subquery to get only the highest-scored contribution per place
+    // Optional auth — endpoint serves anonymous traffic too, but if the
+    // user is signed in we strip out tips from anyone they've blocked
+    // (in either direction). Without this the swipe deck would surface
+    // top-tip preview text from a blocked user.
+    const currentUser = await getUserFromRequest(req).catch(() => null)
+
     const placeholders = ids.map(() => '?').join(',')
+
+    const blockFilter = currentUser
+      ? `AND NOT EXISTS (
+           SELECT 1 FROM blocked_users
+           WHERE (blocker_id = ? AND blocked_id = c.user_id)
+              OR (blocker_id = c.user_id AND blocked_id = ?)
+         )`
+      : ''
 
     const sql = `
       SELECT
@@ -64,10 +77,14 @@ async function handler(req, res) {
         AND c.status = 'approved'
         AND c.contribution_type = 'tip'
         AND u.is_banned = FALSE
+        ${blockFilter}
       ORDER BY c.place_id, (c.upvotes - c.downvotes) DESC, c.created_at DESC
     `
 
-    const allContributions = await query(sql, ids)
+    const queryParams = currentUser
+      ? [...ids, currentUser.id, currentUser.id]
+      : ids
+    const allContributions = await query(sql, queryParams)
 
     // Group by place_id and take only the first (highest scored) for each
     const contributionsByPlace = {}

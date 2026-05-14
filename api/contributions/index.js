@@ -122,6 +122,17 @@ async function handleGet(req, res) {
       ))
     )`
     params.push(currentUser.id, currentUser.id)
+
+    // Hide content from / to users the viewer has blocked (bidirectional).
+    // Block previously only stopped follows / DMs / profile views — tips
+    // and reviews on place detail still leaked from blocked authors to
+    // the blocker. That breaks the user's expectation when they tap Block.
+    sql += ` AND NOT EXISTS (
+      SELECT 1 FROM blocked_users
+      WHERE (blocker_id = ? AND blocked_id = c.user_id)
+         OR (blocker_id = c.user_id AND blocked_id = ?)
+    )`
+    params.push(currentUser.id, currentUser.id)
   } else {
     // Anonymous users can only see public contributions
     sql += ` AND c.visibility = 'public'`

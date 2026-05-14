@@ -24,6 +24,7 @@ import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateId, validatePagination } from '../lib/validation.js'
 import { awardBadge } from '../users/badges.js'
 import { withCors } from '../lib/cors.js'
+import { isAccountPrivate, resolvePrivacy } from '../lib/privacy.js'
 
 async function handler(req, res) {
   try {
@@ -88,10 +89,33 @@ async function handlePost(req, res) {
 
 /**
  * Get followers for a user
+ *
+ * Respects hide_followers_list — without this check the privacy flag was
+ * cosmetic-only: the profile page hid the count, but anyone could still
+ * enumerate followers by hitting /api/social?action=followers&userId=X.
  */
 async function getFollowers(req, res, userId, currentUser, limit, offset) {
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' })
+  }
+
+  const targetId = parseInt(userId)
+  if (Number.isNaN(targetId)) {
+    return res.status(400).json({ error: 'Invalid userId' })
+  }
+
+  // Owner can always view their own followers. Otherwise honor the
+  // hide_followers_list flag (defaulting to TRUE when no privacy row
+  // exists — matches resolvePrivacy()).
+  if (!currentUser || currentUser.id !== targetId) {
+    const targetPrivacy = await queryOne(
+      'SELECT hide_followers_list FROM user_privacy_settings WHERE user_id = ?',
+      [targetId]
+    )
+    const { hideFollowersList } = resolvePrivacy(targetPrivacy)
+    if (hideFollowersList) {
+      return res.status(200).json({ followers: [], total: 0, hasMore: false, hidden: true })
+    }
   }
 
   let sql = `
@@ -152,10 +176,28 @@ async function getFollowers(req, res, userId, currentUser, limit, offset) {
 
 /**
  * Get users that a user follows
+ *
+ * Respects hide_following_list — see getFollowers for rationale.
  */
 async function getFollowing(req, res, userId, currentUser, limit, offset) {
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' })
+  }
+
+  const targetId = parseInt(userId)
+  if (Number.isNaN(targetId)) {
+    return res.status(400).json({ error: 'Invalid userId' })
+  }
+
+  if (!currentUser || currentUser.id !== targetId) {
+    const targetPrivacy = await queryOne(
+      'SELECT hide_following_list FROM user_privacy_settings WHERE user_id = ?',
+      [targetId]
+    )
+    const { hideFollowingList } = resolvePrivacy(targetPrivacy)
+    if (hideFollowingList) {
+      return res.status(200).json({ following: [], total: 0, hasMore: false, hidden: true })
+    }
   }
 
   let sql = `
@@ -282,7 +324,10 @@ async function getActivityFeed(req, res, currentUser, limit, offset) {
  */
 async function discoverUsers(req, res, currentUser, limit) {
   if (!currentUser) {
-    // For anonymous users, show active contributors (public accounts only)
+    // For anonymous users, show active contributors (public accounts only).
+    // Default-private (no privacy row) users are excluded — an anonymous
+    // visitor can't send a follow request anyway, so surfacing them just
+    // outs them by username with no actionable path.
     const sql = `
       SELECT
         u.id,
@@ -293,10 +338,10 @@ async function discoverUsers(req, res, currentUser, limit) {
         COUNT(c.id) as contribution_count
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id AND c.status = 'approved'
-      LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
+      INNER JOIN user_privacy_settings ups ON u.id = ups.user_id
       WHERE u.username IS NOT NULL
       AND u.is_banned = FALSE
-      AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
+      AND ups.is_private_account = FALSE
       GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at
       HAVING contribution_count > 0
       ORDER BY contribution_count DESC
@@ -332,7 +377,10 @@ async function discoverUsers(req, res, currentUser, limit) {
       COUNT(DISTINCT sp2.place_id) as common_saves,
       COUNT(DISTINCT CASE WHEN c.status = 'approved' THEN c.id END) as contribution_count,
       MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
-      COALESCE(ups.is_private_account, FALSE) as is_private
+      -- Default to TRUE: a user with no privacy row hasn't opted in to
+      -- being public, so the UI must treat them as private (Request, not
+      -- Follow). Stays in sync with isAccountPrivate() in api/lib/privacy.js.
+      COALESCE(ups.is_private_account, TRUE) as is_private
     FROM users u
     JOIN saved_places sp2 ON u.id = sp2.user_id
     LEFT JOIN user_privacy_settings ups ON u.id = ups.user_id
@@ -371,7 +419,7 @@ async function discoverUsers(req, res, currentUser, limit) {
         COUNT(DISTINCT sp.id) as save_count,
         COUNT(DISTINCT vp.id) as visit_count,
         MAX(CASE WHEN f_check.follower_id IS NOT NULL THEN 1 ELSE NULL END) as is_following,
-        COALESCE(ups.is_private_account, FALSE) as is_private
+        COALESCE(ups.is_private_account, TRUE) as is_private
       FROM users u
       LEFT JOIN contributions c ON u.id = c.user_id
       LEFT JOIN saved_places sp ON u.id = sp.user_id
@@ -383,7 +431,12 @@ async function discoverUsers(req, res, currentUser, limit) {
       AND u.is_banned = FALSE
       AND NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = ? AND following_id = u.id)
       AND NOT EXISTS (SELECT 1 FROM blocked_users WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))
-      AND (ups.is_private_account IS NULL OR ups.is_private_account = FALSE)
+      -- Only surface users who've explicitly opted in to being public.
+      -- Default-private (no privacy row) users are still discoverable via
+      -- search and via the similar-users query above; this fallback pool
+      -- is only for the "active strangers" backfill and shouldn't include
+      -- users who haven't consented to being shown to non-followers.
+      AND ups.is_private_account = FALSE
       GROUP BY u.id, u.username, u.display_name, u.avatar_url, u.tier, u.subscription_expires_at, ups.is_private_account, u.created_at
       ORDER BY (contribution_count + save_count + visit_count) DESC, u.created_at DESC
       LIMIT ?
@@ -456,13 +509,17 @@ async function followUser(req, res, user) {
     return res.status(200).json({ success: true, message: 'Already following', status: 'following' })
   }
 
-  // Check if target user has private account
+  // Check if target user has private account.
+  // CRITICAL: a missing privacy row means the user has never opted in to
+  // being public, so we treat them as private. Previously this code used
+  // `privacySettings?.is_private_account` which read NULL as falsy and
+  // created an immediate follow row, bypassing the request flow entirely.
   const privacySettings = await queryOne(
     'SELECT is_private_account FROM user_privacy_settings WHERE user_id = ?',
     [targetUserId]
   )
 
-  if (privacySettings?.is_private_account) {
+  if (isAccountPrivate(privacySettings)) {
     // Check if there's already a pending request
     const existingRequest = await queryOne(
       'SELECT id, status FROM follow_requests WHERE requester_id = ? AND target_id = ?',

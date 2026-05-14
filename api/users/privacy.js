@@ -11,6 +11,7 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { resolvePrivacy, NEW_ROW_DEFAULTS } from '../lib/privacy.js'
 
 async function handler(req, res) {
   // Apply rate limiting
@@ -42,41 +43,27 @@ async function handler(req, res) {
 
 /**
  * Get privacy settings for the current user
- * Creates default settings if they don't exist
+ *
+ * Previously this endpoint INSERTed a default row when none existed —
+ * but the schema defaults (is_private_account=0, etc) flip the user
+ * silently from default-private (no row → private per resolvePrivacy())
+ * to default-public the moment they open the settings page. Now we
+ * compute defaults in JS instead; the row is only created on the user's
+ * first explicit save.
  */
 async function getPrivacySettings(req, res, user) {
-  // Get or create privacy settings
-  let settings = await queryOne(
+  const settings = await queryOne(
     'SELECT * FROM user_privacy_settings WHERE user_id = ?',
     [user.id]
   )
 
-  if (!settings) {
-    // Create default settings
-    await insert(
-      'INSERT INTO user_privacy_settings (user_id) VALUES (?)',
-      [user.id]
-    )
-    settings = await queryOne(
-      'SELECT * FROM user_privacy_settings WHERE user_id = ?',
-      [user.id]
-    )
-  }
-
-  // Get pending follow request count
   const pendingCount = await queryOne(
     'SELECT COUNT(*) as count FROM follow_requests WHERE target_id = ? AND status = ?',
     [user.id, 'pending']
   )
 
   return res.status(200).json({
-    settings: {
-      isPrivateAccount: !!settings.is_private_account,
-      showInSearch: !!settings.show_in_search,
-      hideFollowersList: !!settings.hide_followers_list,
-      hideFollowingList: !!settings.hide_following_list,
-      isMapPublic: !!settings.is_map_public
-    },
+    settings: resolvePrivacy(settings),
     pendingRequestCount: pendingCount?.count || 0
   })
 }
@@ -100,14 +87,30 @@ async function updatePrivacySettings(req, res, user) {
   )
 
   if (!existing) {
+    // Create the row with the same defaults resolvePrivacy() returns
+    // for a missing row, so toggling a single unrelated field (e.g.
+    // isMapPublic) doesn't silently flip the user from default-private
+    // to default-public. NEW_ROW_DEFAULTS keeps this in lockstep with
+    // PRIVACY_DEFAULTS in api/lib/privacy.js.
     await insert(
-      'INSERT INTO user_privacy_settings (user_id) VALUES (?)',
-      [user.id]
+      `INSERT INTO user_privacy_settings
+         (user_id, is_private_account, show_in_search, hide_followers_list, hide_following_list, is_map_public)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        user.id,
+        NEW_ROW_DEFAULTS.is_private_account,
+        NEW_ROW_DEFAULTS.show_in_search,
+        NEW_ROW_DEFAULTS.hide_followers_list,
+        NEW_ROW_DEFAULTS.hide_following_list,
+        NEW_ROW_DEFAULTS.is_map_public,
+      ]
     )
   }
 
-  // Track if going from private to public
-  const wasPrivate = existing?.is_private_account
+  // Track if going from private to public. NULL row also counts as
+  // private (matches resolvePrivacy()), so a user with no prior row
+  // who toggles is_private off triggers the auto-approve flow correctly.
+  const wasPrivate = existing ? !!existing.is_private_account : true
   const goingPublic = wasPrivate && isPrivateAccount === false
 
   // Build update query dynamically based on provided fields
@@ -185,13 +188,7 @@ async function updatePrivacySettings(req, res, user) {
 
   return res.status(200).json({
     success: true,
-    settings: {
-      isPrivateAccount: !!settings.is_private_account,
-      showInSearch: !!settings.show_in_search,
-      hideFollowersList: !!settings.hide_followers_list,
-      hideFollowingList: !!settings.hide_following_list,
-      isMapPublic: !!settings.is_map_public
-    },
+    settings: resolvePrivacy(settings),
     autoApprovedRequests: autoApprovedCount
   })
 }
