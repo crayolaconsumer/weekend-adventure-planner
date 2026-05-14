@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notification accent — Android tints the small icon silhouette
+         and any accent UI of the notification with this colour.
+         Matches the ROAM forest-green brand mark. -->
+    <color name="notification_color">#1a3a2f</color>
+</resources>

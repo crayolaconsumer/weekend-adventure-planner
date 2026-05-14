@@ -2,8 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- aps-environment must be 'production' for App Store + TestFlight
+	     builds. 'development' routes APNS registrations to the sandbox
+	     endpoint (api.sandbox.push.apple.com), but App Store/TestFlight
+	     builds are signed with a distribution profile and issue
+	     production tokens. The mismatch silently dropped every push to
+	     iOS users on build 37. -->
 	<key>aps-environment</key>
-	<string>development</string>
+	<string>production</string>
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>

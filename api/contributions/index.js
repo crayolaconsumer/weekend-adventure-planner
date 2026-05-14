@@ -341,7 +341,7 @@ async function handleVote(req, res) {
 
   // Get the contribution
   const contribution = await queryOne(
-    'SELECT id, upvotes, downvotes, user_id, place_id FROM contributions WHERE id = ?',
+    'SELECT id, upvotes, downvotes, user_id, place_id, place_name FROM contributions WHERE id = ?',
     [contributionId]
   )
 
@@ -437,7 +437,10 @@ async function handleVote(req, res) {
   // Send push notification for upvotes (non-blocking)
   // Only notify on milestone upvote counts to avoid spam
   if (voteType === 'up' && [1, 5, 10, 25, 50, 100].includes(newUpvotes)) {
-    const placeName = contribution.place_id || 'a place'
+    // Use the human place_name we stamped at contribution time, not
+    // place_id (a UUID/OSM ID — produces garbage in the notification
+    // body like "Your tip about node/12345 has 5 upvotes").
+    const placeName = contribution.place_name || 'a place'
     notifyContributionUpvote(contribution.user_id, placeName, newUpvotes).catch(() => {})
   }
 

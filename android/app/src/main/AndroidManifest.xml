@@ -55,6 +55,19 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Firebase Cloud Messaging defaults. Without the icon meta-data,
+             Android renders every push notification with a generic white
+             square (the system can't tint @mipmap/ic_launcher because
+             it's a full-colour image — small notification icons MUST be
+             alpha-only). The colour applies an accent tint matching the
+             ROAM forest-green brand. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
     </application>
 
     <!-- Permissions -->

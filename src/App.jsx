@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
 // Lazy load page components for code splitting
@@ -47,6 +47,51 @@ import { DistanceProvider } from './contexts/DistanceContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
 import { usePushNotifications } from './hooks/usePushNotifications'
+import { isNative } from './utils/nativeBridge'
+
+/**
+ * Wires the native (iOS / Android) "user tapped a push notification"
+ * event to React Router navigation. Without this, the `url` carried
+ * in every notify*() payload is ignored on native — the app opens,
+ * but the user is dumped on whatever screen was last open instead of
+ * the wishlist/profile/place the notification was actually about.
+ * Web pushes route via the service worker (public/sw.js) and don't
+ * need this; native pushes deliver via Capacitor's plugin and need
+ * an explicit listener.
+ */
+function PushTapHandler() {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!isNative()) return
+
+    let handle
+    const setup = async () => {
+      const { PushNotifications } = await import('@capacitor/push-notifications')
+      handle = await PushNotifications.addListener(
+        'pushNotificationActionPerformed',
+        (event) => {
+          const data = event?.notification?.data || {}
+          // Server-side notify* helpers attach { url: '/...' } to data.
+          // FCM/APNS may also stringify nested objects, so accept both
+          // a top-level data.url and a JSON-encoded payload.url variant.
+          let url = typeof data.url === 'string' ? data.url : null
+          if (!url && typeof data.payload === 'string') {
+            try { url = JSON.parse(data.payload)?.url || null } catch { /* ignore */ }
+          }
+          if (url && url.startsWith('/')) {
+            navigate(url)
+          }
+        }
+      )
+    }
+    setup().catch(() => {})
+
+    return () => { handle?.remove?.() }
+  }, [navigate])
+
+  return null
+}
 
 /**
  * Invisible wrapper that auto-fires the push permission subscribe()
@@ -495,6 +540,7 @@ function App() {
               <DisplayNameNudge />
               <OfflineIndicator />
               <PushAuthSync />
+              <PushTapHandler />
 
               <main id="main-content">
                 <Suspense fallback={<LoadingState variant="spinner" message="Loading..." size="large" />}>

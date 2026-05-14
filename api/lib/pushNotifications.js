@@ -140,6 +140,18 @@ export async function sendPushToUser(userId, payload) {
 }
 
 async function dispatchToSubscription(sub, payload) {
+  // Silent badge-update pushes don't have a title/body, only data.
+  // Native (iOS APNS, Android FCM) would render that as "ROAM" with a
+  // blank body — worse than nothing. Until we wire proper silent push
+  // flags (apns-priority: 5 + content-available: 1 on iOS, FCM
+  // data-only message on Android), skip the native platforms entirely
+  // for these pushes. The web SW handles them correctly via the
+  // data.silent flag.
+  const isSilent = !payload?.title && !payload?.body
+  if (isSilent && (sub.platform === 'ios' || sub.platform === 'android')) {
+    return false
+  }
+
   switch (sub.platform) {
     case 'web':
       return dispatchVapid(sub, payload)
@@ -379,9 +391,16 @@ export async function notifyContributionUpvote(userId, placeName, newVoteCount) 
     return false
   }
 
+  // Truncate long place names — Android wraps mid-line at body text,
+  // iOS shows full title but a 60+ char title looks terrible in
+  // banner notifications. 32 chars is the sweet spot for both.
+  const shortPlace = placeName && placeName.length > 32
+    ? `${placeName.slice(0, 32)}…`
+    : (placeName || 'a place')
+
   return sendPushToUser(userId, {
     title: 'Your tip is helpful!',
-    body: `Your tip about ${placeName} has ${newVoteCount} upvotes`,
+    body: `${shortPlace} got ${newVoteCount} upvote${newVoteCount === 1 ? '' : 's'}`,
     tag: 'contribution-vote'
   })
 }
