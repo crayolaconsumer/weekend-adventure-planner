@@ -112,14 +112,17 @@ async function handler(req, res) {
 
     // Get stats (including places visited and pending contributions for own profile)
     const contributionStatusFilter = isOwnProfile ? 'IN ("approved", "pending")' : '= "approved"'
-    const [followerCount, followingCount, contributionCount, savedPlacesCount, placesVisitedCount, placesRatedCount, userStats] = await Promise.all([
+    // user_stats query removed — those counters drifted from the
+    // authoritative tables and the OR-fallback masked the drift. After
+    // the visited.js race fix + one-time backfill, the COUNT(*) queries
+    // below are the only thing we trust.
+    const [followerCount, followingCount, contributionCount, savedPlacesCount, placesVisitedCount, placesRatedCount] = await Promise.all([
       queryOne('SELECT COUNT(*) as count FROM follows WHERE following_id = ?', [user.id]),
       queryOne('SELECT COUNT(*) as count FROM follows WHERE follower_id = ?', [user.id]),
       queryOne(`SELECT COUNT(*) as count FROM contributions WHERE user_id = ? AND status ${contributionStatusFilter}`, [user.id]),
       queryOne('SELECT COUNT(*) as count FROM saved_places WHERE user_id = ?', [user.id]),
       queryOne('SELECT COUNT(*) as count FROM visited_places WHERE user_id = ?', [user.id]),
-      queryOne('SELECT COUNT(*) as count FROM place_ratings WHERE user_id = ?', [user.id]),
-      queryOne('SELECT places_visited, places_rated FROM user_stats WHERE user_id = ?', [user.id])
+      queryOne('SELECT COUNT(*) as count FROM place_ratings WHERE user_id = ?', [user.id])
     ])
 
     // For private profiles that user can't see, return limited data
@@ -287,8 +290,13 @@ async function handler(req, res) {
         contributions: contributionCount.count,
         savedPlaces: savedPlacesCount.count,
         helpfulVotes: helpfulVotes.total,
-        placesVisited: placesVisitedCount?.count || userStats?.places_visited || 0,
-        placesRated: placesRatedCount?.count || userStats?.places_rated || 0
+        // Trust COUNT(*) over user_stats. The cached user_stats counters
+        // can drift from the actual table rows after races; the JOINed
+        // tables are the source of truth. `??` (not `||`) so a genuine
+        // zero-visits user shows 0 instead of falling through to a stale
+        // counter that says 5.
+        placesVisited: placesVisitedCount?.count ?? 0,
+        placesRated: placesRatedCount?.count ?? 0
       },
       // Keep contributions for backwards compatibility
       contributions: formattedActivities.filter(a => a.activityType !== 'visit').map(c => ({

@@ -100,16 +100,20 @@ async function handlePost(req, res, user) {
     }
   }
 
-  // Check if this is a new visit or update
-  const existing = await queryOne(
-    'SELECT 1 FROM visited_places WHERE user_id = ? AND place_id = ?',
-    [user.id, placeId]
-  )
-  const isNewVisit = !existing
-
-  // Upsert and update stats atomically
+  // Atomic upsert. The previous version did SELECT-then-INSERT outside
+  // the transaction: two concurrent POSTs for the same place both saw
+  // existing=null, both treated it as a new visit, both incremented
+  // user_stats by 1 — but ON DUPLICATE KEY UPDATE created only one
+  // row. The result was user_stats.places_visited drifting +1 per
+  // racing double-tap. By relying solely on the unique (user_id,
+  // place_id) constraint and MySQL's affectedRows return value, the
+  // first writer wins atomically:
+  //   affectedRows = 1 → new row inserted (true new visit)
+  //   affectedRows = 2 → existing row updated (re-visit, ON DUPLICATE)
+  //   affectedRows = 0 → no change (shouldn't happen with visited_at = NOW())
+  let isNewVisit = false
   await transaction(async (conn) => {
-    await conn.query(
+    const [result] = await conn.query(
       `INSERT INTO visited_places (user_id, place_id, place_data, notes, rating)
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
@@ -119,8 +123,8 @@ async function handlePost(req, res, user) {
          visited_at = NOW()`,
       [user.id, placeId, placeData ? JSON.stringify(placeData) : null, notes || null, rating || null]
     )
+    isNewVisit = result.affectedRows === 1
 
-    // Only increment stats on new visits, not updates
     if (isNewVisit) {
       await conn.query(
         `INSERT INTO user_stats (user_id, places_visited) VALUES (?, 1)

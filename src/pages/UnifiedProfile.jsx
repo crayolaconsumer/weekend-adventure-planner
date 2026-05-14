@@ -314,7 +314,11 @@ export default function UnifiedProfile() {
           aria-label="View visited places map and list"
         >
           <span className="unified-profile-stat-value">
-            {stats.placesVisited || visitedPlaces.length || 0}
+            {/* Server is source of truth. Previously OR-fell through to
+                localStorage count when the server returned a legitimate
+                0, which leaked the previous user's count on shared
+                devices and confused users who genuinely had 0 visits. */}
+            {stats.placesVisited ?? 0}
           </span>
           <span className="unified-profile-stat-label">Visited</span>
         </button>
