@@ -236,11 +236,49 @@ export async function clearImageCache() {
  * @param {string} [placeId] - Associated place ID
  * @returns {Promise<string>} - Object URL for the cached image
  */
+// Hosts we know send Access-Control-Allow-Origin and (in most cases)
+// won't 302 to a non-CORS host. Anything else we skip fetching and let
+// <img src> handle the load directly — the image still renders, but we
+// avoid the CORS-error flood + Wikimedia rate-limits (429s) that
+// Discover's swipe deck used to trigger by trying to cache every image.
+//
+// Notably NOT in the list: commons.wikimedia.org (Special:FilePath
+// redirects to upload.wikimedia.org without CORS headers on the 302),
+// and brand hosts like starbucks.com that don't enable CORS at all.
+const CORS_FRIENDLY_HOSTS = [
+  'upload.wikimedia.org',
+  'images.unsplash.com',
+  'source.unsplash.com',
+]
+
+function isCacheableImageUrl(url) {
+  if (typeof url !== 'string' || !url) return false
+  try {
+    const parsed = new URL(url, window.location.origin)
+    // Same-origin (e.g. /uploads/, Vercel Blob proxied through us) — always fetchable
+    if (parsed.origin === window.location.origin) return true
+    // Vercel Blob direct (we control the storage, it sends CORS)
+    if (parsed.hostname.endsWith('.public.blob.vercel-storage.com')) return true
+    return CORS_FRIENDLY_HOSTS.some((host) => parsed.hostname === host)
+  } catch {
+    return false
+  }
+}
+
 export async function fetchAndCacheImage(url, placeId = null) {
   // Check cache first
   const cached = await getCachedImage(url)
   if (cached) {
     return URL.createObjectURL(cached)
+  }
+
+  // Skip fetch+cache for cross-origin URLs that don't expose CORS — the
+  // <img> tag will still load + display them, we just lose the offline
+  // cache. Trying to fetch them all produces a flood of CORS errors in
+  // the console on every Discover load, and rapid-fires enough requests
+  // at Wikimedia Commons that we start seeing 429 Too Many Requests.
+  if (!isCacheableImageUrl(url)) {
+    return url
   }
 
   // Fetch the image
