@@ -94,6 +94,11 @@ initAnalytics()
     const s = String(msg || '').toLowerCase()
     return s.includes('failed to fetch dynamically imported module') ||
            s.includes('importing a module script failed') ||
+           // Vite's CSS preloader throws a different message when a
+           // route-split stylesheet 404s (its hash changed in a deploy
+           // while the user's tab was still open). Same root cause as
+           // the JS chunk-load case — same fix.
+           s.includes('unable to preload css') ||
            s.includes('loading chunk') && s.includes('failed')
   }
   const tryReload = () => {

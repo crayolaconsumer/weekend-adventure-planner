@@ -64,7 +64,29 @@ async function handler(req, res) {
 }
 
 /**
- * GET - Retrieve all saved events for user
+ * Determine whether a saved-event record's date has already passed.
+ * Use the END time if present (so multi-day festivals stay surfaced
+ * until the last day ends), else the START time. Events with no
+ * parseable date are kept — better to leak a dead row than hide a
+ * live one.
+ */
+function isEventPast(eventData) {
+  const dateStr = eventData?.datetime?.end || eventData?.datetime?.start
+  if (!dateStr) return false
+  const eventDate = new Date(dateStr)
+  if (Number.isNaN(eventDate.getTime())) return false
+  return eventDate.getTime() < Date.now()
+}
+
+/**
+ * GET - Retrieve all saved events for user (future events only).
+ *
+ * Past events are filtered server-side so the wishlist UI doesn't
+ * surface gigs the user can no longer attend. Rows are kept in the
+ * DB — we may want to show a "Past events" archive later, and
+ * deletion would lose the user's history. If storage becomes a
+ * concern, a follow-up cron can hard-delete rows older than 30 days
+ * past their end date.
  */
 async function handleGet(req, res, user) {
   const { limit = 100, offset = 0 } = req.query
@@ -82,21 +104,25 @@ async function handleGet(req, res, user) {
     [user.id, safeLimit, safeOffset]
   )
 
-  const formattedEvents = events.map(row => ({
-    ...parseEventData(row.event_data, row.event_id),
-    id: row.event_id,
-    source: row.event_source,
-    savedAt: new Date(row.saved_at).getTime()
-  }))
+  const futureEvents = events
+    .map(row => ({
+      raw: row,
+      parsed: parseEventData(row.event_data, row.event_id)
+    }))
+    .filter(({ parsed }) => !isEventPast(parsed))
+    .map(({ raw, parsed }) => ({
+      ...parsed,
+      id: raw.event_id,
+      source: raw.event_source,
+      savedAt: new Date(raw.saved_at).getTime()
+    }))
 
-  const countResult = await queryOne(
-    'SELECT COUNT(*) as total FROM saved_events WHERE user_id = ?',
-    [user.id]
-  )
-
+  // Total reflects the filtered (future-only) set so the count badge
+  // in the UI matches what the user sees on screen. Past events still
+  // occupy DB rows but are invisible to the client.
   return res.status(200).json({
-    events: formattedEvents,
-    total: countResult.total
+    events: futureEvents,
+    total: futureEvents.length
   })
 }
 
