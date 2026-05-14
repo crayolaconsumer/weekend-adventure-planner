@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    ROAM+ Monthly — promotional image for App Store Connect IAP.
+    Light / cream palette to distinguish it from the dark Annual tier
+    (and from the dark-green app icon). Centred wordmark on a parchment
+    field with a fine gold rule + small subtitle. Deliberately abstract:
+    no pricing or trial copy (Apple rejects images that include either).
+  -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="80%">
+      <stop offset="0%" stop-color="#fdfcf8"/>
+      <stop offset="100%" stop-color="#efe9d9"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e6c069"/>
+      <stop offset="50%" stop-color="#d4a855"/>
+      <stop offset="100%" stop-color="#b88a3a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cream background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- Outer gold frame — thin rectangle with rounded corners, leaves margin -->
+  <rect x="80" y="80" width="864" height="864" rx="40" ry="40"
+        fill="none" stroke="url(#gold)" stroke-width="6"/>
+
+  <!-- Tier label, top -->
+  <text x="512" y="240"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="46" font-style="italic"
+        letter-spacing="12"
+        text-anchor="middle" fill="#1a3a2f" opacity="0.7">
+    MEMBERSHIP
+  </text>
+
+  <!-- Gold rule under tier label -->
+  <line x1="412" y1="270" x2="612" y2="270" stroke="#d4a855" stroke-width="3"/>
+
+  <!-- Wordmark — large, brand forest green -->
+  <text x="512" y="500"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="220" font-weight="400"
+        text-anchor="middle" fill="#1a3a2f"
+        letter-spacing="-8">
+    ROAM
+  </text>
+
+  <!-- + glyph in gold -->
+  <text x="512" y="660"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="180" font-weight="300"
+        text-anchor="middle" fill="url(#gold)">
+    +
+  </text>
+
+  <!-- Subtitle, bottom -->
+  <text x="512" y="820"
+        font-family="-apple-system, 'Helvetica Neue', sans-serif"
+        font-size="44" font-weight="500"
+        letter-spacing="20"
+        text-anchor="middle" fill="#1a3a2f">
+    MONTHLY
+  </text>
+
+  <!-- Tagline -->
+  <text x="512" y="880"
+        font-family="Georgia, 'Times New Roman', serif"
+        font-size="32" font-style="italic"
+        text-anchor="middle" fill="#6b5b4a">
+    Adventures, on your terms
+  </text>
+</svg>
