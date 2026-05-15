@@ -119,7 +119,9 @@ export const TYPE_TO_KEYS: Record<string, string[]> = {
   cannon: ['historic'],
   aircraft: ['historic'],
   wreck: ['historic'],
+  temple: ['historic'],
   monastery: ['amenity'],
+  grave_yard: ['amenity'],
 
   // ─── ENTERTAINMENT: leisure ────────────────────────────────────
   bowling_alley: ['leisure'],
@@ -135,6 +137,7 @@ export const TYPE_TO_KEYS: Record<string, string[]> = {
   sauna: ['leisure'],
   adult_gaming_centre: ['leisure'],
   dance: ['leisure'],
+  resort: ['leisure'],
 
   // ─── ENTERTAINMENT: tourism ────────────────────────────────────
   zoo: ['tourism'],
@@ -190,6 +193,7 @@ export const TYPE_TO_KEYS: Record<string, string[]> = {
   marketplace: ['amenity'],
 
   // ─── SHOPPING: shop (canonical OSM values, taginfo top-50) ────
+  mall: ['shop'],
   antiques: ['shop'],
   art: ['shop'],
   bag: ['shop'],

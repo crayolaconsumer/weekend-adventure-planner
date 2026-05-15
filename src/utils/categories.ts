@@ -81,14 +81,21 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🏛️',
     color: '#8b7355',
     types: [
-      // historic=*  (canonical values from taginfo top-30)
+      // historic=*  (canonical values from taginfo top-30 — globally
+      // used, not UK-specific. memorial, archaeological_site, ruins
+      // and castle alone account for 1M+ tagged places worldwide.)
       'castle', 'manor', 'monument', 'memorial', 'ruins',
       'archaeological_site', 'fort', 'citywalls', 'city_gate',
       'tomb', 'mine', 'church', 'battlefield', 'heritage',
       'wayside_shrine', 'wayside_cross', 'milestone', 'mine_shaft',
-      'cannon', 'aircraft', 'wreck',
-      // amenity=*  (historic religious sites the OSM community puts here)
+      'cannon', 'aircraft', 'wreck', 'temple',
+      // amenity=*  (historic religious + ceremonial sites)
       'monastery',
+      // amenity=grave_yard — Highgate, Père Lachaise, Arlington,
+      // Recoleta, etc. are major global destinations. The scoring
+      // pipeline will rank the famous ones (which carry photos +
+      // websites + wikipedia tags) above village churchyards.
+      'grave_yard',
     ],
   },
   entertainment: {
@@ -96,11 +103,13 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🎪',
     color: '#e07a5f',
     types: [
-      // leisure=*
+      // leisure=*  (canonical globally; resort covers ski/wellness/
+      // beach resort destinations worldwide)
       'bowling_alley', 'miniature_golf', 'water_park',
       'amusement_arcade', 'escape_game', 'trampoline_park',
       'high_ropes_course', 'disc_golf_course', 'ice_rink',
       'horse_riding', 'sauna', 'adult_gaming_centre', 'dance',
+      'resort',
       // tourism=*
       'zoo', 'aquarium', 'theme_park',
       // amenity=*
@@ -154,8 +163,11 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
       // "market", "flea_market", "farmers_market", "indoor_market",
       // "covered_market", "car_boot_sale" don't exist as values)
       'marketplace',
-      // shop=*  (canonical OSM values; rebuilt against taginfo top-50)
-      'antiques', 'art', 'bag', 'books', 'boutique', 'candles',
+      // shop=*  (canonical OSM values; rebuilt against taginfo top-50,
+      // global — these tags are used identically in every country.
+      // `mall` covers shopping malls/centres which are big-box
+      // destinations especially in US/Asia/Middle East.)
+      'mall', 'antiques', 'art', 'bag', 'books', 'boutique', 'candles',
       'charity', 'clothes', 'collector', 'comics', 'craft', 'fabric',
       'florist', 'frame', 'furniture', 'games', 'gift', 'houseware',
       'interior_decoration', 'jewelry', 'kitchen', 'leather', 'lighting',
@@ -196,13 +208,19 @@ export const BLACKLIST: string[] = [
   'toilet', 'waste_basket', 'recycling', 'waste_disposal', 'manhole',
   'telephone', 'post_box', 'bench', 'shelter', 'parking_space',
   'parking_entrance', 'vending_machine', 'street_cabinet', 'utility_pole',
-  // Religious / political clubs (often closed to public weekend visitors)
-  'political', 'place_of_worship', 'convent', 'grave_yard',
+  // Religious / political clubs (often closed to public weekend visitors).
+  // NOTE: grave_yard is NOT here — cemeteries (Highgate, Père Lachaise,
+  // Recoleta, etc.) are surfaced via the historic category. The
+  // pure-residential graveyards lose out at scoring time because they
+  // lack photos / websites / wikipedia tags.
+  'political', 'place_of_worship', 'convent',
   // Industrial / commercial back-end
   'industrial', 'warehouse', 'storage', 'storage_rental', 'factory',
   'office', 'works', 'silo', 'pier',
-  // Boring retail (chains + utilities)
-  'supermarket', 'convenience', 'department_store', 'mall', 'wholesale',
+  // Boring retail (chains + utilities). NOTE: 'mall' is NOT here — it
+  // surfaces via the shopping category (mall is a primary destination
+  // type in US/Asia/Middle East markets).
+  'supermarket', 'convenience', 'department_store', 'wholesale',
   'hardware', 'electronics', 'mobile_phone', 'computer', 'kiosk',
   'variety_store', 'vacant', 'outpost',
   'doityourself', 'appliance', 'electrical', 'paint', 'tiles', 'flooring',
