@@ -502,6 +502,21 @@ p {
   box-shadow: 0 2px 8px rgba(212, 168, 85, 0.2);
 }
 
+/* Dark-mode banner: keep the amber warning identity but knock the
+   tones way down so it doesn't read as a fluorescent bar at night.
+   Previously stayed pale yellow regardless of theme, which made the
+   text (theme-aware --roam-forest → light cream in dark mode)
+   appear as low-contrast white-on-cream. */
+[data-theme="dark"] .location-banner {
+  background: linear-gradient(135deg, #4a3d10 0%, #3a2f08 100%);
+  border-bottom-color: color-mix(in srgb, var(--roam-gold) 35%, transparent);
+  color: var(--roam-gold);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+[data-theme="dark"] .location-banner-close {
+  color: var(--roam-gold);
+}
+
 /* When the location banner is rendered, push page content down so it
    doesn't sit underneath. The banner itself is position:fixed and
    ~62px tall on mobile, so we reserve the same room on <main>. Before
