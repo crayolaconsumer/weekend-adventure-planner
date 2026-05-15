@@ -508,7 +508,16 @@ export default function CardStack({
   return (
     <div className="card-stack">
       <div className="card-stack-wrapper">
-        <AnimatePresence>
+        {/* mode="popLayout" — the exiting card is removed from layout
+            flow immediately so the new top card can animate into
+            position without being shadowed by the fading-out one.
+            Previously the default "sync" mode let the exiting and
+            entering cards both render at the SAME z-index for the
+            full 200ms exit fade, producing the visual ghosting
+            users saw: duplicate titles, duplicate "you love history
+            & heritage" tags, duplicate badges, action buttons
+            flickering. */}
+        <AnimatePresence mode="popLayout">
           {visibleCards.map((item, index) => {
             const { place, isSponsored, sponsoredData } = item
             const isTop = index === 0
@@ -532,8 +541,15 @@ export default function CardStack({
                   zIndex: visibleCards.length - index
                 }}
                 exit={{
+                  // Snap-fast exit: the SwipeCard's own swipe-off-screen
+                  // animation is the visual story. By the time we get
+                  // here the card is already off-screen (or near it),
+                  // so the wrapper just needs to vanish without
+                  // overlapping the new top card. 80ms instead of
+                  // 200ms eliminates the ghost-window.
                   opacity: 0,
-                  transition: { duration: 0.2 }
+                  scale: 0.92,
+                  transition: { duration: 0.08 }
                 }}
                 transition={{
                   type: 'spring',

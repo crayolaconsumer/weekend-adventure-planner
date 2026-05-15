@@ -507,7 +507,16 @@ export default function SwipeCard({
         GO NOW
       </motion.div>
 
-      {/* Content */}
+      {/* Content overlay. Gated by isTop so back-stack cards show
+          ONLY the image — no badge, no title, no tag. Previously
+          all three stacked cards rendered full content, which meant
+          the back card's title/badges showed through whenever the
+          top card was mid-transition (fade-out during AnimatePresence
+          exit). Users saw two titles, two HISTORY & HERITAGE badges,
+          two "you love history & heritage" tags stacked. With this
+          gate, only the actual top card has any text overlay; the
+          peek-of-back-card behind it is just an image. */}
+      {isTop && (
       <div className="swipe-card-content">
         {/* Friend chips - show if friends have engaged with this place */}
         {friendActivity && friendActivity.friendCount > 0 && (
@@ -576,6 +585,7 @@ export default function SwipeCard({
           <p className="swipe-card-address">{place.address}</p>
         )}
       </div>
+      )}
 
       {/* Action Buttons.
           onPointerDownCapture stopPropagation is critical now that the
