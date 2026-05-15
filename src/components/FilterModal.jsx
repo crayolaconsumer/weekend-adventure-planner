@@ -234,23 +234,34 @@ export function FilterModal({
             onDragEnd={handleDragEnd}
             tabIndex={-1}
           >
-            {/* Handle bar */}
+            {/* Handle bar + header act as a single drag target. The
+                visible handle is only ~40px wide so it's hard to hit
+                — users were finding the swipe-down-to-dismiss gesture
+                "doesn't work" because they swiped from the title row
+                or anywhere outside the small handle bar. Wrapping
+                both in one pointer-down trigger gives the whole top
+                section a generous drag affordance, matching how
+                native iOS / Material bottom sheets work. */}
             <div
-              className="filter-modal-handle"
-              role="button"
-              tabIndex={0}
-              aria-label="Drag to resize"
+              className="filter-modal-drag-zone"
               onPointerDown={handleDragStart}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  setIsExpanded(prev => !prev)
-                }
-              }}
-            />
+            >
+              <div
+                className="filter-modal-handle"
+                role="button"
+                tabIndex={0}
+                aria-label="Drag to resize, or swipe down to dismiss"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setIsExpanded(prev => !prev)
+                  }
+                }}
+              />
+            </div>
 
             {/* Header */}
-            <div className="filter-modal-header">
+            <div className="filter-modal-header" onPointerDown={handleDragStart}>
               <div className="filter-modal-title-row">
                 <h2 className="filter-modal-title">What interests you?</h2>
                 {activeCount > 0 && (

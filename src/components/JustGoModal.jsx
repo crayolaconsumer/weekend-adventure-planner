@@ -13,6 +13,7 @@ import { openDirections } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
+import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
 import './JustGoModal.css'
 
@@ -122,6 +123,9 @@ export default function JustGoModal({
   const [showCelebration, setShowCelebration] = useState(false)
   const formatDistance = useFormatDistance()
   const focusTrapRef = useFocusTrap(isOpen)
+  // Swipe-down-to-dismiss. Disabled mid-celebration so the user
+  // can't accidentally drag the confetti screen away.
+  const dismissDrag = useBottomSheetDismiss(onClose, { enabled: !showCelebration })
 
   // Reset state when modal opens
   useEffect(() => {
@@ -244,6 +248,7 @@ export default function JustGoModal({
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           onClick={e => e.stopPropagation()}
+          {...dismissDrag}
         >
           {!showCelebration ? (
             <>

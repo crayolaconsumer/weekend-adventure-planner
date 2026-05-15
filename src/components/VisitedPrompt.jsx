@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { VIBE_OPTIONS, NOISE_OPTIONS, VALUE_OPTIONS } from '../utils/ratingsStorage'
 import RatingIcon from './icons/RatingIcon'
 import CategoryIcon from './icons/CategoryIcon'
@@ -83,6 +84,9 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   // Steps: 'confirm' | 'recommend' | 'feedback' | 'review' | 'share' | 'success'
   const [step, setStep] = useState('confirm')
   const [showConfetti, setShowConfetti] = useState(false)
+  // Disable swipe-down during success (confetti) screen so users
+  // can't accidentally yank the celebration off the screen.
+  const dismissDrag = useBottomSheetDismiss(onDismiss, { enabled: step !== 'success' })
 
   // Auth & contribution
   const { isAuthenticated } = useAuth()
@@ -248,6 +252,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          {...dismissDrag}
         >
           {/* Close button */}
           {step !== 'success' && (

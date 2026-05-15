@@ -10,6 +10,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import './PlanPrompt.css'
 
 // Bookmark/map icon - represents saved adventures
@@ -44,6 +45,7 @@ const CompassIcon = () => (
 
 export default function PlanPrompt({ place, onClose, onAddToPlan }) {
   const navigate = useNavigate()
+  const dismissDrag = useBottomSheetDismiss(onClose)
 
   if (!place) return null
 
@@ -93,6 +95,7 @@ export default function PlanPrompt({ place, onClose, onAddToPlan }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="plan-prompt-title"
+          {...dismissDrag}
         >
           {/* Floating celebration particles */}
           <div className="plan-prompt-particles">

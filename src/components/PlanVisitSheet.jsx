@@ -13,6 +13,7 @@ import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import { useAuth } from '../contexts/AuthContext'
 import { openAppSettings } from '../utils/nativePlugins'
+import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import './PlanVisitSheet.css'
 
 // Icons
@@ -115,6 +116,9 @@ export default function PlanVisitSheet({
   const [customDate, setCustomDate] = useState('')
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   const focusTrapRef = useFocusTrap(isOpen)
+  // Disable swipe-dismiss during confirmation (the 2-second
+  // success state auto-dismisses on its own).
+  const dismissDrag = useBottomSheetDismiss(onClose, { enabled: !showConfirmation })
 
   // Push permission ask — gated behind sign-in. Anonymous users can save
   // the planned date locally but their device-to-user mapping doesn't
@@ -223,6 +227,7 @@ export default function PlanVisitSheet({
           exit={{ y: '100%' }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           onClick={e => e.stopPropagation()}
+          {...dismissDrag}
         >
           {!showConfirmation ? (
             <>

@@ -80,20 +80,31 @@
   padding-top: env(safe-area-inset-top, 0);
 }
 
-/* Handle bar for drag affordance */
+/* Drag zone — large invisible touch target around the visible
+   handle bar. The handle itself is only 48×6px which is way below
+   any reasonable thumb-tap target; users were missing it. This
+   wrapper extends the effective grab area to a full-width strip
+   ~36px tall, so swipe-down-to-dismiss fires regardless of where
+   in the top edge the user touches. */
+.filter-modal-drag-zone {
+  width: 100%;
+  padding: 8px 0 4px;
+  cursor: grab;
+  touch-action: none;
+}
+.filter-modal-drag-zone:active {
+  cursor: grabbing;
+}
+
+/* Visible handle bar — the affordance, not the touch target */
 .filter-modal-handle {
   width: 48px;
   height: 6px;
   background: var(--roam-parchment-dark);
   border-radius: 2px;
-  margin: 12px auto 8px;
+  margin: 0 auto;
   flex-shrink: 0;
-  cursor: grab;
-  touch-action: none;
-}
-
-.filter-modal-handle:active {
-  cursor: grabbing;
+  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════════

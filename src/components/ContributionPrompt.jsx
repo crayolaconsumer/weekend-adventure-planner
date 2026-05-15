@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useCreateContribution } from '../hooks/useContributions'
 import { useNeedsConnection } from '../hooks/useNeedsConnection'
+import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import './ContributionPrompt.css'
 
 const MAX_CHARS = 280
@@ -19,6 +20,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
   const needsConnection = useNeedsConnection()
   const [content, setContent] = useState('')
   const [error, setError] = useState(null)
+  const dismissDrag = useBottomSheetDismiss(onClose)
 
   // Derive auth prompt state directly from isAuthenticated (no effect needed)
   const showAuthPrompt = !isAuthenticated
@@ -63,6 +65,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
           onClick={e => e.stopPropagation()}
+          {...dismissDrag}
         >
           <div className="contribution-prompt-header">
             <h2>Share Your Experience</h2>

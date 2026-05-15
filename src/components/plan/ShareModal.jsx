@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { downloadICS, getGoogleCalendarUrl } from './CalendarExport'
 import { getPublicShareUrl } from '../../utils/nativeBridge'
+import { useBottomSheetDismiss } from '../../hooks/useBottomSheetDismiss'
 import './ShareModal.css'
 
 const CloseIcon = () => (
@@ -59,6 +60,7 @@ const CheckIcon = () => (
 
 export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode }) {
   const [copied, setCopied] = useState(false)
+  const dismissDrag = useBottomSheetDismiss(onClose)
 
   if (!isOpen) return null
 
@@ -142,6 +144,7 @@ export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode
           role="dialog"
           aria-modal="true"
           aria-labelledby="share-modal-title"
+          {...dismissDrag}
         >
           <div className="share-modal-header">
             <h2 id="share-modal-title" className="share-modal-title">Share Adventure</h2>
