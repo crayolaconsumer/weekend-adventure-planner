@@ -15,7 +15,13 @@ import { SERVER_BADGE_CONFIG } from './badges'
  */
 export default function JourneyTab({
   username,
+  // Local-only stats from current user's device (streak, boredom busts,
+  // wishlist count, best streak). Only meaningful for own profile.
   stats,
+  // Server-truth stats for the profile being viewed (placesVisited,
+  // contributions, helpfulVotes, etc.). Same source as the header
+  // counters.
+  serverStats,
   level,
   levelProgress,
   nextLevelRequirement,
@@ -55,30 +61,47 @@ export default function JourneyTab({
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid. Places Visited reads from server stats so it
+          matches the header counter on every device. Day Streak,
+          Boredom Busts and Saved Places are localStorage-only concepts
+          (the streak ticks on Discover "Let's Go" taps, boredom busts
+          on swipe activity, wishlist is the user's local Saved list)
+          so they're only meaningful on the user's own profile.
+          Showing them on someone else's profile leaked the viewer's
+          local stats onto a stranger's profile header. */}
       <div className="unified-profile-stats-grid">
         <div className="unified-profile-stat-card">
-          {/* Use the same source as the header "Visited" counter
-              (server stats + localStorage fallback). Previously this
-              card showed stats.timesWentOut — a separate counter that
-              only ticks when the user taps "Let's Go" on Discover —
-              while the header showed actual visited count, so the two
-              numbers contradicted each other on the same screen. */}
-          <span className="unified-profile-stat-card-value">{stats.placesVisited || visitedPlaces.length || 0}</span>
+          <span className="unified-profile-stat-card-value">{serverStats?.placesVisited ?? 0}</span>
           <span className="unified-profile-stat-card-label">Places Visited</span>
         </div>
-        <div className="unified-profile-stat-card">
-          <span className="unified-profile-stat-card-value">{stats.currentStreak || 0}</span>
-          <span className="unified-profile-stat-card-label">Day Streak</span>
-        </div>
-        <div className="unified-profile-stat-card">
-          <span className="unified-profile-stat-card-value">{stats.boredomBusts || 0}</span>
-          <span className="unified-profile-stat-card-label">Boredom Busts</span>
-        </div>
-        <div className="unified-profile-stat-card">
-          <span className="unified-profile-stat-card-value">{stats.wishlistCount || 0}</span>
-          <span className="unified-profile-stat-card-label">Saved Places</span>
-        </div>
+        {isOwnProfile && (
+          <>
+            <div className="unified-profile-stat-card">
+              <span className="unified-profile-stat-card-value">{stats.currentStreak || 0}</span>
+              <span className="unified-profile-stat-card-label">Day Streak</span>
+            </div>
+            <div className="unified-profile-stat-card">
+              <span className="unified-profile-stat-card-value">{stats.boredomBusts || 0}</span>
+              <span className="unified-profile-stat-card-label">Boredom Busts</span>
+            </div>
+            <div className="unified-profile-stat-card">
+              <span className="unified-profile-stat-card-value">{stats.wishlistCount || 0}</span>
+              <span className="unified-profile-stat-card-label">Saved Places</span>
+            </div>
+          </>
+        )}
+        {!isOwnProfile && (
+          <>
+            <div className="unified-profile-stat-card">
+              <span className="unified-profile-stat-card-value">{serverStats?.contributions ?? 0}</span>
+              <span className="unified-profile-stat-card-label">Tips Shared</span>
+            </div>
+            <div className="unified-profile-stat-card">
+              <span className="unified-profile-stat-card-value">{serverStats?.helpfulVotes ?? 0}</span>
+              <span className="unified-profile-stat-card-label">Helpful</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Badges */}
@@ -117,8 +140,11 @@ export default function JourneyTab({
           </>
         )}
 
-        {/* Client-side activity badges */}
-        {earnedBadges.length > 0 && (
+        {/* Client-side activity badges. Computed from the VIEWER's
+            localStorage, so only meaningful on own profile — gating
+            here prevents your activity badges from appearing on a
+            stranger's profile pretending to be theirs. */}
+        {isOwnProfile && earnedBadges.length > 0 && (
           <>
             <h4 className="unified-profile-subsection-title">Activity</h4>
             <div className="unified-profile-badges earned">
@@ -190,8 +216,8 @@ export default function JourneyTab({
         </div>
       )}
 
-      {/* Best Streak */}
-      {stats.bestStreak > 0 && (
+      {/* Best Streak — from local stats so only meaningful on own profile. */}
+      {isOwnProfile && stats.bestStreak > 0 && (
         <div className="unified-profile-highlight">
           <span className="unified-profile-highlight-icon">
             <AchievementBadge id="streak_30" size="md" />

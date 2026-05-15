@@ -27,7 +27,7 @@ import { formatDate } from '../utils/dateUtils'
 import { formatDisplayName } from '../utils/displayName'
 import { BackIcon, CalendarIcon, LockIcon } from './UnifiedProfile/icons'
 import { BADGES } from './UnifiedProfile/badges'
-import { loadStatsFromStorage } from './UnifiedProfile/utils'
+import { loadStatsFromStorage, computeLevel } from './UnifiedProfile/utils'
 import ProfileSkeleton from './UnifiedProfile/ProfileSkeleton'
 import { FollowersModal, FollowingModal } from './UnifiedProfile/modals'
 import ActivityTab from './UnifiedProfile/ActivityTab'
@@ -89,16 +89,13 @@ export default function UnifiedProfile() {
     refresh()
   }, [refresh])
 
-  // Calculate level (for Journey tab). Curve: level N requires
-  // (N-1)² activity. So 0→L1, 1→L2, 4→L3, 9→L4, 16→L5, ...
-  // The 0% progress immediately after leveling up is intentional —
-  // it's progress toward the NEXT level, which starts at zero.
-  const totalActivity = (localStats.timesWentOut || 0) + (localStats.boredomBusts || 0) + (localStats.adventuresCreated || 0)
-  const level = Math.floor(Math.sqrt(totalActivity)) + 1
-  const currentLevelFloor = Math.pow(level - 1, 2)
-  const nextLevelRequirement = Math.pow(level, 2)
-  const denominator = Math.max(nextLevelRequirement - currentLevelFloor, 1) // never 0
-  const levelProgress = ((totalActivity - currentLevelFloor) / denominator) * 100
+  // Level rank — now derived from SERVER stats (computeLevel reads
+  // profile.stats which is per-user from /api/users/[username]). This
+  // means viewing dad's profile shows dad's level on every device,
+  // not "whichever device's localStorage answered first". Curve is
+  // unchanged so existing badges still align with their level
+  // thresholds. See computeLevel() in UnifiedProfile/utils.ts.
+  const { level, levelProgress, nextLevelRequirement, totalActivity } = computeLevel(profile?.stats)
 
   // Get earned badges
   const earnedBadges = BADGES.filter(badge => badge.requirement(localStats))
@@ -399,6 +396,7 @@ export default function UnifiedProfile() {
             <JourneyTab
               username={user.username}
               stats={localStats}
+              serverStats={stats}
               level={level}
               levelProgress={levelProgress}
               nextLevelRequirement={nextLevelRequirement}
