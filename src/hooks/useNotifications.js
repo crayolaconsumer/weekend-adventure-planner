@@ -159,6 +159,32 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
     }
   }, [isAuthenticated, fetchNotifications])
 
+  // Re-fetch when the app comes back to the foreground. On native
+  // iOS/Android the WebView suspends setInterval while backgrounded,
+  // so the fallback polling below can be up to pollInterval seconds
+  // late catching up after resume. nativeAppLifecycle.js dispatches
+  // 'roam-app-foreground' as soon as Capacitor reports isActive=true
+  // — listen for it and refresh immediately so a push that arrived
+  // (or an in-app notification created server-side) shows in the bell
+  // the moment the user reopens the app, not on next close+reopen.
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const handleForeground = () => fetchNotifications(0)
+    window.addEventListener('roam-app-foreground', handleForeground)
+    // Web fallback — visibilitychange fires on PWA + desktop browsers
+    // when the tab becomes visible again.
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchNotifications(0)
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.removeEventListener('roam-app-foreground', handleForeground)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [isAuthenticated, fetchNotifications])
+
   // Fallback polling only if service worker is not available.
   // Like the SW handler above: when polling detects a count change,
   // refresh the whole list — not just the count — so the dropdown
