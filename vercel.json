@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/visit-reminders",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/re-engagement-nudge",
+      "schedule": "0 10 * * 6"
     }
   ],
   "functions": {
