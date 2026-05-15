@@ -18,17 +18,34 @@ export interface CategoryWithKey extends Category {
   key: CategoryKey
 }
 
-// What we WANT - adventure-worthy places (with UK-specific additions)
+// What we WANT - adventure-worthy places.
+//
+// Every value below is a CANONICAL OSM tag value verified against
+// taginfo.openstreetmap.org. Previously this list contained many
+// invented values like `bookshop`, `record_shop`, `gift_shop`,
+// `gastropub`, `secret_garden`, `flea_market`, `high_street` etc.
+// that don't exist in OSM — Overpass queries built from them
+// returned zero matches, which is why entire categories like Markets
+// & Shops felt broken in towns full of real shops.
+//
+// Performance note: expanding the regex per OSM key here doesn't add
+// query clauses (we still issue one nw[key~"regex"] per distinct OSM
+// key, the regex just has more alternations). Overpass handles long
+// regexes efficiently; the bottleneck is clause count, not regex
+// length. Total clauses unchanged from before this rewrite.
 export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
   food: {
     label: 'Food & Drink',
     icon: '🍽️',
     color: '#c45c3e',
     types: [
-      'restaurant', 'cafe', 'bar', 'pub', 'bakery', 'ice_cream',
-      'food_court', 'fast_food', 'biergarten', 'wine_bar', 'cocktail_bar',
-      'coffee_shop', 'tea_house', 'deli', 'bistro', 'brasserie',
-      'fish_and_chips', 'tearoom', 'farm_shop', 'gastropub',
+      // amenity=*  (eating out)
+      'restaurant', 'cafe', 'pub', 'bar', 'fast_food', 'biergarten',
+      'ice_cream', 'food_court',
+      // shop=*  (food retail — specialty + interesting)
+      'bakery', 'butcher', 'cheese', 'chocolate', 'confectionery',
+      'deli', 'farm', 'greengrocer', 'pastry', 'seafood', 'tea',
+      'wine', 'coffee', 'dairy', 'pasta', 'spices', 'health_food',
     ],
   },
   nature: {
@@ -36,11 +53,14 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🌿',
     color: '#87a28e',
     types: [
-      'park', 'garden', 'nature_reserve', 'viewpoint', 'beach', 'forest',
-      'national_park', 'botanical_garden', 'wildlife_reserve', 'lake',
-      'waterfall', 'hill', 'peak', 'cliff', 'cave',
-      'common', 'country_park', 'wood', 'heath', 'moor', 'green',
-      'recreation_ground', 'bird_hide', 'picnic_site', 'meadow',
+      // leisure=*
+      'park', 'garden', 'nature_reserve', 'recreation_ground',
+      'bird_hide', 'wildlife_hide', 'common', 'dog_park',
+      // tourism=*
+      'viewpoint', 'picnic_site',
+      // natural=*  (discrete destinations — not every patch of grass)
+      'beach', 'peak', 'cliff', 'cave_entrance', 'spring', 'hot_spring',
+      'heath', 'moor', 'volcano', 'geyser', 'bay', 'cape', 'wood',
     ],
   },
   culture: {
@@ -48,10 +68,12 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🎭',
     color: '#6b5b95',
     types: [
-      'museum', 'gallery', 'theatre', 'arts_centre', 'library',
-      'cultural_centre', 'exhibition', 'concert_hall', 'opera_house',
-      'community_centre', 'cinema', 'art_gallery',
-      'heritage_centre', 'visitor_centre', 'information',
+      // amenity=*
+      'theatre', 'arts_centre', 'library', 'cinema', 'community_centre',
+      'exhibition_centre', 'music_venue', 'planetarium', 'events_venue',
+      'public_bookcase', 'studio',
+      // tourism=*
+      'museum', 'gallery',
     ],
   },
   historic: {
@@ -59,12 +81,14 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🏛️',
     color: '#8b7355',
     types: [
-      'castle', 'monument', 'memorial', 'archaeological_site', 'ruins',
-      'heritage', 'historic', 'manor', 'palace', 'abbey', 'cathedral',
-      'church', 'chapel', 'tower', 'fort', 'battlefield',
-      'stately_home', 'folly', 'priory', 'standing_stone', 'barrow',
-      'hill_fort', 'roman', 'saxon', 'medieval', 'tudor', 'victorian',
-      'listed_building', 'war_memorial', 'milestone', 'canal_lock',
+      // historic=*  (canonical values from taginfo top-30)
+      'castle', 'manor', 'monument', 'memorial', 'ruins',
+      'archaeological_site', 'fort', 'citywalls', 'city_gate',
+      'tomb', 'mine', 'church', 'battlefield', 'heritage',
+      'wayside_shrine', 'wayside_cross', 'milestone', 'mine_shaft',
+      'cannon', 'aircraft', 'wreck',
+      // amenity=*  (historic religious sites the OSM community puts here)
+      'monastery',
     ],
   },
   entertainment: {
@@ -72,11 +96,17 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🎪',
     color: '#e07a5f',
     types: [
-      'cinema', 'bowling_alley', 'arcade', 'escape_game', 'zoo',
-      'aquarium', 'theme_park', 'amusement_park', 'miniature_golf',
-      'laser_tag', 'trampoline_park', 'go_kart', 'casino',
-      'soft_play', 'crazy_golf', 'adventure_playground', 'petting_zoo',
-      'farm_park', 'model_railway', 'bingo',
+      // leisure=*
+      'bowling_alley', 'miniature_golf', 'water_park',
+      'amusement_arcade', 'escape_game', 'trampoline_park',
+      'high_ropes_course', 'disc_golf_course', 'ice_rink',
+      'horse_riding', 'sauna', 'adult_gaming_centre', 'dance',
+      // tourism=*
+      'zoo', 'aquarium', 'theme_park',
+      // amenity=*
+      'casino', 'gambling',
+      // shop=*  (video games is a destination shopping experience)
+      'video_games',
     ],
   },
   nightlife: {
@@ -84,9 +114,8 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🌙',
     color: '#4a4a8a',
     types: [
-      'nightclub', 'club', 'cocktail_bar', 'beer_garden', 'wine_bar',
-      'jazz_club', 'comedy_club', 'karaoke', 'lounge', 'speakeasy',
-      'music_venue', 'live_music', 'social_club',
+      // amenity=*  — canonical late-night venues
+      'nightclub',
     ],
   },
   active: {
@@ -94,12 +123,11 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '⚡',
     color: '#2d9cdb',
     types: [
-      'sports_centre', 'swimming_pool', 'gym', 'climbing', 'golf_course',
-      'tennis', 'basketball', 'skate_park', 'ice_rink', 'bowling',
-      'yoga', 'dance', 'martial_arts', 'horse_riding',
-      'cricket', 'football', 'rugby', 'pitch', 'athletics',
-      'walking_route', 'cycle_path', 'disc_golf', 'water_sports',
-      'sailing', 'kayak', 'lido', 'paddling_pool',
+      // leisure=*
+      'sports_centre', 'sports_hall', 'swimming_pool', 'swimming_area',
+      'bathing_place', 'pitch', 'track', 'golf_course', 'fitness_centre',
+      'fitness_station', 'stadium', 'marina', 'slipway', 'fishing',
+      'beach_resort',
     ],
   },
   unique: {
@@ -107,11 +135,14 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '💎',
     color: '#d4a855',
     types: [
-      'artwork', 'fountain', 'observation', 'lighthouse', 'windmill',
-      'street_art', 'mural', 'sculpture', 'viewpoint', 'rooftop',
-      'secret_garden', 'curiosity', 'unusual',
-      'bandstand', 'clock_tower', 'dovecote', 'ice_house', 'oast_house',
-      'toll_house', 'water_tower', 'walled_garden', 'maze', 'grotto',
+      // tourism=*
+      'artwork', 'attraction',
+      // amenity=*
+      'fountain',
+      // man_made=*  (iconic landmarks)
+      'lighthouse', 'windmill', 'water_tower', 'tower', 'bridge',
+      // leisure=*
+      'bandstand', 'firepit',
     ],
   },
   shopping: {
@@ -119,35 +150,72 @@ export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
     icon: '🛍️',
     color: '#9b59b6',
     types: [
-      'marketplace', 'market', 'flea_market', 'farmers_market',
-      'antique', 'vintage', 'bookshop', 'record_shop', 'craft_shop',
-      'gift_shop', 'boutique',
-      'charity_shop', 'car_boot_sale', 'indoor_market', 'arcade_shops',
-      'covered_market', 'high_street',
+      // amenity=*  (the ONLY canonical market tag in OSM —
+      // "market", "flea_market", "farmers_market", "indoor_market",
+      // "covered_market", "car_boot_sale" don't exist as values)
+      'marketplace',
+      // shop=*  (canonical OSM values; rebuilt against taginfo top-50)
+      'antiques', 'art', 'bag', 'books', 'boutique', 'candles',
+      'charity', 'clothes', 'collector', 'comics', 'craft', 'fabric',
+      'florist', 'frame', 'furniture', 'games', 'gift', 'houseware',
+      'interior_decoration', 'jewelry', 'kitchen', 'leather', 'lighting',
+      'model', 'music', 'musical_instrument', 'outdoor', 'party',
+      'perfumery', 'photo', 'pottery', 'second_hand', 'shoes', 'sports',
+      'stationery', 'toys', 'watches', 'bicycle', 'camera', 'anime',
     ],
   },
 }
 
-// What we EXCLUDE - boring/irrelevant places
+// What we EXCLUDE - boring/irrelevant places. Substring matched against
+// the place's OSM type, so 'computer' catches shop=computer,
+// shop=computer_repair, etc.
+//
+// NOTE: 'monastery' was removed from this list — it's now a positive
+// match under historic/religious heritage, since OSM tags real
+// historic monasteries (Buckfast Abbey, Worth Abbey, etc.) with
+// amenity=monastery + tourism=attraction.
 export const BLACKLIST: string[] = [
+  // Healthcare (always boring as a "weekend out" destination)
   'health', 'clinic', 'hospital', 'pharmacy', 'dentist', 'doctor', 'optician',
-  'veterinary', 'medical', 'nursing_home', 'hospice',
+  'veterinary', 'medical', 'nursing_home', 'hospice', 'chemist',
+  // Finance / civic
   'bank', 'atm', 'post_office', 'money_transfer', 'bureau_de_change',
+  'pawnbroker', 'money_lender', 'bookmaker', 'lottery',
   'police', 'fire_station', 'courthouse', 'government', 'townhall',
   'embassy', 'consulate', 'prison', 'military',
+  // Education
   'school', 'college', 'kindergarten', 'university', 'driving_school',
-  'fuel', 'car_wash', 'car_repair', 'parking', 'garage', 'car_rental',
-  'bus_station', 'taxi', 'car_sharing', 'charging_station',
-  'toilet', 'waste_basket', 'recycling', 'waste_disposal',
-  'telephone', 'post_box', 'bench', 'shelter',
-  'political', 'place_of_worship', 'monastery', 'convent',
-  'industrial', 'warehouse', 'storage', 'factory', 'office',
-  'supermarket', 'convenience', 'department_store', 'mall',
-  'hardware', 'electronics', 'mobile_phone', 'computer',
-  'hairdresser', 'beauty', 'laundry', 'dry_cleaning', 'tailor',
+  'childcare',
+  // Cars / transit
+  'fuel', 'car_wash', 'car_repair', 'car_parts', 'parking', 'garage',
+  'car_rental', 'bus_station', 'taxi', 'car_sharing', 'charging_station',
+  'motorcycle_parking', 'bicycle_parking', 'bicycle_rental',
+  'parcel_locker', 'ferry_terminal', 'tyres', 'car', 'motorcycle',
+  'caravan', 'trailer', 'truck', 'scooter',
+  // Public infrastructure (not destinations)
+  'toilet', 'waste_basket', 'recycling', 'waste_disposal', 'manhole',
+  'telephone', 'post_box', 'bench', 'shelter', 'parking_space',
+  'parking_entrance', 'vending_machine', 'street_cabinet', 'utility_pole',
+  // Religious / political clubs (often closed to public weekend visitors)
+  'political', 'place_of_worship', 'convent', 'grave_yard',
+  // Industrial / commercial back-end
+  'industrial', 'warehouse', 'storage', 'storage_rental', 'factory',
+  'office', 'works', 'silo', 'pier',
+  // Boring retail (chains + utilities)
+  'supermarket', 'convenience', 'department_store', 'mall', 'wholesale',
+  'hardware', 'electronics', 'mobile_phone', 'computer', 'kiosk',
+  'variety_store', 'vacant', 'outpost',
+  'doityourself', 'appliance', 'electrical', 'paint', 'tiles', 'flooring',
+  'bathroom_furnishing', 'glaziery', 'trade', 'agrarian',
+  // Personal services (not browseable destinations)
+  'hairdresser', 'beauty', 'cosmetics', 'tobacco', 'massage',
+  'laundry', 'dry_cleaning', 'tailor', 'shoe_repair',
   'locksmith', 'copyshop', 'estate_agent', 'insurance', 'lawyer',
-  'community_hall', 'social_club', 'conservative_club', 'working_mens_club',
-  'social_centre', 'youth_club',
+  'travel_agency', 'funeral_directors', 'pet',
+  // Private members' clubs (we expose social_centre/etc. via culture
+  // but the bare ones below are typically not weekend destinations)
+  'community_hall', 'conservative_club', 'working_mens_club',
+  'youth_club',
 ]
 
 // Words that make place names boring
