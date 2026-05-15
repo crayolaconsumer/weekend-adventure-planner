@@ -361,11 +361,16 @@ async function dispatchFcm(sub, payload) {
               // white square. Letting the manifest default win gives
               // us the brand compass mark.
               tag: payload.tag || 'roam-notification',
-              click_action: payload.url || '/',
-              // PRIORITY_HIGH = wakes device, shows on lock screen,
-              // makes sound. PRIORITY_MAX would also peek over the
-              // current screen; HIGH is the right default — peeking
-              // for every push is too aggressive.
+              // NOTE: NO click_action here. Previously we set it to
+              // `payload.url || '/'`, but click_action on FCM is an
+              // Android Intent action name — Android tried to launch
+              // an activity matching "/" (or any URL string), found
+              // nothing, and silently dropped the tap. Removing the
+              // field falls back to the default LAUNCHER intent, which
+              // opens the app's main activity. Once the app is open,
+              // Capacitor's pushNotificationActionPerformed listener
+              // (PushTapHandler in App.jsx) fires and routes via React
+              // Router using the data.url payload below.
               notification_priority: 'PRIORITY_HIGH',
               default_sound: true
             }
