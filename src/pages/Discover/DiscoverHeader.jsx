@@ -85,8 +85,24 @@ export default function DiscoverHeader({
               className="boredom-btn-emoji"
               animate={{ rotate: [0, 10, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+              aria-hidden="true"
             >
-              🎲
+              {/* Was 🎲 emoji — replaced with a branded SVG die so the
+                  button matches the rest of ROAM's bespoke
+                  iconography (compass, category badges, etc.) instead
+                  of rendering whatever each platform's emoji set looks
+                  like (Android ones in particular are wildly
+                  inconsistent across versions). */}
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="18" height="18" rx="4"
+                  fill="currentColor" opacity="0.18"
+                  stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+                <circle cx="16" cy="8" r="1.6" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+                <circle cx="8" cy="16" r="1.6" fill="currentColor" />
+                <circle cx="16" cy="16" r="1.6" fill="currentColor" />
+              </svg>
             </motion.span>
             <span className="boredom-btn-text">I'm Bored</span>
           </div>

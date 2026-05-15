@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
+import EmptyStateIllustration from './icons/EmptyStateIllustration'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { fetchWikipediaImage, fetchWikidataImage, fetchOpenTripMapDetails, enrichPlace } from '../utils/apiClient'
 import { resolvePlaceImageAsync } from '../utils/placeImage'
@@ -438,7 +439,10 @@ export default function CardStack({
       }
     } else if (emptyReason === 'error') {
       emptyConfig = {
-        icon: '😕',
+        // Was 😕 emoji — replaced with the branded `error` illustration
+        // so the empty state matches the rest of ROAM's bespoke icon
+        // language (scout-merit-badge style, forest+gold).
+        illustration: 'error',
         title: 'Something went wrong',
         subtitle: "We couldn't load places right now. Check your connection and try again.",
         primaryAction: handleRefresh ? { label: 'Try Again', icon: <RefreshIcon />, action: handleRefresh } : null,
@@ -450,7 +454,11 @@ export default function CardStack({
                          travelMode === 'driving' ? 'This area seems quiet. Try a different location.' :
                          'Try expanding your travel radius or exploring a different location.'
       emptyConfig = {
-        icon: '🗺️',
+        // Was 🗺️ emoji — replaced with the branded `no-results`
+        // illustration (lost compass) which matches ROAM's identity
+        // and renders consistently across iOS / Android / web instead
+        // of falling back to whatever the platform's emoji set draws.
+        illustration: 'no-results',
         title: 'No places nearby',
         subtitle: `We couldn't find adventures in this area. ${radiusHint}`,
         primaryAction: onOpenSettings ? { label: 'Expand Radius', icon: <SettingsIcon />, action: onOpenSettings } : null,
@@ -468,11 +476,10 @@ export default function CardStack({
         >
           <motion.div
             className="card-stack-empty-illustration"
-            style={{ fontSize: 72 }}
-            animate={{ y: [0, -8, 0] }}
+            animate={{ y: [0, -6, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
           >
-            {emptyConfig.icon}
+            <EmptyStateIllustration variant={emptyConfig.illustration} size="lg" />
           </motion.div>
           <h3>{emptyConfig.title}</h3>
           <p>{emptyConfig.subtitle}</p>

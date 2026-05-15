@@ -540,8 +540,11 @@
 }
 
 .plan-wishlist-empty-icon {
-  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: var(--space-xs);
+  color: color-mix(in srgb, var(--color-text-primary) 55%, transparent);
 }
 
 .plan-wishlist-empty p {

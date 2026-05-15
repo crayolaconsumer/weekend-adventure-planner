@@ -857,12 +857,25 @@ export default function Plan({ location }) {
             </div>
           ) : wishlist.length > 0 ? (
             <div className="plan-wishlist-empty">
-              <span className="plan-wishlist-empty-icon">✅</span>
+              <span className="plan-wishlist-empty-icon" aria-hidden="true">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </span>
               <p>All your saved places are in the itinerary!</p>
             </div>
           ) : (
             <div className="plan-wishlist-empty">
-              <span className="plan-wishlist-empty-icon">📍</span>
+              <span className="plan-wishlist-empty-icon" aria-hidden="true">
+                {/* Was 📍 emoji — replaced with a branded map-pin SVG
+                    so the empty state matches the rest of ROAM's icon
+                    language instead of rendering the platform's
+                    default pin emoji. */}
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0Z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              </span>
               <p>Save places while exploring to add them here</p>
               <button className="plan-wishlist-cta" onClick={() => navigate('/')}>
                 Discover Places
