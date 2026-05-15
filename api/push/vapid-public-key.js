@@ -4,7 +4,6 @@
  * Returns the VAPID public key for push subscriptions
  */
 
-/* global process */
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 

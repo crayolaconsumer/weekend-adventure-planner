@@ -1,4 +1,3 @@
-/* global process */
 /**
  * Vercel Serverless Function - Skiddle API Proxy
  *

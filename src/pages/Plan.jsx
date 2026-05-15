@@ -12,7 +12,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import { fetchEnrichedPlaces } from '../utils/apiClient'
 import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
@@ -39,7 +38,6 @@ import './Plan.css'
 export default function Plan({ location }) {
   const toast = useToast()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const { getTravelTime: fetchTravelTime } = useRouting()
   const { places: wishlist } = useSavedPlaces()
   const formatDistance = useFormatDistance()

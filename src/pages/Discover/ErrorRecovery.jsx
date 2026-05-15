@@ -3,8 +3,10 @@ import { motion } from 'framer-motion'
 /**
  * Map a Discover load-error string to a user-facing recovery config.
  * Pure — pulled out so the error-class detection is testable in isolation
- * (see tests/unit/pages/Discover.ErrorRecovery.test.ts).
+ * (see tests/unit/pages/Discover.ErrorRecovery.test.ts). Kept in this
+ * file so the recovery component and its classifier evolve together.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function classifyLoadError(loadError) {
   if (!loadError || typeof loadError !== 'string') {
     return {

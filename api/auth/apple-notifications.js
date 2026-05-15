@@ -1,4 +1,3 @@
-/* global process */
 /**
  * POST /api/auth/apple-notifications
  *

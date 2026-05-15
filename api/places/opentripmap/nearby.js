@@ -1,4 +1,3 @@
-/* global process */
 /**
  * OpenTripMap Nearby Places Proxy
  *

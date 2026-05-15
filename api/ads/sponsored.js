@@ -5,7 +5,6 @@
  * Returns places that match the user's location and preferences.
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
 import { query } from '../lib/db.js'
 import { parseCoordinates, validatePagination } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
@@ -25,9 +24,6 @@ async function handler(req, res) {
   try {
     const { lat, lng, category, limit: queryLimit } = req.query
     const { limit } = validatePagination(queryLimit, 0, 10)
-
-    // Get current user if authenticated
-    const user = await getUserFromRequest(req)
 
     // Build query for active sponsored places
     let sql = `

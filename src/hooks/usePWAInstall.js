@@ -7,17 +7,17 @@ import { useState, useEffect } from 'react'
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [canInstall, setCanInstall] = useState(false)
-  const [isInstalled, setIsInstalled] = useState(false)
+  // Lazy initializer so the standalone check runs once during mount
+  // instead of in a useEffect that sets state synchronously (which
+  // triggers the react-hooks/set-state-in-effect rule).
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true
+  })
 
   useEffect(() => {
-    // Check if already installed
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                         window.navigator.standalone === true
-
-    if (isStandalone) {
-      setIsInstalled(true)
-      return
-    }
+    if (isInstalled) return // already detected during mount
 
     // Check if user has dismissed the prompt recently
     const dismissedAt = localStorage.getItem('roam_pwa_dismissed')
@@ -53,7 +53,7 @@ export function usePWAInstall() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
       window.removeEventListener('appinstalled', handleAppInstalled)
     }
-  }, [])
+  }, [isInstalled])
 
   const installApp = async () => {
     if (!deferredPrompt) return false

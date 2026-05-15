@@ -5,7 +5,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, insert, update } from '../lib/db.js'
+import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validatePlaceId } from '../lib/validation.js'
 import { withCors } from '../lib/cors.js'

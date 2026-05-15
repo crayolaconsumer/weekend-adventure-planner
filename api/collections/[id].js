@@ -8,7 +8,7 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update, insert } from '../lib/db.js'
-import { validateId, validateCollectionName, validateContent, validateEmoji } from '../lib/validation.js'
+import { validateId, validateCollectionName, validateEmoji } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 

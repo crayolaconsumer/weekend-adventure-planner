@@ -48,7 +48,7 @@ const PAGE_SIZE = 15
 export default function Collections() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { collections, deleteCollection, removePlaceFromCollection, refresh: loadCollections } = useCollections()
+  const { collections, deleteCollection, removePlaceFromCollection } = useCollections()
   const [selectedCollection, setSelectedCollection] = useState(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
@@ -75,16 +75,18 @@ export default function Collections() {
     setShowCreateForm(true)
   }
 
-  // Update selectedCollection when collections change
+  // Refresh selectedCollection's contents when the underlying
+  // collections list updates. Tracked on ID only, not the whole
+  // object — re-running when other properties change would create
+  // a setState loop (the effect itself updates selectedCollection
+  // to a new identity). The lint rule wants `selectedCollection`
+  // in deps but the semantically-correct dep is just its ID.
   useEffect(() => {
     if (selectedCollection) {
       const updated = collections.find(c => c.id === selectedCollection.id)
-      if (updated) {
-        setSelectedCollection(updated)
-      } else {
-        setSelectedCollection(null)
-      }
+      setSelectedCollection(updated || null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ID-only tracking; see comment above
   }, [collections, selectedCollection?.id])
 
   const handleCreateCollection = () => {

@@ -1,4 +1,3 @@
-/* global process */
 /**
  * Rate Limiting Utility
  *

@@ -167,11 +167,15 @@ export default function Events({ location }) {
     setLoadingMore(false)
   }, [loadingMore, events.length, displayLimit, hasMoreFromServer, location?.lat, location?.lng, searchRadius, nextServerPage])
 
-  // Clean up timeout on unmount
+  // Clean up timeout on unmount. Captures the ref into a local var
+  // because the lint rule (and reality) is right that `ref.current`
+  // can change between effect setup and cleanup; reading it via
+  // closure on the effect-setup value is the deterministic pattern.
   useEffect(() => {
+    const timeoutRef = loadMoreTimeoutRef
     return () => {
-      if (loadMoreTimeoutRef.current) {
-        clearTimeout(loadMoreTimeoutRef.current)
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
       }
     }
   }, [])

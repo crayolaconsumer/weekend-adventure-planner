@@ -51,3 +51,11 @@ ios/App/build/
 # One-off screenshots dropped at repo root during dev
 /darkmode-*.png
 /iap-review-screenshot*.png
+
+# Playwright debug screenshots — never committed
+*.png
+!app-store-screenshots/*.png
+!src/**/*.png
+!public/**/*.png
+!icons/**/*.png
+

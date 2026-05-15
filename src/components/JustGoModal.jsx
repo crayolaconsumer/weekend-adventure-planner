@@ -104,11 +104,16 @@ function getRecommendationReasons(place, context, formatDistance) {
   return reasons.slice(0, 3) // Max 3 reasons
 }
 
-// Confetti particles for celebration
+// Confetti particles for celebration. Pre-computed at module load
+// so each particle's x-trajectory + final rotation are stable across
+// renders — calling Math.random() inside render() would re-roll them
+// on every re-render (jittery animation) AND trips the React rules-
+// of-purity lint rule.
 const CONFETTI_PARTICLES = Array.from({ length: 20 }, (_, i) => ({
   id: i,
   color: ['#1a3a2f', '#d4a855', '#7c9a82', '#ef4444', '#3b82f6'][i % 5],
   x: Math.random() * 200 - 100,
+  rotate: Math.random() * 360,
   delay: i * 0.03
 }))
 
@@ -127,13 +132,18 @@ export default function JustGoModal({
   // can't accidentally drag the confetti screen away.
   const dismissDrag = useBottomSheetDismiss(onClose, { enabled: !showCelebration })
 
-  // Reset state when modal opens
-  useEffect(() => {
+  // Reset state when modal opens. React-recommended pattern from
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  // — comparing prop-vs-prev during render gives a single batched
+  // update instead of a separate effect-pass-render-pass cycle.
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       setCurrentIndex(0)
       setShowCelebration(false)
     }
-  }, [isOpen])
+  }
 
   // Handle escape key
   useEffect(() => {
@@ -166,17 +176,19 @@ export default function JustGoModal({
   const [resolvedImage, setResolvedImage] = useState(() =>
     current ? resolvePlaceImageSync(current) : null
   )
+  // Reset resolvedImage when `current` changes, in render (rather
+  // than effect) — same React-recommended pattern as above. Sync
+  // resolution happens here so the image swap is a single batched
+  // update. Async resolution lives in the effect below.
+  const [prevCurrent, setPrevCurrent] = useState(current)
+  if (current !== prevCurrent) {
+    setPrevCurrent(current)
+    setResolvedImage(current ? resolvePlaceImageSync(current) : null)
+  }
   useEffect(() => {
-    if (!current) {
-      setResolvedImage(null)
-      return
-    }
+    if (!current) return
     const sync = resolvePlaceImageSync(current)
-    if (sync) {
-      setResolvedImage(sync)
-      return
-    }
-    setResolvedImage(null)
+    if (sync) return  // already set during render above
     let cancelled = false
     resolvePlaceImageAsync(current).then((url) => {
       if (!cancelled && url) setResolvedImage(url)
@@ -346,7 +358,7 @@ export default function JustGoModal({
                       y: 300,
                       x: p.x,
                       opacity: 0,
-                      rotate: Math.random() * 360
+                      rotate: p.rotate
                     }}
                     transition={{
                       duration: 1.5,

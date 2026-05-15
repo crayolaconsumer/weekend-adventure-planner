@@ -8,7 +8,6 @@
  * or from Vercel's cron infrastructure.
  */
 
-/* global process */
 import { notifyPlannedVisit, getPlannedVisitsForToday } from '../lib/pushNotifications.js'
 
 export default async function handler(req, res) {

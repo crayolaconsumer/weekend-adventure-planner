@@ -75,7 +75,6 @@ export default function SwipeCard({
   const [isDragging, setIsDragging] = useState(false)
   const [hasMoved, setHasMoved] = useState(false)
   const [cachedImageUrl, setCachedImageUrl] = useState(null)
-  const [usingFallback, setUsingFallback] = useState(false)
   // When the resolved photo URL fails irrecoverably (broken Wikipedia
   // thumb, blocked Unsplash, etc.) we render the brand PlaceImage
   // placeholder instead of leaving a transparent <img> over the
@@ -223,9 +222,8 @@ export default function SwipeCard({
   useEffect(() => {
     // Reset failed state on source change so an enriched image can
     // re-attempt after a previous URL failed.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset on source change
     setImageFailed(false)
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Image loader sets state internally; intentional sync from prop
     loadImage(sourceImageUrl)
 
     // Cleanup object URLs on unmount using ref (not state, to avoid stale closure)
@@ -242,22 +240,32 @@ export default function SwipeCard({
     }
   }, [loadImage, sourceImageUrl])
 
-  // CRITICAL: Watch for enriched image updates from parent
-  // When CardStack fetches a real image and updates the place, reload it
+  // Watch for enriched image updates from parent. When CardStack
+  // fetches a real image and updates `place`, we re-trigger the
+  // loader.
+  //
+  // Two-step pattern that satisfies both react-hooks rules:
+  //   1. Prop-change detection in render (no ref access). If the
+  //      enriched URL string changed from last render, reset
+  //      setImageLoaded(false) so the new image starts in a
+  //      pristine loading state. This is the React-recommended
+  //      "adjust state during render" pattern.
+  //   2. Side-effect (loadImage call) in useEffect, where refs are
+  //      free to access. The effect dedup-guards via the refs so a
+  //      repeat URL doesn't re-fetch.
+  const enrichedImage = place.photo || place.image
+  const [prevEnriched, setPrevEnriched] = useState(enrichedImage)
+  if (enrichedImage !== prevEnriched) {
+    setPrevEnriched(enrichedImage)
+    if (enrichedImage) setImageLoaded(false)
+  }
   useEffect(() => {
-    const enrichedImage = place.photo || place.image
-    if (enrichedImage && enrichedImage !== lastLoadedSourceRef.current) {
-      // Skip if this URL already failed
-      if (failedUrlsRef.current.has(enrichedImage)) {
-        return
-      }
-      // A new enriched image arrived - reload
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset cycle for new image source
-      setImageLoaded(false)
-      setUsingFallback(false)
-      loadImage(enrichedImage)
-    }
-  }, [place.photo, place.image, loadImage])
+    if (!enrichedImage) return
+    if (enrichedImage === lastLoadedSourceRef.current) return
+    if (failedUrlsRef.current.has(enrichedImage)) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loadImage is the synchronise-with-external-image-cache side effect; setState inside it is intentional async data flow per React docs ("Effects let you synchronise with external systems").
+    loadImage(enrichedImage)
+  }, [enrichedImage, loadImage])
 
   // Transform values based on drag
   const rotate = useTransform(x, [-200, 200], [-15, 15])
@@ -520,7 +528,7 @@ export default function SwipeCard({
       <div className="swipe-card-content">
         {/* Friend chips - show if friends have engaged with this place */}
         {friendActivity && friendActivity.friendCount > 0 && (
-          <FriendChips placeId={place.id} friendActivity={friendActivity} />
+          <FriendChips friendActivity={friendActivity} />
         )}
 
         <div className="swipe-card-badges-row">

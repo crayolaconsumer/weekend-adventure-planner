@@ -6,7 +6,7 @@ import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import PremiumBadge from '../components/PremiumBadge'
 import { track } from '../utils/analytics'
-import { isIosNative, isNative, getPlatform } from '../utils/nativeBridge'
+import { isNative, getPlatform } from '../utils/nativeBridge'
 import { openExternalUrl } from '../utils/nativePlugins'
 import {
   getOfferings as rcGetOfferings,

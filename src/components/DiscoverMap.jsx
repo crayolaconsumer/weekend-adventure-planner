@@ -155,12 +155,15 @@ export default function DiscoverMap({
       : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
   )
   const [tileAttribution, setTileAttribution] = useState('&copy; <a href="https://carto.com/">CARTO</a>')
-  // Keep tile URL in sync with theme changes after first render
-  useEffect(() => {
+  // Keep tile URL in sync with theme changes. Reset-in-render pattern
+  // (compare prev-vs-current) avoids the setState-in-effect cascade.
+  const [prevTheme, setPrevTheme] = useState(theme)
+  if (theme !== prevTheme) {
+    setPrevTheme(theme)
     setTileUrl(theme === 'dark'
       ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
       : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png')
-  }, [theme])
+  }
   const tileErrorCountRef = useRef(0)
 
   // Calculate map center

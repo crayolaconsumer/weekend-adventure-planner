@@ -47,12 +47,9 @@ function startCacheCleanup() {
   }
 }
 
-function stopCacheCleanup() {
-  if (cleanupIntervalId !== null) {
-    clearInterval(cleanupIntervalId)
-    cleanupIntervalId = null
-  }
-}
+// stopCacheCleanup was exported for tests but unused; if you need to
+// pause the cleanup interval during a test, clearInterval directly
+// on cleanupIntervalId. Keeping a dead export trips no-unused-vars.
 
 // Start cleanup when module loads
 startCacheCleanup()

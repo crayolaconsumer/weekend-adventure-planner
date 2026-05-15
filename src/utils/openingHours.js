@@ -61,7 +61,7 @@ export function parseOpeningHours(hoursString, place) {
     return new OpeningHours(cleanedHours, nominatim, {
       locale: 'en-GB'
     })
-  } catch (error) {
+  } catch {
     // Many OSM entries have malformed hours - this is expected
     // Silently fail - don't log as these are common and expected
     return null

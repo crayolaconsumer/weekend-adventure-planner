@@ -8,7 +8,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, insert, update, transaction } from '../lib/db.js'
+import { query, queryOne, update, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 

@@ -1,4 +1,3 @@
-/* global process */
 /**
  * Moderation AI Triage
  *

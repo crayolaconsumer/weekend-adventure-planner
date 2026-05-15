@@ -28,8 +28,7 @@
  *     a notification at 3am)
  */
 
-/* global process */
-import { query, queryOne } from '../lib/db.js'
+import { query } from '../lib/db.js'
 import { sendPushToUser } from '../lib/pushNotifications.js'
 
 // Curated nudge messages. We rotate through these to avoid feeling

@@ -5,7 +5,7 @@
  * Handles private accounts with follow request flow
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useFollow } from '../hooks/useSocial'
@@ -32,14 +32,21 @@ export default function FollowButton({
   const [followStatus, setFollowStatus] = useState(getInitialStatus)
   const [showAuthPrompt, setShowAuthPrompt] = useState(false)
 
-  // Update state if props change
-  useEffect(() => {
-    if (initialFollowStatus) {
-      setFollowStatus(initialFollowStatus)
-    } else {
-      setFollowStatus(initialIsFollowing ? 'following' : 'not_following')
-    }
-  }, [initialIsFollowing, initialFollowStatus])
+  // Sync internal state if props change. Reset-in-render pattern
+  // (compare prev-vs-current) avoids a setState-in-effect cascade.
+  const [prevInputs, setPrevInputs] = useState({
+    isFollowing: initialIsFollowing,
+    status: initialFollowStatus,
+  })
+  if (
+    prevInputs.isFollowing !== initialIsFollowing ||
+    prevInputs.status !== initialFollowStatus
+  ) {
+    setPrevInputs({ isFollowing: initialIsFollowing, status: initialFollowStatus })
+    setFollowStatus(initialFollowStatus
+      ? initialFollowStatus
+      : initialIsFollowing ? 'following' : 'not_following')
+  }
 
   // Check if this is the user's own profile
   const isOwnProfile = user && user.id === userId

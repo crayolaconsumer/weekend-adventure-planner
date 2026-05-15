@@ -12,7 +12,7 @@
  */
 
 import Stripe from 'stripe'
-import { query, queryOne, insert, update, transaction } from '../lib/db.js'
+import { queryOne, insert, transaction } from '../lib/db.js'
 import { sendPaymentFailedEmail } from '../lib/email.js'
 import { withCors } from '../lib/cors.js'
 

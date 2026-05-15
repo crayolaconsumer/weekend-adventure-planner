@@ -149,15 +149,20 @@ export default function PlanVisitSheet({
 
   const dateOptions = getDateOptions()
 
-  // Reset state when sheet opens
-  useEffect(() => {
+  // Reset form state when sheet opens. React-recommended pattern:
+  // compare prev-vs-current during render so the reset is a single
+  // batched render instead of an effect-pass-render-pass cycle.
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       setSelectedDate(null)
       setShowConfirmation(false)
       setShowCustomPicker(false)
       setCustomDate('')
     }
-  }, [isOpen])
+  }
 
   // Handle escape key
   useEffect(() => {

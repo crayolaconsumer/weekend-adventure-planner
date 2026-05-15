@@ -14,7 +14,7 @@
  */
 
 import { getAllGoodTypes, getTypesForCategory } from './categories'
-import { managedFetch, isCircuitOpen, rankEndpoints, recordEndpoint } from './requestManager'
+import { managedFetch, rankEndpoints, recordEndpoint } from './requestManager'
 import { makeCacheKey, makeKey, getWithSWR } from './geoCache'
 import { selectBestImage } from './imageScoring'
 import { groupTypesByKey, countQueryClauses } from './osmTagMapping'

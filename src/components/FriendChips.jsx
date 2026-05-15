@@ -8,7 +8,7 @@
 import { memo } from 'react'
 import './FriendChips.css'
 
-function FriendChips({ placeId, friendActivity }) {
+function FriendChips({ friendActivity }) {
   // Don't render if no friend activity
   if (!friendActivity || friendActivity.friendCount === 0) {
     return null

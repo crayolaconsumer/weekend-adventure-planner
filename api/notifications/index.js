@@ -137,7 +137,7 @@ async function handleAction(req, res, user) {
   const { action, notificationIds } = req.body
 
   switch (action) {
-    case 'mark_read':
+    case 'mark_read': {
       if (!notificationIds || !Array.isArray(notificationIds) || notificationIds.length === 0) {
         return res.status(400).json({ error: 'notificationIds array required' })
       }
@@ -165,6 +165,7 @@ async function handleAction(req, res, user) {
       )
 
       return res.status(200).json({ success: true })
+    }
 
     case 'mark_all_read':
       await update(

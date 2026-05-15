@@ -98,8 +98,16 @@ export function DistanceProvider({ children }) {
 }
 
 /**
- * Main hook - returns full context including unit setter
+ * Main hook - returns full context including unit setter.
+ *
+ * eslint-disable react-refresh: the hook is co-located with its
+ * provider component (DistanceProvider above). Vite Fast Refresh
+ * wants files to export only components for HMR purposes; splitting
+ * the hook into its own file is mechanically clean but harms
+ * readability of this small context module. Acceptable tradeoff
+ * since the hook is stable and rarely changes during dev.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDistance() {
   const context = useContext(DistanceContext)
   if (!context) {
@@ -109,9 +117,10 @@ export function useDistance() {
 }
 
 /**
- * Convenience hook - returns just the formatDistance function
- * Use this in components that only need to display distances
+ * Convenience hook - returns just the formatDistance function.
+ * Use this in components that only need to display distances.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useFormatDistance() {
   const { formatDistance } = useDistance()
   return formatDistance

@@ -115,8 +115,11 @@ export default function FeatureGate({
 }
 
 /**
- * Hook for programmatic feature gating
+ * Hook for programmatic feature gating. Co-located with the
+ * FeatureGate component because both consume the same subscription
+ * context — splitting would just duplicate the bookkeeping.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useFeatureGate(feature) {
   const { hasFeature, hasReachedLimit, features } = useSubscription()
   const [showPrompt, setShowPrompt] = useState(false)

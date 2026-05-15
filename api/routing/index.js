@@ -5,7 +5,6 @@
  * Keeps API key secret on the server
  */
 
-/* global process */
 
 import { validateCoordinates } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'

@@ -8,7 +8,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne, insert, update, transaction } from '../lib/db.js'
+import { query, queryOne, update, transaction } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
 import { notifyFollowRequestApproved } from '../lib/pushNotifications.js'
 import { waitUntil } from '@vercel/functions'

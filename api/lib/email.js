@@ -10,7 +10,6 @@
  * 3. Uncomment the Resend implementation below
  */
 
-/* global process */
 
 /**
  * Send an email

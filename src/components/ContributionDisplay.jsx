@@ -8,7 +8,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { formatDisplayName } from '../utils/displayName'
 import { useVote } from '../hooks/useContributions'
 import ModerationMenu from './ModerationMenu'
 import Avatar from './Avatar'

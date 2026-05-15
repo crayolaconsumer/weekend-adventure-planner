@@ -29,8 +29,17 @@ export default defineConfig([
       },
     },
     rules: {
-      // Allow motion (framer-motion JSX namespace), uppercase vars, and underscore-prefixed
-      'no-unused-vars': ['error', { varsIgnorePattern: '^(motion|[A-Z]|_)' }],
+      // Allow motion (framer-motion JSX namespace), uppercase vars,
+      // and underscore-prefixed identifiers. The same pattern applies
+      // to function arguments (so `({ _score, ...rest }) => rest`
+      // pattern doesn't trip the rule) and destructured array slots
+      // (so `const [, b] = ...` works without a placeholder name).
+      'no-unused-vars': ['error', {
+        varsIgnorePattern: '^(motion|[A-Z]|_)',
+        argsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
     },
   },
   {

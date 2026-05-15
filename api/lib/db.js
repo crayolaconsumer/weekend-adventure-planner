@@ -1,4 +1,3 @@
-/* global process */
 /**
  * MySQL Database Connection Utility
  *
