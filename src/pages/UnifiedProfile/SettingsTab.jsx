@@ -81,11 +81,12 @@ export default function SettingsTab({ user, onLogout }) {
     localStorage.getItem('roam_open_only') === 'true',
   )
 
-  // Travel mode options
+  // Travel mode options. Icon comes from FilterIcon via the mode key,
+  // so no emoji field is needed here.
   const travelModes = {
-    walking: { label: 'Walking', icon: '🚶', desc: 'Up to 5km' },
-    driving: { label: 'Driving', icon: '🚗', desc: 'Up to 30km' },
-    transit: { label: 'Transit', icon: '🚌', desc: 'Up to 15km' },
+    walking: { label: 'Walking', desc: 'Up to 5km' },
+    driving: { label: 'Driving', desc: 'Up to 30km' },
+    transit: { label: 'Transit', desc: 'Up to 15km' },
   }
 
   // Reset form when user changes

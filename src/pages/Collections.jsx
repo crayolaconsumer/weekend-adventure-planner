@@ -13,6 +13,7 @@ import CreateCollectionForm from '../components/CreateCollectionForm'
 import { useSubscription } from '../hooks/useSubscription'
 import { useToast } from '../hooks/useToast'
 import UpgradePrompt from '../components/UpgradePrompt'
+import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import './Collections.css'
 
 // Icons
@@ -270,7 +271,7 @@ export default function Collections() {
 
       {collections.length === 0 ? (
         <div className="collections-empty">
-          <span className="collections-empty-icon">📁</span>
+          <EmptyStateIllustration variant="empty-journal" size="md" />
           <h3>No collections yet</h3>
           <p>Create a collection to organize your favorite places</p>
           <button

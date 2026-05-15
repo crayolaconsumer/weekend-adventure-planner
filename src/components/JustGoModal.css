@@ -197,8 +197,14 @@
 }
 
 .just-go-reason-icon {
-  font-size: var(--text-base);
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.just-go-reason-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ═══════════════════════════════════════════════════════

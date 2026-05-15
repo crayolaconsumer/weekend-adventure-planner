@@ -759,10 +759,10 @@ export default function Events({ location }) {
             {!hasMoreEvents ? (
               <div className="events-swipe-empty">
                 <motion.div
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 2.4, repeat: Infinity }}
                 >
-                  🎉
+                  <EmptyStateIllustration variant="celebration" size="md" />
                 </motion.div>
                 <h3>You've seen all events!</h3>
                 <p>

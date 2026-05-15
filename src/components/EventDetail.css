@@ -154,6 +154,17 @@
   font-size: var(--text-sm);
 }
 
+.event-detail-source-icon {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.event-detail-source-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ═══════════════════════════════════════════════════════
    CONTENT SECTION
    ═══════════════════════════════════════════════════════ */

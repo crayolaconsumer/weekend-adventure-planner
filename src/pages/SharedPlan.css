@@ -193,7 +193,9 @@
 }
 
 .shared-plan-stop-icon {
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
   flex-shrink: 0;
 }
 

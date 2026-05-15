@@ -706,7 +706,10 @@ export default function Discover({ location }) {
           // Timeout state - show recovery options
           <div className="discover-error-recovery">
             <div className="discover-error-icon">
-              <span role="img" aria-label="location">📍</span>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="location">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
             </div>
             <h3>Location taking too long</h3>
             <p>
@@ -735,7 +738,10 @@ export default function Discover({ location }) {
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              <span role="img" aria-label="location">📍</span>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="location">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
             </motion.div>
             <h3>Getting your location...</h3>
             <p>This helps us find places near you</p>

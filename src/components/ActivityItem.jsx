@@ -12,46 +12,26 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { formatDistanceToNow } from '../utils/dateUtils'
 import { formatDisplayName } from '../utils/displayName'
+import { getCategoryForType } from '../utils/categories'
 import PremiumBadge from './PremiumBadge'
 import ModerationMenu from './ModerationMenu'
 import PlaceImage from './PlaceImage'
+import CategoryIcon from './icons/CategoryIcon'
 import './ActivityItem.css'
 
-// Category icons mapping
-const CATEGORY_ICONS = {
-  restaurant: '🍽️',
-  cafe: '☕',
-  bar: '🍺',
-  pub: '🍺',
-  fast_food: '🍔',
-  museum: '🏛️',
-  park: '🌳',
-  cinema: '🎬',
-  theatre: '🎭',
-  gallery: '🎨',
-  viewpoint: '👀',
-  attraction: '⭐',
-  hotel: '🏨',
-  shop: '🛍️',
-  default: '📍'
-}
-
-// Get icon for category
-// place_data.category may be either a plain string ("restaurant") OR the
-// full GOOD_CATEGORIES object ({ key: 'nature', icon: '🌿', ... }) depending
-// on how the row was inserted. Normalise both shapes to a string key before
-// looking up the icon, and short-circuit to the embedded icon when present.
-function getCategoryIcon(category) {
-  if (!category) return CATEGORY_ICONS.default
+// Resolve a broad CategoryKey (food/nature/culture/...) from a place's
+// category value. place_data.category may be either a plain string
+// OSM-type ("restaurant", "museum", "park") OR the full GOOD_CATEGORIES
+// object ({ key: 'nature', icon, label, ... }) depending on how the row
+// was inserted. Both shapes resolve to the same broad key here so the
+// rendered medallion stays consistent.
+function getCategoryKey(category) {
+  if (!category) return null
   if (typeof category === 'object') {
-    if (typeof category.icon === 'string' && category.icon) return category.icon
-    const key = typeof category.key === 'string' ? category.key.toLowerCase() : null
-    if (!key) return CATEGORY_ICONS.default
-    return CATEGORY_ICONS[key.replace(/[_-]/g, '_')] || CATEGORY_ICONS.default
+    return typeof category.key === 'string' ? category.key : null
   }
-  if (typeof category !== 'string') return CATEGORY_ICONS.default
-  const key = category.toLowerCase().replace(/[_-]/g, '_')
-  return CATEGORY_ICONS[key] || CATEGORY_ICONS.default
+  if (typeof category !== 'string') return null
+  return getCategoryForType(category)?.key || null
 }
 
 // Extract a human-readable category label (for tooltips). Handles same
@@ -112,7 +92,7 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
   const timeAgo = activity.createdAt ? formatDistanceToNow(new Date(activity.createdAt)) : ''
 
   const verb = getActivityVerb(activity.type, activity.rating)
-  const categoryIcon = getCategoryIcon(activity.place?.category)
+  const categoryKey = getCategoryKey(activity.place?.category)
   const isPositive = activity.rating === null || activity.rating === undefined || activity.rating > 3
   const placeImage = activity.place?.imageUrl || activity.metadata?.photoUrl
 
@@ -144,9 +124,9 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
           className="activity-item-image"
           imgProps={{ loading: 'lazy' }}
         />
-        {activity.place?.category && (
+        {categoryKey && (
           <span className="activity-item-category-badge" title={getCategoryLabel(activity.place.category)}>
-            {categoryIcon}
+            <CategoryIcon name={categoryKey} size="md" />
           </span>
         )}
       </div>

@@ -41,6 +41,61 @@ const NavigationIcon = () => (
   </svg>
 )
 
+const REASON_ICON_PROPS = {
+  width: 16,
+  height: 16,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+}
+
+/* Lucide "map-pin" — distance reason icon */
+const NearbyIcon = () => (
+  <svg {...REASON_ICON_PROPS}>
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+    <circle cx="12" cy="10" r="3"/>
+  </svg>
+)
+
+/* Lucide "sun" — good outdoor weather */
+const SunIcon = () => (
+  <svg {...REASON_ICON_PROPS}>
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2"/><path d="M12 20v2"/>
+    <path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>
+    <path d="M2 12h2"/><path d="M20 12h2"/>
+    <path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+  </svg>
+)
+
+/* Lucide "home" — indoor option */
+const HomeIcon = () => (
+  <svg {...REASON_ICON_PROPS}>
+    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+    <polyline points="9 22 9 12 15 12 15 22"/>
+  </svg>
+)
+
+/* Lucide "utensils" — lunch reason */
+const UtensilsIcon = () => (
+  <svg {...REASON_ICON_PROPS}>
+    <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+    <path d="M7 2v20"/>
+    <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>
+  </svg>
+)
+
+/* Lucide "moon" — dinner / evening reason */
+const MoonIcon = () => (
+  <svg {...REASON_ICON_PROPS}>
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+)
+
 /**
  * Get recommendation reasons based on context
  * @param {object} place - The place object
@@ -60,7 +115,7 @@ function getRecommendationReasons(place, context, formatDistance) {
   // through formatDistance directly.
   if (typeof place.distance === 'number' && place.distance < 5) {
     reasons.push({
-      icon: '📍',
+      icon: <NearbyIcon />,
       text: `Only ${formatDistance(place.distance)} away`
     })
   }
@@ -68,17 +123,17 @@ function getRecommendationReasons(place, context, formatDistance) {
   // Weather match
   const isOutdoor = ['nature', 'active', 'entertainment'].includes(place.category?.key)
   if (context.weather?.isGood && isOutdoor) {
-    reasons.push({ icon: '☀️', text: 'Perfect weather for this' })
+    reasons.push({ icon: <SunIcon />, text: 'Perfect weather for this' })
   } else if (!context.weather?.isGood && !isOutdoor) {
-    reasons.push({ icon: '🏠', text: 'Great indoor option today' })
+    reasons.push({ icon: <HomeIcon />, text: 'Great indoor option today' })
   }
 
   // Time of day
   const hour = new Date().getHours()
   if (hour >= 11 && hour <= 14 && place.category?.key === 'food') {
-    reasons.push({ icon: '🍽️', text: 'Perfect for lunch' })
+    reasons.push({ icon: <UtensilsIcon />, text: 'Perfect for lunch' })
   } else if (hour >= 18 && place.category?.key === 'food') {
-    reasons.push({ icon: '🌙', text: 'Great for dinner' })
+    reasons.push({ icon: <MoonIcon />, text: 'Great for dinner' })
   }
 
   // Rating
@@ -307,7 +362,7 @@ export default function JustGoModal({
                   {/* Recommendation reasons */}
                   <div className="just-go-reasons">
                     {reasons.map((reason) => (
-                      <span key={`${reason.icon}-${reason.text}`} className="just-go-reason">
+                      <span key={reason.text} className="just-go-reason">
                         <span className="just-go-reason-icon">{reason.icon}</span>
                         {reason.text}
                       </span>

@@ -63,8 +63,11 @@
 }
 
 .photo-upload-icon {
-  font-size: 32px;
+  display: inline-flex;
+  align-items: center;
   margin-bottom: var(--space-xs, 4px);
+  color: var(--roam-forest, #1a3a2f);
+  opacity: 0.75;
 }
 
 .photo-upload-text {

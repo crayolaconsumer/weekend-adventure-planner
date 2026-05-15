@@ -69,9 +69,14 @@ function ListItem({ place, isSelected, onSelect, onSave, onGo, index, formatDist
         {place.photo ? (
           <img src={place.photo} alt="" loading="lazy" referrerPolicy="no-referrer" />
         ) : (
-          <div className="list-item-thumb-placeholder">
-            {/* Use generic icon to avoid duplicate when category badge shows icon */}
-            <span>📍</span>
+          <div className="list-item-thumb-placeholder" aria-hidden="true">
+            {/* Generic map-pin glyph — the category badge below carries
+                the type-specific iconography, so this is purely a
+                visual placeholder. */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
           </div>
         )}
       </div>

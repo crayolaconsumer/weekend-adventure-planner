@@ -230,10 +230,8 @@
   text-align: center;
 }
 
-.collections-empty-icon {
-  font-size: 4rem;
+.collections-empty .empty-state-illustration {
   margin-bottom: var(--space-md);
-  opacity: 0.5;
 }
 
 .collections-empty h3 {

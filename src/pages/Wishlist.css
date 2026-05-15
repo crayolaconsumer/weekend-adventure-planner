@@ -762,7 +762,10 @@
   align-items: center;
   justify-content: center;
   background: rgba(26, 58, 47, 0.08);
-  font-size: 1.5rem;
+  color: var(--roam-forest);
+}
+.wishlist-nearby-img-placeholder svg {
+  opacity: 0.6;
 }
 .wishlist-nearby-name {
   font-size: 0.85rem;

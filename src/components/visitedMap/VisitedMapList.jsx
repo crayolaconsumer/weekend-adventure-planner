@@ -147,7 +147,12 @@ export default function VisitedMapList({
                 {place.imageUrl ? (
                   <img src={place.imageUrl} alt="" className="visited-list-thumb" loading="lazy" referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="visited-list-thumb visited-list-thumb-placeholder">📍</div>
+                  <div className="visited-list-thumb visited-list-thumb-placeholder" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                  </div>
                 )}
                 <div className="visited-list-row-meta">
                   <span className="visited-list-name">{place.name}</span>

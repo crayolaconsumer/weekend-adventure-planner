@@ -12,6 +12,7 @@ import LoadingState from '../components/LoadingState'
 import { downloadICS } from '../components/plan/CalendarExport'
 import { useSEO } from '../hooks/useSEO'
 import VibeIcon from '../components/icons/VibeIcon'
+import CategoryIcon from '../components/icons/CategoryIcon'
 import './SharedPlan.css'
 
 const MapIcon = () => (
@@ -218,7 +219,9 @@ export default function SharedPlan() {
                 </div>
                 <div className="shared-plan-stop-card">
                   <div className="shared-plan-stop-info">
-                    <div className="shared-plan-stop-icon">{data?.category?.icon || '📍'}</div>
+                    <div className="shared-plan-stop-icon">
+                      <CategoryIcon name={data?.category?.key || 'unique'} size="lg" />
+                    </div>
                     <div className="shared-plan-stop-details">
                       <h3 className="shared-plan-stop-name">{data?.name || 'Place details unavailable'}</h3>
                       <p className="shared-plan-stop-meta">

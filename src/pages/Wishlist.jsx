@@ -41,6 +41,12 @@ const MapPinIcon = () => (
   </svg>
 )
 
+// Brand-consistent map-pin SVG used as the fallback when a nearby
+// place has no image (or fetch 403s). Kept as a string so the
+// onError handler can swap it into the failed <img>'s parent <div>
+// via innerHTML.
+const NEARBY_PIN_SVG = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`
+
 const NavigationIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
     <polygon points="3,11 22,2 13,21 11,13"/>
@@ -703,13 +709,17 @@ function NearbyVisitedNudge({ wishlist }) {
                     if (parent) {
                       const div = document.createElement('div')
                       div.className = 'wishlist-nearby-img wishlist-nearby-img-placeholder'
-                      div.textContent = '📍'
+                      div.innerHTML = NEARBY_PIN_SVG
                       parent.replaceChild(div, e.currentTarget)
                     }
                   }}
                 />
               ) : (
-                <div className="wishlist-nearby-img wishlist-nearby-img-placeholder">📍</div>
+                <div
+                  className="wishlist-nearby-img wishlist-nearby-img-placeholder"
+                  aria-hidden="true"
+                  dangerouslySetInnerHTML={{ __html: NEARBY_PIN_SVG }}
+                />
               )}
               <span className="wishlist-nearby-name">{data.name || 'Place'}</span>
             </Link>

@@ -92,7 +92,8 @@
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
-  font-size: 1.25rem;
+  color: var(--color-text-secondary);
+  opacity: 0.7;
 }
 
 .visited-list-row-meta {
