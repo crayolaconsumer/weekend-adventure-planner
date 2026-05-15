@@ -8,7 +8,7 @@
  * Tabs: Activity | Journey | Settings (owner only)
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
@@ -16,18 +16,18 @@ import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import { useUserProfile } from '../hooks/useSocial'
 import { useUserContributions } from '../hooks/useContributions'
 import Avatar from '../components/Avatar'
-import { getVisitedPlaces } from '../utils/statsUtils'
-import { useToast } from '../hooks/useToast'
 import { useSEO } from '../hooks/useSEO'
 import { useUserBadges } from '../hooks/useUserBadges'
+import { useUserStats } from '../hooks/useUserStats'
+import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import FollowButton from '../components/FollowButton'
 import ModerationMenu from '../components/ModerationMenu'
 import PremiumBadge from '../components/PremiumBadge'
 import { formatDate } from '../utils/dateUtils'
 import { formatDisplayName } from '../utils/displayName'
 import { BackIcon, CalendarIcon, LockIcon } from './UnifiedProfile/icons'
-import { BADGES } from './UnifiedProfile/badges'
-import { loadStatsFromStorage, computeLevel } from './UnifiedProfile/utils'
+import { SERVER_BADGE_CONFIG, ALL_BADGE_IDS } from './UnifiedProfile/badges'
+import { computeLevel } from './UnifiedProfile/utils'
 import ProfileSkeleton from './UnifiedProfile/ProfileSkeleton'
 import { FollowersModal, FollowingModal } from './UnifiedProfile/modals'
 import ActivityTab from './UnifiedProfile/ActivityTab'
@@ -46,9 +46,15 @@ export default function UnifiedProfile() {
   // Fetch profile data (works for any user)
   const { profile, loading: profileLoading, error, refresh } = useUserProfile(username)
 
-  // For own profile, also load local stats
-  const [localStats] = useState(loadStatsFromStorage)
-  const [visitedPlaces] = useState(getVisitedPlaces)
+  // Current-viewer stats (server-synced for authenticated users —
+  // useUserStats applies the streak-reset check on load). Previously
+  // we read localStorage directly via loadStatsFromStorage which
+  // bypassed the server and meant cross-device data was wrong.
+  // Renamed to localStats here just to minimise churn in the JSX
+  // below — semantically it's "the logged-in user's own stats."
+  const { stats: localStats } = useUserStats()
+  // Current-viewer visited places (server-synced too).
+  const { visitedPlaces } = useVisitedPlaces()
 
   // Own contributions (for owner view)
   const { contributions: ownContributions, loading: contribLoading, refresh: refreshContributions } = useUserContributions(currentUser?.id)
@@ -74,8 +80,8 @@ export default function UnifiedProfile() {
   const [showFollowingModal, setShowFollowingModal] = useState(false)
 
   // Toast for badge notifications
-  const toast = useToast()
-  const badgeCheckDone = useRef(false)
+  // Toast + ref previously used by the badge-unlock useEffect, both
+  // removed when toast detection moved to App.jsx#BadgeToastWatcher.
 
   // Refresh contributions when profile loads
   useEffect(() => {
@@ -97,42 +103,18 @@ export default function UnifiedProfile() {
   // thresholds. See computeLevel() in UnifiedProfile/utils.ts.
   const { level, levelProgress, nextLevelRequirement, totalActivity } = computeLevel(profile?.stats)
 
-  // Get earned badges
-  const earnedBadges = BADGES.filter(badge => badge.requirement(localStats))
-  const lockedBadges = BADGES.filter(badge => !badge.requirement(localStats))
+  // Locked-tier display: every known badge that the user hasn't yet
+  // earned. ALL_BADGE_IDS is the canonical ordered catalogue from the
+  // badges module. Server is the single source of truth for which
+  // badges have been earned (serverBadges from useUserBadges); locked
+  // is just "everything else."
+  const earnedIds = new Set((serverBadges || []).map(b => b.badgeId))
+  const lockedBadges = ALL_BADGE_IDS
+    .filter(id => !earnedIds.has(id))
+    .map(id => ({ id, ...(SERVER_BADGE_CONFIG[id] || { name: id, description: '' }) }))
 
-  // Check for newly earned badges and show toast notifications
-  useEffect(() => {
-    if (!isOwnProfile || badgeCheckDone.current) return
-
-    // Get previously stored earned badge IDs
-    const storedBadgeIds = JSON.parse(localStorage.getItem('roam_earned_badges') || '[]')
-    const currentBadgeIds = earnedBadges.map(b => b.id)
-
-    // Find new badges (in current but not in stored)
-    const newBadges = earnedBadges.filter(b => !storedBadgeIds.includes(b.id))
-
-    // Show toast for each new badge
-    if (newBadges.length > 0) {
-      // Small delay to ensure toast is visible after page loads
-      setTimeout(() => {
-        newBadges.forEach((badge, index) => {
-          // Stagger toasts so they don't overlap
-          setTimeout(() => {
-            toast.success(`Badge Unlocked: ${badge.name}!`)
-          }, index * 1000)
-        })
-      }, 500)
-
-      // Save current badges to localStorage
-      localStorage.setItem('roam_earned_badges', JSON.stringify(currentBadgeIds))
-    } else if (currentBadgeIds.length !== storedBadgeIds.length) {
-      // Sync if mismatch (e.g., badge list changed)
-      localStorage.setItem('roam_earned_badges', JSON.stringify(currentBadgeIds))
-    }
-
-    badgeCheckDone.current = true
-  }, [isOwnProfile, earnedBadges, toast])
+  // (Badge-unlock toast detection lifted to App.jsx's BadgeToastWatcher
+  // so it fires from any page, not just on profile-tab mount.)
 
   // Loading state
   if (profileLoading || authLoading) {
@@ -401,7 +383,6 @@ export default function UnifiedProfile() {
               levelProgress={levelProgress}
               nextLevelRequirement={nextLevelRequirement}
               totalActivity={totalActivity}
-              earnedBadges={earnedBadges}
               lockedBadges={lockedBadges}
               serverBadges={serverBadges}
               badgesLoading={badgesLoading}

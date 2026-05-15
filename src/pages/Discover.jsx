@@ -26,7 +26,7 @@ import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
 import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure } from './Discover/applyFilters'
-import { buildWentOutPatch, readPersistedStats } from './Discover/stats'
+import { buildWentOutPatch } from './Discover/stats'
 import ErrorRecovery from './Discover/ErrorRecovery'
 import DiscoverHeader from './Discover/DiscoverHeader'
 import './Discover.css'
@@ -658,27 +658,11 @@ export default function Discover({ location }) {
       // Save as pending visit for later prompt
       setPendingVisit(place)
 
-      // Update streak and going out stats
-      const stats = JSON.parse(localStorage.getItem('roam_stats') || '{}')
-      const today = new Date().toDateString()
-      const lastDate = stats.lastStreakDate
-      let currentStreak = stats.currentStreak || 0
-      let bestStreak = stats.bestStreak || 0
-
-      if (lastDate !== today) {
-        const yesterday = new Date()
-        yesterday.setDate(yesterday.getDate() - 1)
-        currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
-        bestStreak = Math.max(bestStreak, currentStreak)
-      }
-
-      updateStats({
-        timesWentOut: (stats.timesWentOut || 0) + 1,
-        lastActivityDate: new Date().toISOString(),
-        currentStreak,
-        bestStreak,
-        lastStreakDate: today
-      })
+      // Streak + activity counters via the shared helper. Reads from
+      // useUserStats (server-synced) so streak data stays consistent
+      // across devices. The server's stats PUT fires evaluateBadges
+      // after persisting so streak_3/7/30 awards happen automatically.
+      updateStats(buildWentOutPatch(stats))
     }
   }
 
@@ -902,7 +886,7 @@ export default function Discover({ location }) {
             onClose={() => setSelectedPlace(null)}
             onGo={(place) => {
               setPendingVisit(place)
-              updateStats(buildWentOutPatch(readPersistedStats()))
+              updateStats(buildWentOutPatch(stats))
               setSelectedPlace(null)
             }}
           />
@@ -981,7 +965,7 @@ export default function Discover({ location }) {
         onGo={(place) => {
           setPendingVisit(place)
           incrementStat('totalSwipes')
-          updateStats(buildWentOutPatch(readPersistedStats(), { fromJustGo: true }))
+          updateStats(buildWentOutPatch(stats, { fromJustGo: true }))
           setShowJustGo(false)
         }}
       />

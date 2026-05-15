@@ -1,12 +1,12 @@
 /**
- * Stats / streak update helpers used by Discover's "went out" actions.
+ * Stats / streak update helpers used by Discover's "went out" + "just go"
+ * actions. Extracted so the streak-rollover math is testable in isolation
+ * and so both call sites (Let's Go swipe + Just Go modal) produce
+ * identical updates.
  *
- * Extracted to keep the page component focused on rendering and to make
- * the streak-rollover math testable in isolation. The streak rule mirrors
- * the one in UnifiedProfile/utils.loadStatsFromStorage so the two
- * surfaces stay consistent: if the user "went out" today and yesterday,
- * the streak increments; if there's a gap of more than one day it resets
- * to 1 on the new "went out" event.
+ * Field names match the new server-side user_stats columns
+ * (boredomBusts, lastActivityAt, lastStreakDate as ISO) so updateStats()
+ * passes them through the whitelist unchanged.
  */
 
 export interface PersistedStats {
@@ -14,7 +14,7 @@ export interface PersistedStats {
   bestStreak?: number
   lastStreakDate?: string
   timesWentOut?: number
-  justGoUses?: number
+  boredomBusts?: number
   [key: string]: unknown
 }
 
@@ -36,15 +36,15 @@ export function computeStreakRollover(
   stats: PersistedStats,
   now: Date = new Date(),
 ): StreakResult {
-  const today = now.toDateString()
-  const lastDate = stats.lastStreakDate
+  const todayStr = now.toDateString()
+  const lastStr = stats.lastStreakDate ? new Date(stats.lastStreakDate).toDateString() : null
   let currentStreak = stats.currentStreak || 0
   let bestStreak = stats.bestStreak || 0
 
-  if (lastDate !== today) {
+  if (lastStr !== todayStr) {
     const yesterday = new Date(now)
     yesterday.setDate(yesterday.getDate() - 1)
-    currentStreak = lastDate === yesterday.toDateString() ? currentStreak + 1 : 1
+    currentStreak = lastStr === yesterday.toDateString() ? currentStreak + 1 : 1
     bestStreak = Math.max(bestStreak, currentStreak)
   }
 
@@ -52,13 +52,18 @@ export function computeStreakRollover(
 }
 
 export interface WentOutOptions {
-  /** Also bump justGoUses (true for "Just Go" modal, false for direct go button). */
+  /** Also bump boredomBusts (true for "Just Go" modal, false for direct go). */
   fromJustGo?: boolean
 }
 
 /**
  * Build the patch object to pass to updateStats() when the user
- * "goes out" to a place.
+ * "goes out" to a place. Caller MUST pass `stats` from the
+ * useUserStats hook so the patch is computed against the same source
+ * of truth that updateStats() will write to. Previously this helper
+ * bypassed useUserStats and read directly from localStorage which
+ * meant authenticated users on a fresh device would compute against
+ * empty data even though the server had their real numbers.
  */
 export function buildWentOutPatch(
   stats: PersistedStats,
@@ -69,26 +74,16 @@ export function buildWentOutPatch(
 
   const patch: PersistedStats = {
     timesWentOut: (stats.timesWentOut || 0) + 1,
-    lastActivityDate: now.toISOString(),
+    lastActivityAt: now.toISOString(),
     currentStreak,
     bestStreak,
-    lastStreakDate: now.toDateString(),
+    // ISO so server's DATE column parses correctly; mysql2 coerces.
+    lastStreakDate: now.toISOString(),
   }
 
   if (options.fromJustGo) {
-    patch.justGoUses = (stats.justGoUses || 0) + 1
+    patch.boredomBusts = (stats.boredomBusts || 0) + 1
   }
 
   return patch
-}
-
-/**
- * Read current stats from localStorage. Tolerates missing / corrupt JSON.
- */
-export function readPersistedStats(): PersistedStats {
-  try {
-    return JSON.parse(localStorage.getItem('roam_stats') || '{}') as PersistedStats
-  } catch {
-    return {}
-  }
 }

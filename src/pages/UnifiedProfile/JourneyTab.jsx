@@ -26,7 +26,9 @@ export default function JourneyTab({
   levelProgress,
   nextLevelRequirement,
   totalActivity,
-  earnedBadges,
+  // Server is the source of truth for earned badges. The previous
+  // `earnedBadges` (computed client-side from localStats) was removed
+  // when client BADGES were deleted — see UnifiedProfile/badges.ts.
   lockedBadges,
   serverBadges,
   badgesLoading,
@@ -114,8 +116,10 @@ export default function JourneyTab({
             <h4 className="unified-profile-subsection-title">Achievements</h4>
             <div className="unified-profile-badges earned server-badges">
               {serverBadges.map((badge, index) => {
+                // AchievementBadge renders the SVG illustration by ID;
+                // SERVER_BADGE_CONFIG only carries name + description
+                // for the text labels (no emoji fallback).
                 const config = SERVER_BADGE_CONFIG[badge.badgeId] || {
-                  icon: '🏅',
                   name: badge.badgeId.replace(/_/g, ' '),
                   description: 'Achievement unlocked',
                 }
@@ -140,32 +144,9 @@ export default function JourneyTab({
           </>
         )}
 
-        {/* Client-side activity badges. Computed from the VIEWER's
-            localStorage, so only meaningful on own profile — gating
-            here prevents your activity badges from appearing on a
-            stranger's profile pretending to be theirs. */}
-        {isOwnProfile && earnedBadges.length > 0 && (
-          <>
-            <h4 className="unified-profile-subsection-title">Activity</h4>
-            <div className="unified-profile-badges earned">
-              {earnedBadges.map((badge, index) => (
-                <motion.div
-                  key={badge.id}
-                  className="unified-profile-badge"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <span className="unified-profile-badge-icon">
-                    <AchievementBadge id={badge.id} size="lg" />
-                  </span>
-                  <span className="unified-profile-badge-name">{badge.name}</span>
-                  <span className="unified-profile-badge-desc">{badge.description}</span>
-                </motion.div>
-              ))}
-            </div>
-          </>
-        )}
+        {/* (Client-side activity badges removed — server is the
+            single source of truth for what's earned. Locked tier
+            below shows the catalogue of unearned badges.) */}
 
         {/* Loading state for server badges */}
         {badgesLoading && (

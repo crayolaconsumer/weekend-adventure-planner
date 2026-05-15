@@ -36,6 +36,7 @@ import AuthModal from './components/AuthModal'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
+import BadgeToastWatcher from './components/BadgeToastWatcher'
 import IntentHandler from './components/IntentHandler'
 import UniversalLinkHandler from './components/UniversalLinkHandler'
 import DisplayNameNudge from './components/DisplayNameNudge'
@@ -518,6 +519,11 @@ function App() {
 
               {/* Floating Notification Bell */}
               {!showOnboarding && <NotificationBell />}
+
+              {/* Watches useUserBadges across the whole app — toasts
+                  any newly-awarded badge regardless of which page the
+                  user is on. Renders nothing; pure side-effect. */}
+              {!showOnboarding && <BadgeToastWatcher />}
 
               {/* Auth Modal */}
               <AuthModal
