@@ -10,6 +10,8 @@ import { generateShareCode } from '../lib/crypto.js'
 import { validatePlanTitle, validatePagination } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { evaluateBadges } from '../users/badges.js'
+import { waitUntil } from '@vercel/functions'
 
 async function handler(req, res) {
   try {
@@ -194,6 +196,15 @@ async function handlePost(req, res) {
       ]
     )
   }
+
+  // Re-evaluate badges (planner threshold is 5 plans).
+  waitUntil(
+    evaluateBadges(user.id).catch(err =>
+      console.error('[badges] evaluateBadges after plan create failed', {
+        userId: user.id, err: err?.message || String(err)
+      })
+    )
+  )
 
   return res.status(201).json({
     success: true,

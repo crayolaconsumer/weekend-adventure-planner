@@ -8,6 +8,8 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { evaluateBadges } from './badges.js'
+import { waitUntil } from '@vercel/functions'
 
 // Maximum value to prevent integer overflow (MySQL INT max is 2147483647)
 const MAX_STAT_VALUE = 999999999
@@ -61,7 +63,16 @@ async function handleGet(req, res, user) {
       swipesLeft: stats.swipes_left,
       plansCreated: stats.plans_created,
       plansShared: stats.plans_shared,
-      contributionsMade: stats.contributions_made
+      contributionsMade: stats.contributions_made,
+      // Activity + streak fields. Moved off localStorage so they
+      // persist across devices. lastStreakDate / lastActivityAt are
+      // returned as ISO strings; the client converts to Date as needed.
+      timesWentOut: stats.times_went_out,
+      boredomBusts: stats.boredom_busts,
+      currentStreak: stats.current_streak,
+      bestStreak: stats.best_streak,
+      lastStreakDate: stats.last_streak_date ? new Date(stats.last_streak_date).toISOString() : null,
+      lastActivityAt: stats.last_activity_at ? new Date(stats.last_activity_at).toISOString() : null
     }
   })
 }
@@ -86,7 +97,10 @@ async function handlePut(req, res, user) {
   const updates = []
   const params = []
 
-  // Whitelist of allowed fields
+  // Whitelist of allowed fields. New activity + streak fields live
+  // alongside the existing counters. Numeric fields all share the same
+  // overflow protection; lastStreakDate / lastActivityAt are date-type
+  // and handled in a separate branch below.
   const fieldMap = {
     placesViewed: 'places_viewed',
     placesSaved: 'places_saved',
@@ -99,7 +113,18 @@ async function handlePut(req, res, user) {
     swipesLeft: 'swipes_left',
     plansCreated: 'plans_created',
     plansShared: 'plans_shared',
-    contributionsMade: 'contributions_made'
+    contributionsMade: 'contributions_made',
+    timesWentOut: 'times_went_out',
+    boredomBusts: 'boredom_busts',
+    currentStreak: 'current_streak',
+    bestStreak: 'best_streak'
+  }
+
+  // Date fields — handled separately since they're strings, not ints.
+  // Accept ISO date string or null (to clear).
+  const dateFieldMap = {
+    lastStreakDate: 'last_streak_date',
+    lastActivityAt: 'last_activity_at'
   }
 
   // Handle increments with overflow protection
@@ -118,7 +143,7 @@ async function handlePut(req, res, user) {
     }
   }
 
-  // Handle direct updates with overflow protection
+  // Handle direct numeric updates with overflow protection
   for (const [key, value] of Object.entries(directUpdates)) {
     const dbField = fieldMap[key]
     if (dbField && typeof value === 'number') {
@@ -126,6 +151,23 @@ async function handlePut(req, res, user) {
       const safeValue = Math.min(Math.max(0, Math.floor(value)), MAX_STAT_VALUE)
       updates.push(`${dbField} = ?`)
       params.push(safeValue)
+    }
+  }
+
+  // Handle date updates. Strings get parsed to Date; null clears.
+  for (const [key, value] of Object.entries(directUpdates)) {
+    const dbField = dateFieldMap[key]
+    if (!dbField) continue
+    if (value === null) {
+      updates.push(`${dbField} = NULL`)
+    } else if (typeof value === 'string') {
+      const parsed = new Date(value)
+      if (!Number.isNaN(parsed.getTime())) {
+        updates.push(`${dbField} = ?`)
+        // For DATE columns, MySQL accepts YYYY-MM-DD; for TIMESTAMP
+        // it accepts ISO. mysql2 will coerce either correctly.
+        params.push(parsed)
+      }
     }
   }
 
@@ -138,6 +180,20 @@ async function handlePut(req, res, user) {
   await query(
     `UPDATE user_stats SET ${updates.join(', ')} WHERE user_id = ?`,
     params
+  )
+
+  // Re-evaluate ALL stats-derived badges after every stats write.
+  // evaluateBadges queries source-of-truth tables for activity counts
+  // and uses user_stats for streak / boredom-busts. Idempotent.
+  // waitUntil so badge inserts complete even after the response is
+  // sent (see the corresponding fix in api/social/index.js).
+  waitUntil(
+    evaluateBadges(user.id).catch(err =>
+      console.error('[badges] evaluateBadges failed', {
+        userId: user.id,
+        err: err?.message || String(err)
+      })
+    )
   )
 
   return res.status(200).json({ success: true })

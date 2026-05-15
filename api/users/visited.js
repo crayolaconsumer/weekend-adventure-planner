@@ -7,7 +7,8 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
-import { awardBadge } from './badges.js'
+import { evaluateBadges } from './badges.js'
+import { waitUntil } from '@vercel/functions'
 import { withCors } from '../lib/cors.js'
 
 async function handler(req, res) {
@@ -134,23 +135,18 @@ async function handlePost(req, res, user) {
     }
   })
 
-  // Award visit badges (non-blocking)
+  // Re-evaluate every stats-derived badge after a new visit.
+  // evaluateBadges reads visited_places COUNT(*) directly so it can
+  // never miss a threshold even if user_stats drifts. waitUntil keeps
+  // the lambda alive past the response so awards always complete.
   if (isNewVisit) {
-    const visitCount = await queryOne(
-      'SELECT places_visited FROM user_stats WHERE user_id = ?',
-      [user.id]
+    waitUntil(
+      evaluateBadges(user.id).catch(err =>
+        console.error('[badges] evaluateBadges after visit failed', {
+          userId: user.id, err: err?.message || String(err)
+        })
+      )
     )
-    const count = visitCount?.places_visited || 1
-
-    if (count === 1) {
-      awardBadge(user.id, 'first_visit').catch(() => {})
-    } else if (count === 10) {
-      awardBadge(user.id, 'visits_10').catch(() => {})
-    } else if (count === 50) {
-      awardBadge(user.id, 'visits_50').catch(() => {})
-    } else if (count === 100) {
-      awardBadge(user.id, 'visits_100').catch(() => {})
-    }
   }
 
   return res.status(201).json({ success: true })

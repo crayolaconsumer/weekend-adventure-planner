@@ -10,7 +10,7 @@ import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateContent, validateId } from '../lib/validation.js'
 import { notifyContributionUpvote, notifyContributionRemoved } from '../lib/pushNotifications.js'
 import { waitUntil } from '@vercel/functions'
-import { awardBadge } from '../users/badges.js'
+import { evaluateBadges } from '../users/badges.js'
 import { withCors } from '../lib/cors.js'
 
 // Safe JSON parse helper
@@ -267,26 +267,21 @@ async function handlePost(req, res) {
     }
   }
 
-  // Award contribution badges (non-blocking). Exclude 'rejected' so a
-  // spammer can't earn contributor_10 by submitting 10 garbage tips
-  // that all get bounced by moderation. 'pending' contributions still
-  // count toward the badge because we don't want to wait for moderator
-  // action to congratulate good-faith contributors.
-  const contributionCount = await queryOne(
-    `SELECT COUNT(*) as count
-     FROM contributions
-     WHERE user_id = ? AND status <> 'rejected'`,
-    [user.id]
+  // Re-evaluate every stats-derived badge for this user. Replaces the
+  // previous if-count-equals pattern which would silently miss a badge
+  // if the user crossed a threshold via a different path (e.g. they
+  // also crossed visits_10 with the same action, or they had a
+  // contribution approved later and crossed contributor_10 then but
+  // we only checked at insert). evaluateBadges queries source-of-truth
+  // tables (counts only `approved` contributions, so spammers don't
+  // earn contributor_*).
+  waitUntil(
+    evaluateBadges(user.id).catch(err =>
+      console.error('[badges] evaluateBadges after contribution failed', {
+        userId: user.id, err: err?.message || String(err)
+      })
+    )
   )
-  const count = contributionCount?.count || 1
-
-  if (count === 1) {
-    awardBadge(user.id, 'first_contribution').catch(() => {})
-  } else if (count === 10) {
-    awardBadge(user.id, 'contributor_10').catch(() => {})
-  } else if (count === 50) {
-    awardBadge(user.id, 'contributor_50').catch(() => {})
-  }
 
   return res.status(201).json({
     success: true,
@@ -485,6 +480,20 @@ async function handleVote(req, res) {
           userId: contribution.user_id,
           err: err?.message || String(err)
         }))
+    )
+  }
+
+  // Re-evaluate badges for the contribution AUTHOR — an upvote on
+  // their tip may have crossed the helpful_10 / helpful_50 thresholds.
+  // Fires on every vote (not just milestones) because evaluateBadges
+  // is cheap and idempotent.
+  if (voteType === 'up' || voteType === 'down') {
+    waitUntil(
+      evaluateBadges(contribution.user_id).catch(err =>
+        console.error('[badges] evaluateBadges after vote failed', {
+          userId: contribution.user_id, err: err?.message || String(err)
+        })
+      )
     )
   }
 

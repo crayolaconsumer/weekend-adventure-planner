@@ -8,6 +8,8 @@ import { getUserFromRequest, getUserLimits } from '../lib/auth.js'
 import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { evaluateBadges } from '../users/badges.js'
+import { waitUntil } from '@vercel/functions'
 
 const parsePlaceData = (raw, placeId) => {
   if (!raw) return {}
@@ -165,6 +167,15 @@ async function handlePost(req, res, user) {
        place_data = VALUES(place_data),
        saved_at = VALUES(saved_at)`,
     [user.id, placeId, JSON.stringify(placeData)]
+  )
+
+  // Re-evaluate badges (curator threshold is 20 saved places).
+  waitUntil(
+    evaluateBadges(user.id).catch(err =>
+      console.error('[badges] evaluateBadges after save failed', {
+        userId: user.id, err: err?.message || String(err)
+      })
+    )
   )
 
   return res.status(201).json({

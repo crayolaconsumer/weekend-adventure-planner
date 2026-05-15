@@ -23,7 +23,7 @@ import { waitUntil } from '@vercel/functions'
 import { hasBlockBetween } from './block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateId, validatePagination } from '../lib/validation.js'
-import { awardBadge } from '../users/badges.js'
+import { evaluateBadges } from '../users/badges.js'
 import { withCors } from '../lib/cors.js'
 import { isAccountPrivate, resolvePrivacy } from '../lib/privacy.js'
 
@@ -603,13 +603,16 @@ async function followUser(req, res, user) {
     [targetUserId]
   )
 
-  // Award follower milestone badges to the person being followed (non-blocking)
-  const followerCountForBadge = countResult?.count || 1
-  if (followerCountForBadge === 10) {
-    awardBadge(targetUserId, 'followers_10').catch(() => {})
-  } else if (followerCountForBadge === 100) {
-    awardBadge(targetUserId, 'followers_100').catch(() => {})
-  }
+  // Re-evaluate every stats-derived badge for the person being followed.
+  // evaluateBadges queries the follows table directly for the count so
+  // it can't miss a threshold from race conditions or stale stats.
+  waitUntil(
+    evaluateBadges(targetUserId).catch(err =>
+      console.error('[badges] evaluateBadges after follow failed', {
+        userId: targetUserId, err: err?.message || String(err)
+      })
+    )
+  )
 
   return res.status(200).json({
     success: true,
