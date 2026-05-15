@@ -20,7 +20,8 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import ShareModal from '../components/plan/ShareModal'
 import FilterIcon from '../components/icons/FilterIcon'
-import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS, VIBE_ICONS } from './Plan/constants'
+import VibeIcon from '../components/icons/VibeIcon'
+import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS } from './Plan/constants'
 import {
   DragIcon,
   ShuffleIcon,
@@ -587,7 +588,9 @@ export default function Plan({ location }) {
                       className={`plan-settings-option ${selectedVibe === v.key ? 'active' : ''}`}
                       onClick={() => setSelectedVibe(v.key)}
                     >
-                      <span className="plan-settings-option-icon">{VIBE_ICONS[v.key]}</span>
+                      <span className="plan-settings-option-icon">
+                        <VibeIcon name={v.key} size={20} />
+                      </span>
                       <span>{v.label}</span>
                     </button>
                   ))}
@@ -618,7 +621,9 @@ export default function Plan({ location }) {
                       className={`plan-settings-option ${selectedTransport === t.key ? 'active' : ''}`}
                       onClick={() => setSelectedTransport(t.key)}
                     >
-                      <span className="plan-settings-option-icon">{t.icon}</span>
+                      <span className="plan-settings-option-icon">
+                        <FilterIcon name={t.key} size={20} />
+                      </span>
                       <span>{t.label}</span>
                     </button>
                   ))}
@@ -652,11 +657,18 @@ export default function Plan({ location }) {
       <div className="plan-body">
         {/* Adventure Summary Card */}
         <div className="plan-adventure-card" onClick={openSettings}>
-          <div className="plan-adventure-icon">{VIBE_ICONS[selectedVibe]}</div>
+          <div className="plan-adventure-icon">
+            <VibeIcon name={selectedVibe} size={32} />
+          </div>
           <div className="plan-adventure-info">
             <div className="plan-adventure-title">{vibeName} Adventure</div>
             <div className="plan-adventure-details">
-              {durationLabel} · {transportData?.icon} {transportData?.label} · {radiusData?.description}
+              {durationLabel}
+              <span className="plan-adventure-sep"> · </span>
+              <FilterIcon name={transportData?.key || 'walk'} size={14} />
+              <span>{transportData?.label}</span>
+              <span className="plan-adventure-sep"> · </span>
+              {radiusData?.description}
             </div>
           </div>
           <button className="plan-adventure-edit" aria-label="Edit settings">
@@ -773,7 +785,7 @@ export default function Plan({ location }) {
                             const prefix = travelInfo?.source === 'fallback' ? '~' : ''
                             return (
                               <>
-                                <span className="plan-travel-icon">{modeData?.icon || '🚶'}</span>
+                                <FilterIcon name={modeData?.key || 'walk'} size={14} />
                                 <span className="plan-travel-duration">
                                   {prefix}{travelInfo?.duration || '?'} min
                                 </span>

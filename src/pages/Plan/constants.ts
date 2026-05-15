@@ -19,7 +19,6 @@ export interface TransportMode {
   key: 'walk' | 'transit' | 'drive'
   label: string
   speed: number
-  icon: string
 }
 
 export interface RadiusOption {
@@ -44,9 +43,9 @@ export const DURATIONS: Duration[] = [
 ]
 
 export const TRANSPORT_MODES: TransportMode[] = [
-  { key: 'walk', label: 'Walking', speed: 5, icon: '🚶' },
-  { key: 'transit', label: 'Transit', speed: 25, icon: '🚇' },
-  { key: 'drive', label: 'Driving', speed: 35, icon: '🚗' },
+  { key: 'walk', label: 'Walking', speed: 5 },
+  { key: 'transit', label: 'Transit', speed: 25 },
+  { key: 'drive', label: 'Driving', speed: 35 },
 ]
 
 export const RADIUS_OPTIONS: RadiusOption[] = [
@@ -56,9 +55,3 @@ export const RADIUS_OPTIONS: RadiusOption[] = [
   { key: 'daytrip', label: 'Day Trip', radius: 50000, description: '50km' },
 ]
 
-export const VIBE_ICONS: Record<string, string> = {
-  mixed: '🎲',
-  foodie: '🍽️',
-  culture: '🏛️',
-  nature: '🌲',
-}

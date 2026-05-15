@@ -11,6 +11,7 @@ import { motion } from 'framer-motion'
 import LoadingState from '../components/LoadingState'
 import { downloadICS } from '../components/plan/CalendarExport'
 import { useSEO } from '../hooks/useSEO'
+import VibeIcon from '../components/icons/VibeIcon'
 import './SharedPlan.css'
 
 const MapIcon = () => (
@@ -35,11 +36,11 @@ const DirectionsIcon = () => (
   </svg>
 )
 
-const VIBE_ICONS = {
-  mixed: '🎲',
-  foodie: '🍽️',
-  culture: '🎭',
-  nature: '🌿'
+const VIBE_LABELS = {
+  mixed: 'Mix',
+  foodie: 'Food',
+  culture: 'Culture',
+  nature: 'Outdoor',
 }
 
 export default function SharedPlan() {
@@ -52,10 +53,10 @@ export default function SharedPlan() {
   // Dynamic SEO for shared plans
   const planTitle = plan?.name || 'Shared Adventure'
   const placeCount = plan?.places?.length || 0
-  const vibeLabel = plan?.vibe ? VIBE_ICONS[plan.vibe] : ''
+  const vibeLabel = plan?.vibe ? VIBE_LABELS[plan.vibe] || '' : ''
   useSEO({
     title: planTitle,
-    description: `${vibeLabel} ${placeCount} places to explore — shared via ROAM`,
+    description: `${vibeLabel ? `${vibeLabel} adventure — ` : ''}${placeCount} places to explore, shared via ROAM`,
     url: `https://www.go-roam.uk/plan/share/${code}`
   })
 
@@ -176,7 +177,8 @@ export default function SharedPlan() {
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="shared-plan-vibe">
-          {VIBE_ICONS[plan.vibe] || '🎲'} {plan.vibe}
+          <VibeIcon name={plan.vibe || 'mixed'} size={16} />
+          <span>{VIBE_LABELS[plan.vibe] || plan.vibe || 'Mix'}</span>
         </div>
         <h1 className="shared-plan-title">{plan.title}</h1>
         <div className="shared-plan-meta">

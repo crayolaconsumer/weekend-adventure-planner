@@ -58,8 +58,14 @@
 }
 
 .plan-adventure-icon {
-  font-size: 2rem;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
   flex-shrink: 0;
 }
 
@@ -79,6 +85,19 @@
 .plan-adventure-details {
   font-size: var(--text-sm);
   color: rgba(255, 255, 255, 0.75);
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.plan-adventure-details svg {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.plan-adventure-sep {
+  opacity: 0.6;
 }
 
 .plan-adventure-edit {
@@ -195,7 +214,9 @@
 }
 
 .plan-settings-option-icon {
-  font-size: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
 }
 
@@ -940,7 +961,8 @@
 }
 
 .plan-travel-icon {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
 }
 
