@@ -11,6 +11,7 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
 import { notifyFollowRequestApproved } from '../lib/pushNotifications.js'
+import { waitUntil } from '@vercel/functions'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
@@ -177,8 +178,16 @@ async function handleFollowRequest(req, res, user) {
       data: { targetUsername: targetUserInfo?.username }
     })
 
-    // Send push notification (non-blocking)
-    notifyFollowRequestApproved(request.requester_id, targetUserInfo?.username).catch(() => {})
+    // Send push notification kept alive past response via waitUntil.
+    // See identical fix in api/social/index.js for full context — bare
+    // .catch() let Vercel kill the lambda mid-dispatch.
+    waitUntil(
+      notifyFollowRequestApproved(request.requester_id, targetUserInfo?.username)
+        .catch(err => console.error('[push] notifyFollowRequestApproved failed', {
+          requesterId: request.requester_id,
+          err: err?.message || String(err)
+        }))
+    )
 
     return res.status(200).json({
       success: true,

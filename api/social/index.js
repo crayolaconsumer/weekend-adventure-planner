@@ -19,6 +19,7 @@ import { isPremiumSql } from '../lib/premium.js'
 import { query, queryOne, insert, update } from '../lib/db.js'
 import { createNotification } from '../notifications/index.js'
 import { notifyNewFollower } from '../lib/pushNotifications.js'
+import { waitUntil } from '@vercel/functions'
 import { hasBlockBetween } from './block.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateId, validatePagination } from '../lib/validation.js'
@@ -582,8 +583,19 @@ async function followUser(req, res, user) {
     data: { followerUsername: followerInfo?.username }
   })
 
-  // Send push notification (non-blocking)
-  notifyNewFollower(user.id, targetUserId, followerInfo?.username).catch(() => {})
+  // Send push notification. waitUntil keeps the lambda alive until the
+  // FCM/APNS HTTP request completes — previously this was a bare
+  // fire-and-forget (`.catch(() => {})`) which Vercel was killing the
+  // moment the response went out, aborting the in-flight push.
+  // Errors now log loudly so failures show up in Vercel logs.
+  waitUntil(
+    notifyNewFollower(user.id, targetUserId, followerInfo?.username)
+      .catch(err => console.error('[push] notifyNewFollower failed', {
+        followerId: user.id,
+        followeeId: targetUserId,
+        err: err?.message || String(err)
+      }))
+  )
 
   // Get updated follower count for target user
   const countResult = await queryOne(

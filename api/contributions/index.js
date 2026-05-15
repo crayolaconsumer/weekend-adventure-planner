@@ -9,6 +9,7 @@ import { query, queryOne, insert, update, transaction } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { validateContent, validateId } from '../lib/validation.js'
 import { notifyContributionUpvote, notifyContributionRemoved } from '../lib/pushNotifications.js'
+import { waitUntil } from '@vercel/functions'
 import { awardBadge } from '../users/badges.js'
 import { withCors } from '../lib/cors.js'
 
@@ -461,18 +462,30 @@ async function handleVote(req, res) {
     )
     if (affectedRows === 1) {
       const placeName = contribution.place_name || 'a place'
-      notifyContributionRemoved(contribution.user_id, placeName).catch(() => {})
+      waitUntil(
+        notifyContributionRemoved(contribution.user_id, placeName)
+          .catch(err => console.error('[push] notifyContributionRemoved failed', {
+            userId: contribution.user_id,
+            err: err?.message || String(err)
+          }))
+      )
     }
   }
 
-  // Send push notification for upvotes (non-blocking)
-  // Only notify on milestone upvote counts to avoid spam
+  // Send push notification for upvotes (kept alive past response via
+  // waitUntil). Only notify on milestone upvote counts to avoid spam.
   if (voteType === 'up' && [1, 5, 10, 25, 50, 100].includes(newUpvotes)) {
     // Use the human place_name we stamped at contribution time, not
     // place_id (a UUID/OSM ID — produces garbage in the notification
     // body like "Your tip about node/12345 has 5 upvotes").
     const placeName = contribution.place_name || 'a place'
-    notifyContributionUpvote(contribution.user_id, placeName, newUpvotes).catch(() => {})
+    waitUntil(
+      notifyContributionUpvote(contribution.user_id, placeName, newUpvotes)
+        .catch(err => console.error('[push] notifyContributionUpvote failed', {
+          userId: contribution.user_id,
+          err: err?.message || String(err)
+        }))
+    )
   }
 
   return res.status(200).json({
