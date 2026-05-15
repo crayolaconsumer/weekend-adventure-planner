@@ -1018,3 +1018,30 @@ body.has-location-banner main {
 .stagger-children > *:nth-child(4) { animation-delay: 150ms; }
 .stagger-children > *:nth-child(5) { animation-delay: 200ms; }
 .stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE TAP FEEDBACK
+   ═══════════════════════════════════════════════════════ */
+
+/* Subtle press feedback for touch devices. Native iOS / Material
+   apps give a quick scale-down on tap; web by default doesn't, and
+   that small absence is one of the reasons web apps feel less
+   responsive than native. @media (pointer: coarse) restricts this
+   to touch input — on desktop where the user is mousing, the
+   transform isn't needed and adding it would feel jittery on a
+   precision pointer.
+
+   The rule is intentionally low-specificity (single selector, no
+   important) so any element with its own :active transform (the
+   .btn class, swipe-card-btn, framer-motion whileTap targets) wins
+   via specificity or property override. This is the FALLBACK for
+   the dozens of ad-hoc buttons in the app that don't have explicit
+   active styling. */
+@media (pointer: coarse) and (hover: none) {
+  button:not(:disabled):not(:has(*)):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  a[href]:active {
+    transform: scale(0.97);
+    transition: transform 80ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}

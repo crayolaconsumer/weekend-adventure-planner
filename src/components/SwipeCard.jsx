@@ -8,6 +8,7 @@ import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import { ContributionBadge } from './ContributionDisplay'
 import { useFormatDistance } from '../contexts/DistanceContext'
+import { tap as hapticTap, success as hapticSuccess, warn as hapticWarn } from '../utils/haptics'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import FriendChips from './FriendChips'
@@ -363,15 +364,18 @@ export default function SwipeCard({
         const verticalDominant = Math.abs(my) > Math.abs(mx) * 0.7
 
         if (verticalDominant && (my < -swipeUpThreshold || (vy > velocityThreshold && dy < 0))) {
-          // Swipe up - Go now
+          // Swipe up - Go now (heavy haptic — committing to an action)
+          hapticSuccess()
           animate(y, -500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('go'), 200)
         } else if (!verticalDominant && (mx > swipeThreshold || (vx > velocityThreshold && dx > 0))) {
-          // Swipe right - Like
+          // Swipe right - Like (success haptic — saving a place)
+          hapticSuccess()
           animate(x, 500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('like'), 200)
         } else if (!verticalDominant && (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0))) {
-          // Swipe left - Nope
+          // Swipe left - Nope (warn haptic — discarding)
+          hapticWarn()
           animate(x, -500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('nope'), 200)
         } else {
@@ -385,6 +389,12 @@ export default function SwipeCard({
   )
 
   const handleButtonClick = (action) => {
+    // Haptic feedback — match the gesture meaning. Fire-and-forget;
+    // no need to await since the user has already committed.
+    if (action === 'go' || action === 'like') hapticSuccess()
+    else if (action === 'nope') hapticWarn()
+    else hapticTap('light')
+
     // 'go' must fire onSwipe SYNCHRONOUSLY — CardStack uses it to call
     // window.location.href to open Google Maps, and mobile browsers
     // block that navigation if it happens outside the user-gesture
