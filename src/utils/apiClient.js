@@ -331,7 +331,7 @@ function calculatePlaceQuality(tags) {
   // Has a proper name (not just type)
   if (tags.name && tags.name.length > 3) score += 5
 
-  // Has contact info (indicates active business)
+  // Has contact info (indicates active, cared-for record)
   if (tags.phone || tags['contact:phone']) score += 5
   if (tags.website || tags['contact:website']) score += 5
 
@@ -341,24 +341,46 @@ function calculatePlaceQuality(tags) {
   // Has description (indicates notable place)
   if (tags.description) score += 10
 
-  // Wikipedia/Wikidata links (indicates notable)
-  if (tags.wikipedia) score += 15
+  // Wikipedia/Wikidata — strongest single quality signal in OSM.
+  // A place tagged wikipedia=* is documented elsewhere, almost
+  // always worth visiting.
+  if (tags.wikipedia) score += 20
   if (tags.wikidata) score += 10
 
-  // Heritage/historical (indicates quality/interesting)
+  // Heritage / listed building (designated by national heritage body)
   if (tags.heritage || tags['listed_status'] || tags['HE_ref']) score += 15
 
-  // Penalties for chain/tourist trap indicators
-  if (tags.brand) score -= 20
-  if (tags.tourism === 'attraction') score -= 10
-  if (tags.tourism === 'theme_park') score -= 15
+  // OSM mapper hung a photo on the place — sparse but high-signal.
+  if (tags.image || tags.wikimedia_commons) score += 10
 
-  // Bonus for local/independent markers
-  if (tags.craft) score += 10
-  if (tags['addr:country'] === 'GB' && !tags.brand) score += 5
+  // POSITIVE: tourism=* overlays are explicit visit-worthy markers
+  // from OSM contributors. Previously this code PENALISED them
+  // (-10/-15) on the misread that "tourist trap" meant tourist
+  // attraction — completely backwards. tourism=attraction is the
+  // OSM tag for the Eiffel Tower, Stonehenge, Empire State
+  // Building, etc. — we should be boosting these heavily.
+  if (tags.tourism === 'attraction') score += 15
+  if (tags.tourism === 'theme_park') score += 10
+  if (tags.tourism === 'viewpoint') score += 10
+  if (tags.tourism === 'museum') score += 15
+  if (tags.tourism === 'zoo' || tags.tourism === 'aquarium') score += 10
 
-  // Bonus for places with cuisine info (indicates local food place)
+  // Fee=yes (paid entry) usually means a real ticketed attraction,
+  // not just a tagged spot on the map.
+  if (tags.fee === 'yes') score += 5
+
+  // Bonus for places with cuisine info (specific food identity)
   if (tags.cuisine && !tags.brand) score += 5
+
+  // Bonus for local/independent / artisanal markers
+  if (tags.craft) score += 10
+
+  // Chain stores — moderate penalty. Some chains ARE destinations
+  // (IKEA flagship, Apple Store, Hard Rock Café) so we don't
+  // hammer them too hard. Was -20 which essentially killed every
+  // branded place; -8 is enough to surface independents first
+  // without erasing chains entirely.
+  if (tags.brand) score -= 8
 
   return Math.max(0, Math.min(100, score))
 }

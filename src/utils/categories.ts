@@ -214,9 +214,12 @@ export const BLACKLIST: string[] = [
   // pure-residential graveyards lose out at scoring time because they
   // lack photos / websites / wikipedia tags.
   'political', 'place_of_worship', 'convent',
-  // Industrial / commercial back-end
+  // Industrial / commercial back-end. NOTE: 'pier' is NOT here —
+  // piers can be major destinations (Brighton Pier, Santa Monica
+  // Pier). They're surfaced via the existing positive types (the
+  // famous ones overlay tourism=attraction).
   'industrial', 'warehouse', 'storage', 'storage_rental', 'factory',
-  'office', 'works', 'silo', 'pier',
+  'office', 'works', 'silo',
   // Boring retail (chains + utilities). NOTE: 'mall' is NOT here — it
   // surfaces via the shopping category (mall is a primary destination
   // type in US/Asia/Middle East markets).
@@ -236,16 +239,41 @@ export const BLACKLIST: string[] = [
   'youth_club',
 ]
 
-// Words that make place names boring
+// Words that make place names boring. Patterns are case-insensitive
+// substring matches against the place's name. A match adds a -50
+// score penalty (NOT a hard filter — shouldKeepPlace's rescue logic
+// allows wikipedia/tourism=attraction places through even if their
+// name matches a chain pattern, so an iconic flagship store still
+// surfaces as a destination).
+//
+// Mix of UK + international chains. Adding non-matching patterns is
+// harmless: stores in other countries simply don't match these
+// regexes, no false negatives.
 export const BORING_NAME_PATTERNS: RegExp[] = [
+  // Healthcare / civic / utilities
   /health\s*cent(er|re)/i, /medical/i, /surgery/i, /dental/i, /pharmacy/i,
   /car\s*park/i, /parking/i, /petrol/i, /garage/i, /toilet/i, /wc\b/i,
   /post\s*office/i, /bank\b/i, /atm\b/i, /school/i, /college\b/i,
-  /council/i, /office/i, /industrial/i, /warehouse/i, /depot/i,
+  /council/i, /\boffice\b/i, /industrial/i, /warehouse/i, /depot/i,
   /conservative\s*club/i, /working\s*men/i, /social\s*club/i,
-  /community\s*cent(er|re)/i, /sports\s*direct/i, /tesco/i, /sainsbury/i,
-  /asda/i, /lidl/i, /aldi/i, /morrisons/i, /co-?op\b/i, /iceland\b/i,
-  /argos/i, /halfords/i, /currys/i,
+  /community\s*cent(er|re)/i,
+  // UK supermarket chains
+  /\btesco\b/i, /sainsbury/i, /\basda\b/i, /\blidl\b/i, /\baldi\b/i,
+  /morrisons/i, /co-?op\b/i, /\biceland\b/i, /waitrose/i, /budgens/i,
+  // UK high-street chains
+  /sports\s*direct/i, /\bargos\b/i, /halfords/i, /\bcurrys\b/i,
+  /poundland/i, /pound\s*world/i, /\bb\s*&\s*m\b/i, /\bwilko\b/i,
+  /home\s*bargains/i, /the\s*works/i, /\bryman\b/i, /\bwhsmith\b/i,
+  /\bboots\b/i, /superdrug/i, /\bwetherspoon/i,
+  // Global clothing chains (rarely interesting destinations)
+  /\bh\s*&\s*m\b/i, /primark/i, /\bzara\b/i, /\bnext\b\s*(plc|store)?/i,
+  /\bm\s*&\s*s\b/i, /marks\s*&\s*spencer/i, /\bgap\b/i, /uniqlo/i,
+  /\bc\s*&\s*a\b/i, /forever\s*21/i,
+  // Global big-box / discount
+  /walmart/i, /\btarget\b/i, /\bcostco\b/i, /\bikea\b/i, /\bdollar\s*tree/i,
+  /carrefour/i, /\bauchan\b/i, /\bedeka\b/i, /\brewe\b/i, /\bnetto\b/i,
+  // Global fuel
+  /\bshell\b/i, /\bbp\b/i, /\besso\b/i, /texaco/i, /\bexxon/i, /\bchevron/i,
 ]
 
 /** Get category for a place type */
@@ -264,6 +292,45 @@ export function isBlacklisted(type: string | null | undefined): boolean {
   if (!type) return false
   return BLACKLIST.some(blacklisted =>
     type.toLowerCase().includes(blacklisted.toLowerCase()),
+  )
+}
+
+/**
+ * Should a blacklisted place be RESCUED from filtering?
+ *
+ * Some blacklisted-by-type places are genuinely world-class
+ * destinations — Westminster Abbey, Notre Dame, the Empire State
+ * Building, Edinburgh Castle. They're tagged amenity=place_of_worship
+ * or amenity=townhall (etc.) which lands them in the blacklist by
+ * type alone, then a HARD filter drops them before scoring even
+ * runs. We were silently throwing away the best parts of every city.
+ *
+ * Rescue criteria — any one of these overrides a type-based blacklist:
+ *   - place.wikipedia or place.wikidata   (documented elsewhere)
+ *   - place.tourism === 'attraction'      (OSM-flagged visit-worthy)
+ *   - place.heritage / place.designation  (national heritage listing)
+ *   - place.fee === 'yes'                 (ticketed paid attraction)
+ *
+ * If the place isn't blacklisted at all, this returns true trivially.
+ */
+export function shouldKeepPlace(place: {
+  type?: string | null,
+  wikipedia?: string | null,
+  wikidata?: string | null,
+  tourism?: string | null,
+  heritage?: string | null,
+  designation?: string | null,
+  fee?: string | null,
+}): boolean {
+  if (!isBlacklisted(place.type)) return true
+  // Has any strong positive signal — keep it.
+  return Boolean(
+    place.wikipedia ||
+    place.wikidata ||
+    place.tourism === 'attraction' ||
+    place.heritage ||
+    place.designation ||
+    place.fee === 'yes',
   )
 }
 

@@ -7,6 +7,7 @@ import {
   GOOD_CATEGORIES,
   BLACKLIST,
   isBlacklisted,
+  shouldKeepPlace,
   hasBoringName,
   getCategoryForType
 } from './categories'
@@ -115,21 +116,54 @@ export function scorePlace(place, context = {}) {
     score -= 50
   }
 
-  // Premium types bonus (rebalanced: more culture/entertainment, less nature)
+  // Premium types bonus — using canonical OSM values from the new
+  // categories list. Previously this list referenced types like
+  // 'abbey', 'cathedral', 'stately_home', 'priory', 'concert_hall',
+  // 'opera_house', 'folly', 'maze', 'botanical_garden',
+  // 'national_park', 'country_park' that aren't real OSM values, so
+  // the +12 boost never fired for them.
   const premiumTypes = [
-    // Culture & Historic
-    'museum', 'castle', 'abbey', 'cathedral', 'stately_home', 'manor', 'priory',
-    'theatre', 'gallery', 'concert_hall', 'opera_house',
+    // Culture
+    'museum', 'gallery', 'theatre', 'planetarium', 'music_venue',
+    'exhibition_centre',
+    // Historic
+    'castle', 'manor', 'archaeological_site', 'fort', 'monument',
+    'ruins', 'temple',
     // Entertainment
-    'zoo', 'aquarium', 'theme_park', 'escape_game',
-    // Unique
-    'viewpoint', 'lighthouse', 'windmill', 'folly', 'maze',
-    // Nature (reduced)
-    'beach', 'botanical_garden', 'national_park', 'country_park', 'nature_reserve'
+    'zoo', 'aquarium', 'theme_park', 'escape_game', 'water_park',
+    // Unique landmarks
+    'viewpoint', 'lighthouse', 'windmill', 'attraction', 'artwork',
+    // Nature destinations
+    'beach', 'nature_reserve', 'peak', 'hot_spring', 'geyser',
+    'volcano',
   ]
   if (premiumTypes.includes(place.type)) {
     score += 12
   }
+
+  // DIRECT tourism overlay bonus — tourism=attraction is OSM's
+  // explicit "this is worth visiting" tag. A pub tagged as
+  // amenity=pub + tourism=attraction (e.g. a famous historic pub)
+  // should rank above a pub without the tourism overlay. The
+  // category-from-type extraction loses this signal because amenity
+  // wins, so we re-introduce it here as an independent bonus.
+  if (place.tourism === 'attraction') score += 10
+  if (place.tourism === 'museum') score += 12
+  if (place.tourism === 'viewpoint') score += 8
+  if (place.tourism === 'theme_park') score += 10
+
+  // Heritage / designation — UK Listed Buildings, US National Register
+  // of Historic Places, French Monument historique, etc. Strong
+  // signal that the place is documented as nationally important.
+  if (place.heritage || place.designation) score += 12
+
+  // Paid entry usually means a real ticketed attraction, not a
+  // tagged spot on the map.
+  if (place.fee === 'yes') score += 5
+
+  // OSM image / Wikimedia Commons tagged on the place — sparse but
+  // high signal (mapper went out of their way to hang a photo).
+  if (place.image || place.wikimedia_commons) score += 6
 
   // Interesting name patterns bonus
   const interestingNamePatterns = [
@@ -230,10 +264,20 @@ export function filterPlaces(places, options = {}) {
   const context = { timeContext: getTimeContext(), weather, userProfile, vibeCategories: categories }
 
   let filtered = places
-    // Remove blacklisted types
-    .filter(place => !isBlacklisted(place.type || ''))
-    // Remove boring names
-    .filter(place => !hasBoringName(place.name))
+    // Remove blacklisted types, BUT rescue famous places that happen
+    // to share a blacklisted type — e.g. Westminster Abbey is
+    // amenity=place_of_worship (blacklisted) but also tourism=
+    // attraction + has wikipedia, so shouldKeepPlace overrides the
+    // type ban. Tiny village chapels (blacklisted type, no positive
+    // signals) still drop out.
+    .filter(place => shouldKeepPlace(place))
+    // Remove boring names — same rescue logic: chain stores with
+    // wikipedia (rare but possible — original-location stores,
+    // iconic flagships) get kept.
+    .filter(place => {
+      if (!hasBoringName(place.name)) return true
+      return Boolean(place.wikipedia || place.heritage || place.tourism === 'attraction')
+    })
     // Add category info first so we can filter by it
     .map(place => ({
       ...place,
