@@ -14,6 +14,7 @@ import { usePushNotifications } from '../hooks/usePushNotifications'
 import { useAuth } from '../contexts/AuthContext'
 import { openAppSettings } from '../utils/nativePlugins'
 import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
+import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
 import './PlanVisitSheet.css'
 
 // Icons
@@ -181,6 +182,7 @@ export default function PlanVisitSheet({
   const handleSelectDate = (option) => {
     setSelectedDate(option.date)
     setShowConfirmation(true)
+    hapticSuccess()
 
     // Trigger the callback (using ref to avoid stale closure)
     onPlanVisitRef.current?.(place, option.date)
@@ -201,6 +203,7 @@ export default function PlanVisitSheet({
     const date = new Date(customDate)
     setSelectedDate(date)
     setShowConfirmation(true)
+    hapticSuccess()
 
     onPlanVisitRef.current?.(place, date)
     maybeAskForPushPermission()
@@ -278,7 +281,7 @@ export default function PlanVisitSheet({
                 {!showCustomPicker ? (
                   <motion.button
                     className="plan-visit-option plan-visit-option-custom"
-                    onClick={() => setShowCustomPicker(true)}
+                    onClick={() => { hapticTap('light'); setShowCustomPicker(true) }}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.15 }}

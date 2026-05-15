@@ -15,6 +15,7 @@ import CategoryIcon from './icons/CategoryIcon'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
+import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
 import './JustGoModal.css'
 
 // Icons (use simple SVGs matching existing app patterns)
@@ -252,12 +253,14 @@ export default function JustGoModal({
   }, [current])
 
   const handleShowAnother = () => {
+    hapticTap('light')
     setCurrentIndex((i) => (i + 1) % recommendations.length)
   }
 
   const handleLetsGo = () => {
     if (!current) return
 
+    hapticSuccess()
     setShowCelebration(true)
 
     // Callback to parent

@@ -11,6 +11,7 @@ import { useNeedsConnection } from '../hooks/useNeedsConnection'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import PhotoUpload from './PhotoUpload'
+import { tap as hapticTap, success as hapticSuccess, warn as hapticWarn } from '../utils/haptics'
 import './VisitedPrompt.css'
 
 // Pre-generated confetti particles. The container is full-viewport, so each
@@ -108,10 +109,13 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   const [reviewText, setReviewText] = useState('')
 
   const handleVisited = () => {
+    hapticTap('medium')
     setStep('recommend')
   }
 
   const handleRecommend = (isRecommended) => {
+    if (isRecommended) hapticSuccess()
+    else hapticWarn()
     setRecommended(isRecommended)
     setStep('feedback')
   }
@@ -223,8 +227,11 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     }, 2500)
   }
 
-  // Feedback chip toggle helper
+  // Feedback chip toggle helper — light haptic tick on every selection
+  // so the chip feels responsive on native; the picker would otherwise
+  // be silent (no animation hookup yet).
   const toggleChip = (current, value, setter) => {
+    hapticTap('light')
     setter(current === value ? null : value)
   }
 

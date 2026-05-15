@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import StreakIndicator from '../../components/StreakIndicator'
 import FilterIcon from '../../components/icons/FilterIcon'
 import { SettingsIcon } from './icons'
+import { tap as hapticTap } from '../../utils/haptics'
 
 /**
  * Discover hero/header block: wordmark + tagline + streak indicator,
@@ -46,7 +47,7 @@ export default function DiscoverHeader({
           count badge when filters are active so the user can tell at a glance. */}
       <button
         className="discover-settings-btn"
-        onClick={onOpenFilters}
+        onClick={() => { hapticTap('light'); onOpenFilters?.() }}
         aria-label={
           activeFiltersCount > 0
             ? `Open filters (${activeFiltersCount} active)`
@@ -65,7 +66,7 @@ export default function DiscoverHeader({
       <div className="boredom-btn-wrapper">
         <motion.button
           className="boredom-btn"
-          onClick={onTriggerJustGo}
+          onClick={() => { hapticTap('medium'); onTriggerJustGo?.() }}
           disabled={justGoDisabled}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}

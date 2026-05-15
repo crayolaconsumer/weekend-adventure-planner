@@ -13,6 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
 import EmptyStateIllustration from '../components/icons/EmptyStateIllustration'
 import EventDetail from '../components/EventDetail'
+import PullToRefreshIndicator from '../components/PullToRefreshIndicator'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import {
   fetchAllEvents,
   fetchMoreEvents,
@@ -350,8 +352,24 @@ export default function Events({ location }) {
   const visibleCards = filteredEvents.slice(currentIndex, currentIndex + 3)
   const hasMoreEvents = currentIndex < filteredEvents.length
 
+  // Pull-to-refresh: re-fetch when user pulls from the top. Disabled
+  // while swipe view is active so PTR doesn't fight the card-stack
+  // vertical-swipe gesture for "Go" (swipe-up).
+  const ptrEnabled = viewMode !== VIEW_MODES.SWIPE && !selectedEvent
+  const ptr = usePullToRefresh(
+    async () => { await loadEvents() },
+    null,
+    { enabled: ptrEnabled },
+  )
+
   return (
     <div className="page events-page">
+      <PullToRefreshIndicator
+        distance={ptr.pullDistance}
+        refreshing={ptr.refreshing}
+        active={ptr.isPulling}
+        threshold={ptr.threshold}
+      />
       <header className="page-header events-header">
         {/* Row 1: Title + Filters */}
         <div className="events-header-primary">

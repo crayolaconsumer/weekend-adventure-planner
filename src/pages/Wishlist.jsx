@@ -8,6 +8,8 @@ import CollectionManager from '../components/CollectionManager'
 import VisitedPrompt from '../components/VisitedPrompt'
 import PlaceDetail from '../components/PlaceDetail'
 import LoadingState from '../components/LoadingState'
+import PullToRefreshIndicator from '../components/PullToRefreshIndicator'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useSavedEvents } from '../hooks/useSavedEvents'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useUserPlans } from '../hooks/useUserPlans'
@@ -125,9 +127,9 @@ const PAGE_SIZE = 12
 export default function Wishlist() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { places: wishlist, removePlace, loading: placesLoading } = useSavedPlaces()
-  const { plans: adventures, loading: adventuresLoading, deletePlan } = useUserPlans()
-  const { events: savedEvents, loading: eventsLoading, unsaveEvent } = useSavedEvents()
+  const { places: wishlist, removePlace, loading: placesLoading, refresh: refreshPlaces } = useSavedPlaces()
+  const { plans: adventures, loading: adventuresLoading, deletePlan, refresh: refreshPlans } = useUserPlans()
+  const { events: savedEvents, loading: eventsLoading, unsaveEvent, refresh: refreshEvents } = useSavedEvents()
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
   const { isPremium } = useSubscription()
@@ -220,8 +222,30 @@ export default function Wishlist() {
   // Total saved count
   const totalSaved = wishlist.length + savedEvents.length + adventures.length
 
+  // Pull-to-refresh: refresh all three saved-data sources in parallel.
+  // Disabled while a place detail / collection manager is open so the
+  // gesture doesn't trigger underneath an overlay.
+  const ptrEnabled = !selectedPlace && !showCollectionManager
+  const ptr = usePullToRefresh(
+    async () => {
+      await Promise.all([
+        refreshPlaces?.(),
+        refreshEvents?.(),
+        refreshPlans?.(),
+      ])
+    },
+    null,
+    { enabled: ptrEnabled },
+  )
+
   return (
     <div className="page wishlist-page">
+      <PullToRefreshIndicator
+        distance={ptr.pullDistance}
+        refreshing={ptr.refreshing}
+        active={ptr.isPulling}
+        threshold={ptr.threshold}
+      />
       <header className="page-header wishlist-header">
         <div>
           <h1 className="page-title">Saved</h1>

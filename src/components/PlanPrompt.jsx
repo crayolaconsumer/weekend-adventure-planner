@@ -11,6 +11,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
+import { success as hapticSuccess } from '../utils/haptics'
 import './PlanPrompt.css'
 
 // Bookmark/map icon - represents saved adventures
@@ -50,6 +51,7 @@ export default function PlanPrompt({ place, onClose, onAddToPlan }) {
   if (!place) return null
 
   const handleAddToPlan = () => {
+    hapticSuccess()
     // Store the place to be added to the plan
     const pendingPlanPlace = localStorage.getItem('roam_pending_plan_place')
     const pending = pendingPlanPlace ? JSON.parse(pendingPlanPlace) : []
