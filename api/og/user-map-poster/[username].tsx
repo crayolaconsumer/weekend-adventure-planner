@@ -97,23 +97,98 @@ async function handler(req, res) {
     const recommended = places.filter((p) => p.rating != null && p.rating > 3).length
     const friendlyName = formatDisplayName(target)
 
-    // Bounding box + project to a padded 0–100 % space so pins never
-    // sit on the panel edge. Single-stop / colocated cases get a fake
-    // span so projection doesn't divide by zero or collapse to 0,0.
+    // Bounding box + map-tile projection ---------------------------
+    //
+    // satori renders an arbitrary number of <img> elements at render
+    // time (it fetches each URL once), so we stitch a CARTO Voyager
+    // tile grid behind the pins to give the poster real geographic
+    // context. The same tile stack the Plan mini-map and Visited
+    // Places map already use, so the visual identity is consistent.
+    //
+    // The route bounding box is padded by ~25 % per side so the map
+    // shows some country/county context around the pins; pins are
+    // then projected onto the same pixel grid as the tiles using a
+    // standard slippy-map projection. Without this, single-cluster
+    // routes would render with the pins clumped in the middle of a
+    // mostly-empty map.
+
+    const MAP_W = 1056 // poster inner width minus padding
+    const MAP_H = 880  // map panel target height
+    const TILE_SIZE = 256
+    const TILES_WIDE = 5 // 1280 px tile-grid wide (covers MAP_W with overscan)
+    const TILES_HIGH = 4 // 1024 px tile-grid tall
+
+    const lng2tileFloat = (lng, z) => ((lng + 180) / 360) * Math.pow(2, z)
+    const lat2tileFloat = (lat, z) => {
+      const rad = (lat * Math.PI) / 180
+      return ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * Math.pow(2, z)
+    }
+
     let minLat = 0, maxLat = 0, minLng = 0, maxLng = 0
     if (places.length > 0) {
       const lats = places.map((p) => p.lat)
       const lngs = places.map((p) => p.lng)
       minLat = Math.min(...lats); maxLat = Math.max(...lats)
       minLng = Math.min(...lngs); maxLng = Math.max(...lngs)
+    } else {
+      // Empty maps default to a UK overview so the poster still has
+      // a sensible map background. (The earlier 'no visited places'
+      // guard could land before this, but defend against it anyway.)
+      minLat = 50; maxLat = 55; minLng = -4; maxLng = 2
     }
-    const latSpan = Math.max(maxLat - minLat, 0.01)
-    const lngSpan = Math.max(maxLng - minLng, 0.01)
-    const projected = places.map((p) => ({
-      ...p,
-      xPct: 8 + ((p.lng - minLng) / lngSpan) * 84, // 8–92 % horizontally
-      yPct: 8 + ((maxLat - p.lat) / latSpan) * 84, // 8–92 % vertically (lat inverted)
-    }))
+    const latPad = Math.max(maxLat - minLat, 0.02) * 0.25
+    const lngPad = Math.max(maxLng - minLng, 0.04) * 0.25
+    const bMinLat = minLat - latPad
+    const bMaxLat = maxLat + latPad
+    const bMinLng = minLng - lngPad
+    const bMaxLng = maxLng + lngPad
+    const centerLat = (bMinLat + bMaxLat) / 2
+    const centerLng = (bMinLng + bMaxLng) / 2
+
+    // Pick the deepest zoom such that the padded bbox still fits in
+    // a 3-tile x 2.5-tile area; that keeps the route prominent within
+    // the 5x4 tile grid we render around it.
+    let zoom = 14
+    for (let z = 14; z >= 3; z--) {
+      const xSpan = lng2tileFloat(bMaxLng, z) - lng2tileFloat(bMinLng, z)
+      const ySpan = lat2tileFloat(bMinLat, z) - lat2tileFloat(bMaxLat, z)
+      if (xSpan <= 3 && ySpan <= 2.5) { zoom = z; break }
+      zoom = 3
+    }
+
+    const centerTileX = lng2tileFloat(centerLng, zoom)
+    const centerTileY = lat2tileFloat(centerLat, zoom)
+    const tileX0 = Math.floor(centerTileX - TILES_WIDE / 2)
+    const tileY0 = Math.floor(centerTileY - TILES_HIGH / 2)
+
+    // Pixel offset so the geographic centre lands at the panel centre.
+    const centerOffsetX = (centerTileX - tileX0) * TILE_SIZE
+    const centerOffsetY = (centerTileY - tileY0) * TILE_SIZE
+    const translateX = MAP_W / 2 - centerOffsetX
+    const translateY = MAP_H / 2 - centerOffsetY
+
+    // Tile grid — array of { x, y, dx, dy } for the JSX map. Wraps
+    // tile indices at the antimeridian so polar/oceanic routes still
+    // render valid OSM tiles (defensive — UK users shouldn't hit it).
+    const maxTileIdx = Math.pow(2, zoom)
+    const tiles = []
+    for (let dx = 0; dx < TILES_WIDE; dx++) {
+      for (let dy = 0; dy < TILES_HIGH; dy++) {
+        const tx = ((tileX0 + dx) % maxTileIdx + maxTileIdx) % maxTileIdx
+        const ty = tileY0 + dy
+        if (ty < 0 || ty >= maxTileIdx) continue
+        tiles.push({ dx, dy, tx, ty })
+      }
+    }
+
+    // Pin projection — same lat/lng → pixel maths as the tile grid
+    // so pins land precisely on their location, not at an abstract
+    // percentage of the panel.
+    const projected = places.map((p) => {
+      const pxX = (lng2tileFloat(p.lng, zoom) - tileX0) * TILE_SIZE + translateX
+      const pxY = (lat2tileFloat(p.lat, zoom) - tileY0) * TILE_SIZE + translateY
+      return { ...p, pxX, pxY }
+    })
 
     const dotColor = (rating) => {
       if (rating == null) return '#94a3b8'
@@ -124,65 +199,81 @@ async function handler(req, res) {
     const yearText = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
     const topPlaces = projected.slice(0, 18)
 
-    // Inline SVG grid lines + compass rose as decorative cartography.
-    // Drawn as one full-panel SVG so satori's element budget stays small.
-    const mapGrid = (
-      <svg
-        width="100%"
-        height="100%"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+    // CARTO Voyager tile grid — stitched at render time. Satori fetches
+    // each <img> URL in parallel so the poster ends up with a real
+    // OSM map background. Voyager is the same style as ROAM's other
+    // maps for visual continuity.
+    const mapTiles = (
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: MAP_W,
+          height: MAP_H,
+          display: 'flex',
+          overflow: 'hidden',
+        }}
       >
-        {/* Latitude lines */}
-        {Array.from({ length: 9 }).map((_, i) => (
-          <line
-            key={`h${i}`}
-            x1="0"
-            x2="100"
-            y1={(i + 1) * 10}
-            y2={(i + 1) * 10}
-            stroke={FOREST}
-            strokeWidth="0.06"
-            strokeDasharray="0.4 0.6"
-            opacity="0.25"
-          />
-        ))}
-        {/* Longitude lines */}
-        {Array.from({ length: 9 }).map((_, i) => (
-          <line
-            key={`v${i}`}
-            y1="0"
-            y2="100"
-            x1={(i + 1) * 10}
-            x2={(i + 1) * 10}
-            stroke={FOREST}
-            strokeWidth="0.06"
-            strokeDasharray="0.4 0.6"
-            opacity="0.25"
-          />
-        ))}
-      </svg>
+        <div
+          style={{
+            position: 'absolute',
+            left: translateX,
+            top: translateY,
+            width: TILES_WIDE * TILE_SIZE,
+            height: TILES_HIGH * TILE_SIZE,
+            display: 'flex',
+          }}
+        >
+          {tiles.map(({ dx, dy, tx, ty }) => (
+            <img
+              key={`${dx}-${dy}`}
+              src={`https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${tx}/${ty}.png`}
+              width={TILE_SIZE}
+              height={TILE_SIZE}
+              style={{
+                position: 'absolute',
+                left: dx * TILE_SIZE,
+                top: dy * TILE_SIZE,
+                width: TILE_SIZE,
+                height: TILE_SIZE,
+              }}
+            />
+          ))}
+        </div>
+        {/* Subtle parchment wash over the tiles so the brand palette
+            stays present and the pins/route read against a unified
+            warm tone instead of competing with bright tile colour. */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(245,240,230,0.18) 0%, rgba(237,226,204,0.22) 100%)',
+            display: 'flex',
+          }}
+        />
+      </div>
     )
 
-    // Dotted route polyline connecting pins in visit order.
+    // Route polyline — drawn over the tiles in pixel coordinates so
+    // it aligns precisely with the pin positions. SVG covers the full
+    // panel; the polyline is in pixel space, not percentage space.
     const routePolyline = projected.length > 1 && (
       <svg
-        width="100%"
-        height="100%"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        width={MAP_W}
+        height={MAP_H}
+        viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+        style={{ position: 'absolute', left: 0, top: 0, width: MAP_W, height: MAP_H }}
       >
         <polyline
-          points={projected.map((p) => `${p.xPct.toFixed(2)},${p.yPct.toFixed(2)}`).join(' ')}
+          points={projected.map((p) => `${p.pxX.toFixed(1)},${p.pxY.toFixed(1)}`).join(' ')}
           fill="none"
           stroke={GOLD}
-          strokeWidth="0.4"
-          strokeDasharray="1.4 1.6"
+          strokeWidth="5"
+          strokeDasharray="12 14"
           strokeLinecap="round"
           strokeLinejoin="round"
-          opacity="0.85"
+          opacity="0.92"
         />
       </svg>
     )
@@ -300,24 +391,27 @@ async function handler(req, res) {
           </div>
         </div>
 
-        {/* MAP PANEL — the centrepiece. Cartographic feel without
-            relying on tile imagery: parchment background, grid lines,
-            compass rose, dotted route line, numbered pins, decorative
-            double border. */}
+        {/* MAP PANEL — real OSM tile map (CARTO Voyager) overlaid with
+            a parchment wash, dotted gold route, numbered branded pins,
+            compass rose, and decorative double-stroke field-journal
+            border. Fixed pixel dimensions because the inner content
+            (tiles, route polyline, pin pixel coords) is sized in real
+            pixels so geographic alignment stays exact. */}
         <div
           style={{
             position: 'relative',
-            flex: 1,
+            width: MAP_W,
+            height: MAP_H,
             marginTop: 40,
-            marginBottom: 40,
-            background: 'rgba(26, 58, 47, 0.05)',
+            marginBottom: 32,
+            background: PARCHMENT,
             borderRadius: 18,
             display: 'flex',
             overflow: 'hidden',
             boxShadow: `inset 0 0 0 2px ${CREAM}, inset 0 0 0 4px ${FOREST}, inset 0 0 0 6px ${CREAM}, inset 0 0 0 7px rgba(26, 58, 47, 0.4)`,
           }}
         >
-          {mapGrid}
+          {mapTiles}
           {routePolyline}
           {compassRose}
 
@@ -333,7 +427,10 @@ async function handler(req, res) {
               display: 'flex',
               flexDirection: 'column',
               fontSize: 16,
-              color: 'rgba(26, 58, 47, 0.65)',
+              color: FOREST_INK,
+              background: 'rgba(253, 252, 248, 0.78)',
+              padding: '8px 12px',
+              borderRadius: 8,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
             }}
@@ -345,9 +442,10 @@ async function handler(req, res) {
             </span>
           </div>
 
-          {/* Numbered pins — forest body + cream border, gold for the
-              currently focused or most-recent visit. Numbering follows
-              visit order (most recent = 1). */}
+          {/* Numbered pins — drawn in pixel coordinates that align
+              with the underlying tile grid + route polyline. Pin body
+              is forest by default; terracotta for "not-for-me" ratings;
+              slate-grey for unrated visits. */}
           {projected.map((p, i) => {
             const fill = dotColor(p.rating)
             return (
@@ -355,8 +453,8 @@ async function handler(req, res) {
                 key={i}
                 style={{
                   position: 'absolute',
-                  left: `${p.xPct}%`,
-                  top: `${p.yPct}%`,
+                  left: p.pxX,
+                  top: p.pxY,
                   transform: 'translate(-50%, -50%)',
                   display: 'flex',
                   flexDirection: 'column',
