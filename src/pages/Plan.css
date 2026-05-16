@@ -319,6 +319,15 @@
   width: 100%;
 }
 
+/* All direct children of plan-body must keep their intrinsic content
+   height — the page is meant to scroll, not flex-shrink everything to
+   fit the viewport. Without this, items further down the column (the
+   mini-map ribbon, the wishlist section) get squeezed to 2px when
+   their natural height exceeds the remaining flex space. */
+.plan-body > * {
+  flex-shrink: 0;
+}
+
 @media (min-width: 768px) {
   .plan-body {
     padding: var(--space-lg);
