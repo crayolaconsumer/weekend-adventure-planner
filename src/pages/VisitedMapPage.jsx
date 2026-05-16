@@ -258,18 +258,22 @@ export default function VisitedMapPage() {
         </div>
       )}
 
-      {/* Owner-only export-poster floating action — only render when owner viewing own full map */}
-      {isOwner && !isTeaser && (data.visited?.length ?? 0) > 0 && (
+      {/* Owner-only, premium-only export-poster floating action.
+          Previously the button was shown to every owner with a "ROAM+"
+          badge as a teaser, which made the share view look like the
+          export was a free feature gated only on tap. Gating strictly
+          on premium keeps the share surface clean and matches the
+          user's mental model that export = premium feature. */}
+      {isOwner && isPremium && !isTeaser && (data.visited?.length ?? 0) > 0 && (
         <button
           type="button"
           className="visited-map-export-fab"
           onClick={handleExportPoster}
           disabled={exporting}
-          aria-label={isPremium ? 'Export your map as a poster' : 'Get a printable map poster with ROAM+'}
+          aria-label="Export your map as a poster"
         >
           <PosterIcon />
           <span>{exporting ? 'Generating poster...' : 'Export poster'}</span>
-          {!isPremium && <PremiumBadge size="xs" className="visited-map-export-fab-badge" />}
         </button>
       )}
 

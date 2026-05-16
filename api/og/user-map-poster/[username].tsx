@@ -176,7 +176,11 @@ async function handler(req, res) {
         }}>
           {topPlaces.map((p, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 5, background: dotColor(p.rating), display: 'inline-block' }} />
+              {/* @vercel/og (satori) doesn't accept display: inline-block.
+                  Allowed values are flex / block / contents / none /
+                  -webkit-box. The dot already sits in a flex row above,
+                  so plain `flex` with fixed dims works. */}
+              <span style={{ width: 10, height: 10, borderRadius: 5, background: dotColor(p.rating), display: 'flex', flexShrink: 0 }} />
               <span style={{ fontFamily: 'serif' }}>{p.name}</span>
             </div>
           ))}
