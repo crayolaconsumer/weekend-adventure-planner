@@ -157,7 +157,13 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     const result = await createContribution({
       placeId: place.id,
       type: photoUrl ? 'photo' : 'tip',
-      content: tipText.trim() || 'Photo contribution',
+      // Empty-string sentinel for caption-less photo uploads — the API
+      // validator and display layer both treat empty content as "no
+      // caption". The previous literal "Photo contribution" placeholder
+      // leaked into the public feed as if the user had actually typed
+      // it; the display layer also still filters that historical string
+      // out so old rows aren't surfaced. New uploads no longer write it.
+      content: tipText.trim() || (photoUrl ? '' : ''),
       metadata: photoUrl ? { photoUrl } : undefined,
       visibility,
       // Pass place context for richer activity feed

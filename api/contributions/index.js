@@ -156,7 +156,10 @@ async function handleGet(req, res) {
 
   const contributions = await query(sql, params)
 
-  // Format response
+  // Format response. IDs stay numeric because the vote/moderation
+  // endpoints key on them — only the virtual review rows added below
+  // get a `review_` prefix to keep them keyable in React without
+  // colliding with real contribution ids.
   const formatted = contributions.map(c => ({
     id: c.id,
     placeId: c.place_id,
@@ -178,6 +181,83 @@ async function handleGet(req, res) {
     },
     userVote: c.user_vote || null
   }))
+
+  // For place-scoped queries we ALSO surface the reviews left via the
+  // ratings flow (place_ratings.review). Reviews were previously only
+  // visible to the author via PlaceReviews; surfacing them here lets
+  // every viewer see what other users actually wrote about a place,
+  // and lets the client merge a user's rating + tip + photo into a
+  // single visible entry per user instead of three orphaned rows.
+  if (placeId) {
+    try {
+      let reviewSql = `
+        SELECT
+          pr.id,
+          pr.place_id,
+          pr.rating,
+          pr.review,
+          pr.created_at,
+          pr.updated_at,
+          u.id as user_id,
+          u.username,
+          u.display_name,
+          u.avatar_url
+        FROM place_ratings pr
+        JOIN users u ON pr.user_id = u.id
+        WHERE pr.place_id = ?
+          AND pr.review IS NOT NULL
+          AND TRIM(pr.review) <> ''
+          AND u.is_banned = FALSE
+      `
+      const reviewParams = [placeId]
+
+      // Privacy: hide reviews from users who blocked the viewer (or
+      // are blocked by the viewer). No-op for anonymous viewers.
+      if (currentUser) {
+        reviewSql += ` AND NOT EXISTS (
+          SELECT 1 FROM blocked_users
+          WHERE (blocker_id = ? AND blocked_id = pr.user_id)
+             OR (blocker_id = pr.user_id AND blocked_id = ?)
+        )`
+        reviewParams.push(currentUser.id, currentUser.id)
+      }
+      reviewSql += ' ORDER BY pr.updated_at DESC LIMIT ?'
+      reviewParams.push(safeLimit)
+
+      const reviews = await query(reviewSql, reviewParams)
+      for (const r of reviews) {
+        formatted.push({
+          id: `review_${r.id}`,
+          placeId: r.place_id,
+          type: 'review',
+          content: r.review,
+          metadata: null,
+          // Reviews don't participate in the contribution-vote system.
+          upvotes: 0,
+          downvotes: 0,
+          score: 0,
+          // Carry the rating along so the client can render a
+          // recommendation badge alongside the review text.
+          rating: r.rating,
+          createdAt: new Date(r.updated_at || r.created_at).toISOString(),
+          placeName: null,
+          placeCategory: null,
+          placeImageUrl: null,
+          user: {
+            id: r.user_id,
+            username: r.username,
+            displayName: r.display_name,
+            avatarUrl: r.avatar_url
+          },
+          userVote: null
+        })
+      }
+    } catch (err) {
+      // Reviews are a best-effort enrichment — never break the
+      // contributions response if the join hits a transient error.
+      console.warn('Review enrichment failed', err)
+    }
+  }
 
   return res.status(200).json({ contributions: formatted })
 }
@@ -205,9 +285,13 @@ async function handlePost(req, res) {
   const validVisibility = ['public', 'followers_only', 'private']
   const safeVisibility = validVisibility.includes(visibility) ? visibility : 'public'
 
-  // Validate required fields
-  if (!placeId || !type || !content) {
-    return res.status(400).json({ error: 'placeId, type, and content are required' })
+  // Validate required fields. Photo contributions can have an empty
+  // caption — the uploaded image itself IS the contribution — so we
+  // only require content for tip/correction/story types. The previous
+  // strict check forced the client to send "Photo contribution" as
+  // placeholder text, which then leaked into every public feed.
+  if (!placeId || !type) {
+    return res.status(400).json({ error: 'placeId and type are required' })
   }
 
   // Validate type
@@ -216,11 +300,24 @@ async function handlePost(req, res) {
     return res.status(400).json({ error: `type must be one of: ${validTypes.join(', ')}` })
   }
 
-  // Validate content
-  const maxLength = type === 'story' ? 1000 : 280
-  const contentValidation = validateContent(content, maxLength)
-  if (!contentValidation.valid) {
-    return res.status(400).json({ error: contentValidation.message })
+  const isPhoto = type === 'photo'
+  const hasPhotoUrl = !!(metadata && typeof metadata === 'object' && metadata.photoUrl)
+  if (isPhoto && !hasPhotoUrl) {
+    return res.status(400).json({ error: 'Photo contributions require metadata.photoUrl' })
+  }
+  if (!isPhoto && (!content || !String(content).trim())) {
+    return res.status(400).json({ error: 'content is required' })
+  }
+
+  // Validate content if present. Photo captions are optional but if
+  // supplied they're still length-checked.
+  const trimmedContent = content ? String(content) : ''
+  if (trimmedContent) {
+    const maxLength = type === 'story' ? 1000 : 280
+    const contentValidation = validateContent(trimmedContent, maxLength)
+    if (!contentValidation.valid) {
+      return res.status(400).json({ error: contentValidation.message })
+    }
   }
 
   // Sanitize place context fields
@@ -247,12 +344,17 @@ async function handlePost(req, res) {
   // handleVote auto-rejects content that the community clearly dislikes;
   // explicit reports route through api/moderation/report.js which can
   // flip status to 'rejected' for offensive content.
+  // For photo contributions with no caption, we store an empty string
+  // (not the old "Photo contribution" sentinel and not NULL, since the
+  // existing column was created NOT NULL). The display layer treats
+  // an empty string as "no caption" and only renders the image.
+  const dbContent = trimmedContent
   let insertId
   try {
     insertId = await insert(
       `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status, visibility, place_name, place_category, place_image_url)
        VALUES (?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?)`,
-      [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null, safeVisibility, sanitizedPlaceName, sanitizedPlaceCategory, sanitizedPlaceImageUrl]
+      [user.id, placeId, type, dbContent, metadata ? JSON.stringify(metadata) : null, safeVisibility, sanitizedPlaceName, sanitizedPlaceCategory, sanitizedPlaceImageUrl]
     )
   } catch (err) {
     // Fallback: place context columns might not exist yet
@@ -260,7 +362,7 @@ async function handlePost(req, res) {
       insertId = await insert(
         `INSERT INTO contributions (user_id, place_id, contribution_type, content, metadata, status, visibility)
          VALUES (?, ?, ?, ?, ?, 'approved', ?)`,
-        [user.id, placeId, type, content, metadata ? JSON.stringify(metadata) : null, safeVisibility]
+        [user.id, placeId, type, dbContent, metadata ? JSON.stringify(metadata) : null, safeVisibility]
       )
     } else {
       throw err
@@ -289,7 +391,7 @@ async function handlePost(req, res) {
       id: insertId,
       placeId,
       type,
-      content,
+      content: dbContent,
       metadata: metadata || null,
       placeName: sanitizedPlaceName,
       placeCategory: sanitizedPlaceCategory,

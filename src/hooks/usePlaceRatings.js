@@ -78,7 +78,14 @@ export function usePlaceRatings() {
     }
   }, [isAuthenticated])
 
-  // Sync local ratings to API on login
+  // Sync local ratings to API on login, THEN reload from API so the
+  // freshly-synced rows are reflected in state. Without the post-sync
+  // reload, the two effects (sync + load) raced and `loadRatings`
+  // would typically resolve with the empty server response before
+  // `syncLocalRatings` finished its POSTs — so users who rated places
+  // anonymously and then signed in saw "no review here" on the very
+  // places they'd just reviewed. The `syncedRef` flag still prevents
+  // re-running on every re-render.
   useEffect(() => {
     if (authLoading || !isAuthenticated || syncedRef.current) return
 
@@ -87,7 +94,10 @@ export function usePlaceRatings() {
       if (!token) return
 
       const local = getAllRatings()
-      if (Object.keys(local).length === 0) return
+      if (Object.keys(local).length === 0) {
+        syncedRef.current = true
+        return
+      }
 
       try {
         // Batch sync: process 10 ratings at a time for better performance
@@ -115,13 +125,17 @@ export function usePlaceRatings() {
           )
         }
         syncedRef.current = true
+        // Re-pull so the merged set replaces the in-memory map. Without
+        // this the synced rows would only appear after the next page
+        // navigation triggered another mount of the hook.
+        await loadRatings()
       } catch (err) {
         console.error('Error syncing ratings:', err)
       }
     }
 
     syncLocalRatings()
-  }, [isAuthenticated, authLoading])
+  }, [isAuthenticated, authLoading, loadRatings])
 
   useEffect(() => {
     if (authLoading) return

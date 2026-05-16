@@ -334,3 +334,67 @@
     height: 28px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   UNIFIED PER-USER FEEDBACK CARD
+   Single card showing one user's rating + review + tip(s) + photo(s)
+   for this place. Replaces the old behaviour where each row from the
+   contributions / place_ratings tables rendered as a separate card.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.user-feedback-card {
+  /* inherits .contribution-card spacing — only adds the per-user
+     specific bits below */
+}
+
+.user-feedback-recommendation {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 4px 0 8px;
+  align-self: flex-start;
+}
+
+.user-feedback-recommendation.positive {
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 14%, transparent);
+  color: var(--roam-forest, #1a3a2f);
+}
+
+[data-theme="dark"] .user-feedback-recommendation.positive {
+  background: color-mix(in srgb, var(--roam-gold, #d4a855) 22%, transparent);
+  color: var(--roam-gold, #d4a855);
+}
+
+.user-feedback-recommendation.negative {
+  background: color-mix(in srgb, var(--roam-terracotta, #c45c3e) 18%, transparent);
+  color: var(--roam-terracotta, #c45c3e);
+}
+
+.user-feedback-review {
+  margin: 0 0 10px;
+  font-family: var(--font-display, serif);
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--color-text-primary, var(--roam-forest, #1a3a2f));
+  /* Bookend with quote marks via &ldquo;/&rdquo; in the JSX — keep
+     leading indent small so the italic body still aligns left. */
+}
+
+.user-feedback-photos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+
+.user-feedback-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
