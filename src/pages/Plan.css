@@ -36,14 +36,30 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
-  background: linear-gradient(135deg, var(--roam-forest) 0%, #1e4a3a 100%);
+  /* Default falls back to the original forest gradient; the time-of-
+     day inline `--plan-adventure-bg` overrides it when set. */
+  background: var(--plan-adventure-bg, linear-gradient(135deg, var(--roam-forest) 0%, #1e4a3a 100%));
   border-radius: var(--radius-xl);
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: background 480ms cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s ease, box-shadow 0.25s ease;
   box-shadow:
     0 4px 12px rgba(26, 58, 47, 0.25),
     0 8px 24px rgba(26, 58, 47, 0.15);
   flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle paper-grain overlay on the gradient so the card doesn't feel
+   plasticky as the time-of-day tints shift. */
+.plan-adventure-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
 }
 
 .plan-adventure-card:hover {
@@ -80,6 +96,44 @@
   font-weight: 500;
   color: white;
   margin-bottom: 2px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: text;
+  border-radius: 4px;
+  transition: background 150ms ease;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+}
+
+.plan-adventure-title:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.plan-adventure-title-input {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: white;
+  margin-bottom: 2px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  padding: 2px 8px;
+  outline: none;
+  max-width: 100%;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.plan-adventure-title-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .plan-adventure-details {
@@ -1165,4 +1219,387 @@
   .plan-adventure-details {
     font-size: var(--text-xs);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOOD CHIPS — mood-first generation entry point
+   Horizontally-scrollable row above the adventure card so the user
+   can prime the planner with a *feeling* rather than navigating four
+   pickers. Selected mood floods forest-on-cream; deselected is muted.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-moods {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-snap-type: x proximity;
+  padding: 4px 2px 8px;
+  margin: 0 -2px var(--space-sm);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.plan-moods::-webkit-scrollbar { display: none; }
+
+.plan-mood {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 8px 14px;
+  background: var(--color-surface-elevated, #fdfcf8);
+  border: 1px solid color-mix(in srgb, var(--roam-forest, #1a3a2f) 14%, transparent);
+  border-radius: 999px;
+  color: var(--roam-forest, #1a3a2f);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+              background 160ms ease,
+              border-color 160ms ease,
+              box-shadow 160ms ease;
+  min-width: 0;
+}
+
+[data-theme="dark"] .plan-mood {
+  background: var(--color-surface, #1f1f1b);
+  border-color: color-mix(in srgb, var(--roam-gold, #d4a855) 22%, transparent);
+  color: var(--roam-cream, #fdfcf8);
+}
+
+.plan-mood:hover { transform: translateY(-1px); }
+.plan-mood:active { transform: translateY(0) scale(0.98); }
+
+.plan-mood.active {
+  background: var(--roam-forest, #1a3a2f);
+  color: var(--roam-cream, #fdfcf8);
+  border-color: var(--roam-forest, #1a3a2f);
+  box-shadow: 0 2px 8px rgba(26, 58, 47, 0.22);
+}
+
+[data-theme="dark"] .plan-mood.active {
+  background: var(--roam-gold, #d4a855);
+  color: #1a1a16;
+  border-color: var(--roam-gold, #d4a855);
+}
+
+.plan-mood-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.plan-mood-blurb {
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.plan-mood.active .plan-mood-blurb { opacity: 0.85; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   STOP HERO — slim image strip on each stop card
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-stop-card {
+  flex-wrap: wrap;
+  /* let the hero stretch full-width across the card while drag handle
+     + info + actions sit on a single row below it */
+  position: relative;
+  overflow: hidden;
+}
+
+.plan-stop-hero {
+  position: relative;
+  width: 100%;
+  height: 76px;
+  overflow: hidden;
+  margin: -10px -12px 8px;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 8%, transparent);
+  flex: 0 0 100%;
+}
+
+.plan-stop-hero-img,
+.plan-stop-hero img,
+.plan-stop-hero .place-image,
+.plan-stop-hero .place-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.plan-stop-closed-badge {
+  position: absolute;
+  bottom: 6px;
+  left: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(196, 92, 62, 0.92); /* roam-terracotta */
+  color: #fdfcf8;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.plan-stop-card--closed {
+  /* faint diagonal stripe so the card visually telegraphs "won't be
+     open at this time" without making it unreadable. */
+  background-image: linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 10px,
+    rgba(196, 92, 62, 0.05) 10px,
+    rgba(196, 92, 62, 0.05) 20px
+  );
+}
+
+@media (min-width: 768px) {
+  .plan-stop-hero { height: 100px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PLAN TOTALS — summary pill row below the itinerary
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-sm);
+  padding: 8px 4px;
+}
+
+.plan-totals-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 6%, var(--color-surface-elevated, #fdfcf8));
+  border: 1px solid color-mix(in srgb, var(--roam-forest, #1a3a2f) 10%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--roam-forest, #1a3a2f);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] .plan-totals-pill {
+  background: color-mix(in srgb, var(--roam-gold, #d4a855) 8%, var(--color-surface, #1f1f1b));
+  border-color: color-mix(in srgb, var(--roam-gold, #d4a855) 20%, transparent);
+  color: var(--roam-cream, #fdfcf8);
+}
+
+.plan-totals-icon {
+  display: inline-flex;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   "ADD STOP" with locational context
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-add-stop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-add-stop-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.plan-add-stop-count {
+  font-size: 11px;
+  opacity: 0.75;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SKELETON — generation in flight
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-timeline-list--skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.plan-stop-skeleton {
+  opacity: 0;
+  animation: plan-skeleton-fade-in 360ms ease forwards;
+}
+
+@keyframes plan-skeleton-fade-in {
+  to { opacity: 1; }
+}
+
+.plan-stop-card--skeleton {
+  background: var(--color-surface-elevated, #fdfcf8);
+  border: 1px solid color-mix(in srgb, var(--roam-forest, #1a3a2f) 8%, transparent);
+  pointer-events: none;
+}
+
+.plan-stop-time-skel {
+  display: inline-block;
+  width: 38px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.plan-stop-hero-skel {
+  display: block;
+  width: 100%;
+  height: 76px;
+  margin: -10px -12px 8px;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.plan-stop-name-skel {
+  display: inline-block;
+  width: 60%;
+  height: 12px;
+  border-radius: 3px;
+  margin-bottom: 6px;
+}
+
+.plan-stop-meta-skel {
+  display: inline-block;
+  width: 38%;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.plan-travel-skel {
+  display: block;
+  width: 80px;
+  height: 14px;
+  border-radius: 999px;
+  margin: 4px 0 4px 56px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ANIMATED ROUTE DASHES — between consecutive stop cards
+   Replaces the previously-plain travel chip's connector with a
+   slowly-flowing dotted line so the timeline reads as a route.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-travel {
+  position: relative;
+}
+
+.plan-travel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 24px;
+  width: 2px;
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--roam-forest, #1a3a2f) 35%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  background-size: 2px 12px;
+  background-repeat: repeat-y;
+  animation: plan-dotted-flow 1.6s linear infinite;
+  pointer-events: none;
+  opacity: 0.65;
+}
+
+[data-theme="dark"] .plan-travel::before {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--roam-gold, #d4a855) 45%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+@keyframes plan-dotted-flow {
+  from { background-position: 0 0; }
+  to { background-position: 0 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-travel::before { animation: none; }
+}
+
+/* Per-leg directions button — opens Google Maps with this single leg */
+.plan-travel-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 10%, transparent);
+  color: var(--roam-forest, #1a3a2f);
+  cursor: pointer;
+  transition: transform 120ms ease, background 160ms ease;
+}
+
+.plan-travel-link:hover { transform: scale(1.06); }
+.plan-travel-link:active { transform: scale(0.96); }
+
+[data-theme="dark"] .plan-travel-link {
+  background: color-mix(in srgb, var(--roam-gold, #d4a855) 18%, transparent);
+  color: var(--roam-gold, #d4a855);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STOP-CARD VOTE SUMMARY — shown on the owner's editable Plan view
+   when a shared plan has incoming votes from co-planners.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.plan-stop-votes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.plan-stop-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-stop-vote.up {
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 12%, transparent);
+  color: var(--roam-forest, #1a3a2f);
+}
+
+.plan-stop-vote.down {
+  background: color-mix(in srgb, var(--roam-terracotta, #c45c3e) 14%, transparent);
+  color: var(--roam-terracotta, #c45c3e);
+}
+
+[data-theme="dark"] .plan-stop-vote.up {
+  background: color-mix(in srgb, var(--roam-gold, #d4a855) 18%, transparent);
+  color: var(--roam-gold, #d4a855);
+}
+
+[data-theme="dark"] .plan-stop-vote.down {
+  background: color-mix(in srgb, var(--roam-terracotta, #c45c3e) 22%, transparent);
+  color: var(--roam-terracotta, #c45c3e);
 }

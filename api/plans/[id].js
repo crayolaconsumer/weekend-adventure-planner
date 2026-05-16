@@ -96,13 +96,38 @@ async function handleGet(req, res, id) {
     [id]
   )
 
+  // Vote aggregates per stop (owner sees what friends voted on after
+  // sharing). Fails gracefully if the votes table isn't deployed yet.
+  let votesByStop = {}
+  try {
+    const aggregates = await query(
+      `SELECT
+         stop_id,
+         SUM(vote_type = 'up') AS up_count,
+         SUM(vote_type = 'down') AS down_count
+       FROM plan_stop_votes
+       WHERE plan_id = ?
+       GROUP BY stop_id`,
+      [id]
+    )
+    for (const row of aggregates) {
+      votesByStop[row.stop_id] = {
+        up: Number(row.up_count || 0),
+        down: Number(row.down_count || 0),
+      }
+    }
+  } catch (voteErr) {
+    console.warn('Plan vote aggregate fetch failed:', voteErr.message)
+  }
+
   const formattedStops = stops.map(s => ({
     id: s.id,
     placeId: s.place_id,
     placeData: safeJsonParse(s.place_data),
     sortOrder: s.sort_order,
     scheduledTime: s.scheduled_time,
-    durationMinutes: s.duration_minutes
+    durationMinutes: s.duration_minutes,
+    votes: votesByStop[s.id] || { up: 0, down: 0 },
   }))
 
   return res.status(200).json({
@@ -112,6 +137,7 @@ async function handleGet(req, res, id) {
       title: plan.title,
       vibe: plan.vibe,
       durationHours: plan.duration_hours,
+      defaultTransport: plan.default_transport || 'walk',
       isPublic: Boolean(plan.is_public),
       createdAt: new Date(plan.created_at).toISOString(),
       isOwner,

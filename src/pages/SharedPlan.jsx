@@ -5,14 +5,17 @@
  * No authentication required
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import LoadingState from '../components/LoadingState'
 import { downloadICS } from '../components/plan/CalendarExport'
 import { useSEO } from '../hooks/useSEO'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../hooks/useToast'
 import VibeIcon from '../components/icons/VibeIcon'
 import CategoryIcon from '../components/icons/CategoryIcon'
+import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
 import './SharedPlan.css'
 
 const MapIcon = () => (
@@ -37,6 +40,22 @@ const DirectionsIcon = () => (
   </svg>
 )
 
+/* Lucide "thumbs-up" — used for vote-up on a shared-plan stop. */
+const ThumbsUpIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M7 10v12" />
+    <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7V10l4.27-9.45a.84.84 0 0 1 1.65.31z" />
+  </svg>
+)
+
+/* Lucide "thumbs-down" — used for vote-down on a shared-plan stop. */
+const ThumbsDownIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M17 14V2" />
+    <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17v12l-4.27 9.45a.84.84 0 0 1-1.65-.31z" />
+  </svg>
+)
+
 const VIBE_LABELS = {
   mixed: 'Mix',
   foodie: 'Food',
@@ -46,10 +65,75 @@ const VIBE_LABELS = {
 
 export default function SharedPlan() {
   const { code } = useParams()
+  const { isAuthenticated } = useAuth()
+  const appToast = useToast()
   const [plan, setPlan] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
+  const [pendingVoteStop, setPendingVoteStop] = useState(null) // optimistic-update guard
+
+  /**
+   * Vote up/down (or clear) on a stop. Optimistic update — flips the
+   * local count immediately, then reconciles with the server response.
+   * Falls back gracefully if the request fails.
+   */
+  const handleVote = useCallback(async (stopId, nextVote) => {
+    if (!isAuthenticated) {
+      appToast?.info?.('Sign in to vote on this plan')
+      return
+    }
+    if (pendingVoteStop === stopId) return
+    setPendingVoteStop(stopId)
+
+    // Optimistic — flip the in-place vote then snap back if server
+    // disagrees. Saves a render cycle of latency on tap.
+    const prevPlan = plan
+    setPlan(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        stops: prev.stops.map(s => {
+          if (s.id !== stopId) return s
+          const v = s.votes || { up: 0, down: 0 }
+          const yourPrev = s.yourVote
+          let up = v.up
+          let down = v.down
+          if (yourPrev === 'up') up -= 1
+          if (yourPrev === 'down') down -= 1
+          if (nextVote === 'up') up += 1
+          if (nextVote === 'down') down += 1
+          return { ...s, votes: { up: Math.max(0, up), down: Math.max(0, down) }, yourVote: nextVote }
+        }),
+      }
+    })
+
+    try {
+      const res = await fetch(`/api/plans/share/${code}/vote`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stopId, voteType: nextVote }),
+      })
+      if (!res.ok) throw new Error(`vote failed ${res.status}`)
+      const data = await res.json()
+      // Reconcile with server truth.
+      setPlan(prev => prev ? {
+        ...prev,
+        stops: prev.stops.map(s => s.id === stopId
+          ? { ...s, votes: data.votes, yourVote: data.yourVote }
+          : s
+        )
+      } : prev)
+      nextVote === null ? hapticTap('light') : hapticSuccess()
+    } catch (err) {
+      console.warn('Vote failed:', err)
+      setPlan(prevPlan)
+      appToast?.error?.("Couldn't save your vote")
+    } finally {
+      setPendingVoteStop(null)
+    }
+  }, [code, isAuthenticated, plan, pendingVoteStop, appToast])
 
   // Dynamic SEO for shared plans
   const planTitle = plan?.name || 'Shared Adventure'
@@ -228,6 +312,33 @@ export default function SharedPlan() {
                         {data?.type?.replace(/_/g, ' ')}
                         {data?.address && ` · ${data.address}`}
                       </p>
+                      {/* Co-plan vote chips — viewers can thumbs-up /
+                          thumbs-down each stop. Owner sees the same
+                          aggregate when they reopen the plan. */}
+                      <div className="shared-plan-stop-votes" role="group" aria-label="Vote on this stop">
+                        <button
+                          type="button"
+                          className={`shared-plan-vote up ${stop.yourVote === 'up' ? 'active' : ''}`}
+                          onClick={() => handleVote(stop.id, stop.yourVote === 'up' ? null : 'up')}
+                          aria-pressed={stop.yourVote === 'up'}
+                          aria-label="Vote up"
+                          disabled={pendingVoteStop === stop.id}
+                        >
+                          <ThumbsUpIcon />
+                          <span className="shared-plan-vote-count">{stop.votes?.up || 0}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`shared-plan-vote down ${stop.yourVote === 'down' ? 'active' : ''}`}
+                          onClick={() => handleVote(stop.id, stop.yourVote === 'down' ? null : 'down')}
+                          aria-pressed={stop.yourVote === 'down'}
+                          aria-label="Vote down"
+                          disabled={pendingVoteStop === stop.id}
+                        >
+                          <ThumbsDownIcon />
+                          <span className="shared-plan-vote-count">{stop.votes?.down || 0}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <button

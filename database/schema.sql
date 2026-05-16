@@ -344,3 +344,26 @@ CREATE TABLE IF NOT EXISTS user_privacy_settings (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_user_id (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------
+-- PLAN STOP VOTES TABLE
+-- Co-planning votes — when a plan is shared via /plan/share/:code,
+-- viewers can thumbs-up / thumbs-down each stop. One vote per user
+-- per stop (toggling re-runs UPDATE). Anonymous voting is gated off
+-- so vote spam needs an account.
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS plan_stop_votes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  plan_id INT NOT NULL,
+  stop_id INT NOT NULL,
+  voter_user_id INT NOT NULL,
+  vote_type ENUM('up','down') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_voter_stop (plan_id, stop_id, voter_user_id),
+  FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE,
+  FOREIGN KEY (stop_id) REFERENCES plan_stops(id) ON DELETE CASCADE,
+  FOREIGN KEY (voter_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_plan_id (plan_id),
+  INDEX idx_stop_id (stop_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

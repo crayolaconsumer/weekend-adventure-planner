@@ -345,3 +345,68 @@
     font-size: 16px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CO-PLAN VOTE CHIPS — viewers vote 👍/👎 on each stop. Owner sees
+   the same aggregate when they reopen the plan. Branded forest +
+   terracotta palette so it doesn't read as a generic "like" UI.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.shared-plan-stop-votes {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.shared-plan-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 6%, var(--color-surface-elevated, #fdfcf8));
+  border: 1px solid color-mix(in srgb, var(--roam-forest, #1a3a2f) 12%, transparent);
+  border-radius: 999px;
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary, var(--roam-forest, #1a3a2f));
+  cursor: pointer;
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+              background 160ms ease,
+              border-color 160ms ease,
+              color 160ms ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.shared-plan-vote:hover:not(:disabled) { transform: translateY(-1px); }
+.shared-plan-vote:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+
+.shared-plan-vote:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.shared-plan-vote.up.active {
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 100%, #87a28e);
+  border-color: var(--roam-forest, #1a3a2f);
+  color: var(--roam-cream, #fdfcf8);
+  box-shadow: 0 2px 6px rgba(26, 58, 47, 0.22);
+}
+
+.shared-plan-vote.down.active {
+  background: var(--roam-terracotta, #c45c3e);
+  border-color: var(--roam-terracotta, #c45c3e);
+  color: var(--roam-cream, #fdfcf8);
+  box-shadow: 0 2px 6px rgba(196, 92, 62, 0.28);
+}
+
+[data-theme="dark"] .shared-plan-vote {
+  background: color-mix(in srgb, var(--roam-gold, #d4a855) 6%, var(--color-surface, #1f1f1b));
+  border-color: color-mix(in srgb, var(--roam-gold, #d4a855) 20%, transparent);
+  color: var(--roam-cream, #fdfcf8);
+}
+
+.shared-plan-vote-count {
+  letter-spacing: 0.02em;
+}

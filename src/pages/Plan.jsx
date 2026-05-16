@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchEnrichedPlaces } from '../utils/apiClient'
 import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { useToast } from '../hooks/useToast'
@@ -19,11 +19,15 @@ import { useRouting } from '../hooks/useRouting'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import ShareModal from '../components/plan/ShareModal'
+import MiniMapRibbon from '../components/plan/MiniMapRibbon'
 import PlaceDetail from '../components/PlaceDetail'
+import PlaceImage from '../components/PlaceImage'
 import FilterIcon from '../components/icons/FilterIcon'
 import VibeIcon from '../components/icons/VibeIcon'
-import { tap as hapticTap } from '../utils/haptics'
+import { tap as hapticTap, selectionTick } from '../utils/haptics'
+import { isPlaceOpen } from '../utils/openingHours'
 import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS } from './Plan/constants'
+import { MOODS } from './Plan/moods'
 import {
   DragIcon,
   ShuffleIcon,
@@ -33,6 +37,8 @@ import {
   PlusIcon,
   ChevronIcon,
   SettingsIcon,
+  NavigationIcon,
+  MapIcon,
 } from './Plan/icons'
 import { selectDiverseStops } from './Plan/selectDiverseStops'
 import { getAuthToken } from './Plan/utils'
@@ -41,6 +47,7 @@ import './Plan.css'
 export default function Plan({ location }) {
   const toast = useToast()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { getTravelTime: fetchTravelTime } = useRouting()
   const { places: wishlist } = useSavedPlaces()
   const formatDistance = useFormatDistance()
@@ -55,6 +62,10 @@ export default function Plan({ location }) {
   const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
   const [editingTimeIndex, setEditingTimeIndex] = useState(null) // Which stop's time is being edited
   const [stopDetail, setStopDetail] = useState(null) // Itinerary stop being viewed in PlaceDetail modal
+  const [customTitle, setCustomTitle] = useState(null) // User-renamed adventure title; null = auto from vibe
+  const [titleEditing, setTitleEditing] = useState(false)
+  const [showMiniMap, setShowMiniMap] = useState(true) // Toggle for the mini-map ribbon
+  const [selectedMood, setSelectedMood] = useState(null) // Mood-first chip selection
   const [availablePlaces, setAvailablePlaces] = useState([])
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareCode, setShareCode] = useState(null)
@@ -74,6 +85,54 @@ export default function Plan({ location }) {
       }
     }
   }, [toast])
+
+  // Reopen a saved plan when navigated to /plan?planId=N. Hydrates the
+  // editor state (vibe / duration / transport / title / stops) from
+  // the server so the user can pick up an old plan and continue
+  // editing instead of viewing the read-only shared version.
+  useEffect(() => {
+    const planId = searchParams.get('planId')
+    if (!planId) return
+    let cancelled = false
+    const token = getAuthToken()
+    fetch(`/api/plans/${planId}`, {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`status ${r.status}`)))
+      .then(({ plan }) => {
+        if (cancelled || !plan) return
+        if (plan.vibe) setSelectedVibe(plan.vibe)
+        if (plan.durationHours) setSelectedDuration(plan.durationHours)
+        if (plan.defaultTransport) setSelectedTransport(plan.defaultTransport)
+        if (plan.title) setCustomTitle(plan.title)
+        if (plan.shareCode) setShareCode(plan.shareCode)
+        if (Array.isArray(plan.stops) && plan.stops.length) {
+          const rehydrated = plan.stops
+            .filter(s => s.placeData)
+            .map(s => ({
+              ...s.placeData,
+              scheduledTime: s.scheduledTime,
+              duration: s.durationMinutes,
+              // Carry the friend-vote aggregate forward so the owner
+              // can see at a glance which stops the group liked.
+              votes: s.votes || { up: 0, down: 0 },
+              stopRowId: s.id, // server-side plan_stops.id for future actions
+            }))
+          setItinerary(rehydrated)
+        }
+        // Strip the param so a refresh doesn't loop the hydration and
+        // shoving the user back to whatever they had stored. URL stays
+        // clean for sharing.
+        setSearchParams({}, { replace: true })
+        toast.success('Plan reopened')
+      })
+      .catch(() => {
+        if (!cancelled) toast.error("Couldn't reopen that plan")
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the planId at mount
+  }, [])
 
   // Calculate distance
   const calcDist = useCallback((lat1, lon1, lat2, lon2) => {
@@ -550,6 +609,70 @@ export default function Plan({ location }) {
   const transportData = TRANSPORT_MODES.find(t => t.key === selectedTransport)
   const radiusData = RADIUS_OPTIONS.find(r => r.key === selectedRadius)
 
+  // Editable plan title — defaults to "{Vibe} Adventure" unless the
+  // user has set a custom one. Kept in state so it survives sub-
+  // navigation within the page; persisted only when saved server-side.
+  const planTitle = customTitle || `${vibeName} Adventure`
+
+  // Time-of-day gradient picker for the adventure header — driven by
+  // the first stop's scheduledTime (if any) or the current hour
+  // otherwise. Keeps the card visually anchored in *when* this
+  // adventure happens rather than always rendering the same forest
+  // green. Returns a CSS background string.
+  const tod = useMemo(() => {
+    const firstTime = itinerary[0]?.scheduledTime
+      ? new Date(itinerary[0].scheduledTime).getHours()
+      : new Date().getHours()
+    if (firstTime >= 5 && firstTime < 11) {
+      // Morning — warm peach into terracotta
+      return { gradient: 'linear-gradient(135deg, #d96941 0%, #c45c3e 60%, #1a3a2f 130%)', label: 'morning' }
+    }
+    if (firstTime >= 11 && firstTime < 16) {
+      // Midday — forest plus a brighter sage highlight
+      return { gradient: 'linear-gradient(135deg, #2d5a4a 0%, #1a3a2f 70%, #0f2a22 100%)', label: 'midday' }
+    }
+    if (firstTime >= 16 && firstTime < 20) {
+      // Evening — dusk pink fading into indigo
+      return { gradient: 'linear-gradient(135deg, #c45c3e 0%, #6b5b95 60%, #1a3a2f 110%)', label: 'evening' }
+    }
+    // Night — indigo deep into forest
+    return { gradient: 'linear-gradient(135deg, #4a4a8a 0%, #2d2d5a 60%, #1a3a2f 100%)', label: 'night' }
+  }, [itinerary])
+
+  // Plan totals — duration in minutes, distance in km. Sums each
+  // stop's duration + each leg's travel time. Used by the footer.
+  const planTotals = useMemo(() => {
+    if (!itinerary.length) return null
+    let stopMinutes = 0
+    let travelMinutes = 0
+    let distanceKm = 0
+    itinerary.forEach((stop, idx) => {
+      stopMinutes += stop.duration || 60
+      const next = itinerary[idx + 1]
+      if (!next) return
+      // Inline the leg key — getLegKey is defined later in the
+      // component so referencing it here would be a TDZ error.
+      const t = travelTimes[`${stop.id}-${next.id}`]
+      if (t?.duration) travelMinutes += t.duration
+      // Crow-flies distance between consecutive stops as a floor.
+      if (stop.lat && stop.lng && next.lat && next.lng) {
+        const R = 6371
+        const dLat = (next.lat - stop.lat) * Math.PI / 180
+        const dLng = (next.lng - stop.lng) * Math.PI / 180
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(stop.lat * Math.PI / 180) * Math.cos(next.lat * Math.PI / 180) *
+          Math.sin(dLng / 2) ** 2
+        distanceKm += 2 * R * Math.asin(Math.sqrt(a))
+      }
+    })
+    return {
+      totalMinutes: stopMinutes + travelMinutes,
+      stopMinutes,
+      travelMinutes,
+      distanceKm: Math.round(distanceKm * 10) / 10,
+    }
+  }, [itinerary, travelTimes])
+
   return (
     <div className="plan-page">
       {/* Share Modal */}
@@ -668,13 +791,79 @@ export default function Plan({ location }) {
       </AnimatePresence>
 
       <div className="plan-body">
-        {/* Adventure Summary Card */}
-        <div className="plan-adventure-card" onClick={openSettings}>
+        {/* Mood chips — single-tap shortcut to prime the generator
+            with a *feeling* (Cozy, Curious, Energised, Restful,
+            Adventurous, Hungry) rather than making the user juggle
+            vibe + duration + radius. Selecting a mood updates the
+            settings underneath, so power users can still tweak. */}
+        <div className="plan-moods" role="radiogroup" aria-label="Choose a mood">
+          {MOODS.map((mood) => (
+            <button
+              key={mood.key}
+              type="button"
+              role="radio"
+              aria-checked={selectedMood === mood.key}
+              className={`plan-mood ${selectedMood === mood.key ? 'active' : ''}`}
+              onClick={() => {
+                selectionTick()
+                setSelectedMood(mood.key)
+                setSelectedVibe(mood.vibe)
+                setSelectedDuration(mood.durationHours)
+                setSelectedRadius(mood.radius)
+                setSelectedTransport(mood.transport)
+              }}
+            >
+              <span className="plan-mood-label">{mood.label}</span>
+              <span className="plan-mood-blurb">{mood.blurb}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Adventure Summary Card — gradient tracks time-of-day for
+            the first stop, and the title becomes an inline editable
+            input on tap so the user can name the day ("Weekend in
+            Hertfordshire") instead of the auto "Mix Adventure". */}
+        <div
+          className={`plan-adventure-card plan-adventure-card--tod-${tod.label}`}
+          style={{ '--plan-adventure-bg': tod.gradient }}
+          onClick={(e) => {
+            // Don't open settings when the user is interacting with
+            // the title input or the edit button.
+            if (e.target.closest('.plan-adventure-title-input, .plan-adventure-title, .plan-adventure-edit')) return
+            openSettings()
+          }}
+        >
           <div className="plan-adventure-icon">
             <VibeIcon name={selectedVibe} size={32} />
           </div>
           <div className="plan-adventure-info">
-            <div className="plan-adventure-title">{vibeName} Adventure</div>
+            {titleEditing ? (
+              <input
+                type="text"
+                className="plan-adventure-title-input"
+                defaultValue={planTitle}
+                autoFocus
+                maxLength={60}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={(e) => {
+                  const next = e.target.value.trim()
+                  setCustomTitle(next && next !== `${vibeName} Adventure` ? next : null)
+                  setTitleEditing(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') { setTitleEditing(false) }
+                }}
+              />
+            ) : (
+              <button
+                className="plan-adventure-title"
+                onClick={(e) => { e.stopPropagation(); hapticTap('light'); setTitleEditing(true) }}
+                title="Rename adventure"
+              >
+                {planTitle}
+              </button>
+            )}
             <div className="plan-adventure-details">
               {durationLabel}
               <span className="plan-adventure-sep"> · </span>
@@ -684,7 +873,7 @@ export default function Plan({ location }) {
               {radiusData?.description}
             </div>
           </div>
-          <button className="plan-adventure-edit" aria-label="Edit settings">
+          <button className="plan-adventure-edit" aria-label="Edit settings" onClick={openSettings}>
             <SettingsIcon />
           </button>
         </div>
@@ -701,12 +890,65 @@ export default function Plan({ location }) {
           )}
         </button>
 
+        {/* Mini-map ribbon — collapsible visual route preview above the
+            itinerary. Only renders when there are stops AND at least
+            one has coords; the component itself bails internally if
+            the projection can't be built. */}
+        {itinerary.length > 0 && (
+          <MiniMapRibbon
+            stops={itinerary}
+            expanded={showMiniMap}
+            onToggle={() => setShowMiniMap(s => !s)}
+            onPinTap={(idx) => {
+              const target = document.querySelector(`[data-stop-idx="${idx}"]`)
+              if (target?.scrollIntoView) target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }}
+          />
+        )}
+
         {/* YOUR ITINERARY - Main content */}
         <section className="plan-section plan-itinerary-section">
           <div className="plan-section-header">
             <span className="plan-section-title">YOUR ITINERARY</span>
             {itinerary.length > 0 && (
               <div className="plan-itinerary-actions">
+                <button
+                  className="plan-action"
+                  onClick={() => {
+                    // Open the entire itinerary in Google Maps as a
+                    // multi-stop route. Works on web (opens new tab),
+                    // iOS (Capacitor will route via the native handler
+                    // for the maps.google.com URL — Apple users with
+                    // Google Maps installed get a deep-link prompt),
+                    // and Android (handed off to the Google Maps app
+                    // when installed via intent filter on this URL).
+                    if (itinerary.length < 2) {
+                      const only = itinerary[0]
+                      if (only?.lat && only?.lng) {
+                        hapticTap('medium')
+                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${only.lat},${only.lng}`, '_blank', 'noopener')
+                      }
+                      return
+                    }
+                    const origin = itinerary[0]
+                    const destination = itinerary[itinerary.length - 1]
+                    const waypoints = itinerary.slice(1, -1)
+                    const url = new URL('https://www.google.com/maps/dir/')
+                    url.searchParams.set('api', '1')
+                    url.searchParams.set('origin', `${origin.lat},${origin.lng}`)
+                    url.searchParams.set('destination', `${destination.lat},${destination.lng}`)
+                    if (waypoints.length) {
+                      url.searchParams.set('waypoints', waypoints.map(w => `${w.lat},${w.lng}`).join('|'))
+                    }
+                    url.searchParams.set('travelmode', selectedTransport === 'transit' ? 'transit' : selectedTransport === 'drive' ? 'driving' : 'walking')
+                    hapticTap('medium')
+                    window.open(url.toString(), '_blank', 'noopener')
+                  }}
+                  aria-label="Open route in Google Maps"
+                  title="Open route in Maps"
+                >
+                  <NavigationIcon /> Maps
+                </button>
                 <button className="plan-action" onClick={openShare} aria-label="Share">
                   <ShareIcon /> Share
                 </button>
@@ -731,6 +973,7 @@ export default function Plan({ location }) {
                     key={stop.id}
                     value={stop}
                     className="plan-stop-wrapper"
+                    data-stop-idx={idx}
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
@@ -760,39 +1003,76 @@ export default function Plan({ location }) {
                           </button>
                         )}
                       </div>
-                      <motion.div
-                        className="plan-stop-card"
-                        key={stop.id}
-                        initial={{ opacity: 0, scale: 0.95, x: 10 }}
-                        animate={{ opacity: 1, scale: 1, x: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, x: -10 }}
-                        transition={{ duration: 0.25, ease: 'easeOut' }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => { hapticTap('light'); setStopDetail(stop) }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            setStopDetail(stop)
-                          }
-                        }}
-                        aria-label={`View details for ${stop.name}`}
-                        layout
-                      >
-                        <div className="plan-stop-drag"><DragIcon /></div>
-                        <div className="plan-stop-info">
-                          <div className="plan-stop-name">{stop.name}</div>
-                          <div className="plan-stop-meta">
-                            {stop.type?.replace(/_/g, ' ')}
-                            {stop.distance && ` · ${formatDistance(stop.distance)}`}
-                          </div>
-                        </div>
-                        <div className="plan-stop-actions">
-                          <button onClick={(e) => { e.stopPropagation(); removeStop(idx) }} aria-label="Remove"><CloseIcon /></button>
-                          <button onClick={(e) => { e.stopPropagation(); shuffleStop(idx) }} aria-label="Shuffle"><ShuffleIcon /></button>
-                        </div>
-                      </motion.div>
+                      {(() => {
+                        // Check if the stop would be closed at its
+                        // scheduled time. isPlaceOpen reads
+                        // place.opening_hours / tags.opening_hours.
+                        // Returns null if the data is missing.
+                        let isClosed = false
+                        try {
+                          const scheduledDate = new Date(stop.scheduledTime)
+                          const state = isPlaceOpen(stop, scheduledDate)
+                          isClosed = state === false
+                        } catch { /* opening-hours parse can throw on malformed tags — silent */ }
+                        return (
+                          <motion.div
+                            className={`plan-stop-card ${isClosed ? 'plan-stop-card--closed' : ''}`}
+                            key={stop.id}
+                            initial={{ opacity: 0, scale: 0.95, x: 10 }}
+                            animate={{ opacity: 1, scale: 1, x: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, x: -10 }}
+                            transition={{ duration: 0.25, ease: 'easeOut' }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => { hapticTap('light'); setStopDetail(stop) }}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setStopDetail(stop)
+                              }
+                            }}
+                            aria-label={`View details for ${stop.name}`}
+                            layout
+                          >
+                            <div className="plan-stop-drag"><DragIcon /></div>
+                            <div className="plan-stop-hero">
+                              <PlaceImage
+                                place={stop}
+                                alt={stop.name}
+                                className="plan-stop-hero-img"
+                                imgProps={{ loading: 'lazy' }}
+                              />
+                              {isClosed && (
+                                <span className="plan-stop-closed-badge" title="Closed at this time">
+                                  Closed at this time
+                                </span>
+                              )}
+                            </div>
+                            <div className="plan-stop-info">
+                              <div className="plan-stop-name">{stop.name}</div>
+                              <div className="plan-stop-meta">
+                                {stop.type?.replace(/_/g, ' ')}
+                                {stop.distance && ` · ${formatDistance(stop.distance)}`}
+                              </div>
+                              {(stop.votes && (stop.votes.up > 0 || stop.votes.down > 0)) && (
+                                <div className="plan-stop-votes" title="Votes from friends who viewed your shared plan">
+                                  {stop.votes.up > 0 && (
+                                    <span className="plan-stop-vote up">▲ {stop.votes.up}</span>
+                                  )}
+                                  {stop.votes.down > 0 && (
+                                    <span className="plan-stop-vote down">▼ {stop.votes.down}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="plan-stop-actions">
+                              <button onClick={(e) => { e.stopPropagation(); removeStop(idx) }} aria-label="Remove"><CloseIcon /></button>
+                              <button onClick={(e) => { e.stopPropagation(); shuffleStop(idx) }} aria-label="Shuffle"><ShuffleIcon /></button>
+                            </div>
+                          </motion.div>
+                        )
+                      })()}
                     </div>
                     {idx < itinerary.length - 1 && (
                       <div className="plan-travel">
@@ -816,6 +1096,26 @@ export default function Plan({ location }) {
                             )
                           })()}
                         </button>
+                        {(() => {
+                          const next = itinerary[idx + 1]
+                          if (!next?.lat || !next?.lng || !stop.lat || !stop.lng) return null
+                          const mode = getLegMode(stop)
+                          const travelmode = mode === 'transit' ? 'transit' : mode === 'drive' ? 'driving' : 'walking'
+                          // Per-leg directions deep-link. Free, no API key —
+                          // Google Maps handles the routing on their side and
+                          // surfaces transit times for transit legs.
+                          const href = `https://www.google.com/maps/dir/?api=1&origin=${stop.lat},${stop.lng}&destination=${next.lat},${next.lng}&travelmode=${travelmode}`
+                          return (
+                            <button
+                              className="plan-travel-link"
+                              onClick={(e) => { e.stopPropagation(); hapticTap('light'); window.open(href, '_blank', 'noopener') }}
+                              aria-label={`Open directions for leg ${idx + 1} in Maps`}
+                              title="Open in Maps"
+                            >
+                              <NavigationIcon />
+                            </button>
+                          )
+                        })()}
                         <AnimatePresence>
                           {editingLegIndex === idx && (
                             <motion.div
@@ -843,17 +1143,89 @@ export default function Plan({ location }) {
                   </Reorder.Item>
                 ))}
               </Reorder.Group>
+            ) : isGenerating ? (
+              // Skeleton timeline — three shimmering placeholders so the
+              // generate path feels like the app is *building* something
+              // for the user rather than just spinning. Matches the
+              // expected card layout so the transition into real data
+              // is gentle when results arrive.
+              <div className="plan-timeline-list plan-timeline-list--skeleton" aria-busy="true">
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="plan-stop-wrapper plan-stop-skeleton" style={{ animationDelay: `${i * 120}ms` }}>
+                    <div className="plan-stop">
+                      <div className="plan-stop-time-wrapper">
+                        <span className="plan-stop-time-skel skeleton" />
+                      </div>
+                      <div className="plan-stop-card plan-stop-card--skeleton">
+                        <span className="plan-stop-hero-skel skeleton" />
+                        <div className="plan-stop-info">
+                          <span className="plan-stop-name-skel skeleton" />
+                          <span className="plan-stop-meta-skel skeleton" />
+                        </div>
+                      </div>
+                    </div>
+                    {i < 2 && <span className="plan-travel-skel skeleton" />}
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="plan-empty">
                 <p>Generate an itinerary or add from your wishlist</p>
               </div>
             )}
 
-            {itinerary.length > 0 && availableWishlist.length > 0 && (
-              <button className="plan-add-stop" onClick={() => addStop(availableWishlist[0])}>
-                <PlusIcon /> Add Stop
-              </button>
+            {itinerary.length > 0 && planTotals && (
+              <div className="plan-totals" aria-label="Adventure totals">
+                <div className="plan-totals-pill">
+                  <span className="plan-totals-icon">⏱</span>
+                  <span>
+                    {Math.floor(planTotals.totalMinutes / 60)}h
+                    {planTotals.totalMinutes % 60 > 0 ? ` ${planTotals.totalMinutes % 60}m` : ''}
+                  </span>
+                </div>
+                {planTotals.distanceKm > 0 && (
+                  <div className="plan-totals-pill">
+                    <FilterIcon name={selectedTransport} size={14} />
+                    <span>~{formatDistance(planTotals.distanceKm)}</span>
+                  </div>
+                )}
+                <div className="plan-totals-pill">
+                  <span>{itinerary.length} {itinerary.length === 1 ? 'stop' : 'stops'}</span>
+                </div>
+              </div>
             )}
+
+            {itinerary.length > 0 && availableWishlist.length > 0 && (() => {
+              // Pick the wishlist item nearest the user's last stop so
+              // "+ Add Stop" stops being a random gamble and instead
+              // proposes the one most likely to fit the route.
+              const last = itinerary[itinerary.length - 1]
+              let nearest = availableWishlist[0]
+              if (last?.lat && last?.lng) {
+                let bestDist = Infinity
+                for (const w of availableWishlist) {
+                  if (!w.lat || !w.lng) continue
+                  const dLat = (w.lat - last.lat) * Math.PI / 180
+                  const dLng = (w.lng - last.lng) * Math.PI / 180
+                  const a = Math.sin(dLat / 2) ** 2 +
+                    Math.cos(last.lat * Math.PI / 180) * Math.cos(w.lat * Math.PI / 180) *
+                    Math.sin(dLng / 2) ** 2
+                  const km = 2 * 6371 * Math.asin(Math.sqrt(a))
+                  if (km < bestDist) { bestDist = km; nearest = w }
+                }
+              }
+              return (
+                <button className="plan-add-stop" onClick={() => { hapticTap('light'); addStop(nearest) }}>
+                  <PlusIcon />
+                  <span className="plan-add-stop-label">
+                    Add Stop
+                    <span className="plan-add-stop-count">
+                      {availableWishlist.length} nearby
+                    </span>
+                  </span>
+                </button>
+              )
+            })()}
           </div>
         </section>
 

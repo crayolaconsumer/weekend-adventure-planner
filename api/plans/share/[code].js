@@ -79,14 +79,60 @@ async function handler(req, res) {
       [plan.id]
     )
 
-    const formattedStops = stops.map(s => ({
-      id: s.id,
-      placeId: s.place_id,
-      placeData: safeJsonParse(s.place_data),
-      sortOrder: s.sort_order,
-      scheduledTime: s.scheduled_time,
-      durationMinutes: s.duration_minutes
-    }))
+    // Co-plan votes — fetch per-stop aggregates + the viewer's own
+    // vote (when authenticated). Both in one round trip via a JOIN so
+    // we don't fan out N queries per stop. Empty if the table doesn't
+    // exist yet on this environment — falls back gracefully.
+    let votesByStop = {}
+    try {
+      const aggregates = await query(
+        `SELECT
+           stop_id,
+           SUM(vote_type = 'up') AS up_count,
+           SUM(vote_type = 'down') AS down_count
+         FROM plan_stop_votes
+         WHERE plan_id = ?
+         GROUP BY stop_id`,
+        [plan.id]
+      )
+      for (const row of aggregates) {
+        votesByStop[row.stop_id] = {
+          up: Number(row.up_count || 0),
+          down: Number(row.down_count || 0),
+        }
+      }
+      if (currentUser) {
+        const yourVotes = await query(
+          `SELECT stop_id, vote_type FROM plan_stop_votes
+           WHERE plan_id = ? AND voter_user_id = ?`,
+          [plan.id, currentUser.id]
+        )
+        for (const row of yourVotes) {
+          votesByStop[row.stop_id] = {
+            ...(votesByStop[row.stop_id] || { up: 0, down: 0 }),
+            yourVote: row.vote_type,
+          }
+        }
+      }
+    } catch (voteErr) {
+      // Vote table missing or migration pending — surface empty
+      // aggregates instead of failing the whole share page.
+      console.warn('Vote aggregate fetch failed:', voteErr.message)
+    }
+
+    const formattedStops = stops.map(s => {
+      const stopVotes = votesByStop[s.id] || { up: 0, down: 0 }
+      return {
+        id: s.id,
+        placeId: s.place_id,
+        placeData: safeJsonParse(s.place_data),
+        sortOrder: s.sort_order,
+        scheduledTime: s.scheduled_time,
+        durationMinutes: s.duration_minutes,
+        votes: { up: stopVotes.up, down: stopVotes.down },
+        yourVote: stopVotes.yourVote || null,
+      }
+    })
 
     return res.status(200).json({
       plan: {

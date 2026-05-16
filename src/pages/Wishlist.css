@@ -707,6 +707,26 @@
   color: white;
 }
 
+.wishlist-adventure-share {
+  width: 40px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--roam-parchment);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.wishlist-adventure-share:hover {
+  background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 8%, transparent);
+  color: var(--roam-forest);
+  border-color: color-mix(in srgb, var(--roam-forest, #1a3a2f) 18%, transparent);
+}
+
 /* Empty state icon for adventures */
 .wishlist-empty-icon.adventures {
   width: 80px;
