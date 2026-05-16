@@ -312,9 +312,48 @@ async function handler(req, res) {
       activities.pop() // Remove the extra item
     }
 
+    // Enrich activities missing place_data (notably tips/contributions —
+    // the contributions table only stores place_id, not the OSM-sourced
+    // place blob). Batch-look those place_ids up in visited_places /
+    // saved_places across ALL users (the place data is the same OSM
+    // place regardless of who cached it) so the friend's tip renders
+    // with a proper name/image instead of as a blank card with text.
+    const placeIdsNeedingData = [...new Set(
+      activities
+        .filter(a => !a.place_data && a.place_id)
+        .map(a => a.place_id)
+    )]
+    const placeDataLookup = new Map()
+    if (placeIdsNeedingData.length > 0) {
+      const lookupPlaceholders = placeIdsNeedingData.map(() => '?').join(',')
+      // visited_places is preferred (richer fields like rating/notes
+      // sometimes co-exist) but fall back to saved_places. Both keep
+      // place_data as a snapshot of the OSM record at write time.
+      const lookups = await query(
+        `(
+           SELECT place_id, place_data FROM visited_places
+           WHERE place_id IN (${lookupPlaceholders}) AND place_data IS NOT NULL
+         )
+         UNION ALL
+         (
+           SELECT place_id, place_data FROM saved_places
+           WHERE place_id IN (${lookupPlaceholders}) AND place_data IS NOT NULL
+         )`,
+        [...placeIdsNeedingData, ...placeIdsNeedingData]
+      )
+      for (const row of lookups) {
+        if (!placeDataLookup.has(row.place_id)) {
+          placeDataLookup.set(row.place_id, row.place_data)
+        }
+      }
+    }
+
     // Format the activities with place context
     const formattedActivities = activities.map(activity => {
-      const placeData = safeJsonParse(activity.place_data)
+      // Prefer the row's own place_data; fall back to the cross-user
+      // lookup when this activity type doesn't carry place_data.
+      const rawPlaceData = activity.place_data ?? placeDataLookup.get(activity.place_id) ?? null
+      const placeData = safeJsonParse(rawPlaceData)
       const metadata = safeJsonParse(activity.metadata)
 
       // Extract place info from place_data if available

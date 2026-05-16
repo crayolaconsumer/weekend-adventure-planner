@@ -54,6 +54,9 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
     return (
       <motion.div
         className="contribution-prompt-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Share a tip"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -98,6 +101,9 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
   return (
     <motion.div
       className="contribution-prompt-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Share a tip"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

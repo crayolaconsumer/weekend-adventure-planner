@@ -19,8 +19,10 @@ import { useRouting } from '../hooks/useRouting'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import ShareModal from '../components/plan/ShareModal'
+import PlaceDetail from '../components/PlaceDetail'
 import FilterIcon from '../components/icons/FilterIcon'
 import VibeIcon from '../components/icons/VibeIcon'
+import { tap as hapticTap } from '../utils/haptics'
 import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS } from './Plan/constants'
 import {
   DragIcon,
@@ -52,6 +54,7 @@ export default function Plan({ location }) {
   const [travelTimes, setTravelTimes] = useState({}) // Cache of travel times: { "stopId-nextStopId": { duration, mode } }
   const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
   const [editingTimeIndex, setEditingTimeIndex] = useState(null) // Which stop's time is being edited
+  const [stopDetail, setStopDetail] = useState(null) // Itinerary stop being viewed in PlaceDetail modal
   const [availablePlaces, setAvailablePlaces] = useState([])
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareCode, setShareCode] = useState(null)
@@ -558,6 +561,16 @@ export default function Plan({ location }) {
         shareCode={shareCode}
       />
 
+      {/* Stop detail — same PlaceDetail surface used everywhere else in
+          the app, so tapping a stop opens the full info screen with
+          tips, photos, save / plan / directions actions. */}
+      {stopDetail && (
+        <PlaceDetail
+          place={stopDetail}
+          onClose={() => setStopDetail(null)}
+        />
+      )}
+
       {/* Settings Bottom Sheet */}
       <AnimatePresence>
         {showSettings && (
@@ -755,6 +768,16 @@ export default function Plan({ location }) {
                         exit={{ opacity: 0, scale: 0.95, x: -10 }}
                         transition={{ duration: 0.25, ease: 'easeOut' }}
                         whileTap={{ scale: 0.98 }}
+                        onClick={() => { hapticTap('light'); setStopDetail(stop) }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setStopDetail(stop)
+                          }
+                        }}
+                        aria-label={`View details for ${stop.name}`}
                         layout
                       >
                         <div className="plan-stop-drag"><DragIcon /></div>
@@ -766,8 +789,8 @@ export default function Plan({ location }) {
                           </div>
                         </div>
                         <div className="plan-stop-actions">
-                          <button onClick={() => removeStop(idx)} aria-label="Remove"><CloseIcon /></button>
-                          <button onClick={() => shuffleStop(idx)} aria-label="Shuffle"><ShuffleIcon /></button>
+                          <button onClick={(e) => { e.stopPropagation(); removeStop(idx) }} aria-label="Remove"><CloseIcon /></button>
+                          <button onClick={(e) => { e.stopPropagation(); shuffleStop(idx) }} aria-label="Shuffle"><ShuffleIcon /></button>
                         </div>
                       </motion.div>
                     </div>

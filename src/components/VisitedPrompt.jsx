@@ -239,6 +239,9 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     <AnimatePresence>
       <motion.div
         className="visited-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mark place as visited"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}

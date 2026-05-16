@@ -88,6 +88,17 @@ export function usePullToRefresh(onRefresh, scrollRef, options = {}) {
         : (scrollRef.current?.scrollTop ?? 0)
 
     const handleTouchStart = (e) => {
+      // If the gesture started inside an open modal / bottom sheet,
+      // defer to that overlay's own drag handler (Framer Motion's
+      // swipe-down-to-dismiss). Otherwise PTR fights the dismiss
+      // gesture: both fire on the same vertical drag and the user
+      // sees the refresh spinner appear over a modal that's trying
+      // to close. Caught via the [role="dialog"] / [aria-modal] hooks
+      // every bottom sheet in the app already advertises.
+      const target = e.target
+      if (target instanceof Element && target.closest('[role="dialog"], [aria-modal="true"], [data-no-ptr]')) {
+        return
+      }
       // Only arm if we're at the very top — otherwise this is a normal
       // scroll gesture and we leave it alone.
       if (getScrollTop() > 0) return

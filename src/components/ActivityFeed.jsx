@@ -13,6 +13,8 @@ import { useUnifiedActivityFeed } from '../hooks/useSocial'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import ActivityItem, { ActivityItemSkeleton } from './ActivityItem'
+import PullToRefreshIndicator from './PullToRefreshIndicator'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import './ActivityFeed.css'
 
@@ -27,6 +29,15 @@ const FILTER_OPTIONS = [
 export default function ActivityFeed() {
   const [activeFilter, setActiveFilter] = useState('all')
   const { activities, loading, error, hasMore, loadMore, refresh } = useUnifiedActivityFeed(activeFilter === 'all' ? null : activeFilter)
+
+  // Native-feel pull-to-refresh — mirrors the gesture wired into
+  // Events + Saved. The hook auto-suppresses when the touch starts
+  // inside an open modal so it won't fight other bottom-sheet
+  // dismissals on this page.
+  const ptr = usePullToRefresh(
+    async () => { await refresh?.() },
+    null,
+  )
 
   // Hooks for engagement features
   const { savePlace } = useSavedPlaces()
@@ -125,6 +136,12 @@ export default function ActivityFeed() {
 
   return (
     <div className="activity-feed">
+      <PullToRefreshIndicator
+        distance={ptr.pullDistance}
+        refreshing={ptr.refreshing}
+        active={ptr.isPulling}
+        threshold={ptr.threshold}
+      />
       {/* Filter tabs */}
       <div className="activity-feed-filters" role="tablist" aria-label="Activity type filter">
         {FILTER_OPTIONS.map(opt => (
