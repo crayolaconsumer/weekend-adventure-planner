@@ -41,7 +41,7 @@ import {
   MapIcon,
 } from './Plan/icons'
 import { selectDiverseStops } from './Plan/selectDiverseStops'
-import { getAuthToken } from './Plan/utils'
+import { getAuthToken, parseScheduledTime } from './Plan/utils'
 import './Plan.css'
 
 export default function Plan({ location }) {
@@ -110,15 +110,19 @@ export default function Plan({ location }) {
         if (Array.isArray(plan.stops) && plan.stops.length) {
           const rehydrated = plan.stops
             .filter(s => s.placeData)
-            .map(s => ({
-              ...s.placeData,
-              scheduledTime: s.scheduledTime,
-              duration: s.durationMinutes,
-              // Carry the friend-vote aggregate forward so the owner
-              // can see at a glance which stops the group liked.
-              votes: s.votes || { up: 0, down: 0 },
-              stopRowId: s.id, // server-side plan_stops.id for future actions
-            }))
+            .map(s => {
+              // Convert the MySQL TIME-only string to a full datetime
+              // so all downstream Date math (totals, opening hours,
+              // travel-time keys) keeps working.
+              const parsedTime = parseScheduledTime(s.scheduledTime)
+              return {
+                ...s.placeData,
+                scheduledTime: parsedTime ? parsedTime.toISOString() : null,
+                duration: s.durationMinutes,
+                votes: s.votes || { up: 0, down: 0 },
+                stopRowId: s.id,
+              }
+            })
           setItinerary(rehydrated)
         }
         // Strip the param so a refresh doesn't loop the hydration and
@@ -478,8 +482,17 @@ export default function Plan({ location }) {
     setShowShareModal(true)
   }, [itinerary, toast])
 
-  // Format time
-  const formatTime = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  // Format time — handles both full ISO datetimes (live-generated
+  // stops) AND MySQL TIME-only strings ("10:00:00") that come back
+  // from /api/plans/:id reopen, where scheduled_time is a TIME column.
+  // Returns "--:--" rather than the literal "Invalid Date" string if
+  // we somehow get a value we can't parse.
+  const formatTime = (value) => {
+    if (!value) return '--:--'
+    const date = parseScheduledTime(value)
+    if (!date || Number.isNaN(date.getTime())) return '--:--'
+    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  }
 
   // Get leg key for travel time cache
   const getLegKey = (fromStop, toStop) => `${fromStop.id}-${toStop.id}`

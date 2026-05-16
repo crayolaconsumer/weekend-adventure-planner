@@ -91,11 +91,12 @@
 }
 
 .plan-adventure-title {
+  display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 500;
   color: white;
-  margin-bottom: 2px;
+  margin: 0 0 2px;
   background: transparent;
   border: none;
   padding: 0;
@@ -103,6 +104,7 @@
   cursor: text;
   border-radius: 4px;
   transition: background 150ms ease;
+  width: 100%;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -840,17 +842,21 @@
   outline: none;
 }
 
-/* Stop Card */
+/* Stop Card — grid layout so the hero image sits in row 1 spanning
+   full width, and drag-handle / info / actions share row 2. This is
+   the structure the hero strip + opening-hours badge expect; the old
+   flex layout had a fragile negative-margin trick that overflowed the
+   card edges on narrow mobile viewports. */
 .plan-stop-card {
   flex: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-xs);
-  padding: 10px 12px;
   background: var(--color-surface-elevated);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   cursor: grab;
+  overflow: hidden;
   transition: box-shadow var(--duration-fast), transform var(--duration-fast);
 }
 
@@ -883,13 +889,15 @@
   }
 
   .plan-stop-card {
-    padding: 14px 16px;
-    gap: var(--space-sm);
     border-radius: var(--radius-lg);
   }
 }
 
 .plan-stop-drag {
+  grid-row: 2;
+  padding: 10px 0 10px 12px;
+  display: flex;
+  align-items: center;
   color: var(--roam-stone);
   opacity: 0.4;
   transition: opacity var(--duration-fast);
@@ -906,6 +914,8 @@
 }
 
 .plan-stop-info {
+  grid-row: 2;
+  padding: 10px 8px;
   flex: 1;
   min-width: 0;
 }
@@ -1234,8 +1244,14 @@
   overflow-x: auto;
   overflow-y: visible;
   scroll-snap-type: x proximity;
-  padding: 4px 2px 8px;
-  margin: 0 -2px var(--space-sm);
+  /* Padding-top has to clear the chip's tiny lift-on-hover transform
+     (translateY(-1px)) so the top edge isn't clipped by the parent's
+     overflow-x: auto (which forces overflow-y to "auto" effectively
+     in all browsers — the visible declaration is ignored by the
+     overflow shorthand interaction). 10px gives the active-state
+     box-shadow + lift breathing room. */
+  padding: 10px 2px 14px;
+  margin: 0 -2px 4px;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -1300,27 +1316,20 @@
 .plan-mood.active .plan-mood-blurb { opacity: 0.85; }
 
 /* ═══════════════════════════════════════════════════════════════════
-   STOP HERO — slim image strip on each stop card
+   STOP HERO — full-width image strip in row 1 of the card grid. No
+   negative-margin tricks: the card has overflow: hidden + grid layout,
+   so the hero spans columns 1 / -1 cleanly without bleeding outside
+   the card's rounded corners on narrow viewports.
    ═══════════════════════════════════════════════════════════════════ */
 
-.plan-stop-card {
-  flex-wrap: wrap;
-  /* let the hero stretch full-width across the card while drag handle
-     + info + actions sit on a single row below it */
-  position: relative;
-  overflow: hidden;
-}
-
 .plan-stop-hero {
+  grid-column: 1 / -1;
+  grid-row: 1;
   position: relative;
   width: 100%;
-  height: 76px;
+  height: 88px;
   overflow: hidden;
-  margin: -10px -12px 8px;
-  border-top-left-radius: inherit;
-  border-top-right-radius: inherit;
   background: color-mix(in srgb, var(--roam-forest, #1a3a2f) 8%, transparent);
-  flex: 0 0 100%;
 }
 
 .plan-stop-hero-img,
@@ -1331,6 +1340,26 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Subtle gradient at the bottom of the hero so the meta line below
+   has a visual separation when the image is very pale (sky, snow,
+   etc.) and the card surface blends into it. */
+.plan-stop-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 24px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(26, 58, 47, 0.10));
+  pointer-events: none;
+}
+
+/* Actions row positioning + padding for the grid layout. The right-
+   most column needs its padding here since the card itself is grid
+   with no padding. */
+.plan-stop-actions {
+  grid-row: 2;
+  padding: 10px 12px 10px 0;
 }
 
 .plan-stop-closed-badge {
@@ -1362,7 +1391,7 @@
 }
 
 @media (min-width: 768px) {
-  .plan-stop-hero { height: 100px; }
+  .plan-stop-hero { height: 120px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
