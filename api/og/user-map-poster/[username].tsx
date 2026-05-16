@@ -187,20 +187,37 @@ async function handler(req, res) {
       </svg>
     )
 
-    // Compass rose — pure SVG, sits in the NE corner of the map panel.
+    // Compass rose — pure SVG body. Satori doesn't support <text>
+    // nodes inside SVG ("convert them to <path>" — too much hassle for
+    // a single letter), so the "N" label is rendered as a sibling HTML
+    // span absolutely positioned above the rose.
     const compassRose = (
       <div
         style={{
           position: 'absolute',
           top: 28,
           right: 28,
-          width: 110,
-          height: 110,
+          width: 120,
+          height: 132,
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
         }}
       >
+        <span
+          style={{
+            display: 'flex',
+            fontFamily: 'serif',
+            fontSize: 18,
+            fontWeight: 700,
+            color: FOREST,
+            letterSpacing: '0.08em',
+            marginBottom: 4,
+          }}
+        >
+          N
+        </span>
         <svg width="110" height="110" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="44" fill="none" stroke={FOREST} strokeWidth="1.2" opacity="0.55" />
           <circle cx="50" cy="50" r="38" fill="none" stroke={FOREST} strokeWidth="0.4" opacity="0.4" strokeDasharray="2 2" />
@@ -208,19 +225,6 @@ async function handler(req, res) {
           <path d="M50 6 L54 50 L50 94 L46 50 Z" fill={FOREST} opacity="0.85" />
           <path d="M6 50 L50 46 L94 50 L50 54 Z" fill={GOLD} opacity="0.95" />
           <circle cx="50" cy="50" r="3" fill={CREAM} stroke={FOREST} strokeWidth="0.8" />
-          {/* N label */}
-          <text
-            x="50"
-            y="3"
-            textAnchor="middle"
-            dominantBaseline="hanging"
-            fontFamily="serif"
-            fontSize="8"
-            fontWeight="700"
-            fill={FOREST}
-          >
-            N
-          </text>
         </svg>
       </div>
     )
@@ -317,7 +321,10 @@ async function handler(req, res) {
           {routePolyline}
           {compassRose}
 
-          {/* Stamped "SCALE" marker in SW corner — feels like a real chart. */}
+          {/* Stamped "SCALE" marker in SW corner — feels like a real
+              chart. No glyphs that need an emoji font (satori falls
+              back to a dynamic font fetch for chars like ☉ and that
+              endpoint 400s reliably, killing the whole render). */}
           <div
             style={{
               position: 'absolute',
@@ -331,7 +338,7 @@ async function handler(req, res) {
               textTransform: 'uppercase',
             }}
           >
-            <span>Scale ☉ Field-relative</span>
+            <span>Scale · Field-relative</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
               <span style={{ display: 'flex', width: 60, height: 4, background: FOREST }} />
               <span style={{ display: 'flex' }}>~ a day's roam</span>
