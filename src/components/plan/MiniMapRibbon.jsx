@@ -1,83 +1,102 @@
 /**
- * MiniMapRibbon — at-a-glance route preview at the top of the Plan
- * page's itinerary. Branded forest + cream parchment palette to fit
- * ROAM's field-journal aesthetic.
+ * MiniMapRibbon — real Leaflet route map preview at the top of the
+ * Plan-page itinerary.
  *
- * Layered architecture (so it works at every aspect ratio):
- *   1. SVG background with subtle grid texture + the route polyline.
- *      Uses preserveAspectRatio="none" so the route stretches to fill
- *      the canvas at any screen width without leaving empty bands.
- *   2. HTML pins absolutely-positioned over the SVG. Pins use
- *      percentages so they stay circular regardless of the canvas
- *      aspect ratio (an SVG <circle> would become an oval when the
- *      SVG is non-uniformly scaled by preserveAspectRatio="none").
+ * Draws each stop as a numbered branded pin (forest on cream, gold
+ * for the currently-focused stop) over CARTO Voyager tiles, with a
+ * dashed forest polyline connecting them in itinerary order. Reuses
+ * the same tile + theme machinery as VisitedMapLeaflet so the visual
+ * identity is consistent across every map surface in the app.
  *
- * Component bails out cleanly if no stop has coords — the conditional
- * render in Plan.jsx already gates on itinerary.length > 0, but this
- * second guard means a half-rehydrated plan doesn't render an empty
- * grey box.
+ * Static-feel by default: scroll-wheel zoom + double-click zoom are
+ * disabled (so scrolling the page doesn't zoom the map), but the user
+ * can still pan / pinch / use the +/- controls for a closer look. The
+ * map auto-fits to the route bounds with a small inset so the pins
+ * never touch the edge.
+ *
+ * Toggleable: when the user collapses the ribbon we unmount the
+ * MapContainer entirely (rather than hide via CSS height: 0) — that
+ * avoids the well-known Leaflet "0-size, then visible" tile-render
+ * bug where tiles never appear until invalidateSize() is called.
  */
 
-import { useMemo, useRef, useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import { useTheme } from '../../contexts/ThemeContext'
 import { tap as hapticTap } from '../../utils/haptics'
 import './MiniMapRibbon.css'
 
+const TILE_URL_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+const TILE_URL_DARK = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
+const ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
 const FOREST = '#1a3a2f'
-const CREAM = '#fdfcf8'
+const GOLD = '#d4a855'
+
+/**
+ * Build a Leaflet divIcon that renders a numbered branded pin. Forest
+ * background by default; gold for the active stop (so the user can
+ * follow which card on the list maps to which pin on the map). The
+ * surrounding cream border separates the pin from busy tile content.
+ */
+function makeNumberedIcon(number, isActive) {
+  const bg = isActive ? GOLD : FOREST
+  const fg = isActive ? FOREST : '#fdfcf8'
+  // Hand-rolled SVG so the pin renders identically on every browser
+  // and theme without depending on icon fonts. 32x32 viewBox with a
+  // tear-drop body + numbered circle on top.
+  return L.divIcon({
+    className: 'plan-minimap-marker',
+    html: `
+      <span class="plan-minimap-marker-shadow"></span>
+      <span class="plan-minimap-marker-body" style="background:${bg};color:${fg}">
+        ${number}
+      </span>
+    `,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  })
+}
+
+function FitToRoute({ points }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!points.length) return
+    if (points.length === 1) {
+      map.setView([points[0].lat, points[0].lng], 13)
+      return
+    }
+    const bounds = L.latLngBounds(points.map(p => [p.lat, p.lng]))
+    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 })
+  }, [points, map])
+  return null
+}
+
+function FlyToActive({ points, activeIndex }) {
+  const map = useMap()
+  useEffect(() => {
+    if (activeIndex == null || activeIndex < 0) return
+    const target = points[activeIndex]
+    if (!target) return
+    map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 14), { duration: 0.55 })
+  }, [points, activeIndex, map])
+  return null
+}
 
 export default function MiniMapRibbon({ stops = [], activeIndex = -1, onPinTap, expanded = true, onToggle }) {
-  const ribbonRef = useRef(null)
+  const { resolved: theme } = useTheme()
+  const tileUrl = theme === 'dark' ? TILE_URL_DARK : TILE_URL_LIGHT
 
-  // Project lat/lng to a normalised 0–1 space inside a padded bounding
-  // box. The padding (18% on each side) keeps pins off the canvas edge
-  // on the visualisation; degenerate single-point cases get a fake
-  // span injected so the projection doesn't divide by zero.
-  const projection = useMemo(() => {
-    const pts = stops
-      .map((s, idx) => ({ idx, lat: Number(s.lat), lng: Number(s.lng), name: s.name }))
-      .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))
-    if (pts.length === 0) return null
-    const lats = pts.map(p => p.lat)
-    const lngs = pts.map(p => p.lng)
-    let minLat = Math.min(...lats)
-    let maxLat = Math.max(...lats)
-    let minLng = Math.min(...lngs)
-    let maxLng = Math.max(...lngs)
-    const latSpan = Math.max(maxLat - minLat, 0.005)
-    const lngSpan = Math.max(maxLng - minLng, 0.005)
-    const padLat = latSpan * 0.18
-    const padLng = lngSpan * 0.18
-    minLat -= padLat; maxLat += padLat
-    minLng -= padLng; maxLng += padLng
-    const project = (lat, lng) => ({
-      // Output in 0–1 space; the SVG viewBox and HTML pin layer both
-      // expand from that with their own scaling math.
-      xPct: (lng - minLng) / (maxLng - minLng),
-      yPct: 1 - (lat - minLat) / (maxLat - minLat),
-    })
-    return { pts, project }
-  }, [stops])
+  const points = useMemo(
+    () => (stops || [])
+      .map((s, idx) => ({ idx, lat: Number(s.lat), lng: Number(s.lng ?? s.lon), name: s.name }))
+      .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)),
+    [stops]
+  )
 
-  // Scroll the active pin into view when the user taps a stop card
-  // below — keeps map and list in sync without manual coordination.
-  useEffect(() => {
-    if (!expanded || activeIndex < 0 || !ribbonRef.current) return
-    const pin = ribbonRef.current.querySelector(`[data-pin-idx="${activeIndex}"]`)
-    if (pin && 'scrollIntoView' in pin) {
-      pin.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-    }
-  }, [activeIndex, expanded])
-
-  if (!projection) return null
-
-  const { pts, project } = projection
-  const projected = pts.map(p => ({ ...p, ...project(p.lat, p.lng) }))
-  // SVG viewBox is a unit square — preserveAspectRatio="none" stretches
-  // it to fill the canvas. The route uses these unit coords; pin
-  // positioning happens in CSS percentages of the wrapper instead.
-  const linePoints = projected
-    .map(p => `${(p.xPct * 100).toFixed(2)},${(p.yPct * 100).toFixed(2)}`)
-    .join(' ')
+  if (points.length === 0) return null
 
   return (
     <div className={`plan-minimap ${expanded ? 'plan-minimap--expanded' : 'plan-minimap--collapsed'}`}>
@@ -89,75 +108,62 @@ export default function MiniMapRibbon({ stops = [], activeIndex = -1, onPinTap, 
         aria-label={expanded ? 'Hide map' : 'Show map'}
       >
         <span className="plan-minimap-toggle-label">
-          {expanded ? 'Hide map' : `Show map · ${pts.length} stops`}
+          {expanded ? 'Hide map' : `Show map · ${points.length} stops`}
         </span>
         <span className={`plan-minimap-toggle-caret ${expanded ? 'open' : ''}`} aria-hidden="true">▾</span>
       </button>
 
-      <div className="plan-minimap-canvas" ref={ribbonRef} aria-hidden={!expanded}>
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          className="plan-minimap-svg"
-          role="img"
-          aria-label={`Route overview with ${pts.length} stops`}
-        >
-          <defs>
-            <pattern id="plan-minimap-grid" width="10" height="10" patternUnits="userSpaceOnUse">
-              <path d="M10 0 L0 0 0 10" fill="none" stroke={FOREST} strokeWidth="0.12" opacity="0.10" />
-            </pattern>
-          </defs>
-          <rect x="0" y="0" width="100" height="100" fill="url(#plan-minimap-grid)" />
-          {projected.length > 1 && (
-            <polyline
-              points={linePoints}
-              fill="none"
-              stroke={FOREST}
-              strokeWidth="0.5"
-              vectorEffect="non-scaling-stroke"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.78"
-              strokeDasharray="2 3"
-            />
-          )}
-        </svg>
-
-        {/* HTML pins layer — absolutely positioned at percentage
-            coordinates so they stay circular regardless of the SVG
-            canvas aspect ratio. */}
-        <div className="plan-minimap-pins" aria-hidden={!expanded}>
-          {projected.map((p, i) => {
-            const isActive = i === activeIndex
-            return (
-              <button
-                key={`${p.idx}-${i}`}
-                type="button"
-                data-pin-idx={p.idx}
-                className={`plan-minimap-pin ${isActive ? 'active' : ''}`}
-                style={{
-                  left: `${(p.xPct * 100).toFixed(2)}%`,
-                  top: `${(p.yPct * 100).toFixed(2)}%`,
+      {/* Unmount when collapsed so Leaflet doesn't sit in a 0-height
+          container and miss its initial tile fetch. The toggle stays
+          rendered above so users can pop the map back open. */}
+      {expanded && (
+        <div className="plan-minimap-canvas">
+          <MapContainer
+            center={[points[0].lat, points[0].lng]}
+            zoom={11}
+            style={{ height: '100%', width: '100%' }}
+            scrollWheelZoom={false}
+            doubleClickZoom={false}
+            zoomControl={false}
+            attributionControl={true}
+          >
+            <TileLayer url={tileUrl} attribution={ATTRIBUTION} detectRetina key={tileUrl} />
+            <FitToRoute points={points} />
+            <FlyToActive points={points} activeIndex={activeIndex} />
+            {points.length > 1 && (
+              <Polyline
+                positions={points.map(p => [p.lat, p.lng])}
+                pathOptions={{
+                  color: FOREST,
+                  weight: 3,
+                  opacity: 0.78,
+                  dashArray: '6 8',
+                  lineCap: 'round',
+                  lineJoin: 'round',
                 }}
-                onClick={() => { hapticTap('light'); onPinTap?.(p.idx) }}
-                aria-label={`Stop ${i + 1}: ${p.name || 'Untitled stop'}`}
-                title={p.name || `Stop ${i + 1}`}
-              >
-                <span className="plan-minimap-pin-num" aria-hidden="true">{i + 1}</span>
-              </button>
-            )
-          })}
+              />
+            )}
+            {points.map((p, i) => (
+              <Marker
+                key={`${p.idx}-${i}`}
+                position={[p.lat, p.lng]}
+                icon={makeNumberedIcon(i + 1, i === activeIndex)}
+                eventHandlers={{
+                  click: () => { hapticTap('light'); onPinTap?.(p.idx) },
+                }}
+              />
+            ))}
+          </MapContainer>
         </div>
-      </div>
+      )}
 
-      {/* "From → To" line under the map gives a clear textual anchor
-          for users who can't parse the visualisation — and provides
-          a low-cost-but-pleasant brand moment in the empty space. */}
-      {expanded && pts.length > 1 && (
+      {/* From → To caption — gives a textual anchor under the map and
+          is still useful when the ribbon is collapsed. */}
+      {points.length > 1 && (
         <div className="plan-minimap-caption">
-          <span className="plan-minimap-caption-from">{pts[0].name || 'Start'}</span>
+          <span className="plan-minimap-caption-from">{points[0].name || 'Start'}</span>
           <span className="plan-minimap-caption-arrow" aria-hidden="true">→</span>
-          <span className="plan-minimap-caption-to">{pts[pts.length - 1].name || 'End'}</span>
+          <span className="plan-minimap-caption-to">{points[points.length - 1].name || 'End'}</span>
         </div>
       )}
     </div>
