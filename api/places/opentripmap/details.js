@@ -38,8 +38,8 @@ async function handler(req, res) {
 
   const apiKey = process.env.OPENTRIPMAP_KEY
   if (!apiKey) {
-    console.error('[OTM Proxy] OPENTRIPMAP_KEY not configured')
-    return res.status(503).json({ error: 'OpenTripMap not configured' })
+    console.warn('[OTM Proxy] OPENTRIPMAP_KEY not configured — returning empty details')
+    return res.status(200).json({ unavailable: true, reason: 'not-configured' })
   }
 
   const { xid } = req.query
@@ -73,7 +73,13 @@ async function handler(req, res) {
 
     if (!response.ok) {
       console.error(`[OTM Proxy] API error: ${response.status}`)
-      return res.status(response.status).json({ error: 'OpenTripMap API error' })
+      if (response.status === 401 || response.status === 403) {
+        return res.status(200).json({ unavailable: true, reason: 'auth' })
+      }
+      if (response.status === 429) {
+        return res.status(200).json({ unavailable: true, reason: 'rate-limited' })
+      }
+      return res.status(200).json({ unavailable: true, reason: 'upstream-error' })
     }
 
     const data = await response.json()
@@ -101,7 +107,7 @@ async function handler(req, res) {
 
   } catch (error) {
     console.error('[OTM Proxy] Error:', error.message)
-    return res.status(500).json({ error: 'Failed to fetch details' })
+    return res.status(200).json({ unavailable: true, reason: 'network-error' })
   }
 }
 

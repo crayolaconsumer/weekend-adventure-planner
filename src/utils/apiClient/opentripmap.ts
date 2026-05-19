@@ -162,7 +162,9 @@ export async function fetchOpenTripMapDetails(xid: string): Promise<Record<strin
       throw new OtmError(`OpenTripMap details failed: ${response.status}`, response.status)
     }
 
-    return await response.json() as Record<string, unknown>
+    const data = await response.json() as Record<string, unknown>
+    if (data.unavailable) return null
+    return data
   }, { ttl: 30 * 60 * 1000 }) // 30 minute cache for details
 
   return result as Record<string, unknown> | null
