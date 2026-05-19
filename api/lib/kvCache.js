@@ -115,9 +115,10 @@ export async function cacheSet(key, value, ttlSeconds) {
     // serialises objects, but it doesn't expose the encoded length
     // and we want to skip oversized writes before the network call.
     const serialised = JSON.stringify(value)
-    if (serialised.length > MAX_CACHE_PAYLOAD_BYTES) {
+    const payloadBytes = Buffer.byteLength(serialised, 'utf8')
+    if (payloadBytes > MAX_CACHE_PAYLOAD_BYTES) {
       console.warn(
-        `[kvCache] payload too large (${serialised.length} bytes) for key ${key}, skipping cache`
+        `[kvCache] payload too large (${payloadBytes} bytes) for key ${key}, skipping cache`
       )
       return false
     }
