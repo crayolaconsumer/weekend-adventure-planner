@@ -47,20 +47,23 @@ export function AuthProvider({ children }) {
   /**
    * Migrate localStorage data to database on first login
    */
-  const migrateLocalData = useCallback(async (token) => {
-    // Skip if already migrated
-    if (localStorage.getItem(MIGRATION_KEY)) return
+  const migrateLocalData = useCallback(async (token, userId) => {
+    const migrationKey = userId ? `${MIGRATION_KEY}_${userId}` : MIGRATION_KEY
+    // Skip if already migrated for this account on this device. This must
+    // be user-scoped: a shared browser can sign out, collect new anonymous
+    // saves, then sign into a different account.
+    if (localStorage.getItem(migrationKey)) return
 
     const savedPlaces = localStorage.getItem(WISHLIST_KEY)
     if (!savedPlaces) {
-      localStorage.setItem(MIGRATION_KEY, 'true')
+      localStorage.setItem(migrationKey, 'true')
       return
     }
 
     try {
       const places = JSON.parse(savedPlaces)
       if (places.length === 0) {
-        localStorage.setItem(MIGRATION_KEY, 'true')
+        localStorage.setItem(migrationKey, 'true')
         return
       }
 
@@ -77,7 +80,7 @@ export function AuthProvider({ children }) {
       if (response.ok) {
         // Clear localStorage after successful migration
         localStorage.removeItem(WISHLIST_KEY)
-        localStorage.setItem(MIGRATION_KEY, 'true')
+        localStorage.setItem(migrationKey, 'true')
       }
     } catch (err) {
       console.error('Migration failed:', err)
@@ -108,6 +111,7 @@ export function AuthProvider({ children }) {
         const data = await response.json()
         setUser(data.user)
       } else {
+        clearStoredToken()
         setUser(null)
       }
     } catch (err) {
@@ -116,7 +120,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [getStoredToken])
+  }, [getStoredToken, clearStoredToken])
 
   // Sync user identity to Sentry + PostHog when it changes — so errors
   // and analytics events carry the user_id/username that hit them.
@@ -161,7 +165,7 @@ export function AuthProvider({ children }) {
       setUser(data.user)
       storeToken(data.token, true)
       // Migrate localStorage data to database
-      migrateLocalData(data.token)
+      migrateLocalData(data.token, data.user?.id)
       track('signed-up', { method: 'email' })
       return { success: true, user: data.user }
     } catch (err) {
@@ -192,7 +196,7 @@ export function AuthProvider({ children }) {
       setUser(data.user)
       storeToken(data.token, remember)
       // Migrate localStorage data to database
-      migrateLocalData(data.token)
+      migrateLocalData(data.token, data.user?.id)
       return { success: true, user: data.user }
     } catch (err) {
       setError(err.message)
@@ -228,7 +232,7 @@ export function AuthProvider({ children }) {
       setUser(data.user)
       storeToken(data.token, true)
       // Migrate localStorage data to database
-      migrateLocalData(data.token)
+      migrateLocalData(data.token, data.user?.id)
       if (data.isNewUser) track('signed-up', { method: 'google' })
       return { success: true, user: data.user, isNewUser: data.isNewUser }
     } catch (err) {
@@ -289,7 +293,7 @@ export function AuthProvider({ children }) {
       }
       setUser(data.user)
       storeToken(data.token, true)
-      migrateLocalData(data.token)
+      migrateLocalData(data.token, data.user?.id)
       if (data.isNewUser) track('signed-up', { method: 'apple' })
       return { success: true, user: data.user, isNewUser: data.isNewUser }
     } catch (err) {
