@@ -47,15 +47,24 @@ export const DISTANCE_BANDS: Record<TravelModeKey, Record<DistanceBandKey, Dista
     medium: { key: 'medium', label: 'A proper outing',     minMeters: 8000,  maxMeters: 18000 },
     long:   { key: 'long',   label: 'An honest adventure', minMeters: 18000, maxMeters: 30000 },
   },
+  // Day Trip + Explorer bands are constrained by the tiling fetcher's
+  // actual coverage, NOT the mode's nominal maxRadius. The tiler
+  // samples center + 4 cardinals at radius * 0.5 with a 35 km tile, so
+  // effective cardinal coverage tops out at (radius * 0.5) + 35 km.
+  // For Day Trip (75 km nominal): ~72 km real. For Explorer (150 km
+  // nominal): ~110 km real. Anything above those values returns 0
+  // results, so the bands stop there. TODO: extend tiling with
+  // diagonals or a fifth ring tile so the full nominal radius is
+  // covered, then we can push these maxima back up.
   dayTrip: {
-    short:  { key: 'short',  label: 'A nearby escape',     minMeters: 30000, maxMeters: 50000 },
-    medium: { key: 'medium', label: 'A real day out',      minMeters: 50000, maxMeters: 65000 },
-    long:   { key: 'long',   label: 'A proper expedition', minMeters: 65000, maxMeters: 75000 },
+    short:  { key: 'short',  label: 'A nearby escape',     minMeters: 30000, maxMeters: 45000 },
+    medium: { key: 'medium', label: 'A real day out',      minMeters: 45000, maxMeters: 58000 },
+    long:   { key: 'long',   label: 'A proper expedition', minMeters: 58000, maxMeters: 70000 },
   },
   explorer: {
-    short:  { key: 'short',  label: 'An open-road run',    minMeters: 75000,  maxMeters: 100000 },
-    medium: { key: 'medium', label: 'Into the wild',       minMeters: 100000, maxMeters: 125000 },
-    long:   { key: 'long',   label: 'Where the road ends', minMeters: 125000, maxMeters: 150000 },
+    short:  { key: 'short',  label: 'An open-road run',    minMeters: 75000, maxMeters: 90000 },
+    medium: { key: 'medium', label: 'Into the wild',       minMeters: 90000, maxMeters: 100000 },
+    long:   { key: 'long',   label: 'Where the road ends', minMeters: 100000, maxMeters: 110000 },
   },
 }
 

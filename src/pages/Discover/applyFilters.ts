@@ -61,11 +61,18 @@ export function buildFilterKey(opts: {
   showLocalsPicks: boolean
   showOffPeak: boolean
   selectedCategories: string[]
-  selectedBand?: DistanceBandKey | null
 }): string {
-  const { travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories, selectedBand } = opts
+  const { travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories } = opts
   const categoriesKey = [...selectedCategories].sort().join('|')
-  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}|${selectedBand || ''}`
+  // NB: selectedBand is deliberately NOT part of this key. The key is
+  // used to discard stale FETCHES — but band filtering is purely
+  // client-side, never a fetch input. Including it caused a race when
+  // travel mode changed: the band-restore effect would update
+  // selectedBand AFTER the mode-triggered fetch had fired with the
+  // old band's key, invalidating the in-flight match and silently
+  // dropping the result. filteredPlaces invalidates correctly via
+  // applyFilters' own dep list, so band changes still re-filter.
+  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
 }
 
 const CHAIN_NAME_REGEX = /^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Subway|KFC|Burger King|Pizza Hut|Domino|Nando)/i

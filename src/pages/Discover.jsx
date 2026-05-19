@@ -187,9 +187,8 @@ export default function Discover({ location }) {
       showLocalsPicks,
       showOffPeak,
       selectedCategories,
-      selectedBand,
     }),
-    [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories, selectedBand],
+    [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories],
   )
 
   useEffect(() => {
