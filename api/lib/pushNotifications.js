@@ -180,7 +180,7 @@ async function dispatchVapid(sub, payload) {
     icon: payload.icon || '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     tag: payload.tag || 'roam-notification',
-    data: { url: payload.url || '/' }
+    data: { ...(payload.data || {}), url: payload.url || payload.data?.url || '/' }
   }
   try {
     await push.sendNotification(

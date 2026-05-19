@@ -4,6 +4,7 @@
  * Remove a push notification subscription
  */
 
+import { getUserFromRequest } from '../lib/auth.js'
 import { update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
@@ -26,10 +27,18 @@ async function handler(req, res) {
       return res.status(400).json({ error: 'Endpoint required' })
     }
 
-    await update(
-      'DELETE FROM push_subscriptions WHERE endpoint = ?',
-      [endpoint]
-    )
+    const user = await getUserFromRequest(req)
+    if (user) {
+      await update(
+        'DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?',
+        [endpoint, user.id]
+      )
+    } else {
+      await update(
+        'DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id IS NULL',
+        [endpoint]
+      )
+    }
 
     return res.status(200).json({ success: true })
   } catch (error) {
