@@ -313,8 +313,19 @@ export default function Discover({ location }) {
     // tile still renders instantly so this is invisible to the user
     // except as outer-tile places filling in over the next few
     // seconds (which is the same behaviour as a first visit).
+    //
+    // CRUCIALLY: tiledRefresh also requires the cache to be non-empty.
+    // If a prior outage cached an empty result for the CURRENT key,
+    // we must NOT enter the merge-with-existing-state branch later —
+    // basePlaces still contains data from the PREVIOUS travel mode at
+    // that point, so merging would surface wrong-mode places in the
+    // new mode's deck. Empty cache → fall through to the normal
+    // replace path.
     const usesTiling = mode.maxRadius > 40000
-    const tiledRefresh = usesTiling && cacheCheck.exists && !cacheCheck.stale
+    const tiledRefresh = usesTiling
+      && cacheCheck.exists
+      && !cacheCheck.stale
+      && (cacheCheck.data?.length || 0) > 0
 
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
       // Render cached data immediately - no loading spinner!
