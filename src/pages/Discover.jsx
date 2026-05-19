@@ -384,8 +384,25 @@ export default function Discover({ location }) {
         return
       }
 
-      // Set basePlaces - the memoized filteredPlaces and useEffect will handle the rest
-      setBasePlaces(enhanced)
+      if (tiledRefresh) {
+        // Tiled refresh is a BACKGROUND refresh from the user's POV —
+        // they already see cached center-tile places. The new fetch
+        // should ADD to that set (filling in outer tiles) and never
+        // replace it. If Overpass / Wikipedia are flaky and return an
+        // empty or smaller set, the merge keeps the good cached
+        // data visible instead of clobbering the UI with an empty
+        // deck. onProgress callbacks during the fetch already do the
+        // same thing — this catches the final post-await write.
+        setBasePlaces(prev => {
+          const existingIds = new Set(prev.map(p => p.id))
+          const unique = enhanced.filter(p => !existingIds.has(p.id))
+          if (unique.length === 0) return prev
+          return [...prev, ...unique]
+        })
+      } else {
+        // Normal load — replace state with the fresh set.
+        setBasePlaces(enhanced)
+      }
 
       // Note: stale data handling is done via sync cache check above
       // Background refresh happens automatically via fetchPlacesWithSWR callback
