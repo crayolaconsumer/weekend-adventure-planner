@@ -192,7 +192,19 @@ export default function Discover({ location }) {
   )
 
   useEffect(() => {
-    latestFilterKeyRef.current = buildFilterKey()
+    const nextKey = buildFilterKey()
+    if (latestFilterKeyRef.current && latestFilterKeyRef.current !== nextKey) {
+      // Filter key changed (mode/category/etc switched) — clear stale
+      // places from the previous key so onProgress callbacks for the
+      // NEW load can't accidentally merge with leftover wrong-key data.
+      // The new load's cache hit or fetch result will repopulate. This
+      // is what makes the post-await merge in loadPlaces safe for
+      // tiled modes: by the time onProgress or the await write fires,
+      // basePlaces has either been seeded with current-key cache data
+      // or cleared to [], never holds previous-key residue.
+      setBasePlaces([])
+    }
+    latestFilterKeyRef.current = nextKey
   }, [buildFilterKey])
 
   useEffect(() => {
@@ -383,13 +395,24 @@ export default function Discover({ location }) {
         return
       }
 
-      // Set basePlaces - the memoized filteredPlaces and useEffect will handle the rest.
-      // For tiled modes, this is the center-tile data only; outer tiles
-      // arrive over the next 8s via onProgress callbacks that APPEND
-      // to state, so they cannot be clobbered by this replace (the
-      // fetchWithTiling fire-and-forget loop starts AFTER returning
-      // centerPlaces, so no onProgress has fired by the time we get here).
-      setBasePlaces(enhanced)
+      // For tiled modes, onProgress callbacks for outer tiles can fire
+      // DURING the await above (fetchEnrichedPlaces waits on Wikipedia
+      // + OTM in parallel with the OSM fetchWithTiling, and the first
+      // outer tile can complete before Wikipedia does). An unconditional
+      // replace here would discard those streamed outer-tile places.
+      // Merge appends what onProgress already added; the key-change
+      // effect above guarantees `prev` doesn't hold wrong-key residue,
+      // so this is safe.
+      if (usesTiling) {
+        setBasePlaces(prev => {
+          const existingIds = new Set(prev.map(p => p.id))
+          const unique = enhanced.filter(p => !existingIds.has(p.id))
+          if (unique.length === 0) return prev
+          return [...prev, ...unique]
+        })
+      } else {
+        setBasePlaces(enhanced)
+      }
 
       // Note: stale data handling is done via sync cache check above
       // Background refresh happens automatically via fetchPlacesWithSWR callback
