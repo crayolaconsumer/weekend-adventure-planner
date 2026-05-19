@@ -295,50 +295,38 @@ export default function Discover({ location }) {
     const mode = TRAVEL_MODES[travelMode]
     const resolvedWeather = currentWeather ?? weather
 
-    // OPTIMIZATION: Check cache synchronously BEFORE setting loading state
-    // If we have usable cache (fresh or stale), render it immediately without spinner.
-    // EXCEPTION: when force=true (user explicitly tapped Refresh from the empty state)
-    // we skip the cache entirely and hit the network — otherwise the user gets the
-    // same stale data and the button feels broken.
-    const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
-    const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
-
-    // Day Trip + Explorer use progressive tiling — the SWR cache only
-    // ever stores the center tile (~35km), since outer tiles arrive
-    // via fire-and-forget onProgress callbacks that never write back
-    // to the cache layer. Treating that as a "fresh complete" cache
-    // hit means revisits show only the inner radius and Long-band
-    // selections return zero results. Always continue to the tiled
-    // fetch on revisit so onProgress fires again. The cached center
-    // tile still renders instantly so this is invisible to the user
-    // except as outer-tile places filling in over the next few
-    // seconds (which is the same behaviour as a first visit).
+    // OPTIMIZATION: Check cache synchronously BEFORE setting loading state.
+    // If we have usable cache (fresh or stale), render it immediately
+    // without spinner.
     //
-    // CRUCIALLY: tiledRefresh also requires the cache to be non-empty.
-    // If a prior outage cached an empty result for the CURRENT key,
-    // we must NOT enter the merge-with-existing-state branch later —
-    // basePlaces still contains data from the PREVIOUS travel mode at
-    // that point, so merging would surface wrong-mode places in the
-    // new mode's deck. Empty cache → fall through to the normal
-    // replace path.
+    // EXCEPTIONS — both bypass the cache entirely:
+    //   1. force=true: user explicitly tapped Refresh from the empty state.
+    //      Returning stale cache would make the button feel broken.
+    //   2. Tiled modes (Day Trip / Explorer, radius > 40km): the SWR
+    //      cache only ever stores the center tile (~35km). Outer tiles
+    //      arrive via fire-and-forget onProgress callbacks that never
+    //      write back to the cache layer. Treating that partial cache
+    //      as a complete result would mean revisits show only the
+    //      inner radius — and the new distance bands for these modes
+    //      filter for distances that REQUIRE outer-tile data, so cache
+    //      hits would surface empty Long-band decks. The KV cache one
+    //      layer down still makes the network hop fast (~50ms-300ms
+    //      per tile when warm), so the UX cost is a brief loading
+    //      state on revisit, not a 20s cold-fetch.
+    const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
     const usesTiling = mode.maxRadius > 40000
-    const tiledRefresh = usesTiling
-      && cacheCheck.exists
-      && !cacheCheck.stale
-      && (cacheCheck.data?.length || 0) > 0
+    const cacheCheck = (force || usesTiling) ? { exists: false } : hasCacheSync(cacheKey)
 
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
       // Render cached data immediately - no loading spinner!
       const enhanced = cacheCheck.data.map(p => enhancePlace(p, effectiveLocation, { weather: resolvedWeather }))
       setBasePlaces(enhanced)
-      // Continue to fetcher if cache is stale OR if we're in a tiled
-      // mode (cache is incomplete by construction). Otherwise we're
-      // done.
-      if (cacheCheck.stale || tiledRefresh) {
-        // Background refresh — don't set loading, just let the
-        // outer-tile onProgress callbacks append silently.
+      // Only set loading for background refresh if cache is stale
+      if (cacheCheck.stale) {
+        // Don't set loading - just let background refresh happen silently
         setLoadError(null)
       } else {
+        // Fresh cache - we're done
         setLoading(false)
         return
       }
@@ -378,11 +366,11 @@ export default function Discover({ location }) {
             })
           }
         },
-        // Force flag — bypass SWR cache when the user explicitly tapped
-        // Refresh, OR when we're refreshing a tiled mode whose cache is
-        // known-incomplete (otherwise the SWR layer would short-circuit
-        // and the outer-tile onProgress callbacks would never fire).
-        { force: force || tiledRefresh }
+        // Force flag — bypass the SWR cache when the user explicitly
+        // tapped Refresh, OR when we're in a tiled mode (the SWR cache
+        // is incomplete by construction so we always re-fetch to fire
+        // onProgress callbacks for outer tiles).
+        { force: force || usesTiling }
       )
 
       // Context for smart scoring (time of day, weather)
@@ -395,25 +383,13 @@ export default function Discover({ location }) {
         return
       }
 
-      if (tiledRefresh) {
-        // Tiled refresh is a BACKGROUND refresh from the user's POV —
-        // they already see cached center-tile places. The new fetch
-        // should ADD to that set (filling in outer tiles) and never
-        // replace it. If Overpass / Wikipedia are flaky and return an
-        // empty or smaller set, the merge keeps the good cached
-        // data visible instead of clobbering the UI with an empty
-        // deck. onProgress callbacks during the fetch already do the
-        // same thing — this catches the final post-await write.
-        setBasePlaces(prev => {
-          const existingIds = new Set(prev.map(p => p.id))
-          const unique = enhanced.filter(p => !existingIds.has(p.id))
-          if (unique.length === 0) return prev
-          return [...prev, ...unique]
-        })
-      } else {
-        // Normal load — replace state with the fresh set.
-        setBasePlaces(enhanced)
-      }
+      // Set basePlaces - the memoized filteredPlaces and useEffect will handle the rest.
+      // For tiled modes, this is the center-tile data only; outer tiles
+      // arrive over the next 8s via onProgress callbacks that APPEND
+      // to state, so they cannot be clobbered by this replace (the
+      // fetchWithTiling fire-and-forget loop starts AFTER returning
+      // centerPlaces, so no onProgress has fired by the time we get here).
+      setBasePlaces(enhanced)
 
       // Note: stale data handling is done via sync cache check above
       // Background refresh happens automatically via fetchPlacesWithSWR callback
