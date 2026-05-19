@@ -576,6 +576,8 @@ export default function Discover({ location }) {
     setShowOpenOnly(false)
     setShowLocalsPicks(false)
     setShowOffPeak(false)
+    setSelectedBand(DEFAULT_BAND)
+    localStorage.setItem(bandStorageKey(travelMode), DEFAULT_BAND)
   }
 
   // Handle swipe actions

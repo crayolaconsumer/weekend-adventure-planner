@@ -167,7 +167,8 @@ export function FilterModal({
     }
   }
 
-  const activeCount = selectedCategories.length + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showOpenOnly ? 1 : 0) + (showLocalsPicks ? 1 : 0) + (showOffPeak ? 1 : 0)
+  const hasDistanceBandFilter = selectedBand && selectedBand !== 'medium'
+  const activeCount = selectedCategories.length + (hasDistanceBandFilter ? 1 : 0) + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showOpenOnly ? 1 : 0) + (showLocalsPicks ? 1 : 0) + (showOffPeak ? 1 : 0)
   const categories = Object.entries(GOOD_CATEGORIES)
 
   const handleDragStart = (event) => {
