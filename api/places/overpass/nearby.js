@@ -23,6 +23,28 @@ export const config = {
   runtime: 'nodejs'
 }
 
+import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
+import { applyRateLimit } from '../../lib/rateLimit.js'
+import { waitUntil } from '@vercel/functions'
+
+// Per-IP rate limit for the proxy. The proxy itself is the only thing
+// standing between abusive clients and the community-funded Overpass
+// servers — without a limit, a single scraper could trivially get our
+// Vercel egress IPs banned at the OSM level. 120 req / 5 min is well
+// above normal app usage (a Discover load fires 1 request; a user
+// flipping travel modes might fire 3-5 in a minute) but kills scraping.
+const OVERPASS_RATE_LIMIT = {
+  windowMs: 5 * 60 * 1000,
+  max: 120,
+  blockDurationMs: 10 * 60 * 1000,
+}
+
+// KV TTL for cached Overpass responses. OSM data changes at the day
+// scale at fastest (new POIs added by mappers), so 24h is a safe
+// tradeoff between freshness and upstream load. Matches the
+// `s-maxage` header we already advertise to CDN-style intermediaries.
+const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
+
 // Overpass endpoints with failover.
 // All three accept the same query format; we round-robin via
 // selectEndpoint() and track per-endpoint health so a slow/unhealthy
@@ -198,6 +220,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Rate limit by IP. Rejects abusive callers before we spend any
+  // server time on validation or upstream fetches. Honest users won't
+  // see this — the limit is set well above app-driven usage patterns.
+  const rateLimitError = applyRateLimit(req, res, OVERPASS_RATE_LIMIT, 'overpass_proxy')
+  if (rateLimitError) {
+    return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
   // Vercel Node runtime parses JSON automatically when Content-Type is
   // application/json — req.body is already the parsed object. If it
   // isn't (different content-type, edge case), accept that gracefully.
@@ -218,6 +248,22 @@ export default async function handler(req, res) {
   const validationError = validateOverpassQuery(query)
   if (validationError) {
     return res.status(400).json({ error: validationError })
+  }
+
+  // KV cache check. Browsers + the Vercel edge can't cache POSTs, so
+  // every request would otherwise hit Overpass cold. With KV we serve
+  // any query we've answered in the last 24h in ~30ms, and only the
+  // FIRST caller per unique bbox+types combination pays the 15-25s
+  // cold-cache cost. This is the load-bearing protection against OSM
+  // IP-banning us as we scale.
+  const cacheKey = `overpass:${hashKey(query)}`
+  if (isCacheEnabled()) {
+    const cached = await cacheGet(cacheKey)
+    if (cached) {
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+      res.setHeader('X-Overpass-Cache', 'HIT')
+      return res.status(200).json(cached)
+    }
   }
 
   // Try endpoints in priority order with a short per-endpoint timeout.
@@ -257,17 +303,21 @@ export default async function handler(req, res) {
       const data = await response.json()
       markEndpointHealthy(endpoint)
 
-      // Return with aggressive caching headers.
-      // Upstream Overpass servers cold-cache hit 20+ seconds during peak
-      // (Playwright QA observed 22.8s on a Plan-generation request).
-      // OSM data changes slowly — a tile worth of POIs is essentially
-      // static at the day scale. Bumping the edge cache from 1h to 24h
-      // means the FIRST user in an area pays the cold-cache cost, and
-      // every user after them in the same 24h window gets a sub-100ms
-      // edge hit. SWR window doubled to 48h so stale-but-revalidating
-      // also lasts longer.
+      // Persist to KV so subsequent callers in the 24h window get
+      // cache hits. waitUntil keeps the runtime alive until the write
+      // resolves — without it, returning the response can suspend the
+      // function instance before the cache write finishes. Failure is
+      // non-fatal: the next caller just pays the upstream cost again.
+      if (isCacheEnabled()) {
+        waitUntil(cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {}))
+      }
+
+      // The Cache-Control header is mostly aspirational on a POST
+      // (CDNs won't honour it), but kept for any custom proxy that
+      // does. Our real cache is KV, set above.
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
+      res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
       return res.status(200).json(data)
 
     } catch (error) {

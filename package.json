@@ -37,6 +37,7 @@
     "@capgo/capacitor-social-login": "^8.3.22",
     "@revenuecat/purchases-capacitor": "^13.1.0",
     "@sentry/react": "^10.52.0",
+    "@upstash/redis": "^1.38.0",
     "@use-gesture/react": "^10.3.1",
     "@vercel/blob": "^2.0.1",
     "@vercel/functions": "^3.5.1",

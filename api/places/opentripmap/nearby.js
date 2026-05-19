@@ -7,8 +7,12 @@
 
 import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 import { withCors } from '../../lib/cors.js'
+import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
+import { waitUntil } from '@vercel/functions'
 
 const OTM_API = 'https://api.opentripmap.com/0.1'
+
+const OTM_CACHE_TTL_SECONDS = 24 * 60 * 60
 
 // Rate limit: 60 requests per minute per IP (OTM free tier is 5000/day)
 const OTM_RATE_LIMIT = {
@@ -62,6 +66,19 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid radius (100-50000m)' })
   }
 
+  // KV cache check before hitting upstream. Key on the public params
+  // (lat/lng/radius/kinds) not the URL — the API key must never appear
+  // in a cache identifier, and the URL changes whenever we rotate keys.
+  const cacheKey = `otm:nearby:${hashKey(`${latNum.toFixed(4)}|${lngNum.toFixed(4)}|${radiusNum}|${kinds || ''}`)}`
+  if (isCacheEnabled()) {
+    const cached = await cacheGet(cacheKey)
+    if (cached) {
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+      res.setHeader('X-OTM-Cache', 'HIT')
+      return res.status(200).json(cached)
+    }
+  }
+
   try {
     let url = `${OTM_API}/en/places/radius?lat=${latNum}&lon=${lngNum}&radius=${radiusNum}&limit=100&rate=2&apikey=${apiKey}`
 
@@ -106,9 +123,18 @@ async function handler(req, res) {
       source: 'opentripmap'
     })).filter(p => p.name && p.lat && p.lng) : []
 
-    // Cache for 10 minutes
-    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1200')
-    return res.status(200).json({ places })
+    const payload = { places }
+
+    // Persist to KV (fire-and-forget) and to CDN edge cache. OTM/POI
+    // data changes at the day scale at fastest, so 24h is the right
+    // tradeoff between freshness and protecting us from key revocation.
+    if (isCacheEnabled()) {
+      waitUntil(cacheSet(cacheKey, payload, OTM_CACHE_TTL_SECONDS).catch(() => {}))
+    }
+
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+    res.setHeader('X-OTM-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
+    return res.status(200).json(payload)
 
   } catch (error) {
     // Network errors talking to OTM (DNS, timeout, etc) — degrade

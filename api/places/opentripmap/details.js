@@ -7,8 +7,16 @@
 
 import { applyRateLimit } from '../../lib/rateLimit.js'
 import { withCors } from '../../lib/cors.js'
+import { cacheGet, cacheSet, isCacheEnabled } from '../../lib/kvCache.js'
+import { waitUntil } from '@vercel/functions'
 
 const OTM_API = 'https://api.opentripmap.com/0.1'
+
+// Place details barely change — a 7-day TTL is fine and reduces the
+// number of upstream details calls dramatically (every Place card the
+// user opens currently hits this endpoint, which fans out hard on a
+// busy session).
+const OTM_DETAILS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 // Rate limit: 120 requests per minute per IP (details are smaller requests)
 const OTM_DETAILS_RATE_LIMIT = {
@@ -45,6 +53,19 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid xid format' })
   }
 
+  // KV cache. xid is already short + alphanumeric so it's a safe direct
+  // key — no need to hash. Keyed without the API key (which is in the
+  // upstream URL, not the cache identifier).
+  const cacheKey = `otm:details:${xid}`
+  if (isCacheEnabled()) {
+    const cached = await cacheGet(cacheKey)
+    if (cached) {
+      res.setHeader('Cache-Control', 's-maxage=604800, stale-while-revalidate=1209600')
+      res.setHeader('X-OTM-Cache', 'HIT')
+      return res.status(200).json(cached)
+    }
+  }
+
   try {
     const response = await fetch(
       `${OTM_API}/en/places/xid/${encodeURIComponent(xid)}?apikey=${apiKey}`
@@ -70,8 +91,12 @@ async function handler(req, res) {
       rating: data.rate
     }
 
-    // Cache for 30 minutes (details don't change often)
-    res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600')
+    if (isCacheEnabled()) {
+      waitUntil(cacheSet(cacheKey, details, OTM_DETAILS_CACHE_TTL_SECONDS).catch(() => {}))
+    }
+
+    res.setHeader('Cache-Control', 's-maxage=604800, stale-while-revalidate=1209600')
+    res.setHeader('X-OTM-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
     return res.status(200).json(details)
 
   } catch (error) {
