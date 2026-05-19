@@ -101,7 +101,7 @@ async function handler(req, res) {
     }
 
     // Determine return URL
-    const origin = req.headers.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://go-roam.com'
+    const origin = req.headers.origin || process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://www.go-roam.uk'
     const returnUrl = `${origin}/profile`
 
     // Create Customer Portal session

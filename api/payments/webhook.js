@@ -356,10 +356,21 @@ async function handleInvoicePaid(invoice, conn) {
     return
   }
 
-  // Ensure user is marked as premium
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  if (!['active', 'trialing'].includes(subscription.status)) return
+
+  // Ensure user is marked as premium and refresh the period metadata. If
+  // customer.subscription.updated is delayed or dropped, this still keeps
+  // the app's expiry-based premium checks in sync after a successful renewal.
   await conn.query(
-    `UPDATE users SET tier = 'premium' WHERE id = ? AND tier != 'premium'`,
-    [user.id]
+    `UPDATE users
+     SET tier = 'premium',
+         subscription_id = ?,
+         subscription_expires_at = FROM_UNIXTIME(?),
+         subscription_cancelled_at = NULL,
+         subscription_source = 'stripe'
+     WHERE id = ?`,
+    [subscriptionId, subscription.current_period_end, user.id]
   )
 }
 
