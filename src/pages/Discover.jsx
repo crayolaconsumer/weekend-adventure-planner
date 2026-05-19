@@ -303,16 +303,31 @@ export default function Discover({ location }) {
     const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
     const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
 
+    // Day Trip + Explorer use progressive tiling — the SWR cache only
+    // ever stores the center tile (~35km), since outer tiles arrive
+    // via fire-and-forget onProgress callbacks that never write back
+    // to the cache layer. Treating that as a "fresh complete" cache
+    // hit means revisits show only the inner radius and Long-band
+    // selections return zero results. Always continue to the tiled
+    // fetch on revisit so onProgress fires again. The cached center
+    // tile still renders instantly so this is invisible to the user
+    // except as outer-tile places filling in over the next few
+    // seconds (which is the same behaviour as a first visit).
+    const usesTiling = mode.maxRadius > 40000
+    const tiledRefresh = usesTiling && cacheCheck.exists && !cacheCheck.stale
+
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
       // Render cached data immediately - no loading spinner!
       const enhanced = cacheCheck.data.map(p => enhancePlace(p, effectiveLocation, { weather: resolvedWeather }))
       setBasePlaces(enhanced)
-      // Only set loading for background refresh if cache is stale
-      if (cacheCheck.stale) {
-        // Don't set loading - just let background refresh happen silently
+      // Continue to fetcher if cache is stale OR if we're in a tiled
+      // mode (cache is incomplete by construction). Otherwise we're
+      // done.
+      if (cacheCheck.stale || tiledRefresh) {
+        // Background refresh — don't set loading, just let the
+        // outer-tile onProgress callbacks append silently.
         setLoadError(null)
       } else {
-        // Fresh cache - we're done
         setLoading(false)
         return
       }
@@ -352,8 +367,11 @@ export default function Discover({ location }) {
             })
           }
         },
-        // Force flag — bypass SWR cache when the user explicitly tapped Refresh.
-        { force }
+        // Force flag — bypass SWR cache when the user explicitly tapped
+        // Refresh, OR when we're refreshing a tiled mode whose cache is
+        // known-incomplete (otherwise the SWR layer would short-circuit
+        // and the outer-tile onProgress callbacks would never fire).
+        { force: force || tiledRefresh }
       )
 
       // Context for smart scoring (time of day, weather)
