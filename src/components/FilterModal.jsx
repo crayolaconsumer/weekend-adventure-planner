@@ -16,6 +16,7 @@ import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
 import FilterIcon from './icons/FilterIcon'
+import DistanceBandSlider from './discover/DistanceBandSlider'
 import './FilterModal.css'
 
 // Backdrop animation
@@ -78,6 +79,9 @@ export function FilterModal({
   travelMode,
   travelModes,
   onTravelModeChange,
+  selectedBand = null,
+  distanceBands = null,
+  onBandChange = null,
   selectedCategories = [],
   onToggleCategory,
   showFreeOnly = false,
@@ -315,6 +319,23 @@ export function FilterModal({
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Distance band slider — appears below the travel mode
+                  picker so it reads as a refinement of the chosen mode.
+                  Labels relabel themselves when the mode changes
+                  (Discover passes a fresh bands array each time). */}
+              {distanceBands && onBandChange && selectedBand && (
+                <div className="filter-modal-section">
+                  <div className="filter-modal-section-header">
+                    <span className="filter-modal-section-title">How far?</span>
+                  </div>
+                  <DistanceBandSlider
+                    bands={distanceBands}
+                    value={selectedBand}
+                    onChange={onBandChange}
+                  />
                 </div>
               )}
 

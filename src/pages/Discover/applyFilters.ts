@@ -10,6 +10,7 @@
 
 import { filterPlaces } from '../../utils/placeFilter'
 import { isPlaceOpen } from '../../utils/openingHours'
+import { getBandFor, type DistanceBandKey } from './distanceBands'
 
 interface PlaceLike {
   type?: string
@@ -23,6 +24,8 @@ interface PlaceLike {
   opening_hours?: string
   lat?: number
   lng?: number
+  // Added by enhancePlace before filtering — distance from user in KM.
+  distance?: number | null
   [key: string]: unknown
 }
 
@@ -37,6 +40,13 @@ export interface ApplyFiltersOptions {
   userProfile: unknown
   weather: unknown
   friendActivity: unknown
+  // Distance band + travel mode — narrows the candidate set to places
+  // within the user's chosen effort level (e.g. "long walk" = 3-5km).
+  // Both must be present to apply; either being absent skips the band
+  // filter entirely (back-compat with code paths that haven't been
+  // updated).
+  travelMode?: string
+  selectedBand?: DistanceBandKey
 }
 
 /**
@@ -51,10 +61,11 @@ export function buildFilterKey(opts: {
   showLocalsPicks: boolean
   showOffPeak: boolean
   selectedCategories: string[]
+  selectedBand?: DistanceBandKey | null
 }): string {
-  const { travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories } = opts
+  const { travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories, selectedBand } = opts
   const categoriesKey = [...selectedCategories].sort().join('|')
-  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
+  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}|${selectedBand || ''}`
 }
 
 const CHAIN_NAME_REGEX = /^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Subway|KFC|Burger King|Pizza Hut|Domino|Nando)/i
@@ -84,6 +95,8 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     userProfile,
     weather,
     friendActivity,
+    travelMode,
+    selectedBand,
   } = options
 
   const hasActiveFilters =
@@ -93,7 +106,28 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     (showLocalsPicks && isPremium) ||
     (showOffPeak && isPremium)
 
-  let filtered = filterPlaces(list as never, {
+  // Distance band filter — pre-narrow the candidate pool before the
+  // smart selector runs, so its diversity weave operates within the
+  // user's chosen effort level (e.g. "a proper outing" = 8-18km drive).
+  // Distance on places is in KM (set by enhancePlace), band thresholds
+  // are in METRES — convert when comparing. Places without a distance
+  // value (rare, would mean missing user location) are kept so we
+  // don't accidentally hide everything during the location-loading
+  // window.
+  let candidates: T[] = list
+  if (travelMode && selectedBand) {
+    const band = getBandFor(travelMode, selectedBand)
+    if (band) {
+      const minKm = band.minMeters / 1000
+      const maxKm = band.maxMeters / 1000
+      candidates = list.filter(p => {
+        if (typeof p.distance !== 'number') return true
+        return p.distance >= minKm && p.distance <= maxKm
+      })
+    }
+  }
+
+  let filtered = filterPlaces(candidates as never, {
     categories: selectedCategories.length > 0 ? selectedCategories : null,
     minScore: 30,
     maxResults: 50,

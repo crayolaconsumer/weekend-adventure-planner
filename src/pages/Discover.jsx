@@ -26,6 +26,7 @@ import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
 import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure } from './Discover/applyFilters'
+import { DEFAULT_BAND, bandStorageKey, getBandsFor } from './Discover/distanceBands'
 import { buildWentOutPatch } from './Discover/stats'
 import ErrorRecovery from './Discover/ErrorRecovery'
 import DiscoverHeader from './Discover/DiscoverHeader'
@@ -94,6 +95,29 @@ export default function Discover({ location }) {
   const [travelMode, setTravelMode] = useState(() => {
     return localStorage.getItem('roam_travel_mode') || 'walking'
   })
+
+  // Distance band — independent of travel mode but stored per-mode so
+  // each mode remembers its own last-used band. "Long walk" and "long
+  // drive" feel like different intents, so the user shouldn't have to
+  // re-set the band every time they switch how they're travelling.
+  const [selectedBand, setSelectedBand] = useState(() => {
+    const initialMode = localStorage.getItem('roam_travel_mode') || 'walking'
+    return localStorage.getItem(bandStorageKey(initialMode)) || DEFAULT_BAND
+  })
+
+  // When travel mode changes, restore that mode's saved band (or fall
+  // back to the default). This is the read-side of the per-mode
+  // persistence — the write-side lives in the band's onChange.
+  useEffect(() => {
+    const saved = localStorage.getItem(bandStorageKey(travelMode))
+    setSelectedBand(saved || DEFAULT_BAND)
+  }, [travelMode])
+
+  const handleBandChange = useCallback((nextBand) => {
+    setSelectedBand(nextBand)
+    localStorage.setItem(bandStorageKey(travelMode), nextBand)
+  }, [travelMode])
+
   const [showFreeOnly, setShowFreeOnly] = useState(() => {
     return localStorage.getItem('roam_free_only') === 'true'
   })
@@ -163,8 +187,9 @@ export default function Discover({ location }) {
       showLocalsPicks,
       showOffPeak,
       selectedCategories,
+      selectedBand,
     }),
-    [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories],
+    [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories, selectedBand],
   )
 
   useEffect(() => {
@@ -191,8 +216,10 @@ export default function Discover({ location }) {
         userProfile,
         weather: currentWeather,
         friendActivity: currentFriendActivity,
+        travelMode,
+        selectedBand,
       }),
-    [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity],
+    [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand],
   )
 
   // Memoized filtered places - only recalculates when basePlaces or filter deps change
@@ -934,6 +961,9 @@ export default function Discover({ location }) {
         travelMode={travelMode}
         travelModes={TRAVEL_MODES}
         onTravelModeChange={setTravelMode}
+        selectedBand={selectedBand}
+        distanceBands={getBandsFor(travelMode)}
+        onBandChange={handleBandChange}
         selectedCategories={selectedCategories}
         onToggleCategory={toggleCategory}
         showFreeOnly={showFreeOnly}

@@ -1,0 +1,181 @@
+/**
+ * Distance band slider — three-position snap with brand-gold accent.
+ *
+ * Layout:
+ *   .band-slider          flex column, owns focus ring + outer padding
+ *   .band-slider-track    horizontal rail; positioned children
+ *   .band-slider-track-fill   the visible track line (gradient)
+ *   .band-slider-stop     positioned absolutely along the rail (centre)
+ *   .band-slider-thumb    motion-driven; sits above the track-fill
+ *   .band-slider-labels   three text labels in equal columns under track
+ */
+
+.band-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 14px 4px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+  outline: none;
+}
+
+.band-slider:focus-visible {
+  outline: 2px solid var(--roam-gold);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+.band-slider-track {
+  position: relative;
+  height: 28px;
+  margin: 0 14px;
+}
+
+.band-slider-track-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--roam-gold) 35%, transparent) 0%,
+    var(--roam-gold) 50%,
+    color-mix(in srgb, var(--roam-gold) 35%, transparent) 100%
+  );
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.band-slider-stop {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.band-slider-stop-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-surface-elevated, #ffffff);
+  border: 2px solid color-mix(in srgb, var(--roam-gold) 60%, transparent);
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.band-slider-stop--active .band-slider-stop-dot {
+  background: var(--roam-gold-light);
+  border-color: var(--roam-gold);
+  transform: scale(1.15);
+}
+
+.band-slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  border-radius: 50%;
+  background: var(--roam-gold);
+  /* Subtle inner highlight + outer shadow so the thumb feels tactile
+     against any background. Avoids relying on a single colour token
+     so it reads cleanly in both light and dark mode. */
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--roam-gold-light) 70%, transparent) inset,
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    0 0 0 4px color-mix(in srgb, var(--roam-gold) 18%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+.band-slider-thumb:active {
+  cursor: grabbing;
+}
+
+.band-slider-labels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.band-slider-label {
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-align: center;
+  line-height: 1.2;
+  transition: color 200ms ease, font-weight 200ms ease, transform 200ms ease;
+  /* Tighten kerning a touch — labels are short but can run two-line on
+     narrow screens, balanced wrapping reads better than orphans. */
+  text-wrap: balance;
+}
+
+.band-slider-label:first-child {
+  text-align: left;
+}
+
+.band-slider-label:last-child {
+  text-align: right;
+}
+
+.band-slider-label--active {
+  color: var(--roam-gold);
+  font-weight: 700;
+}
+
+.band-slider--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .band-slider-stop-dot,
+  .band-slider-label {
+    transition: none;
+  }
+}
+
+/* Dark mode polish — track gradient + thumb glow read flat on dark
+   backgrounds without these adjustments. */
+@media (prefers-color-scheme: dark) {
+  .band-slider-stop-dot {
+    background: var(--color-surface-elevated, #1f1b16);
+  }
+
+  .band-slider-thumb {
+    box-shadow:
+      0 1px 0 color-mix(in srgb, var(--roam-gold-light) 80%, transparent) inset,
+      0 2px 8px rgba(0, 0, 0, 0.45),
+      0 0 0 4px color-mix(in srgb, var(--roam-gold) 25%, transparent);
+  }
+}
+
+[data-theme="dark"] .band-slider-stop-dot {
+  background: var(--color-surface-elevated, #1f1b16);
+}
+
+[data-theme="dark"] .band-slider-thumb {
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--roam-gold-light) 80%, transparent) inset,
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 0 0 4px color-mix(in srgb, var(--roam-gold) 25%, transparent);
+}
