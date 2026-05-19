@@ -15,7 +15,7 @@
 
 import { getAllGoodTypes, getTypesForCategory } from './categories'
 import { managedFetch, rankEndpoints, recordEndpoint } from './requestManager'
-import { makeCacheKey, makeKey, getWithSWR } from './geoCache'
+import { makeCacheKey, makeKey, getWithSWR, setCache } from './geoCache'
 import { selectBestImage } from './imageScoring'
 import { groupTypesByKey, countQueryClauses } from './osmTagMapping'
 import { recordApiCall } from './apiTelemetry'
@@ -773,8 +773,9 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  * @param {Function} [onProgress] - Callback for progressive loading (new places array)
  * @returns {Promise<Array>} Merged array of places
  */
-export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null, onProgress = null) {
+export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null, onProgress = null, options = {}) {
   const isLargeRadius = radius > 15000
+  const { onProgressiveCommit = null } = options
 
   // For large radii, fetch Wikipedia from multiple sample points
   // to better cover the search area (since Wiki max radius is 10km)
@@ -799,8 +800,24 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
 
   // Use progressive loading for very large radii (>40km)
   const usesTiling = radius > 40000
+  let osmPlacesForMerge = []
+  const progressiveOsmPlaces = []
+  let otmPlacesForMerge = []
+  let wikiPlacesForMerge = []
+  let canCommitProgress = false
+
+  const commitProgressiveMerge = () => {
+    if (!canCommitProgress || !onProgressiveCommit) return
+    onProgressiveCommit(mergeAndDedupe(osmPlacesForMerge, otmPlacesForMerge, wikiPlacesForMerge))
+  }
+
   const osmFetcher = usesTiling
-    ? fetchWithTiling(lat, lng, radius, category, null, onProgress).catch(err => {
+    ? fetchWithTiling(lat, lng, radius, category, null, (newPlaces) => {
+        progressiveOsmPlaces.push(...newPlaces)
+        osmPlacesForMerge = [...osmPlacesForMerge, ...newPlaces]
+        commitProgressiveMerge()
+        onProgress?.(newPlaces)
+      }).catch(err => {
         console.warn('OSM progressive fetch failed:', err)
         return []
       })
@@ -829,9 +846,15 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
 
   // Merge all wiki results
   const wikiPlaces = wikiResults.flat()
+  osmPlacesForMerge = [...osmPlaces, ...progressiveOsmPlaces]
+  otmPlacesForMerge = otmPlaces
+  wikiPlacesForMerge = wikiPlaces
+  canCommitProgress = true
 
   // Merge and deduplicate all sources
-  return mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces)
+  const merged = mergeAndDedupe(osmPlacesForMerge, otmPlaces, wikiPlaces)
+  onProgressiveCommit?.(merged)
+  return merged
 }
 
 /**
@@ -947,12 +970,15 @@ function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
  */
 export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null, onProgress = null, { force = false } = {}) {
   const cacheKey = makeCacheKey(lat, lng, radius, category)
+  const ttl = 10 * 60 * 1000
 
   return getWithSWR(
     cacheKey,
-    () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress),
+    () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress, {
+      onProgressiveCommit: (places) => setCache(cacheKey, places, ttl)
+    }),
     {
-      ttl: 10 * 60 * 1000, // 10 minute freshness
+      ttl, // 10 minute freshness
       onBackgroundRefresh: onRefresh,
       force
     }

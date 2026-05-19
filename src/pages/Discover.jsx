@@ -301,15 +301,6 @@ export default function Discover({ location }) {
     // we skip the cache entirely and hit the network — otherwise the user gets the
     // same stale data and the button feels broken.
     //
-    // KNOWN LIMITATION: For tiled modes (Day Trip / Explorer, radius > 40km),
-    // fetchWithTiling only writes the center tile (~35km) to the SWR cache.
-    // Outer tiles arrive via fire-and-forget onProgress callbacks that don't
-    // write back to the cache layer. So a fresh-cache revisit to these modes
-    // renders the inner radius only, and the Long distance band can show
-    // empty until the cache expires (10 min fresh / 30 min stale) or the user
-    // taps Refresh. Proper fix is to instrument fetchWithTiling to write the
-    // aggregated set back to cache as tiles complete — a layering refactor
-    // not done in this batch.
     const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
     const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
 

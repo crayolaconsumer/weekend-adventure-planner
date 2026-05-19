@@ -190,4 +190,38 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
       expect(out[0].id).toBe('hi')
     })
   })
+
+  describe('distance bands', () => {
+    it('applies Day Trip bands to premium-radius results', () => {
+      const places = [
+        p({ id: 'near', name: 'Nearby Spot', type: 'park', distance: 35 }),
+        p({ id: 'outer', name: 'Outer Spot', type: 'park', distance: 64 }),
+        p({ id: 'too-far', name: 'Too Far Spot', type: 'park', distance: 73 }),
+      ]
+
+      const out = applyDiscoverFilters(places, {
+        ...defaults,
+        travelMode: 'dayTrip',
+        selectedBand: 'long',
+      })
+
+      expect(out.map(x => x.id)).toEqual(['outer'])
+    })
+
+    it('applies Explorer bands to premium-radius results', () => {
+      const places = [
+        p({ id: 'short', name: 'Short Explorer Spot', type: 'park', distance: 82 }),
+        p({ id: 'medium', name: 'Medium Explorer Spot', type: 'park', distance: 95 }),
+        p({ id: 'long', name: 'Long Explorer Spot', type: 'park', distance: 105 }),
+      ]
+
+      const out = applyDiscoverFilters(places, {
+        ...defaults,
+        travelMode: 'explorer',
+        selectedBand: 'medium',
+      })
+
+      expect(out.map(x => x.id)).toEqual(['medium'])
+    })
+  })
 })

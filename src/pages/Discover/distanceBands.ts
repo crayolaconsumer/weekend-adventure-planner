@@ -69,47 +69,21 @@ export const DISTANCE_BANDS: Record<TravelModeKey, Record<DistanceBandKey, Dista
 }
 
 /**
- * Travel modes for which the band filter is currently disabled.
- *
- * Day Trip + Explorer use progressive tiling (radius > 40km), and the
- * SWR cache layer only persists the center tile (~35km). Outer tiles
- * arrive via fire-and-forget onProgress callbacks that don't write
- * back. So a cached revisit only has the inner radius, and any band
- * filter that requires outer-tile data (which all Day Trip / Explorer
- * bands do) would surface an empty deck.
- *
- * Until fetchWithTiling is taught to commit outer tiles back to the
- * cache, we hide the slider for these modes — they keep their full
- * nominal radius and just render whatever the fetcher loaded. Walking
- * / Transit / Driving (single-fetch, full result cached) get the
- * full band experience.
- */
-export const TILED_MODES: readonly TravelModeKey[] = ['dayTrip', 'explorer']
-
-export function isTiledMode(mode: string): boolean {
-  return (TILED_MODES as readonly string[]).includes(mode)
-}
-
-/**
  * Bands for a given travel mode in slider order (short → medium → long).
- * Returns null when bands are disabled for that mode (tiled modes).
  * Falls back to walking if an unrecognised mode is passed in (defensive
  * — shouldn't happen in practice).
  */
-export function getBandsFor(mode: string): DistanceBand[] | null {
-  if (isTiledMode(mode)) return null
+export function getBandsFor(mode: string): DistanceBand[] {
   const modeBands = DISTANCE_BANDS[mode as TravelModeKey] || DISTANCE_BANDS.walking
   return [modeBands.short, modeBands.medium, modeBands.long]
 }
 
 /**
- * Single band lookup by mode + band key. Returns null when bands are
- * disabled for that mode (tiled modes — see TILED_MODES above) OR when
- * the mode isn't recognised, so callers can no-op cleanly without
- * applying a band filter.
+ * Single band lookup by mode + band key. Returns null when the mode
+ * isn't recognised, so callers can no-op cleanly without applying a
+ * band filter.
  */
 export function getBandFor(mode: string, band: DistanceBandKey): DistanceBand | null {
-  if (isTiledMode(mode)) return null
   const modeBands = DISTANCE_BANDS[mode as TravelModeKey]
   if (!modeBands) return null
   return modeBands[band] || null
