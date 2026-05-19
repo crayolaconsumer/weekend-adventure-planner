@@ -186,6 +186,7 @@ export default function DistanceBandSlider({
               onClick={() => handleLabelClick(i)}
               disabled={disabled}
               tabIndex={-1}
+              aria-hidden="true"
             >
               {band.label}
             </button>
