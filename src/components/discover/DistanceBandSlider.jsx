@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
-import { motion, useMotionValue, animate } from 'framer-motion'
+import { motion, useMotionValue, animate, useReducedMotion } from 'framer-motion'
 import { tap as hapticTap } from '../../utils/haptics'
 import './DistanceBandSlider.css'
 
@@ -38,6 +38,7 @@ export default function DistanceBandSlider({
   const [trackWidth, setTrackWidth] = useState(0)
   const thumbX = useMotionValue(0)
   const isDraggingRef = useRef(false)
+  const shouldReduceMotion = useReducedMotion()
 
   const activeIdx = Math.max(0, bands.findIndex(b => b.key === value))
 
@@ -69,9 +70,13 @@ export default function DistanceBandSlider({
   useEffect(() => {
     if (isDraggingRef.current) return
     const target = positionForIdx(activeIdx)
+    if (shouldReduceMotion) {
+      thumbX.set(target)
+      return
+    }
     const controls = animate(thumbX, target, SPRING)
     return () => controls.stop()
-  }, [activeIdx, positionForIdx, thumbX])
+  }, [activeIdx, positionForIdx, shouldReduceMotion, thumbX])
 
   const setBandByIdx = useCallback((idx) => {
     const clamped = Math.max(0, Math.min(bands.length - 1, idx))
@@ -99,8 +104,12 @@ export default function DistanceBandSlider({
     // manually so the user doesn't end the gesture with the thumb
     // mid-track.
     const snapTarget = positionForIdx(Math.max(0, Math.min(bands.length - 1, idx)))
+    if (shouldReduceMotion) {
+      thumbX.set(snapTarget)
+      return
+    }
     animate(thumbX, snapTarget, SPRING)
-  }, [thumbX, trackWidth, bands.length, setBandByIdx, positionForIdx])
+  }, [thumbX, trackWidth, bands.length, setBandByIdx, positionForIdx, shouldReduceMotion])
 
   const handleKeyDown = useCallback((e) => {
     if (disabled) return
