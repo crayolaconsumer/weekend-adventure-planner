@@ -47,7 +47,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
-import { usePushNotifications } from './hooks/usePushNotifications'
+import { PUSH_OPT_IN_KEY, usePushNotifications } from './hooks/usePushNotifications'
 import { isNative } from './utils/nativeBridge'
 
 /**
@@ -95,17 +95,15 @@ function PushTapHandler() {
 }
 
 /**
- * Invisible wrapper that auto-fires the push permission subscribe()
- * flow the moment a user signs in. The intent is "no manual toggling
- * needed" — by the time a user authenticates they've shown enough
- * intent to warrant the OS-level dialog.
+ * Invisible wrapper that re-registers push after auth changes without
+ * surprising users with a first-time OS/browser permission prompt.
  *
- * The subscribe() call is idempotent on the SDK side:
+ * The subscribe() call is idempotent on the SDK side when permission is
+ * already granted:
  *   - permission='granted' → re-registers the token to the now-
  *     authenticated user on the server. Quietly succeeds.
- *   - permission='default' → triggers the OS permission dialog. User
- *     grants or denies. On grant, the registration listener posts the
- *     token to the server with their auth.
+ *   - permission='default' → only prompts if the user previously opted
+ *     in via the settings notification toggle.
  *   - permission='denied' → no dialog, returns early. User has to
  *     enable in OS Settings if they want to change their mind.
  *
@@ -114,7 +112,7 @@ function PushTapHandler() {
  */
 function PushAuthSync() {
   const { isAuthenticated, user } = useAuth()
-  const { subscribe, supported } = usePushNotifications()
+  const { permission, subscribe, supported } = usePushNotifications()
   const enrolledForUserRef = useRef(null)
 
   useEffect(() => {
@@ -124,9 +122,11 @@ function PushAuthSync() {
     }
     if (!supported) return
     if (enrolledForUserRef.current === user.id) return
+    const optedIn = localStorage.getItem(PUSH_OPT_IN_KEY) === 'true'
+    if (permission !== 'granted' && !optedIn) return
     enrolledForUserRef.current = user.id
     subscribe().catch(() => {})
-  }, [isAuthenticated, user?.id, supported, subscribe])
+  }, [isAuthenticated, user?.id, permission, supported, subscribe])
 
   return null
 }

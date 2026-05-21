@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import ToggleIcon from '../../components/icons/SettingsIcon'
-import { usePushNotifications } from '../../hooks/usePushNotifications'
+import { PUSH_OPT_IN_KEY, usePushNotifications } from '../../hooks/usePushNotifications'
 import { getAuthToken } from './utils'
 
 /**
@@ -91,6 +91,7 @@ export default function NotificationsSection() {
     if (isSubscribed) {
       await unsubscribe()
     } else {
+      localStorage.setItem(PUSH_OPT_IN_KEY, 'true')
       await subscribe()
     }
   }

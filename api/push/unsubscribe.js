@@ -21,23 +21,33 @@ async function handler(req, res) {
   }
 
   try {
-    const { endpoint } = req.body
+    const { endpoint, platform } = req.body
 
-    if (!endpoint) {
-      return res.status(400).json({ error: 'Endpoint required' })
+    if (!endpoint && !platform) {
+      return res.status(400).json({ error: 'Endpoint or platform required' })
+    }
+    if (platform && !['web', 'ios', 'android'].includes(platform)) {
+      return res.status(400).json({ error: 'Invalid platform' })
     }
 
     const user = await getUserFromRequest(req)
-    if (user) {
+    if (user && endpoint) {
       await update(
         'DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?',
         [endpoint, user.id]
       )
-    } else {
+    } else if (user && platform) {
+      await update(
+        'DELETE FROM push_subscriptions WHERE platform = ? AND user_id = ?',
+        [platform, user.id]
+      )
+    } else if (endpoint) {
       await update(
         'DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id IS NULL',
         [endpoint]
       )
+    } else {
+      return res.status(401).json({ error: 'Authentication required' })
     }
 
     return res.status(200).json({ success: true })

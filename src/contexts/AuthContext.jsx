@@ -8,6 +8,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { identifyUser, clearUser } from '../utils/errorReporting'
 import { identify as analyticsIdentify, resetAnalytics, track } from '../utils/analytics'
 import { identifyUserToRC, logoutFromRC } from '../utils/revenueCat'
+import { bestEffortUnsubscribePushNotifications } from '../hooks/usePushNotifications'
 
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
@@ -342,6 +343,7 @@ export function AuthProvider({ children }) {
    */
   const logout = useCallback(async () => {
     try {
+      await bestEffortUnsubscribePushNotifications()
       await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

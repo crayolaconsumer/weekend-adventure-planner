@@ -14,6 +14,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { isNative, getPlatform } from '../utils/nativeBridge'
 
+export const PUSH_OPT_IN_KEY = 'roam_push_opted_in'
+
 // Get auth token from storage
 function getAuthToken() {
   return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
@@ -22,6 +24,46 @@ function getAuthToken() {
 function getAuthHeaders() {
   const token = getAuthToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+export async function bestEffortUnsubscribePushNotifications(subscription = null) {
+  try {
+    let endpoint = subscription?.endpoint || null
+    let platform = 'web'
+
+    if (isNative()) {
+      platform = getPlatform() === 'ios' ? 'ios' : 'android'
+    } else if (!endpoint && 'serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready
+      const existingSub = await registration.pushManager.getSubscription()
+      endpoint = existingSub?.endpoint || null
+      if (existingSub && typeof existingSub.unsubscribe === 'function') {
+        await existingSub.unsubscribe()
+      }
+    } else if (subscription && typeof subscription.unsubscribe === 'function') {
+      await subscription.unsubscribe()
+    }
+
+    if (!endpoint && platform === 'web') return
+
+    await fetch('/api/push/unsubscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      credentials: 'include',
+      body: JSON.stringify(endpoint ? { endpoint } : { platform })
+    })
+  } catch (err) {
+    console.error('Unsubscribe error:', err)
+  } finally {
+    try {
+      localStorage.removeItem(PUSH_OPT_IN_KEY)
+    } catch {
+      // localStorage unavailable.
+    }
+  }
 }
 
 export function usePushNotifications() {
@@ -233,25 +275,7 @@ export function usePushNotifications() {
     setError(null)
 
     try {
-      const endpoint = isNative()
-        ? subscription.endpoint  // device token (we stored it that way)
-        : subscription.endpoint
-
-      // Web subscription has its own .unsubscribe() — native doesn't
-      if (!isNative() && typeof subscription.unsubscribe === 'function') {
-        await subscription.unsubscribe()
-      }
-
-      // Tell the server to delete the subscription row
-      await fetch('/api/push/unsubscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify({ endpoint })
-      })
-
+      await bestEffortUnsubscribePushNotifications(subscription)
       setSubscription(null)
     } catch (err) {
       console.error('Unsubscribe error:', err)
