@@ -273,15 +273,30 @@ export default function CardStack({
     }
   }, [currentIndex, mergedPlaces, loading])
 
-  // Load more places when getting close to the end (10 cards left)
-  // Increased from 5 to reduce perceived loading lag
+  // Load more places when getting close to the end of the deck.
+  // GUARDED against runaway loops: when an active filter culls most
+  // candidates (e.g. a tight distance band), the "≤10 remaining"
+  // condition can stay true after a load completes — without the
+  // debounce we'd refire on every render until something gave. The
+  // last-fired ref enforces a 3s minimum spacing; the seenLength ref
+  // makes sure we don't refire for the same deck size we just loaded
+  // against.
+  const lastLoadMoreAtRef = useRef(0)
+  const lastLoadMoreLengthRef = useRef(0)
   useEffect(() => {
     if (loading || loadingMore || !onLoadMore) return
 
     const remainingCards = mergedPlaces.length - currentIndex
-    if (remainingCards <= 10 && remainingCards > 0) {
-      onLoadMore()
-    }
+    if (remainingCards > 10 || remainingCards <= 0) return
+
+    const now = Date.now()
+    const sinceLastMs = now - lastLoadMoreAtRef.current
+    if (sinceLastMs < 3000) return
+    if (mergedPlaces.length === lastLoadMoreLengthRef.current) return
+
+    lastLoadMoreAtRef.current = now
+    lastLoadMoreLengthRef.current = mergedPlaces.length
+    onLoadMore()
   }, [currentIndex, mergedPlaces.length, loading, loadingMore, onLoadMore])
 
   const handleSwipe = (action) => {

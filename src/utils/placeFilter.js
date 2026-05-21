@@ -410,35 +410,37 @@ function selectWithDiversity(places, maxResults) {
 }
 
 /**
- * Shuffle array with score weighting
- * Higher scored items more likely to appear earlier, but with randomness
+ * Order places by score, deterministically.
+ *
+ * Previously used `score + Math.random() * 30` for "variety", but
+ * filterPlaces is called from a React useMemo whose deps (applyFilters
+ * callback) can change reference every render via friendActivity from
+ * a custom hook. With Math.random in here, every re-render reshuffled
+ * the deck — visually identical to the user rapidly swiping cards
+ * without touching the screen. Combined with the band filter culling
+ * close places and CardStack's "loadMore when ≤10 cards left" trigger,
+ * that produced a runaway loop that maxed out the deck.
+ *
+ * Tiebreaker on ID keeps order stable even if two places have the
+ * same score. Variety between sessions can come back later via a
+ * session-scoped seed; correctness comes first.
  */
 function shuffleWithWeight(places) {
   if (places.length === 0) return places
-
-  const result = []
-  const available = [...places]
-
-  while (available.length > 0) {
-    // Use score as weight but add significant randomness
-    const weights = available.map(p => p.score + Math.random() * 30)
-    const maxIdx = weights.indexOf(Math.max(...weights))
-    result.push(available[maxIdx])
-    available.splice(maxIdx, 1)
-  }
-
-  return result
+  return [...places].sort((a, b) => {
+    const scoreDiff = (b.score ?? 0) - (a.score ?? 0)
+    if (scoreDiff !== 0) return scoreDiff
+    return String(a.id ?? '').localeCompare(String(b.id ?? ''))
+  })
 }
 
 /**
- * Simple Fisher-Yates shuffle
+ * Deterministic ordering — same input always yields same output.
+ * Was Fisher-Yates with Math.random; see shuffleWithWeight comment
+ * above for why we removed the non-determinism.
  */
 function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
+  return arr.sort((a, b) => String(a).localeCompare(String(b)))
 }
 
 /**
