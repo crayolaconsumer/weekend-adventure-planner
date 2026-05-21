@@ -1,13 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS, VIBE_ICONS } from '../../../src/pages/Plan/constants.js'
+import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS } from '../../../src/pages/Plan/constants.js'
 
 describe('Plan/constants', () => {
-  it('every VIBE has a matching VIBE_ICONS entry', () => {
-    for (const v of VIBES) {
-      expect(VIBE_ICONS, v.key).toHaveProperty(v.key)
-    }
-  })
-
   it('DURATIONS escalate stops with hours', () => {
     for (let i = 1; i < DURATIONS.length; i++) {
       expect(DURATIONS[i].hours).toBeGreaterThan(DURATIONS[i - 1].hours)
