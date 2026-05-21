@@ -560,9 +560,13 @@ function App() {
                   session has lapsed. Self-gated on roam_has_signed_in
                   flag + 7-day dismiss window, so first-time visitors
                   never see this and active users only see it when
-                  they're actually signed out. Tapping opens the auth
-                  modal in 'login' mode. */}
-              {!showOnboarding && (
+                  they're actually signed out. Suppressed while a
+                  LocationBanner is showing — both occupy the top of
+                  the app shell and stacking them visually competes for
+                  the same attention; location errors are higher-
+                  urgency so they win the slot. The re-sign-in nudge
+                  will reappear once geolocation recovers. */}
+              {!showOnboarding && !locationError && (
                 <ReSignInBanner onSignIn={() => {
                   setAuthModalMode('login')
                   setShowAuthModal(true)

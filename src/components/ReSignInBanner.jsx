@@ -32,6 +32,8 @@ import './ReSignInBanner.css'
 const HAS_SIGNED_IN_KEY = 'roam_has_signed_in'
 const DISMISSED_UNTIL_KEY = 'roam_signin_nudge_dismissed_until'
 const SNOOZE_DURATION_MS = 7 * 24 * 60 * 60 * 1000
+const TOKEN_STORAGE_KEY = 'roam_auth_token'
+const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 
 function readDismissedUntil() {
   try {
@@ -45,6 +47,21 @@ function readDismissedUntil() {
 function hasSignedInBefore() {
   try {
     return localStorage.getItem(HAS_SIGNED_IN_KEY) === 'true'
+  } catch { return false }
+}
+
+// True when there's still a stored auth token, even though
+// AuthContext currently has user=null. This happens during transient
+// auth-check failures: checkAuth deliberately preserves the token on
+// 5xx / network errors so the session can recover next request. The
+// banner shouldn't fire in that state — the user isn't actually
+// lapsed, the server is just briefly unreachable.
+function hasStoredToken() {
+  try {
+    return Boolean(
+      localStorage.getItem(TOKEN_STORAGE_KEY) ||
+      sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY)
+    )
   } catch { return false }
 }
 
@@ -80,6 +97,12 @@ export default function ReSignInBanner({ onSignIn }) {
   if (loading) return null
   if (isAuthenticated) return null
   if (!hasSignedInBefore()) return null
+  // Don't nudge when the user technically still has a stored token —
+  // checkAuth might've set user=null due to a transient 5xx / offline
+  // hiccup, in which case they're not actually lapsed. Without this,
+  // a brief Vercel cold-start would surface the banner to a fully-
+  // logged-in user.
+  if (hasStoredToken()) return null
   // Wall-clock check against the snooze deadline. The render fn is
   // ostensibly impure here, but re-render frequency is low (only on
   // auth state changes or dismissal) so this is a cheap deterministic
