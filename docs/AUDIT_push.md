@@ -28,7 +28,7 @@ Fix: authenticated callers now delete only rows matching both endpoint and `user
 
 ### P2 - Logout does not unregister this device's push token
 
-Status: fixed in `8ce319c`.
+Status: fixed in `e0ca6ac`.
 
 `logout()` clears auth state (`src/contexts/AuthContext.jsx:334`) but does not call `unsubscribe()` or otherwise detach the current device token. If a user logs out and never signs another user in, their server-side push row can still receive notifications for that account. When another user signs in on the same device, `PushAuthSync` re-registers/upserts the token to the new user (`src/App.jsx:115`, `src/hooks/usePushNotifications.js:122`), which limits but does not eliminate the logout gap. A clean fix needs current-device endpoint lookup for both web and native before auth is cleared.
 
