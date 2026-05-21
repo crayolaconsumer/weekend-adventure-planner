@@ -343,7 +343,7 @@ export function AuthProvider({ children }) {
    */
   const logout = useCallback(async () => {
     try {
-      await bestEffortUnsubscribePushNotifications()
+      bestEffortUnsubscribePushNotifications()
       await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

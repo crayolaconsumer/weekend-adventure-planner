@@ -27,6 +27,8 @@ function getAuthHeaders() {
 }
 
 export async function bestEffortUnsubscribePushNotifications(subscription = null) {
+  const authHeaders = getAuthHeaders()
+
   try {
     let endpoint = subscription?.endpoint || null
     let platform = 'web'
@@ -50,7 +52,7 @@ export async function bestEffortUnsubscribePushNotifications(subscription = null
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getAuthHeaders()
+        ...authHeaders
       },
       credentials: 'include',
       body: JSON.stringify(endpoint ? { endpoint } : { platform })
