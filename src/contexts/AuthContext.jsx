@@ -111,11 +111,27 @@ export function AuthProvider({ children }) {
       if (response.ok) {
         const data = await response.json()
         setUser(data.user)
-      } else {
-        clearStoredToken()
-        setUser(null)
+        return
       }
+
+      // Only clear the stored token for status codes that genuinely
+      // mean "this token is dead" — 401 (unauthenticated) or 403
+      // (forbidden). For transient failures (5xx server hiccup, 429
+      // rate limit, network blip in catch below) we keep the token
+      // and just set user=null so the next checkAuth can recover
+      // without forcing the user back through the login flow. This
+      // was the root cause behind "updating the app logs me out":
+      // a cold-start 502 from the auth endpoint was wiping the JWT
+      // on every other open.
+      if (response.status === 401 || response.status === 403) {
+        clearStoredToken()
+      }
+      setUser(null)
     } catch (err) {
+      // Network failure / fetch threw. Don't clear the token — likely
+      // transient (offline, DNS hiccup, Vercel cold-start aborted).
+      // Leave the token so checkAuth on the next mount or app foreground
+      // can re-validate it.
       console.error('Auth check failed:', err)
       setUser(null)
     } finally {

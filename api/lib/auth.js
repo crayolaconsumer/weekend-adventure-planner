@@ -17,7 +17,15 @@ if (!JWT_SECRET) {
   }
 }
 const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'dev-only-secret-not-for-production'
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
+// 30 days. Previously 7d, but on a launched product that's too short:
+// users who don't open the app daily routinely hit JWT expiry and get
+// silently logged out next time they open it. They blame whatever
+// visible event happened in between — most commonly an app update —
+// even though the actual cause is just JWT lifetime. 30d matches the
+// rough cadence of "casual user opens the app at least once a month,"
+// which is the cohort we care about retaining. Tokens still get
+// cleanly invalidated on explicit logout, password change, etc.
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d'
 const SALT_ROUNDS = 10
 
 /**
