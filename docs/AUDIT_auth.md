@@ -28,7 +28,7 @@ Fix: non-OK auth checks now call `clearStoredToken()` before clearing the user (
 
 ### P2 - Native Apple Sign-In has hard-coded production identifiers/redirect URL
 
-Status: deferred.
+Status: fixed in `f33e709`.
 
 `src/utils/nativePlugins.js:30` hard-codes `clientId: 'com.goroam.app'` and `redirectURI: 'https://www.go-roam.uk/api/auth/apple/callback'`. This matches the production native app, but it will break alternate bundle IDs, staging domains, or white-label/test builds unless the binary is edited. Server-side Apple auth already reads `APPLE_SIGNIN_SERVICES_ID` and `APPLE_BUNDLE_ID` from env (`api/auth/index.js:35`), so the client should eventually use Vite/native config for parity.
 

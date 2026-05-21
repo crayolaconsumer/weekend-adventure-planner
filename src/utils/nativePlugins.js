@@ -27,9 +27,11 @@ export async function nativeAppleSignIn() {
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36)
   // The clientId must be the App Bundle ID for the native flow (not the Services ID)
+  const clientId = import.meta.env.VITE_APPLE_BUNDLE_ID || 'com.goroam.app'
+  const redirectURI = import.meta.env.VITE_APPLE_REDIRECT_URI || 'https://www.go-roam.uk/api/auth/apple/callback'
   const result = await SignInWithApple.authorize({
-    clientId: 'com.goroam.app',
-    redirectURI: 'https://www.go-roam.uk/api/auth/apple/callback',
+    clientId,
+    redirectURI,
     scopes: 'email name',
     state: 'capacitor-native',
     nonce
