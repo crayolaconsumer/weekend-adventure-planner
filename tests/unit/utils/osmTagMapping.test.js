@@ -25,8 +25,8 @@ describe('osmTagMapping', () => {
     })
 
     it('handles types that span multiple keys', () => {
-      expect(TYPE_TO_KEYS.market).toContain('shop')
-      expect(TYPE_TO_KEYS.market).toContain('amenity')
+      expect(TYPE_TO_KEYS.ice_cream).toContain('amenity')
+      expect(TYPE_TO_KEYS.ice_cream).toContain('shop')
     })
   })
 
@@ -48,9 +48,9 @@ describe('osmTagMapping', () => {
     })
 
     it('places a type under every key it maps to', () => {
-      const grouped = groupTypesByKey(['market'])
-      expect(grouped.shop).toEqual(['market'])
-      expect(grouped.amenity).toEqual(['market'])
+      const grouped = groupTypesByKey(['ice_cream'])
+      expect(grouped.amenity).toEqual(['ice_cream'])
+      expect(grouped.shop).toEqual(['ice_cream'])
     })
 
     it('handles empty input', () => {
@@ -64,11 +64,11 @@ describe('osmTagMapping', () => {
   })
 
   describe('countQueryClauses', () => {
-    it('returns 2 clauses per unique key (node + way)', () => {
-      // restaurant + cafe both use amenity → 1 key → 2 clauses
-      expect(countQueryClauses(['restaurant', 'cafe'])).toBe(2)
-      // restaurant (amenity) + park (leisure) → 2 keys → 4 clauses
-      expect(countQueryClauses(['restaurant', 'park'])).toBe(4)
+    it('returns 1 nw clause per unique key', () => {
+      // restaurant + cafe both use amenity -> 1 nw clause.
+      expect(countQueryClauses(['restaurant', 'cafe'])).toBe(1)
+      // restaurant (amenity) + park (leisure) -> 2 nw clauses.
+      expect(countQueryClauses(['restaurant', 'park'])).toBe(2)
     })
 
     it('returns 0 for empty input', () => {
