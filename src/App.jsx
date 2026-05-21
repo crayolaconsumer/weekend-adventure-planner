@@ -131,6 +131,44 @@ function PushAuthSync() {
   return null
 }
 
+function getStoredAuthToken() {
+  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+}
+
+function UserActivityHeartbeat() {
+  const { isAuthenticated, user } = useAuth()
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return
+
+    const sessionKey = `roam_activity_heartbeat_${user.id}`
+    try {
+      if (sessionStorage.getItem(sessionKey) === '1') return
+    } catch {
+      // sessionStorage unavailable; still send the heartbeat.
+    }
+
+    const token = getStoredAuthToken()
+    fetch('/api/users/activity', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      credentials: 'include'
+    }).then((response) => {
+      if (!response.ok) return
+      try {
+        sessionStorage.setItem(sessionKey, '1')
+      } catch {
+        // sessionStorage unavailable.
+      }
+    }).catch(() => {})
+  }, [isAuthenticated, user?.id])
+
+  return null
+}
+
 // Icons as components
 const CompassIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -545,6 +583,7 @@ function App() {
               <UniversalLinkHandler />
               <DisplayNameNudge />
               <OfflineIndicator />
+              <UserActivityHeartbeat />
               <PushAuthSync />
               <PushTapHandler />
 

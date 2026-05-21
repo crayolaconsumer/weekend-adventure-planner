@@ -192,6 +192,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NULL,
   platform ENUM('web', 'ios', 'android') NOT NULL DEFAULT 'web',
+  -- Which APNS environment accepted this iOS token. Capacitor / iOS
+  -- apps register tokens with `api.push.apple.com` (TestFlight + App
+  -- Store) OR `api.sandbox.push.apple.com` (Xcode USB / debug builds).
+  -- The token is the same hex string in both, but each environment
+  -- maintains its own registry. Sending to the wrong host returns
+  -- BadDeviceToken and silently drops the push.
+  --
+  -- Dispatcher discovers the right env on first send (tries prod,
+  -- falls back to sandbox on BadDeviceToken) and stamps it here so
+  -- subsequent sends go straight to the correct host.
+  apns_env ENUM('production', 'sandbox') NULL DEFAULT NULL,
   endpoint VARCHAR(500) NOT NULL, -- VAPID URL for web, device token for ios/android
   p256dh_key VARCHAR(255) NULL,    -- web only
   auth_key VARCHAR(255) NULL,      -- web only
@@ -212,6 +223,23 @@ CREATE TABLE IF NOT EXISTS push_diagnostic_tests (
   tested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   result_json JSON NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------
+-- CRON RUNS TABLE
+-- Persistent delivery audit for scheduled jobs
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS cron_runs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  job_name VARCHAR(100) NOT NULL,
+  run_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  eligible_count INT NOT NULL DEFAULT 0,
+  sent_count INT NOT NULL DEFAULT 0,
+  failed_count INT NOT NULL DEFAULT 0,
+  per_platform JSON NULL,
+  error_message VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_job_run_at (job_name, run_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -------------------------------------------

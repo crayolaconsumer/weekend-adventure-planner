@@ -19,7 +19,7 @@ if (existsSync(fcmPath)) {
   process.env.FCM_SERVICE_ACCOUNT_JSON = readFileSync(fcmPath, 'utf8')
 }
 
-const { sendPushToUser } = await import('../api/lib/pushNotifications.js')
+const { sendPushToUserWithStats } = await import('../api/lib/pushNotifications.js')
 
 const userIds = process.argv.slice(2).map(s => parseInt(s, 10)).filter(Number.isFinite)
 if (userIds.length === 0) {
@@ -28,17 +28,21 @@ if (userIds.length === 0) {
 }
 
 for (const userId of userIds) {
-  console.log(`\n→ Dispatching to user_id=${userId} via sendPushToUser...`)
+  console.log(`\nDispatching to user_id=${userId} via sendPushToUserWithStats...`)
   try {
-    const ok = await sendPushToUser(userId, {
-      title: 'ROAM end-to-end test 🚀',
-      body: 'If you see this, push delivery is fully wired up for your platform.',
+    const result = await sendPushToUserWithStats(userId, {
+      title: 'ROAM end-to-end test',
+      body: 'If you see this, push delivery is wired up for your platform.',
       url: '/',
       tag: 'final-test-' + Date.now()
     })
-    console.log(`  ${ok ? '✅ SUCCESS — at least one platform accepted' : '❌ FAILED — no platform succeeded'}`)
+    console.log(`  ${result.success ? 'SUCCESS' : 'FAILED'} - subscriptions=${result.subscriptionCount}`)
+    console.log(`  perPlatform=${JSON.stringify(result.perPlatform)}`)
+    for (const delivery of result.results) {
+      console.log(`  ${delivery.platform}#${delivery.id}: ${delivery.success ? 'ok' : 'failed'} status=${delivery.status || 'n/a'} reason=${delivery.reason || 'n/a'} env=${delivery.env || 'n/a'}`)
+    }
   } catch (err) {
-    console.log(`  ❌ THREW: ${err.message}`)
+    console.log(`  THREW: ${err.message}`)
   }
   // Brief gap between sends so the user can clearly see two notifications
   await new Promise(r => setTimeout(r, 2000))

@@ -14,6 +14,7 @@
  */
 
 import { query, queryOne } from './db.js'
+import { createPlatformBreakdown } from './cronRuns.js'
 
 const URL_SAFE_BASE64_RE = /^[A-Za-z0-9_-]+$/
 const APPLE_ID_RE = /^[A-Za-z0-9]{10}$/
@@ -143,6 +144,42 @@ function requirePushPlatform(platform) {
   }
 }
 
+function isMissingApnsEnvColumn(err) {
+  return (err?.code === 'ER_BAD_FIELD_ERROR' || err?.errno === 1054) &&
+    /apns_env/i.test(err?.message || '')
+}
+
+async function getUserPushSubscriptions(userId, { includeCreatedAt = false } = {}) {
+  const createdAtColumn = includeCreatedAt ? ', created_at' : ''
+  try {
+    return await query(
+      `SELECT id, platform, apns_env, endpoint, p256dh_key, auth_key${createdAtColumn}
+       FROM push_subscriptions
+       WHERE user_id = ?`,
+      [userId]
+    )
+  } catch (err) {
+    if (!isMissingApnsEnvColumn(err)) throw err
+    console.warn('push_subscriptions.apns_env column missing; dispatching without APNS env cache')
+    const rows = await query(
+      `SELECT id, platform, endpoint, p256dh_key, auth_key${createdAtColumn}
+       FROM push_subscriptions
+       WHERE user_id = ?`,
+      [userId]
+    )
+    return rows.map(row => ({ ...row, apns_env: null }))
+  }
+}
+
+async function stampApnsEnv(subId, env) {
+  try {
+    await query('UPDATE push_subscriptions SET apns_env = ? WHERE id = ?', [env, subId])
+  } catch (err) {
+    if (!isMissingApnsEnvColumn(err)) throw err
+    console.warn('push_subscriptions.apns_env column missing; APNS env stamp skipped')
+  }
+}
+
 // APNS clients per environment. iOS device tokens are valid against
 // exactly one of (production, sandbox) depending on how the app was
 // signed — TestFlight + App Store builds → production; Xcode USB +
@@ -259,62 +296,60 @@ async function getWebPush() {
  * from APNS) are auto-deleted from the table.
  */
 export async function sendPushToUser(userId, payload) {
-  // Pull all subscriptions in one go — much cheaper than per-platform queries
-  const subscriptions = await query(
-    `SELECT id, platform, apns_env, endpoint, p256dh_key, auth_key
-     FROM push_subscriptions
-     WHERE user_id = ?`,
-    [userId]
-  )
+  const stats = await sendPushToUserWithStats(userId, payload)
+  return stats.success
+}
 
-  if (!subscriptions || subscriptions.length === 0) return false
+export async function sendPushToUserWithStats(userId, payload) {
+  const subscriptions = await getUserPushSubscriptions(userId)
 
-  const results = await Promise.allSettled(
-    subscriptions.map((sub) => dispatchToSubscription(sub, payload))
-  )
-
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      console.error('Push dispatch failed:', result.reason?.message || result.reason)
+  if (!subscriptions || subscriptions.length === 0) {
+    return {
+      success: false,
+      subscriptionCount: 0,
+      perPlatform: createPlatformBreakdown(),
+      results: []
     }
   }
 
-  return results.some(r => r.status === 'fulfilled' && r.value === true)
-}
+  const results = await Promise.allSettled(
+    subscriptions.map((sub) => dispatchToSubscriptionDetailed(sub, payload))
+  )
 
-async function dispatchToSubscription(sub, payload) {
-  // Silent badge-update pushes don't have a title/body, only data.
-  // Native (iOS APNS, Android FCM) would render that as "ROAM" with a
-  // blank body — worse than nothing. Until we wire proper silent push
-  // flags (apns-priority: 5 + content-available: 1 on iOS, FCM
-  // data-only message on Android), skip the native platforms entirely
-  // for these pushes. The web SW handles them correctly via the
-  // data.silent flag.
-  const isSilent = !payload?.title && !payload?.body
-  if (isSilent && (sub.platform === 'ios' || sub.platform === 'android')) {
-    return false
+  const detailedResults = []
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('Push dispatch failed:', result.reason?.message || result.reason)
+      detailedResults.push({
+        id: null,
+        platform: 'unknown',
+        endpoint_prefix: '',
+        success: false,
+        status: null,
+        reason: result.reason?.message || 'Push dispatch failed'
+      })
+    } else {
+      detailedResults.push(result.value)
+    }
   }
 
-  switch (sub.platform) {
-    case 'web':
-      return dispatchVapid(sub, payload)
-    case 'ios':
-      return dispatchApns(sub, payload)
-    case 'android':
-      return dispatchFcm(sub, payload)
-    default:
-      console.warn(`Unknown push platform '${sub.platform}' for sub ${sub.id}`)
-      return false
+  const perPlatform = createPlatformBreakdown()
+  for (const result of detailedResults) {
+    if (!perPlatform[result.platform]) continue
+    if (result.success) perPlatform[result.platform].sent++
+    else perPlatform[result.platform].failed++
+  }
+
+  return {
+    success: detailedResults.some(result => result.success),
+    subscriptionCount: subscriptions.length,
+    perPlatform,
+    results: detailedResults
   }
 }
 
 export async function sendDiagnosticPushToUser(userId) {
-  const subscriptions = await query(
-    `SELECT id, platform, endpoint, p256dh_key, auth_key, created_at
-     FROM push_subscriptions
-     WHERE user_id = ?`,
-    [userId]
-  )
+  const subscriptions = await getUserPushSubscriptions(userId, { includeCreatedAt: true })
 
   const payload = {
     title: 'ROAM push test',
@@ -376,11 +411,6 @@ export function formatEndpointPrefix(endpoint) {
 
 // ─── VAPID web push ──────────────────────────────────────────────
 
-async function dispatchVapid(sub, payload) {
-  const result = await dispatchVapidDetailed(sub, payload)
-  return result.success
-}
-
 async function dispatchVapidDetailed(sub, payload) {
   requirePushPlatform('web')
   const push = await getWebPush()
@@ -415,11 +445,6 @@ async function dispatchVapidDetailed(sub, payload) {
 }
 
 // ─── APNS (iOS) ──────────────────────────────────────────────────
-
-async function dispatchApns(sub, payload) {
-  const result = await dispatchApnsDetailed(sub, payload)
-  return result.success
-}
 
 // Errors that mean "this token doesn't exist in the env you sent to".
 // We treat these as "try the other env" rather than "delete the token,"
@@ -491,7 +516,7 @@ async function dispatchApnsDetailed(sub, payload) {
     // have a stamped env yet, stamp it now so we don't have to retry
     // again next time.
     if (!sub.apns_env) {
-      await query('UPDATE push_subscriptions SET apns_env = ? WHERE id = ?', [primary.env, sub.id])
+      await stampApnsEnv(sub.id, primary.env)
     }
     return primary
   }
@@ -505,7 +530,7 @@ async function dispatchApnsDetailed(sub, payload) {
 
   const fallback = await sendOnceToApns(fallbackEnv, sub, payload)
   if (fallback.success) {
-    await query('UPDATE push_subscriptions SET apns_env = ? WHERE id = ?', [fallback.env, sub.id])
+    await stampApnsEnv(sub.id, fallback.env)
     return fallback
   }
 
@@ -609,11 +634,6 @@ async function getFcmAccessToken() {
 
 function getFcmProjectId() {
   return loadFcmCredentials()?.project_id || null
-}
-
-async function dispatchFcm(sub, payload) {
-  const result = await dispatchFcmDetailed(sub, payload)
-  return result.success
 }
 
 async function dispatchFcmDetailed(sub, payload) {
@@ -866,6 +886,7 @@ export async function getPlannedVisitsForToday() {
 
 export default {
   sendPushToUser,
+  sendPushToUserWithStats,
   sendDiagnosticPushToUser,
   getPushValidationStatus,
   pushNotificationBadge,

@@ -29,7 +29,14 @@
  */
 
 import { query } from '../lib/db.js'
-import { sendPushToUser } from '../lib/pushNotifications.js'
+import {
+  createPlatformBreakdown,
+  mergePlatformBreakdown,
+  recordCronRun,
+  RE_ENGAGEMENT_NUDGE_JOB
+} from '../lib/cronRuns.js'
+import { sendPushToUser, sendPushToUserWithStats } from '../lib/pushNotifications.js'
+import { waitUntil } from '@vercel/functions'
 
 // Curated nudge messages. We rotate through these to avoid feeling
 // robotic. Each is brand-warm, gentle, and works year-round. No
@@ -59,6 +66,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  let eligibleCount = 0
+  let sent = 0
+  let failed = 0
+  const perPlatform = createPlatformBreakdown()
+
   try {
     // Eligible users: have a push sub, weekly_digest pref on
     // (default 1), account is >= 3 days old, and either no
@@ -79,12 +91,23 @@ export default async function handler(req, res) {
         AND (us.last_activity_at IS NULL
              OR us.last_activity_at < DATE_SUB(NOW(), INTERVAL 72 HOUR))
     `)
+    eligibleCount = users.length
 
     if (users.length === 0) {
+      await recordCronRun({
+        jobName: RE_ENGAGEMENT_NUDGE_JOB,
+        eligibleCount,
+        sentCount: sent,
+        failedCount: failed,
+        perPlatform
+      })
       return res.status(200).json({
         success: true,
         message: 'No eligible users for nudge',
-        sent: 0
+        eligible: eligibleCount,
+        sent: 0,
+        failed: 0,
+        perPlatform
       })
     }
 
@@ -94,15 +117,12 @@ export default async function handler(req, res) {
     // well within Vercel's runtime budget at any realistic scale.
     const CHUNK_SIZE = 20
     const CHUNK_DELAY_MS = 500
-    let sent = 0
-    let failed = 0
-
     for (let i = 0; i < users.length; i += CHUNK_SIZE) {
       const chunk = users.slice(i, i + CHUNK_SIZE)
       const results = await Promise.allSettled(
         chunk.map(u => {
           const nudge = pickNudge()
-          return sendPushToUser(u.id, {
+          return sendPushToUserWithStats(u.id, {
             title: nudge.title,
             body: nudge.body,
             url: '/',
@@ -114,8 +134,14 @@ export default async function handler(req, res) {
       )
 
       for (const r of results) {
-        if (r.status === 'fulfilled' && r.value === true) sent++
-        else failed++
+        if (r.status === 'fulfilled') {
+          mergePlatformBreakdown(perPlatform, r.value.perPlatform)
+          if (r.value.success) sent++
+          else failed++
+        } else {
+          failed++
+          console.error('[cron] re-engagement-nudge dispatch failed:', r.reason?.message || r.reason)
+        }
       }
 
       if (i + CHUNK_SIZE < users.length) {
@@ -123,15 +149,50 @@ export default async function handler(req, res) {
       }
     }
 
+    await recordCronRun({
+      jobName: RE_ENGAGEMENT_NUDGE_JOB,
+      eligibleCount,
+      sentCount: sent,
+      failedCount: failed,
+      perPlatform
+    })
+
+    if (eligibleCount > 0 && sent / eligibleCount < 0.05) {
+      waitUntil(
+        sendPushToUser(1, {
+          title: 'ROAM nudge cron warning',
+          body: `Re-engagement nudge delivered to ${sent}/${eligibleCount} eligible users.`,
+          url: '/profile?tab=settings&diagnostics=1',
+          tag: 'cron-warning',
+          interruptionLevel: 'time-sensitive'
+        }).catch(err => {
+          console.error('[cron] owner warning push failed:', err?.message || err)
+        })
+      )
+    }
+
     return res.status(200).json({
       success: true,
       message: `Re-engagement nudge dispatched`,
-      eligible: users.length,
+      eligible: eligibleCount,
       sent,
-      failed
+      failed,
+      perPlatform
     })
   } catch (err) {
     console.error('[cron] re-engagement-nudge failed:', err)
+    try {
+      await recordCronRun({
+        jobName: RE_ENGAGEMENT_NUDGE_JOB,
+        eligibleCount,
+        sentCount: sent,
+        failedCount: Math.max(failed, eligibleCount - sent),
+        perPlatform,
+        errorMessage: err.message
+      })
+    } catch (recordErr) {
+      console.error('[cron] failed to record re-engagement run:', recordErr?.message || recordErr)
+    }
     return res.status(500).json({ error: 'Internal error', message: err.message })
   }
 }

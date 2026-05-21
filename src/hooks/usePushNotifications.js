@@ -26,6 +26,35 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+function markPushOptedIn() {
+  try {
+    localStorage.setItem(PUSH_OPT_IN_KEY, 'true')
+  } catch {
+    // localStorage unavailable.
+  }
+}
+
+function withTimeout(promise, ms, message) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([
+    promise,
+    timeout
+  ]).finally(() => clearTimeout(timer))
+}
+
+async function fetchWithTimeout(url, options, ms = 3000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function bestEffortUnsubscribePushNotifications(subscription = null) {
   const authHeaders = getAuthHeaders()
 
@@ -36,7 +65,7 @@ export async function bestEffortUnsubscribePushNotifications(subscription = null
     if (isNative()) {
       platform = getPlatform() === 'ios' ? 'ios' : 'android'
     } else if (!endpoint && 'serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.ready
+      const registration = await withTimeout(navigator.serviceWorker.ready, 3000, 'Service worker ready timed out')
       const existingSub = await registration.pushManager.getSubscription()
       endpoint = existingSub?.endpoint || null
       if (existingSub && typeof existingSub.unsubscribe === 'function') {
@@ -48,7 +77,7 @@ export async function bestEffortUnsubscribePushNotifications(subscription = null
 
     if (!endpoint && platform === 'web') return
 
-    await fetch('/api/push/unsubscribe', {
+    await fetchWithTimeout('/api/push/unsubscribe', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -204,6 +233,7 @@ export function usePushNotifications() {
         })
         if (!saveResponse.ok) throw new Error('Failed to save native subscription')
 
+        markPushOptedIn()
         setSubscription({ platform, endpoint: deviceToken })
         return { platform, endpoint: deviceToken }
       }
@@ -258,6 +288,7 @@ export function usePushNotifications() {
         throw new Error('Failed to save subscription')
       }
 
+      markPushOptedIn()
       setSubscription(newSubscription)
       return newSubscription
     } catch (err) {
