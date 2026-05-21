@@ -28,13 +28,13 @@ Fix: non-OK auth checks now call `clearStoredToken()` before clearing the user (
 
 ### P2 - Native Apple Sign-In has hard-coded production identifiers/redirect URL
 
-Status: fixed in `f33e709`.
+Status: fixed in `3cfc4d1`.
 
 `src/utils/nativePlugins.js:30` hard-codes `clientId: 'com.goroam.app'` and `redirectURI: 'https://www.go-roam.uk/api/auth/apple/callback'`. This matches the production native app, but it will break alternate bundle IDs, staging domains, or white-label/test builds unless the binary is edited. Server-side Apple auth already reads `APPLE_SIGNIN_SERVICES_ID` and `APPLE_BUNDLE_ID` from env (`api/auth/index.js:35`), so the client should eventually use Vite/native config for parity.
 
 ### P2 - OAuth popup flows do not bind a local state/nonce through to server verification
 
-Status: deferred.
+Status: fixed in `768d410`.
 
 Google and Apple tokens are cryptographically verified server-side (`api/auth/index.js:334`, `api/auth/index.js:487`), and native Apple sends a nonce to the plugin (`src/utils/nativePlugins.js:26`). The current web Google token-client path and Apple JS popup path do not store a local state/nonce and validate it after the popup returns (`src/components/AuthModal.jsx:157`, `src/components/AuthModal.jsx:245`). Because the server does not consume authorization codes or redirect callbacks for these flows, this is not a direct callback-CSRF bug, but adding local correlation would reduce popup result injection risk.
 

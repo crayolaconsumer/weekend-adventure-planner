@@ -28,19 +28,19 @@ Fix: authenticated callers now delete only rows matching both endpoint and `user
 
 ### P2 - Logout does not unregister this device's push token
 
-Status: deferred.
+Status: fixed in `8ce319c`.
 
 `logout()` clears auth state (`src/contexts/AuthContext.jsx:334`) but does not call `unsubscribe()` or otherwise detach the current device token. If a user logs out and never signs another user in, their server-side push row can still receive notifications for that account. When another user signs in on the same device, `PushAuthSync` re-registers/upserts the token to the new user (`src/App.jsx:115`, `src/hooks/usePushNotifications.js:122`), which limits but does not eliminate the logout gap. A clean fix needs current-device endpoint lookup for both web and native before auth is cleared.
 
 ### P2 - Push permission is auto-requested immediately after sign-in
 
-Status: deferred.
+Status: fixed in `8ce319c`.
 
 `PushAuthSync` calls `subscribe()` after authentication (`src/App.jsx:120`). If permission is still `default`, `subscribe()` opens the OS/browser permission prompt (`src/hooks/usePushNotifications.js:121`, `src/hooks/usePushNotifications.js:169`). This is intentional per current comments, but it conflicts with a conservative "do not nag" notification posture. Consider gating the first prompt behind a user action while keeping granted-token re-registration automatic.
 
 ### P2 - `notifyPlanShared()` exists but has no live call site
 
-Status: deferred.
+Status: fixed in `eb7e520`.
 
 Most notify helpers are wired: follower (`api/social/index.js:592`), follow-request approval (`api/social/requests.js:185`), contribution upvote/removal (`api/contributions/index.js:563`, `api/contributions/index.js:580`), visit reminders (`api/cron/visit-reminders.js:40`), re-engagement (`api/cron/re-engagement-nudge.js:105`), and badge updates (`api/notifications/index.js:201`). `notifyPlanShared()` is exported (`api/lib/pushNotifications.js:513`) but no endpoint currently calls it. If plan sharing is expected to notify recipients, wire it where shares are created; otherwise remove or mark it as future.
 
