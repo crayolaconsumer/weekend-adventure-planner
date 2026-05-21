@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/re-engagement-nudge",
       "schedule": "0 10 * * 6"
+    },
+    {
+      "path": "/api/cron/weekend-plans-nudge",
+      "schedule": "0 16 * * 5"
     }
   ],
   "functions": {
