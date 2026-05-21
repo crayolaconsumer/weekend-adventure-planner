@@ -143,13 +143,27 @@ function requirePushPlatform(platform) {
   }
 }
 
-// Lazy-load apns2 to keep cold-start fast for endpoints that don't push
-let apnsClient = null
+// APNS clients per environment. iOS device tokens are valid against
+// exactly one of (production, sandbox) depending on how the app was
+// signed — TestFlight + App Store builds → production; Xcode USB +
+// debug builds → sandbox. Same hex token string in both, different
+// upstream registry. Sending to the wrong host returns BadDeviceToken
+// and silently drops the push, so we keep both clients alive and let
+// the dispatcher try one or both.
+const APNS_HOSTS = {
+  production: 'api.push.apple.com',
+  sandbox: 'api.sandbox.push.apple.com'
+}
+const apnsClients = { production: null, sandbox: null }
 let apnsClientFailed = false
 
-async function getApnsClient() {
-  if (apnsClient) return apnsClient
+async function getApnsClient(env = 'production') {
+  if (apnsClients[env]) return apnsClients[env]
   if (apnsClientFailed) return null
+  if (!APNS_HOSTS[env]) {
+    console.warn(`Unknown APNS env '${env}', defaulting to production`)
+    env = 'production'
+  }
 
   const keyId = trimEnvValue('APNS_KEY_ID')
   const teamId = trimEnvValue('APNS_TEAM_ID') || trimEnvValue('APPLE_TEAM_ID')
@@ -164,20 +178,16 @@ async function getApnsClient() {
 
   try {
     const { ApnsClient } = await import('apns2')
-    apnsClient = new ApnsClient({
+    apnsClients[env] = new ApnsClient({
       team: teamId,
       keyId,
       signingKey,
       defaultTopic: bundleId,
-      // production = true means apns.apple.com (real devices). Development
-      // = sandbox.apns.apple.com (TestFlight/dev builds).
-      // Vercel prod env should always send to prod APNS; preview env can
-      // be configured separately if we ever need sandbox testing.
-      host: process.env.NODE_ENV === 'production' ? 'api.push.apple.com' : 'api.sandbox.push.apple.com'
+      host: APNS_HOSTS[env]
     })
-    return apnsClient
+    return apnsClients[env]
   } catch (err) {
-    console.warn('APNS client failed to init:', err.message)
+    console.warn(`APNS ${env} client failed to init:`, err.message)
     apnsClientFailed = true
     return null
   }
@@ -251,7 +261,7 @@ async function getWebPush() {
 export async function sendPushToUser(userId, payload) {
   // Pull all subscriptions in one go — much cheaper than per-platform queries
   const subscriptions = await query(
-    `SELECT id, platform, endpoint, p256dh_key, auth_key
+    `SELECT id, platform, apns_env, endpoint, p256dh_key, auth_key
      FROM push_subscriptions
      WHERE user_id = ?`,
     [userId]
@@ -411,10 +421,22 @@ async function dispatchApns(sub, payload) {
   return result.success
 }
 
-async function dispatchApnsDetailed(sub, payload) {
+// Errors that mean "this token doesn't exist in the env you sent to".
+// We treat these as "try the other env" rather than "delete the token,"
+// because the same hex token might be valid against the OTHER host
+// (debug-build tokens live in sandbox, App Store / TestFlight tokens
+// live in production — apns2 returns the same error code in both
+// "wrong host" cases).
+const APNS_WRONG_ENV_REASONS = new Set([
+  'BadDeviceToken',
+  'Unregistered',
+  'DeviceTokenNotForTopic'
+])
+
+async function sendOnceToApns(env, sub, payload) {
   requirePushPlatform('ios')
-  const client = await getApnsClient()
-  if (!client) return { success: false, status: null, reason: 'APNS client unavailable' }
+  const client = await getApnsClient(env)
+  if (!client) return { success: false, status: null, reason: 'APNS client unavailable', env }
 
   try {
     const { Notification, Priority } = await import('apns2')
@@ -428,38 +450,88 @@ async function dispatchApnsDetailed(sub, payload) {
       data: { url: payload.url || '/' },
       threadId: payload.tag || 'roam-notification',
       priority: Priority.immediate,
-      // interruption-level=time-sensitive bypasses iOS Focus modes for
-      // genuinely time-sensitive pushes (visit reminders, fresh
-      // follower notifications). iOS 15+ recognises this; older iOS
-      // and apps lacking the time-sensitive entitlement silently
-      // downgrade to 'active' (the default), so there's no breakage
-      // risk. The entitlement (com.apple.developer.usernotifications.
-      // time-sensitive) is worth adding to App.entitlements in a
-      // follow-up build — without it the system just treats these as
-      // normal-priority and Focus mode may suppress them.
-      // Caller can override (e.g. notifyContributionRemoved sets 'passive'
-      // for non-urgent moderation notices). Default stays time-sensitive
-      // so visit reminders / new-follower pushes still pierce Focus modes.
+      // See note below the dispatchApnsDetailed block on interruption levels.
       interruptionLevel: payload.interruptionLevel || (payload.silent ? 'passive' : 'time-sensitive')
     })
     const response = await client.send(note)
-    return { success: true, status: response?.statusCode || 200, reason: null }
+    return { success: true, status: response?.statusCode || 200, reason: null, env }
   } catch (err) {
-    // apns2 throws errors with reason like 'BadDeviceToken', 'Unregistered',
-    // 'DeviceTokenNotForTopic'. Clean up dead tokens.
     const reason = err?.reason || err?.message || ''
-    if (reason === 'BadDeviceToken' || reason === 'Unregistered' || reason === 'DeviceTokenNotForTopic') {
-      await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
-    } else {
-      console.error('APNS dispatch error:', reason || err)
-    }
     return {
       success: false,
       status: err?.statusCode || err?.status || null,
-      reason: reason || 'APNS dispatch failed'
+      reason: reason || 'APNS dispatch failed',
+      env
     }
   }
 }
+
+// Tries the env stamped on the sub first; if that returns a
+// wrong-env reason (BadDeviceToken / Unregistered / DeviceTokenNotForTopic),
+// falls back to the other env. On success, stamps the working env on
+// the sub so subsequent dispatches go straight to the right host. Only
+// deletes the sub if BOTH envs reject — that's the only point at which
+// we know the token is genuinely dead, not just attached to the wrong
+// host.
+//
+// The classic silent-failure mode this fixes: a user installed a debug
+// build at some point, iOS registered the device token against sandbox
+// APNS. They later install a TestFlight build, but iOS re-uses the same
+// token + still has it registered in sandbox. Production APNS replies
+// BadDeviceToken; we used to delete the row + the next nudge cron found
+// no subscription + the user heard nothing. Now we try sandbox, succeed,
+// stamp `apns_env='sandbox'`, and the user gets their nudge.
+async function dispatchApnsDetailed(sub, payload) {
+  const preferredEnv = sub.apns_env || 'production'
+  const fallbackEnv = preferredEnv === 'production' ? 'sandbox' : 'production'
+
+  const primary = await sendOnceToApns(preferredEnv, sub, payload)
+  if (primary.success) {
+    // First send against the preferred env worked. If the sub didn't
+    // have a stamped env yet, stamp it now so we don't have to retry
+    // again next time.
+    if (!sub.apns_env) {
+      await query('UPDATE push_subscriptions SET apns_env = ? WHERE id = ?', [primary.env, sub.id])
+    }
+    return primary
+  }
+
+  // Only retry the other env on wrong-env reasons. Other errors
+  // (network, BadJwt, etc.) wouldn't be solved by switching host.
+  if (!APNS_WRONG_ENV_REASONS.has(primary.reason)) {
+    console.error(`APNS ${primary.env} dispatch error:`, primary.reason)
+    return primary
+  }
+
+  const fallback = await sendOnceToApns(fallbackEnv, sub, payload)
+  if (fallback.success) {
+    await query('UPDATE push_subscriptions SET apns_env = ? WHERE id = ?', [fallback.env, sub.id])
+    return fallback
+  }
+
+  // Both envs rejected with wrong-env-style errors → the token is
+  // genuinely dead in both registries. Clean it up so the next sub
+  // for this user gets a fresh row.
+  if (APNS_WRONG_ENV_REASONS.has(fallback.reason)) {
+    await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
+  } else {
+    console.error(`APNS ${fallback.env} fallback error:`, fallback.reason)
+  }
+  return fallback
+}
+
+/*
+ * interruption-level=time-sensitive bypasses iOS Focus modes for
+ * genuinely time-sensitive pushes (visit reminders, fresh follower
+ * notifications). iOS 15+ recognises this; older iOS + apps lacking
+ * the time-sensitive entitlement silently downgrade to 'active' (the
+ * default), so there's no breakage risk. The entitlement
+ * (com.apple.developer.usernotifications.time-sensitive) is declared
+ * in ios/App/App/App.entitlements. Caller can override (e.g.
+ * notifyContributionRemoved sets 'passive' for non-urgent moderation
+ * notices). Default stays time-sensitive so visit reminders / new-
+ * follower pushes still pierce Focus modes.
+ */
 
 // ─── FCM (Android) — HTTP v1 API ─────────────────────────────────
 // Google removed the legacy `fcm/send` endpoint + `Authorization: key=`
