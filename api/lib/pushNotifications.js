@@ -504,27 +504,6 @@ export async function notifyFollowRequestApproved(requesterId, approverUsername)
 }
 
 /**
- * Send notification when a plan is shared with a user
- * @param {number} userId - ID of user to notify
- * @param {string} sharerUsername - Username who shared the plan
- * @param {string} planName - Name of the shared plan
- * @param {string} shareCode - Share code to view the plan
- */
-export async function notifyPlanShared(userId, sharerUsername, planName, shareCode) {
-  // Check user preferences
-  if (!await isNotificationEnabled(userId, 'plan_shared')) {
-    return false
-  }
-
-  return sendPushToUser(userId, {
-    title: 'Plan Shared With You',
-    body: `@${sharerUsername} shared "${planName}" with you`,
-    url: `/plan/share/${shareCode}`,
-    tag: 'plan-shared'
-  })
-}
-
-/**
  * Send reminder notification for a planned visit
  * @param {number} userId - ID of user to notify
  * @param {string} placeName - Name of the place
@@ -597,7 +576,6 @@ export default {
   notifyContributionUpvote,
   notifyContributionRemoved,
   notifyFollowRequestApproved,
-  notifyPlanShared,
   notifyPlannedVisit,
   getPlannedVisitsForToday
 }
