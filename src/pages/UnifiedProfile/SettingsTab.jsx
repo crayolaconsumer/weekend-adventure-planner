@@ -562,7 +562,7 @@ export default function SettingsTab({ user, onLogout }) {
       </div>
 
       {/* Notifications Section */}
-      <NotificationsSection />
+      <NotificationsSection user={user} />
 
       {/* Offline Pack Section (premium-gated; locked teaser for free users) */}
       <div className="unified-profile-settings-section">

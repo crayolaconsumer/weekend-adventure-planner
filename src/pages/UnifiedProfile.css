@@ -1680,6 +1680,48 @@
   margin: var(--space-sm, 8px) 0 0;
 }
 
+.unified-profile-push-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+  margin-top: var(--space-md, 16px);
+}
+
+.unified-profile-push-test {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+}
+
+.unified-profile-push-test-btn {
+  flex: none;
+  align-self: flex-start;
+}
+
+.unified-profile-push-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.unified-profile-push-result {
+  display: grid;
+  grid-template-columns: minmax(64px, 0.4fr) minmax(120px, 1fr);
+  gap: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px);
+  background: var(--roam-paper, #f8f6f1);
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  font-size: var(--text-xs, 12px);
+  color: var(--roam-ink, #2c2c2c);
+}
+
+.unified-profile-push-result-reason {
+  grid-column: 1 / -1;
+  color: var(--roam-ink-muted, #6b6b6b);
+  overflow-wrap: anywhere;
+}
+
 /* Offline Maps Storage Info */
 .unified-profile-settings-storage {
   display: flex;

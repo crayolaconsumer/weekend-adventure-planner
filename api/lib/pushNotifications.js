@@ -15,6 +15,134 @@
 
 import { query, queryOne } from './db.js'
 
+const URL_SAFE_BASE64_RE = /^[A-Za-z0-9_-]+$/
+const APPLE_ID_RE = /^[A-Za-z0-9]{10}$/
+const REVERSE_DNS_RE = /^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*){2,}$/
+
+function trimEnvValue(name) {
+  if (typeof process.env[name] !== 'string') return undefined
+  const trimmed = process.env[name].trim()
+  process.env[name] = trimmed
+  return trimmed
+}
+
+function parseFcmCredentialsFromEnv(env = process.env) {
+  const b64 = typeof env.FCM_SERVICE_ACCOUNT_JSON_B64 === 'string'
+    ? env.FCM_SERVICE_ACCOUNT_JSON_B64.trim()
+    : ''
+  if (b64) {
+    const json = Buffer.from(b64, 'base64').toString('utf8')
+    return JSON.parse(json)
+  }
+
+  const raw = typeof env.FCM_SERVICE_ACCOUNT_JSON === 'string'
+    ? env.FCM_SERVICE_ACCOUNT_JSON.trim()
+    : ''
+  if (!raw) return null
+  return JSON.parse(raw)
+}
+
+export function validatePushEnvironment(env = process.env, { applyTrim = false, logFailures = false } = {}) {
+  const read = (name) => {
+    const value = typeof env[name] === 'string' ? env[name].trim() : ''
+    if (applyTrim && typeof env[name] === 'string') env[name] = value
+    return value
+  }
+
+  const vapidErrors = []
+  const vapidPublicKey = read('VAPID_PUBLIC_KEY')
+  const vapidPrivateKey = read('VAPID_PRIVATE_KEY')
+  const vapidSubject = read('VAPID_SUBJECT')
+  if (!URL_SAFE_BASE64_RE.test(vapidPublicKey) || vapidPublicKey.length !== 87) {
+    vapidErrors.push('VAPID_PUBLIC_KEY must be 87 chars URL-safe base64')
+  }
+  if (!URL_SAFE_BASE64_RE.test(vapidPrivateKey) || vapidPrivateKey.length !== 43) {
+    vapidErrors.push('VAPID_PRIVATE_KEY must be 43 chars URL-safe base64')
+  }
+  if (!vapidSubject.startsWith('mailto:') && !vapidSubject.startsWith('https://')) {
+    vapidErrors.push('VAPID_SUBJECT must start with mailto: or https://')
+  }
+
+  const apnsErrors = []
+  const apnsKeyId = read('APNS_KEY_ID')
+  const apnsTeamId = read('APNS_TEAM_ID') || read('APPLE_TEAM_ID')
+  const apnsBundleId = read('APNS_BUNDLE_ID')
+  const apnsAuthKey = read('APNS_AUTH_KEY')
+  if (!APPLE_ID_RE.test(apnsKeyId)) {
+    apnsErrors.push('APNS_KEY_ID must be exactly 10 alphanumeric chars')
+  }
+  if (!APPLE_ID_RE.test(apnsTeamId)) {
+    apnsErrors.push('APNS_TEAM_ID must be exactly 10 alphanumeric chars')
+  }
+  if (!REVERSE_DNS_RE.test(apnsBundleId)) {
+    apnsErrors.push('APNS_BUNDLE_ID must look like a reverse-DNS bundle id')
+  }
+  if (!apnsAuthKey.includes('-----BEGIN PRIVATE KEY-----') || !apnsAuthKey.endsWith('-----END PRIVATE KEY-----')) {
+    apnsErrors.push('APNS_AUTH_KEY must contain BEGIN PRIVATE KEY and end with END PRIVATE KEY')
+  }
+
+  const fcmErrors = []
+  try {
+    const creds = parseFcmCredentialsFromEnv(env)
+    if (!creds) {
+      fcmErrors.push('FCM_SERVICE_ACCOUNT_JSON_B64 or FCM_SERVICE_ACCOUNT_JSON must be configured')
+    } else {
+      if (!creds.client_email) fcmErrors.push('FCM service account JSON missing client_email')
+      if (!creds.private_key) fcmErrors.push('FCM service account JSON missing private_key')
+      if (!creds.project_id) fcmErrors.push('FCM service account JSON missing project_id')
+    }
+  } catch (err) {
+    fcmErrors.push(`FCM service account JSON failed to parse: ${err.message}`)
+  }
+
+  const result = {
+    validation: {
+      vapid: vapidErrors.length === 0 ? 'ok' : 'error',
+      apns: apnsErrors.length === 0 ? 'ok' : 'error',
+      fcm: fcmErrors.length === 0 ? 'ok' : 'error'
+    },
+    errors: {
+      vapid: vapidErrors,
+      apns: apnsErrors,
+      fcm: fcmErrors
+    }
+  }
+
+  if (logFailures) {
+    for (const platform of ['vapid', 'apns', 'fcm']) {
+      if (result.validation[platform] !== 'ok') {
+        console.error(`Push ${platform.toUpperCase()} validation failed: ${result.errors[platform].join('; ')}`)
+      }
+    }
+  }
+
+  return result
+}
+
+const pushValidationStatus = validatePushEnvironment(process.env, {
+  applyTrim: true,
+  logFailures: true
+})
+
+export function getPushValidationStatus() {
+  return {
+    validation: { ...pushValidationStatus.validation },
+    errors: {
+      vapid: [...pushValidationStatus.errors.vapid],
+      apns: [...pushValidationStatus.errors.apns],
+      fcm: [...pushValidationStatus.errors.fcm]
+    }
+  }
+}
+
+function requirePushPlatform(platform) {
+  const key = platform === 'web' ? 'vapid' : platform
+  const errors = pushValidationStatus.errors[key] || []
+  if (errors.length > 0) {
+    throw new Error(`Push ${key.toUpperCase()} credentials invalid: ${errors.join('; ')}`)
+  }
+}
+
 // Lazy-load apns2 to keep cold-start fast for endpoints that don't push
 let apnsClient = null
 let apnsClientFailed = false
@@ -23,15 +151,10 @@ async function getApnsClient() {
   if (apnsClient) return apnsClient
   if (apnsClientFailed) return null
 
-  // Defensive trim: pasting env-var values into Vercel's web UI often
-  // captures a trailing newline. We've been bitten by this twice now —
-  // once on APPLE_SIGNIN_SERVICES_ID (silent auth failures), now on
-  // APNS_BUNDLE_ID (Apple returns "invalid apns-topic header" because
-  // the trailing \n makes the HTTP header malformed). Trim everything.
-  const keyId = process.env.APNS_KEY_ID?.trim()
-  const teamId = process.env.APPLE_TEAM_ID?.trim()
-  const bundleId = (process.env.APNS_BUNDLE_ID || 'com.goroam.app').trim()
-  const signingKey = process.env.APNS_AUTH_KEY
+  const keyId = trimEnvValue('APNS_KEY_ID')
+  const teamId = trimEnvValue('APNS_TEAM_ID') || trimEnvValue('APPLE_TEAM_ID')
+  const bundleId = trimEnvValue('APNS_BUNDLE_ID')
+  const signingKey = trimEnvValue('APNS_AUTH_KEY')
 
   if (!keyId || !teamId || !signingKey) {
     apnsClientFailed = true
@@ -85,9 +208,9 @@ async function getWebPush() {
       webpush = webpush.default || webpush
 
       // Configure VAPID
-      const publicKey = process.env.VAPID_PUBLIC_KEY
-      const privateKey = process.env.VAPID_PRIVATE_KEY
-      const subject = process.env.VAPID_SUBJECT || 'mailto:hello@go-roam.uk'
+      const publicKey = trimEnvValue('VAPID_PUBLIC_KEY')
+      const privateKey = trimEnvValue('VAPID_PRIVATE_KEY')
+      const subject = trimEnvValue('VAPID_SUBJECT')
 
       if (publicKey && privateKey) {
         webpush.setVapidDetails(subject, publicKey, privateKey)
@@ -140,6 +263,12 @@ export async function sendPushToUser(userId, payload) {
     subscriptions.map((sub) => dispatchToSubscription(sub, payload))
   )
 
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('Push dispatch failed:', result.reason?.message || result.reason)
+    }
+  }
+
   return results.some(r => r.status === 'fulfilled' && r.value === true)
 }
 
@@ -169,11 +298,83 @@ async function dispatchToSubscription(sub, payload) {
   }
 }
 
+export async function sendDiagnosticPushToUser(userId) {
+  const subscriptions = await query(
+    `SELECT id, platform, endpoint, p256dh_key, auth_key, created_at
+     FROM push_subscriptions
+     WHERE user_id = ?`,
+    [userId]
+  )
+
+  const payload = {
+    title: 'ROAM push test',
+    body: 'Diagnostic notification delivered.',
+    url: '/profile?tab=settings&diagnostics=1',
+    tag: 'push-diagnostic'
+  }
+
+  const results = await Promise.all(
+    subscriptions.map((sub) => dispatchToSubscriptionDetailed(sub, payload))
+  )
+
+  return { subscriptions, results }
+}
+
+async function dispatchToSubscriptionDetailed(sub, payload) {
+  try {
+    const result = await dispatchToSubscriptionWithStatus(sub, payload)
+    return {
+      id: sub.id,
+      platform: sub.platform,
+      endpoint_prefix: formatEndpointPrefix(sub.endpoint),
+      ...result
+    }
+  } catch (err) {
+    return {
+      id: sub.id,
+      platform: sub.platform,
+      endpoint_prefix: formatEndpointPrefix(sub.endpoint),
+      success: false,
+      status: null,
+      reason: err.message || 'Unknown push dispatch error'
+    }
+  }
+}
+
+async function dispatchToSubscriptionWithStatus(sub, payload) {
+  const isSilent = !payload?.title && !payload?.body
+  if (isSilent && (sub.platform === 'ios' || sub.platform === 'android')) {
+    return { success: false, status: null, reason: 'Silent native pushes are intentionally skipped' }
+  }
+
+  switch (sub.platform) {
+    case 'web':
+      return dispatchVapidDetailed(sub, payload)
+    case 'ios':
+      return dispatchApnsDetailed(sub, payload)
+    case 'android':
+      return dispatchFcmDetailed(sub, payload)
+    default:
+      return { success: false, status: null, reason: `Unknown push platform '${sub.platform}'` }
+  }
+}
+
+export function formatEndpointPrefix(endpoint) {
+  if (!endpoint) return ''
+  return endpoint.length <= 36 ? endpoint : `${endpoint.slice(0, 36)}...`
+}
+
 // ─── VAPID web push ──────────────────────────────────────────────
 
 async function dispatchVapid(sub, payload) {
+  const result = await dispatchVapidDetailed(sub, payload)
+  return result.success
+}
+
+async function dispatchVapidDetailed(sub, payload) {
+  requirePushPlatform('web')
   const push = await getWebPush()
-  if (!push) return false
+  if (!push) return { success: false, status: null, reason: 'web-push client unavailable' }
   const notification = {
     title: payload.title || 'ROAM',
     body: payload.body,
@@ -183,27 +384,37 @@ async function dispatchVapid(sub, payload) {
     data: { ...(payload.data || {}), url: payload.url || payload.data?.url || '/' }
   }
   try {
-    await push.sendNotification(
+    const response = await push.sendNotification(
       {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh_key, auth: sub.auth_key }
       },
       JSON.stringify(notification)
     )
-    return true
+    return { success: true, status: response?.statusCode || 201, reason: null }
   } catch (err) {
     if (err.statusCode === 404 || err.statusCode === 410) {
       await query('DELETE FROM push_subscriptions WHERE id = ?', [sub.id])
     }
-    return false
+    return {
+      success: false,
+      status: err.statusCode || null,
+      reason: err.body || err.message || 'VAPID dispatch failed'
+    }
   }
 }
 
 // ─── APNS (iOS) ──────────────────────────────────────────────────
 
 async function dispatchApns(sub, payload) {
+  const result = await dispatchApnsDetailed(sub, payload)
+  return result.success
+}
+
+async function dispatchApnsDetailed(sub, payload) {
+  requirePushPlatform('ios')
   const client = await getApnsClient()
-  if (!client) return false
+  if (!client) return { success: false, status: null, reason: 'APNS client unavailable' }
 
   try {
     const { Notification, Priority } = await import('apns2')
@@ -231,8 +442,8 @@ async function dispatchApns(sub, payload) {
       // so visit reminders / new-follower pushes still pierce Focus modes.
       interruptionLevel: payload.interruptionLevel || (payload.silent ? 'passive' : 'time-sensitive')
     })
-    await client.send(note)
-    return true
+    const response = await client.send(note)
+    return { success: true, status: response?.statusCode || 200, reason: null }
   } catch (err) {
     // apns2 throws errors with reason like 'BadDeviceToken', 'Unregistered',
     // 'DeviceTokenNotForTopic'. Clean up dead tokens.
@@ -242,7 +453,11 @@ async function dispatchApns(sub, payload) {
     } else {
       console.error('APNS dispatch error:', reason || err)
     }
-    return false
+    return {
+      success: false,
+      status: err?.statusCode || err?.status || null,
+      reason: reason || 'APNS dispatch failed'
+    }
   }
 }
 
@@ -271,7 +486,7 @@ let fcmAccessTokenCache = null // { token, expiresAt }
 /** Load the Firebase service-account creds from env, preferring the
  *  base64 variant. Returns parsed object or null if unavailable/invalid. */
 function loadFcmCredentials() {
-  const b64 = process.env.FCM_SERVICE_ACCOUNT_JSON_B64
+  const b64 = trimEnvValue('FCM_SERVICE_ACCOUNT_JSON_B64')
   if (b64) {
     try {
       const json = Buffer.from(b64, 'base64').toString('utf8')
@@ -281,7 +496,7 @@ function loadFcmCredentials() {
       return null
     }
   }
-  const raw = process.env.FCM_SERVICE_ACCOUNT_JSON
+  const raw = trimEnvValue('FCM_SERVICE_ACCOUNT_JSON')
   if (!raw) return null
   try {
     return JSON.parse(raw)
@@ -325,9 +540,17 @@ function getFcmProjectId() {
 }
 
 async function dispatchFcm(sub, payload) {
+  const result = await dispatchFcmDetailed(sub, payload)
+  return result.success
+}
+
+async function dispatchFcmDetailed(sub, payload) {
+  requirePushPlatform('android')
   const accessToken = await getFcmAccessToken()
   const projectId = getFcmProjectId()
-  if (!accessToken || !projectId) return false
+  if (!accessToken || !projectId) {
+    return { success: false, status: null, reason: 'FCM access token unavailable' }
+  }
 
   try {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
@@ -388,12 +611,12 @@ async function dispatchFcm(sub, payload) {
       } else {
         console.warn('FCM v1 dispatch non-ok:', res.status, txt.slice(0, 200))
       }
-      return false
+      return { success: false, status: res.status, reason: txt.slice(0, 500) }
     }
-    return true
+    return { success: true, status: res.status, reason: null }
   } catch (err) {
     console.error('FCM dispatch error:', err)
-    return false
+    return { success: false, status: null, reason: err.message || 'FCM dispatch failed' }
   }
 }
 
@@ -571,6 +794,8 @@ export async function getPlannedVisitsForToday() {
 
 export default {
   sendPushToUser,
+  sendDiagnosticPushToUser,
+  getPushValidationStatus,
   pushNotificationBadge,
   notifyNewFollower,
   notifyContributionUpvote,

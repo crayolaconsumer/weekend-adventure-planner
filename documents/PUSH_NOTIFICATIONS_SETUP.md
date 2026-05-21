@@ -1,116 +1,92 @@
 # Push Notifications Setup
 
-This guide explains how to enable push notifications in ROAM.
+ROAM supports three push paths:
 
-## Prerequisites
+| Platform | Transport | Stored token format |
+| --- | --- | --- |
+| Web/PWA | VAPID via `web-push` | Browser push endpoint URL plus `p256dh` and `auth` URL-safe base64 keys |
+| iOS native | APNS token auth via `apns2` | 64-character hex APNS device token |
+| Android native | Firebase Cloud Messaging v1 | FCM registration token, usually 64-500 chars |
 
-1. **Install web-push package**
-   ```bash
-   npm install web-push
-   ```
+Subscriptions live in `push_subscriptions`. Web rows use `endpoint`, `p256dh_key`, and `auth_key`; native rows store the device token in `endpoint` and leave the web key columns null.
 
-2. **Generate VAPID keys**
-   ```bash
-   npx web-push generate-vapid-keys
-   ```
-   This will output something like:
-   ```
-   Public Key:
-   BEL1234abcd...
+## Environment Variables
 
-   Private Key:
-   xyz789...
-   ```
+Required production credentials:
 
-3. **Add to environment variables**
+| Variable | Validation rule |
+| --- | --- |
+| `VAPID_PUBLIC_KEY` | exactly 87 chars URL-safe base64 |
+| `VAPID_PRIVATE_KEY` | exactly 43 chars URL-safe base64 |
+| `VAPID_SUBJECT` | starts with `mailto:` or `https://` |
+| `APNS_KEY_ID` | exactly 10 alphanumeric chars |
+| `APNS_TEAM_ID` | exactly 10 alphanumeric chars |
+| `APNS_BUNDLE_ID` | reverse-DNS bundle id, for example `com.goroam.app` |
+| `APNS_AUTH_KEY` | PEM containing `-----BEGIN PRIVATE KEY-----` and ending with `-----END PRIVATE KEY-----` |
+| `FCM_SERVICE_ACCOUNT_JSON_B64` or `FCM_SERVICE_ACCOUNT_JSON` | parses as JSON with `client_email`, `private_key`, and `project_id` |
 
-   In Vercel dashboard (Settings > Environment Variables):
-   ```
-   VAPID_PUBLIC_KEY=BEL1234abcd...
-   VAPID_PRIVATE_KEY=xyz789...
-   VAPID_SUBJECT=mailto:hello@go-roam.uk
-   ```
+`api/lib/pushNotifications.js` trims leading/trailing whitespace from these env vars at module load and uses the trimmed values for dispatch. If validation fails, startup logs the failing platform and dispatch returns a clear error for diagnostics instead of silently failing.
 
-   For local development, add to `.env`:
-   ```
-   VAPID_PUBLIC_KEY=BEL1234abcd...
-   VAPID_PRIVATE_KEY=xyz789...
-   VAPID_SUBJECT=mailto:hello@go-roam.uk
-   ```
+## Vercel Upload Gotcha
 
-## Database Table
+Never upload secrets with `echo`; it appends a newline and can corrupt VAPID/APNS/FCM values.
 
-Run this SQL to create the push subscriptions table:
+Use `printf`:
 
-```sql
-CREATE TABLE push_subscriptions (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT DEFAULT NULL,
-  endpoint VARCHAR(500) NOT NULL,
-  p256dh_key VARCHAR(255) NOT NULL,
-  auth_key VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_endpoint (endpoint(255)),
-  INDEX idx_user_id (user_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+```bash
+printf '%s' "value" | vercel env add NAME production
 ```
 
-## How It Works
+For FCM, prefer base64:
 
-1. **User enables notifications** in Settings tab
-2. Browser requests notification permission
-3. If granted, browser creates a push subscription
-4. Subscription is saved to `push_subscriptions` table via `/api/push/subscribe`
-5. When events happen (follow, upvote), server sends push via `web-push` library
-6. Service worker receives push and displays notification
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `api/push/vapid-public-key.js` | Returns public key for browser |
-| `api/push/subscribe.js` | Saves subscription to database |
-| `api/push/unsubscribe.js` | Removes subscription |
-| `api/lib/pushNotifications.js` | Server-side send utilities |
-| `src/hooks/usePushNotifications.js` | Frontend subscription hook |
-| `public/sw.js` | Service worker handles incoming pushes |
-
-## Testing Locally
-
-1. Run `npm run dev:full`
-2. Go to Settings tab in your profile
-3. Toggle "Push Notifications" on
-4. Browser will request permission
-5. Check browser console for subscription details
-
-Note: Push notifications only work over HTTPS (or localhost).
-
-## Integrating Into Events
-
-To send notifications when things happen, import and use the helper functions:
-
-```javascript
-import { notifyNewFollower, notifyContributionUpvote } from '../lib/pushNotifications.js'
-
-// When someone follows
-await notifyNewFollower(followerId, followeeId, followerUsername)
-
-// When a tip gets upvoted
-await notifyContributionUpvote(authorId, placeName, voteCount)
+```bash
+base64 < service-account.json | tr -d '\n' | vercel env add FCM_SERVICE_ACCOUNT_JSON_B64 production
 ```
 
-The functions gracefully handle:
-- Missing web-push package (logs warning, returns false)
-- Missing VAPID keys (logs warning, returns false)
-- Expired subscriptions (auto-deletes from database)
-- Users with no subscriptions (returns false)
+If replacing a value:
 
-## Notification Types
+```bash
+vercel env rm NAME production
+printf '%s' "value" | vercel env add NAME production
+```
 
-| Event | Title | Body |
-|-------|-------|------|
-| New follower | "New Follower" | "@username started following you" |
-| Tip upvoted | "Your tip is helpful!" | "Your tip about Place has N upvotes" |
-| Follow approved | "Follow Request Accepted" | "@username accepted your follow request" |
+## Diagnostics Endpoint
+
+`/api/diagnostics/push` is JWT-gated with the normal ROAM auth token (`Authorization: Bearer <token>` or the `roam_token` cookie).
+
+`GET /api/diagnostics/push` returns:
+
+```json
+{
+  "validation": { "vapid": "ok", "apns": "ok", "fcm": "ok" },
+  "validationErrors": { "vapid": [], "apns": [], "fcm": [] },
+  "subscriptions": {
+    "userId": 12,
+    "platforms": [
+      { "platform": "ios", "endpoint_prefix": "abc...", "created_at": "2026-05-21T10:00:00.000Z" }
+    ]
+  },
+  "lastTest": null
+}
+```
+
+`POST /api/diagnostics/push` with `{ "test": true }` sends a real push to the requester's own subscriptions and returns per-subscription delivery status:
+
+```bash
+curl -X POST https://go-roam.uk/api/diagnostics/push \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"test":true}'
+```
+
+The Settings notifications panel shows permission state and subscription count for signed-in users. The "Send test notification" button is visible only for admins or when the page URL includes `?diagnostics=1`.
+
+## Local Testing
+
+1. Run `npm run dev:full`.
+2. Sign in.
+3. Open profile settings.
+4. Enable "Push Notifications".
+5. Open `/profile?tab=settings&diagnostics=1` and send a test notification.
+
+Push requires HTTPS except on localhost. Native iOS/Android testing requires a real installed Capacitor build and valid APNS/FCM credentials.

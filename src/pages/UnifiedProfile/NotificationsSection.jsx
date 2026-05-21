@@ -13,7 +13,7 @@ import { getAuthToken } from './utils'
  *   - "Blocked" (user denied at OS level).
  *   - Subscribe toggle + per-category prefs.
  */
-export default function NotificationsSection() {
+export default function NotificationsSection({ user }) {
   const {
     supported,
     permission,
@@ -33,6 +33,13 @@ export default function NotificationsSection() {
     visitReminder: true,
   })
   const [prefsLoading, setPrefsLoading] = useState(true)
+  const [diagnostics, setDiagnostics] = useState(null)
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(true)
+  const [diagnosticsError, setDiagnosticsError] = useState(null)
+  const [testLoading, setTestLoading] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const showDiagnosticsAction = Boolean(user?.isAdmin) ||
+    new URLSearchParams(window.location.search).get('diagnostics') === '1'
 
   // Load notification preferences
   useEffect(() => {
@@ -60,6 +67,35 @@ export default function NotificationsSection() {
     }
 
     loadPrefs()
+  }, [])
+
+  useEffect(() => {
+    const loadDiagnostics = async () => {
+      const token = getAuthToken()
+      if (!token) {
+        setDiagnosticsLoading(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/diagnostics/push', {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+        })
+        if (!response.ok) {
+          throw new Error('Failed to load push diagnostics')
+        }
+        const data = await response.json()
+        setDiagnostics(data)
+        setTestResult(data.lastTest?.result || null)
+      } catch (err) {
+        setDiagnosticsError(err.message || 'Failed to load push diagnostics')
+      } finally {
+        setDiagnosticsLoading(false)
+      }
+    }
+
+    loadDiagnostics()
   }, [])
 
   // Update a specific preference
@@ -96,11 +132,87 @@ export default function NotificationsSection() {
     }
   }
 
+  const handleSendTest = async () => {
+    const token = getAuthToken()
+    if (!token) return
+
+    setTestLoading(true)
+    setDiagnosticsError(null)
+    try {
+      const response = await fetch('/api/diagnostics/push', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ test: true }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send test notification')
+      }
+      setDiagnostics(data)
+      setTestResult(data.test)
+    } catch (err) {
+      setDiagnosticsError(err.message || 'Failed to send test notification')
+    } finally {
+      setTestLoading(false)
+    }
+  }
+
+  const subscriptionCount = diagnostics?.subscriptions?.platforms?.length ?? 0
+  const diagnosticDeliveries = testResult?.deliveries || []
+  const permissionLabel = supported ? permission : 'unsupported'
+
+  const diagnosticsPanel = (
+    <div className="unified-profile-push-diagnostics">
+      <div className="unified-profile-settings-item">
+        <span className="unified-profile-settings-label">Push Status</span>
+        <span className="unified-profile-settings-value">
+          {permissionLabel} · {diagnosticsLoading ? 'loading subscriptions' : `${subscriptionCount} registered`}
+        </span>
+      </div>
+
+      {showDiagnosticsAction && (
+        <div className="unified-profile-push-test">
+          <button
+            type="button"
+            className="unified-profile-settings-save-btn unified-profile-push-test-btn"
+            onClick={handleSendTest}
+            disabled={testLoading || diagnosticsLoading}
+          >
+            {testLoading ? 'Sending...' : 'Send test notification'}
+          </button>
+
+          {diagnosticDeliveries.length > 0 && (
+            <div className="unified-profile-push-results" aria-live="polite">
+              {diagnosticDeliveries.map((result) => (
+                <div key={`${result.platform}-${result.id}`} className="unified-profile-push-result">
+                  <span>{result.platform}</span>
+                  <span>{result.success ? `ok (${result.status || 'sent'})` : `failed${result.status ? ` (${result.status})` : ''}`}</span>
+                  {!result.success && result.reason && (
+                    <span className="unified-profile-push-result-reason">{result.reason}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {diagnosticsError && (
+        <p className="unified-profile-settings-error-inline">{diagnosticsError}</p>
+      )}
+    </div>
+  )
+
   // Not supported in this browser
   if (!supported) {
     return (
       <div className="unified-profile-settings-section">
         <h3 className="unified-profile-settings-title">Notifications</h3>
+        {diagnosticsPanel}
         <p className="unified-profile-settings-unsupported">
           Push notifications are not supported in this browser.
         </p>
@@ -113,6 +225,7 @@ export default function NotificationsSection() {
     return (
       <div className="unified-profile-settings-section">
         <h3 className="unified-profile-settings-title">Notifications</h3>
+        {diagnosticsPanel}
         <p className="unified-profile-settings-blocked">
           Notifications are blocked. Enable them in your browser settings to receive updates.
         </p>
@@ -123,6 +236,7 @@ export default function NotificationsSection() {
   return (
     <div className="unified-profile-settings-section">
       <h3 className="unified-profile-settings-title">Notifications</h3>
+      {diagnosticsPanel}
 
       <div className="unified-profile-settings-toggles">
         {/* Master push toggle */}

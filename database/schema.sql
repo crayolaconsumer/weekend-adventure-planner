@@ -204,6 +204,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -------------------------------------------
+-- PUSH DIAGNOSTIC TESTS TABLE
+-- Store the last manual push diagnostic result per user
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS push_diagnostic_tests (
+  user_id INT NOT NULL PRIMARY KEY,
+  tested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  result_json JSON NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------
 -- NOTIFICATIONS TABLE
 -- In-app notifications for user activity
 -- -------------------------------------------

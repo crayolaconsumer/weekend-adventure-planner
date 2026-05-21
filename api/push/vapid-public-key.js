@@ -20,7 +20,7 @@ async function handler(req, res) {
 
   // VAPID public key should be set in environment variables
   // Generate a key pair using: npx web-push generate-vapid-keys
-  const publicKey = process.env.VAPID_PUBLIC_KEY
+  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim()
 
   if (!publicKey) {
     console.error('VAPID_PUBLIC_KEY not configured')
