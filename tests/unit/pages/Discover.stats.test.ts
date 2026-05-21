@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   computeStreakRollover,
   buildWentOutPatch,
-  readPersistedStats,
 } from '../../../src/pages/Discover/stats'
 
 const TUE = new Date('2026-05-12T12:00:00Z') // Tuesday
@@ -63,44 +62,24 @@ describe('Discover/stats.buildWentOutPatch', () => {
     expect(patch.timesWentOut).toBe(8)
     expect(patch.currentStreak).toBe(3)
     expect(patch.bestStreak).toBe(4)
-    expect(patch.lastStreakDate).toBe(TUE.toDateString())
-    expect(typeof patch.lastActivityDate).toBe('string')
-    expect(patch.justGoUses).toBeUndefined()
+    expect(patch.lastStreakDate).toBe(TUE.toISOString())
+    expect(patch.lastActivityAt).toBe(TUE.toISOString())
+    expect(patch.boredomBusts).toBeUndefined()
   })
 
-  it('bumps justGoUses when fromJustGo=true', () => {
+  it('bumps boredomBusts when fromJustGo=true', () => {
     const patch = buildWentOutPatch(
-      { justGoUses: 3 },
+      { boredomBusts: 3 },
       { fromJustGo: true },
       TUE,
     )
-    expect(patch.justGoUses).toBe(4)
+    expect(patch.boredomBusts).toBe(4)
   })
 
   it('treats missing counters as 0', () => {
     const patch = buildWentOutPatch({}, { fromJustGo: true }, TUE)
     expect(patch.timesWentOut).toBe(1)
-    expect(patch.justGoUses).toBe(1)
+    expect(patch.boredomBusts).toBe(1)
     expect(patch.currentStreak).toBe(1)
-  })
-})
-
-describe('Discover/stats.readPersistedStats', () => {
-  beforeEach(() => {
-    localStorage.clear()
-  })
-
-  it('returns {} when nothing stored', () => {
-    expect(readPersistedStats()).toEqual({})
-  })
-
-  it('parses stored JSON', () => {
-    localStorage.setItem('roam_stats', JSON.stringify({ timesWentOut: 42 }))
-    expect(readPersistedStats().timesWentOut).toBe(42)
-  })
-
-  it('returns {} on corrupt JSON instead of throwing', () => {
-    localStorage.setItem('roam_stats', 'not json')
-    expect(readPersistedStats()).toEqual({})
   })
 })
