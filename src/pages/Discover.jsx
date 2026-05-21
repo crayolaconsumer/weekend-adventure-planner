@@ -35,6 +35,7 @@ import './Discover.css'
 // Lazy load desktop-only components to keep mobile bundle small
 const DiscoverMap = lazy(() => import('../components/DiscoverMap'))
 const DiscoverList = lazy(() => import('../components/DiscoverList'))
+const FRIEND_ACTIVITY_PLACE_LIMIT = 20
 
 export default function Discover({ location }) {
   const navigate = useNavigate()
@@ -58,7 +59,10 @@ export default function Discover({ location }) {
   const { sponsoredPlaces } = useSponsoredPlaces(location || fallbackLocation)
 
   // Get friend activity for places (for friend chips and boost scoring)
-  const placeIds = useMemo(() => basePlaces.map(p => p.id), [basePlaces])
+  const placeIds = useMemo(
+    () => basePlaces.slice(0, FRIEND_ACTIVITY_PLACE_LIMIT).map(p => p.id),
+    [basePlaces],
+  )
   const { activityMap: friendActivity } = useFriendPlaceActivity(placeIds)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -506,23 +510,26 @@ export default function Discover({ location }) {
 
     const load = async () => {
       const weatherKey = `${effectiveLocation.lat.toFixed(2)},${effectiveLocation.lng.toFixed(2)}`
-      let currentWeather = weather
+      const canUseCurrentWeather = weatherKeyRef.current === weatherKey
+      const currentWeather = canUseCurrentWeather ? weather : null
 
-      if (weatherKeyRef.current !== weatherKey) {
-        try {
-          currentWeather = await fetchWeather(effectiveLocation.lat, effectiveLocation.lng)
-          if (!isCancelled) {
-            setWeather(currentWeather)
-            weatherKeyRef.current = weatherKey
-          }
-        } catch (error) {
-          console.error('Failed to load weather:', error)
-        }
+      if (!canUseCurrentWeather && weather !== null) {
+        setWeather(null)
       }
 
-      // Then load places with the weather context
-      if (!isCancelled) {
-        loadPlaces(currentWeather)
+      loadPlaces(currentWeather)
+
+      if (!canUseCurrentWeather) {
+        fetchWeather(effectiveLocation.lat, effectiveLocation.lng)
+          .then(freshWeather => {
+            if (!isCancelled) {
+              setWeather(freshWeather)
+              weatherKeyRef.current = weatherKey
+            }
+          })
+          .catch(error => {
+            console.error('Failed to load weather:', error)
+          })
       }
     }
 

@@ -3,6 +3,11 @@
  * Curated categories for adventure-worthy places
  */
 
+import {
+  getAllGoodTypes as getSharedAllGoodTypes,
+  getTypesForCategory as getSharedTypesForCategory,
+} from '../../shared/overpassQuery.js'
+
 export interface Category {
   label: string
   icon: string
@@ -342,10 +347,10 @@ export function hasBoringName(name: string | null | undefined): boolean {
 
 /** Get all types for a category */
 export function getTypesForCategory(categoryKey: string): string[] {
-  return GOOD_CATEGORIES[categoryKey as CategoryKey]?.types || []
+  return getSharedTypesForCategory(categoryKey)
 }
 
 /** Get all good types across all categories */
 export function getAllGoodTypes(): string[] {
-  return Object.values(GOOD_CATEGORIES).flatMap(cat => cat.types)
+  return getSharedAllGoodTypes()
 }

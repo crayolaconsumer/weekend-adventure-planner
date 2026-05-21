@@ -13,12 +13,11 @@
  * - Caching with geographic bucketing
  */
 
-import { getAllGoodTypes, getTypesForCategory } from './categories'
 import { managedFetch, rankEndpoints, recordEndpoint } from './requestManager'
 import { makeCacheKey, makeKey, getWithSWR, setCache } from './geoCache'
 import { selectBestImage } from './imageScoring'
-import { groupTypesByKey, countQueryClauses } from './osmTagMapping'
 import { recordApiCall } from './apiTelemetry'
+import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 
 // Public Overpass instances — full list per OSM wiki at
 // https://wiki.openstreetmap.org/wiki/Overpass_API. Two main, two
@@ -36,94 +35,6 @@ const WIKIPEDIA_ACTION_API = 'https://en.wikipedia.org/w/api.php'
 
 // OpenTripMap is now proxied through our API routes for security
 // See /api/places/opentripmap/nearby.js and /api/places/opentripmap/details.js
-
-/**
- * Build Overpass query for places
- * Uses type-to-key mapping to only query relevant OSM keys
- *
- * Timeout scales with radius:
- * - <10km: 30s
- * - 10-30km: 60s (driving mode)
- * - >30km: 90s
- *
- * Only apply name filter for very large radii (>50km) to avoid empty results
- *
- * OPTIMIZATION: Instead of querying all 8 OSM keys for every type,
- * we now group types by their actual keys. This reduces query size by ~70%.
- */
-
-function escapeOverpassRegex(value) {
-  return value.replace(/[\\.^$|?*+()[\]{}]/g, '\\$&')
-}
-
-/**
- * Convert lat/lng + radius to bounding box
- * bbox is MUCH faster than around for Overpass queries
- */
-function radiusToBbox(lat, lng, radius) {
-  // Rough conversion: 1 degree lat ≈ 111km, lng varies by latitude
-  const latDelta = radius / 111320
-  const lngDelta = radius / (111320 * Math.cos(lat * Math.PI / 180))
-
-  return {
-    south: lat - latDelta,
-    north: lat + latDelta,
-    west: lng - lngDelta,
-    east: lng + lngDelta
-  }
-}
-
-function buildOverpassQuery(lat, lng, radius, types) {
-  // Vercel Edge functions have ~30s limit, so cap Overpass timeout at 20s
-  // (leaves buffer for network latency and Edge function overhead)
-  const timeout = 20
-
-  // Only filter by name for VERY large radii (>50km) - Explorer mode
-  const isVeryLargeRadius = radius > 50000
-  const nameFilter = isVeryLargeRadius ? '["name"]' : ''
-
-  const uniqueTypes = Array.from(new Set(types)).filter(Boolean)
-  if (uniqueTypes.length === 0) {
-    return {
-      query: `[out:json][timeout:${timeout}];();out center;`,
-      clauseCount: 0,
-      querySize: 0
-    }
-  }
-
-  // Use bbox instead of around - SIGNIFICANTLY faster per Overpass docs
-  const bbox = radiusToBbox(lat, lng, radius)
-
-  // Group types by their OSM keys - reduces clauses by ~70%
-  const grouped = groupTypesByKey(uniqueTypes)
-
-  // Build query clauses - global bbox applies to all statements
-  const typeFilters = Object.entries(grouped)
-    .map(([key, keyTypes]) => {
-      const regex = keyTypes.map(escapeOverpassRegex).join('|')
-      return `nw["${key}"~"^(${regex})$"]${nameFilter};`
-    })
-    .join('\n      ')
-
-  // Global bbox setting applies to ALL statements - no need for per-statement bbox.
-  // `out tags center;` returns the centroid (lat/lng for ways/relations) AND
-  // all tags. Without `tags`, we'd lose wikipedia/wikidata/image/opening_hours/
-  // website/phone — every place ends up as just a name + coords. This is the
-  // upstream fix for "all places look generic": OSM has the data, we just
-  // weren't asking for it. Slightly bigger response (~2-3x), but cached at
-  // the edge so the cost is paid once per geographic tile per day.
-  const query = `[out:json][timeout:${timeout}][bbox:${bbox.south},${bbox.west},${bbox.north},${bbox.east}];
-(
-${typeFilters}
-);
-out tags center;`
-
-  return {
-    query,
-    clauseCount: countQueryClauses(uniqueTypes),
-    querySize: query.length
-  }
-}
 
 // Active request controller for cancellation
 let activeOverpassController = null
@@ -483,30 +394,8 @@ export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null
       throw new DOMException('Aborted', 'AbortError')
     }
 
-    const types = category ? getTypesForCategory(category) : getAllGoodTypes()
-
-    // For large radii, reduce types and prioritize important ones
-    const isLargeRadius = radius > 15000
-    const maxTypes = isLargeRadius ? 20 : 35
-
-    // Prioritize types that typically have named, notable places for large radii
-    const priorityTypes = isLargeRadius
-      ? ['attraction', 'museum', 'castle', 'ruins', 'monument', 'viewpoint', 'park', 'nature_reserve',
-         'restaurant', 'pub', 'cafe', 'cinema', 'theatre', 'artwork', 'memorial', 'beach', 'waterfall']
-      : []
-
-    // Build limited types list with priorities
-    let limitedTypes
-    if (priorityTypes.length > 0) {
-      const priority = types.filter(t => priorityTypes.includes(t))
-      const others = types.filter(t => !priorityTypes.includes(t))
-      limitedTypes = [...priority, ...others].slice(0, maxTypes)
-    } else {
-      limitedTypes = types.slice(0, maxTypes)
-    }
-
     // Build query with metadata for telemetry
-    const { query, clauseCount, querySize } = buildOverpassQuery(lat, lng, radius, limitedTypes)
+    const { query, clauseCount, querySize } = buildDiscoverOverpassQuery(lat, lng, radius, category)
     const data = await fetchFromOverpass(query, signal, { clauseCount, querySize })
 
     return parseOverpassResponse(data)
@@ -781,16 +670,17 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   // to better cover the search area (since Wiki max radius is 10km)
   const wikiPromises = []
   if (isLargeRadius) {
-    // Sample center + 4 cardinal directions at 60% of radius
+    // Sample center + 2 cardinal directions at 60% of radius.
+    // RequestManager queues Wikipedia calls at 2s intervals, so dropping
+    // from 5 samples to 3 cuts large-radius startup by roughly 4s while
+    // OSM remains the primary coverage source.
     const sampleDistance = radius * 0.6 / 111320 // Convert to degrees (rough)
     const wikiRadius = 10000 // Max wiki radius
 
     wikiPromises.push(
       fetchWikipediaPlaces(lat, lng, wikiRadius).catch(() => []),
       fetchWikipediaPlaces(lat + sampleDistance, lng, wikiRadius).catch(() => []),
-      fetchWikipediaPlaces(lat - sampleDistance, lng, wikiRadius).catch(() => []),
-      fetchWikipediaPlaces(lat, lng + sampleDistance, wikiRadius).catch(() => []),
-      fetchWikipediaPlaces(lat, lng - sampleDistance, wikiRadius).catch(() => [])
+      fetchWikipediaPlaces(lat - sampleDistance, lng, wikiRadius).catch(() => [])
     )
   } else {
     wikiPromises.push(

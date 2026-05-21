@@ -11,11 +11,18 @@
     {
       "path": "/api/cron/weekend-plans-nudge",
       "schedule": "0 16 * * 5"
+    },
+    {
+      "path": "/api/cron/prewarm-overpass",
+      "schedule": "0 3 * * *"
     }
   ],
   "functions": {
     "api/places/overpass/nearby.js": {
       "maxDuration": 60
+    },
+    "api/cron/prewarm-overpass.js": {
+      "maxDuration": 120
     }
   },
   "rewrites": [
