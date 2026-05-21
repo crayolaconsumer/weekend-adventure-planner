@@ -13,6 +13,28 @@ import { isNative, getPlatform } from '../utils/nativeBridge'
 import { nativeAppleSignIn, nativeGoogleSignIn } from '../utils/nativePlugins'
 import './AuthModal.css'
 
+const OAUTH_STATE_KEY = 'roam_oauth_popup_state'
+
+function generateOAuthState() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function createOAuthState() {
+  const state = generateOAuthState()
+  sessionStorage.setItem(OAUTH_STATE_KEY, state)
+  return state
+}
+
+function getStoredOAuthState() {
+  return sessionStorage.getItem(OAUTH_STATE_KEY)
+}
+
+function clearOAuthState() {
+  sessionStorage.removeItem(OAUTH_STATE_KEY)
+}
+
 // Icons
 const CloseIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -155,12 +177,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
       }
 
       if (window.google.accounts.oauth2) {
+        const oauthState = createOAuthState()
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'email profile',
           callback: async (response) => {
             if (response.error) {
+              clearOAuthState()
               setLocalError(response.error_description || 'Google sign-in failed')
+              return
+            }
+            const oauthStateCheck = getStoredOAuthState()
+            if (oauthStateCheck !== oauthState) {
+              clearOAuthState()
+              setLocalError('Google sign-in state mismatch')
               return
             }
             try {
@@ -171,7 +201,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
               setIsSubmitting(true)
               const result = await loginWithGoogle({
                 accessToken: response.access_token,
-                userInfo
+                userInfo,
+                oauthState,
+                oauthStateCheck
               })
               setIsSubmitting(false)
 
@@ -182,6 +214,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
               }
             } catch {
               setLocalError('Failed to get Google profile')
+            } finally {
+              clearOAuthState()
             }
           }
         })
@@ -242,15 +276,26 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
           setIsSubmitting(false)
           return
         }
+        const oauthState = createOAuthState()
         const data = await window.AppleID.auth.signIn()
+        const oauthStateCheck = getStoredOAuthState()
+        if (oauthStateCheck !== oauthState) {
+          throw new Error('Apple sign-in state mismatch')
+        }
         identityToken = data?.authorization?.id_token
         userInfo = data?.user || null
+        userInfo = { ...userInfo, oauthState, oauthStateCheck }
       }
 
       if (!identityToken) {
         throw new Error('Apple did not return an identity token')
       }
-      const result = await loginWithApple({ identityToken, userInfo })
+      const result = await loginWithApple({
+        identityToken,
+        userInfo,
+        oauthState: userInfo?.oauthState,
+        oauthStateCheck: userInfo?.oauthStateCheck
+      })
       if (result.success) onClose()
       else setLocalError(result.error)
     } catch (err) {
@@ -263,6 +308,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
         setLocalError(err?.message || 'Apple sign-in failed')
       }
     } finally {
+      clearOAuthState()
       setIsSubmitting(false)
     }
   }, [loginWithApple, onClose])

@@ -37,6 +37,7 @@ const APPLE_BUNDLE_ID = (process.env.APPLE_BUNDLE_ID || 'com.goroam.app').trim()
 
 // Apple's public keys, fetched + cached + auto-rotated by jose
 const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
+const OAUTH_STATE_PATTERN = /^[a-f0-9]{32}$/
 
 // Capacitor native iOS/Android use Bearer-token auth and never read cookies
 // (the WKWebView cookie jar is partitioned away from the capacitor:// origin).
@@ -72,6 +73,23 @@ function safeBody(req) {
   } catch {
     return null
   }
+}
+
+function validatePopupOAuthState(req) {
+  const { oauthState, oauthStateCheck } = req.body || {}
+  if (!oauthState || !oauthStateCheck) {
+    return { valid: false, error: 'OAuth state is required' }
+  }
+  if (
+    typeof oauthState !== 'string' ||
+    typeof oauthStateCheck !== 'string' ||
+    !OAUTH_STATE_PATTERN.test(oauthState) ||
+    !OAUTH_STATE_PATTERN.test(oauthStateCheck) ||
+    oauthState !== oauthStateCheck
+  ) {
+    return { valid: false, error: 'Invalid OAuth state' }
+  }
+  return { valid: true }
 }
 
 async function handler(req, res) {
@@ -347,6 +365,11 @@ async function handleGoogle(req, res) {
     displayName = (typeof payload.name === 'string' && !payload.name.includes('@')) ? payload.name : null
     avatarUrl = payload.picture
   } else if (accessToken && typeof accessToken === 'string') {
+    const state = validatePopupOAuthState(req)
+    if (!state.valid) {
+      return res.status(400).json({ error: state.error })
+    }
+
     // Access Token flow - MUST validate with Google's userinfo API
     // NEVER trust client-provided userInfo
     try {
@@ -475,9 +498,15 @@ async function handleApple(req, res) {
     return res.status(501).json({ error: 'Sign in with Apple is not configured' })
   }
 
-  const { identityToken, userInfo } = req.body
+  const { identityToken, userInfo, oauthState, oauthStateCheck } = req.body
   if (!identityToken || typeof identityToken !== 'string') {
     return res.status(400).json({ error: 'Apple identity token is required' })
+  }
+  if (oauthState || oauthStateCheck) {
+    const state = validatePopupOAuthState(req)
+    if (!state.valid) {
+      return res.status(400).json({ error: state.error })
+    }
   }
 
   // Verify the JWT — checks signature against Apple's JWKS, expiry,

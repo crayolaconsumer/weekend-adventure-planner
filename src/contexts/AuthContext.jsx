@@ -214,7 +214,12 @@ export function AuthProvider({ children }) {
       // Handle both ID token (string) and access token flow (object)
       const body = typeof credential === 'string'
         ? { credential }
-        : { accessToken: credential.accessToken, userInfo: credential.userInfo }
+        : {
+            accessToken: credential.accessToken,
+            userInfo: credential.userInfo,
+            oauthState: credential.oauthState,
+            oauthStateCheck: credential.oauthStateCheck
+          }
 
       const response = await fetch('/api/auth', {
         method: 'POST',
@@ -248,7 +253,7 @@ export function AuthProvider({ children }) {
    * first sign-in only — Apple never returns it again on subsequent
    * sign-ins, so the client must capture it here and forward it.
    */
-  const loginWithApple = useCallback(async ({ identityToken, userInfo }) => {
+  const loginWithApple = useCallback(async ({ identityToken, userInfo, oauthState, oauthStateCheck }) => {
     setError(null)
     // Capture diagnostic info so iOS users get a real error message
     // when the fetch fails — instead of WKWebView's generic "Load failed".
@@ -266,7 +271,7 @@ export function AuthProvider({ children }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ action: 'apple', identityToken, userInfo })
+        body: JSON.stringify({ action: 'apple', identityToken, userInfo, oauthState, oauthStateCheck })
       })
     } catch (fetchErr) {
       // TypeError from fetch = network layer fail. Surface the full
