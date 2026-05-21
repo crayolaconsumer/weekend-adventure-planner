@@ -33,6 +33,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // import DebugHud from './components/DebugHud'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
+import ReSignInBanner from './components/ReSignInBanner'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
 import NotificationBell from './components/NotificationBell'
@@ -554,6 +555,19 @@ function App() {
                   <LocationBanner error={locationError} onRetry={retryLocation} />
                 )}
               </AnimatePresence>
+
+              {/* Re-sign-in nudge for previously-authed users whose
+                  session has lapsed. Self-gated on roam_has_signed_in
+                  flag + 7-day dismiss window, so first-time visitors
+                  never see this and active users only see it when
+                  they're actually signed out. Tapping opens the auth
+                  modal in 'login' mode. */}
+              {!showOnboarding && (
+                <ReSignInBanner onSignIn={() => {
+                  setAuthModalMode('login')
+                  setShowAuthModal(true)
+                }} />
+              )}
 
               {/* Floating Notification Bell */}
               {!showOnboarding && <NotificationBell />}

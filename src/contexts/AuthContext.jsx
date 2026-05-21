@@ -15,6 +15,13 @@ const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 const MIGRATION_KEY = 'roam_places_migrated'
 const WISHLIST_KEY = 'roam_wishlist'
 
+// "This device has had a successful sign-in at some point." Once set,
+// stays set forever (only cleared by manual storage wipe). Used by the
+// re-sign-in nudge banner to distinguish "first-time visitor browsing
+// anonymously, leave them alone" from "previously authenticated user
+// whose session has lapsed, give them a soft prompt to come back."
+const HAS_SIGNED_IN_KEY = 'roam_has_signed_in'
+
 const AuthContext = createContext(null)
 
 /**
@@ -153,6 +160,10 @@ export function AuthProvider({ children }) {
       // Attach RevenueCat to this user so purchases follow them across
       // devices. No-op on web / when RC isn't configured.
       identifyUserToRC(user.id)
+      // Mark this device as "has had a successful sign-in" so the
+      // re-sign-in nudge can target lapsed users without nagging
+      // first-time visitors. Idempotent.
+      try { localStorage.setItem(HAS_SIGNED_IN_KEY, 'true') } catch { /* private mode */ }
     } else {
       clearUser()
       resetAnalytics()

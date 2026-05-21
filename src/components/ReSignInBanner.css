@@ -1,0 +1,125 @@
+/**
+ * Re-Sign-In Banner styles.
+ *
+ * Lives at the very top of the app shell, below the OS status bar /
+ * safe-area inset. Brand-gold left accent, paper background that
+ * matches the ROAM warmth palette. Not a hostile colour — this is
+ * an invitation, not an alert.
+ */
+
+.resignin-banner {
+  position: sticky;
+  top: env(safe-area-inset-top, 0);
+  z-index: 60;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 8px 12px 0;
+  background: var(--color-surface-elevated, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--roam-gold) 30%, transparent);
+  border-left: 4px solid var(--roam-gold);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.resignin-banner-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--color-text-primary, var(--roam-ink));
+}
+
+.resignin-banner-body:hover {
+  background: color-mix(in srgb, var(--roam-gold) 6%, transparent);
+}
+
+.resignin-banner-icon {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--roam-gold) 18%, transparent);
+  color: var(--roam-gold);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resignin-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.resignin-banner-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text-primary, var(--roam-ink));
+}
+
+.resignin-banner-sub {
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-secondary, var(--roam-ink-light));
+  text-wrap: balance;
+}
+
+.resignin-banner-cta {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--roam-gold);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--roam-gold) 12%, transparent);
+  white-space: nowrap;
+}
+
+.resignin-banner-dismiss {
+  flex: 0 0 auto;
+  width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--roam-gold) 18%, transparent);
+  color: var(--color-text-muted, var(--roam-ink-muted));
+  cursor: pointer;
+}
+
+.resignin-banner-dismiss:hover {
+  color: var(--color-text-primary, var(--roam-ink));
+  background: color-mix(in srgb, var(--roam-ink) 5%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .resignin-banner {
+    background: var(--color-surface-elevated, #1f1b16);
+    border-color: color-mix(in srgb, var(--roam-gold) 35%, transparent);
+  }
+}
+
+[data-theme="dark"] .resignin-banner {
+  background: var(--color-surface-elevated, #1f1b16);
+  border-color: color-mix(in srgb, var(--roam-gold) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resignin-banner {
+    transition: none;
+  }
+}
