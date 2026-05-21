@@ -119,7 +119,7 @@ async function getWebPush() {
  * branching per platform:
  *   - 'web':     VAPID web push via web-push lib (existing)
  *   - 'ios':     APNS via apns2 + .p8 token-based auth
- *   - 'android': FCM (placeholder — Firebase setup deferred to post-launch)
+ *   - 'android': FCM v1 HTTP API, signed via service-account JSON in env
  *
  * Returns true if at least one delivery succeeded across all subscriptions.
  * Expired tokens (410 / 404 from VAPID, 'BadDeviceToken' / 'Unregistered'
