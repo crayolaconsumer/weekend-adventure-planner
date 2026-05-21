@@ -39,6 +39,14 @@ const CITIES = [
   { name: 'Nottingham', lat: 52.9548, lng: -1.1581 },
   { name: 'Norwich', lat: 52.6309, lng: 1.2974 },
   { name: 'Plymouth', lat: 50.3755, lng: -4.1427 },
+  // Home-turf trio — the project owner's local area. Smaller towns
+  // than the others but explicitly worth warming because the founder
+  // tests from here and reload-perf complaints surface fastest from
+  // these tiles. Worth adding similar local clusters when other
+  // regions start seeing real user volume.
+  { name: 'Luton', lat: 51.8787, lng: -0.4200 },
+  { name: 'Dunstable', lat: 51.8859, lng: -0.5210 },
+  { name: 'St Albans', lat: 51.7553, lng: -0.3360 },
 ]
 
 const RADII = [
