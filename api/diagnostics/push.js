@@ -8,7 +8,11 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
-import { getLastCronRuns, RE_ENGAGEMENT_NUDGE_JOB } from '../lib/cronRuns.js'
+import {
+  getLastCronRuns,
+  RE_ENGAGEMENT_NUDGE_JOB,
+  WEEKEND_PLANS_NUDGE_JOB
+} from '../lib/cronRuns.js'
 import {
   formatEndpointPrefix,
   getPushValidationStatus,
@@ -80,7 +84,10 @@ async function buildResponse(userId, extra = {}) {
       platforms: await getSubscriptions(userId)
     },
     lastTest: await getLastTest(userId),
-    lastCronRuns: await getLastCronRuns(RE_ENGAGEMENT_NUDGE_JOB, 5),
+    lastCronRuns: {
+      reEngagement: await getLastCronRuns(RE_ENGAGEMENT_NUDGE_JOB, 5),
+      weekendPlans: await getLastCronRuns(WEEKEND_PLANS_NUDGE_JOB, 5)
+    },
     ...extra
   }
 }

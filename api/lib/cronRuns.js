@@ -1,6 +1,7 @@
 import { query } from './db.js'
 
 export const RE_ENGAGEMENT_NUDGE_JOB = 're-engagement-nudge'
+export const WEEKEND_PLANS_NUDGE_JOB = 'weekend-plans-nudge'
 
 export function createPlatformBreakdown() {
   return {
