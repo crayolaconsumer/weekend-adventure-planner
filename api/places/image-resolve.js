@@ -49,7 +49,31 @@ const UPSTREAM_TIMEOUT_MS = 4000
 //   v2 = dropped Commons geosearch.
 //   v3 = added category-gated geosearch + Commons name-search + venue
 //        website og:image, reshuffled preference order by category.
-const CACHE_VERSION = 'v3'
+//   v4 = removed Commons name-search from food/nightlife/shopping +
+//        added title-keyword denylist filter (war / military / weapon
+//        imagery was being returned for cuisine names like "Afghan",
+//        "Syrian", "Vietnamese"). Old caches must be invalidated.
+const CACHE_VERSION = 'v4'
+
+// Wikimedia Commons file titles that contain any of these tokens are
+// rejected outright, regardless of source tier. The denylist covers
+// war / military / weapons / casualty imagery that's heavily over-
+// represented in Commons for country-name searches. Conservative —
+// false-positives just mean "no image" which is the safe failure mode.
+const COMMONS_TITLE_DENYLIST = [
+  'army', 'military', 'soldier', 'troop', 'troops', 'marine', 'marines',
+  'navy', 'air_force', 'airforce', 'combat', 'war', 'wartime', 'wounded',
+  'casualt', 'injur', 'medevac', 'medic_treat', 'medical_treatment',
+  'evacuation', 'patrol', 'humvee', 'tank', 'mortar', 'rifle', 'weapon',
+  'corpsman', 'platoon', 'battalion', 'regiment', 'infantry', 'sniper',
+  'enduring_freedom', 'iraqi_freedom', 'gulf_war', 'afghan_war'
+]
+
+function isDenylistedTitle(title) {
+  if (!title || typeof title !== 'string') return false
+  const normalised = title.toLowerCase().replace(/[\s-]+/g, '_')
+  return COMMONS_TITLE_DENYLIST.some(token => normalised.includes(token))
+}
 
 function cacheKey({ wikipedia, wikidata, commons, website, lat, lng }) {
   // Round coords to 4 decimals (~11m) so nearby calls hit the same cache.
@@ -278,8 +302,13 @@ async function tryCommonsGeo(lat, lng, category) {
     const data = await res.json()
     const items = data?.query?.geosearch || []
     // Filter results by title — skip obvious "road sign at corner of X"
-    // type photos that aren't of any named feature.
-    const filtered = items.filter(it => it?.title && !GEOSEARCH_TITLE_DENYLIST.test(it.title))
+    // type photos that aren't of any named feature, AND skip anything
+    // matching the global denylist (war / military / weapon imagery).
+    const filtered = items.filter(it =>
+      it?.title &&
+      !GEOSEARCH_TITLE_DENYLIST.test(it.title) &&
+      !isDenylistedTitle(it.title)
+    )
     const first = filtered[0]
     if (!first?.title) return null
     const filename = first.title.replace(/^File:/, '')
@@ -314,10 +343,14 @@ async function tryCommonsNameSearch(name) {
     const data = await res.json()
     const items = data?.query?.search || []
     // intitle: search already requires the name to be in the title.
-    // Pick the first file with a recognisable image extension so we
-    // don't return PDFs / SVGs.
+    // Pick the first file with a recognisable image extension that
+    // ALSO passes the denylist — Commons has a lot of war / military
+    // imagery tagged with country / cuisine names that share titles
+    // with restaurant names (Afghan, Syrian, Vietnamese, etc.).
     const first = items.find(it =>
-      it?.title && /\.(jpe?g|png|webp|gif)$/i.test(it.title)
+      it?.title &&
+      /\.(jpe?g|png|webp|gif)$/i.test(it.title) &&
+      !isDenylistedTitle(it.title)
     )
     if (!first?.title) return null
     const filename = first.title.replace(/^File:/, '')
@@ -404,8 +437,18 @@ async function handler(req, res) {
   //     than a photo of the venue.
   //   - Venues (food, nightlife, shopping, unique): the venue's own
   //     website OG image is usually the best photo because the venue
-  //     picks it deliberately. Wikipedia rarely has a restaurant;
-  //     Commons by-name usually misses.
+  //     picks it deliberately. Wikipedia rarely has a restaurant.
+  //
+  //     Commons name-search is DELIBERATELY EXCLUDED for venue
+  //     categories: searching "Afghan" / "Syrian" / "Vietnamese" etc.
+  //     on Commons returns a flood of war / military photography that
+  //     surfaces as the hero image for cuisine restaurants. The denylist
+  //     filter in tryCommonsNameSearch catches most of it, but the
+  //     correct fix for venues is "don't use name search at all —
+  //     restaurants don't have Commons files of themselves." For
+  //     landmarks (Stonehenge, Westminster Abbey) the same search
+  //     usefully returns the named place's photo, so keep it there.
+  //
   // Mapper-vetted sources (cm = OSM-declared Commons file) always
   // come first in both orders — they're the highest-curated signal.
   const isLandmarkLike = category === 'historic' || category === 'culture' ||
@@ -414,7 +457,7 @@ async function handler(req, res) {
 
   const value = isLandmarkLike
     ? (cm || wp || wd || cn || geo || og || { url: null, source: null, attribution: null })
-    : (cm || og || wp || wd || cn || geo || { url: null, source: null, attribution: null })
+    : (cm || og || wp || wd || geo || { url: null, source: null, attribution: null })
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't
