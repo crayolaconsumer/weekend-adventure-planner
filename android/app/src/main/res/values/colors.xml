@@ -4,4 +4,10 @@
          and any accent UI of the notification with this colour.
          Matches the ROAM forest-green brand mark. -->
     <color name="notification_color">#1a3a2f</color>
+
+    <!-- ROAM brand forest green, used as the Activity windowBackground
+         + status-bar tint so any safe-area inset gap above the WebView
+         (Pixel 10 Pro XL / Android 16 edge-to-edge enforcement) shows
+         in brand colour rather than the system default light grey. -->
+    <color name="roam_forest">#1a3a2f</color>
 </resources>

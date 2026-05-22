@@ -1,9 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  fitsSystemWindows="true" is REQUIRED on targetSdk 35+. Android 15
+  (SDK 35) and 16 (SDK 36) enforce edge-to-edge rendering: without
+  this hint the system reserves space for both status + nav bars AND
+  the StatusBar plugin draws its own coloured bar on top, leaving a
+  giant gap above the WebView on devices like the Pixel 10 Pro XL.
+  With fitsSystemWindows="true" the CoordinatorLayout absorbs the
+  insets, the WebView fills the inset-corrected area cleanly, and
+  the status-bar colour from the Capacitor StatusBar plugin shows
+  immediately above without a black band between them.
+-->
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
     <WebView

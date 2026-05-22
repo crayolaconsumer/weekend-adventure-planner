@@ -13,6 +13,18 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- windowBackground fills any region the WebView doesn't
+             cover. Without this, Android 15+ edge-to-edge enforcement
+             on devices like the Pixel 10 Pro XL surfaces a light-grey
+             gap above the WebView while the status-bar inset is
+             applied. Setting it to the ROAM forest brand colour means
+             that strip is invisible against the app's dark theme. -->
+        <item name="android:windowBackground">@color/roam_forest</item>
+        <!-- Match the status + nav bar tint so a true edge-to-edge
+             render (Capacitor overlaysWebView=true) also reads brand
+             colour rather than transparent grey. -->
+        <item name="android:statusBarColor">@color/roam_forest</item>
+        <item name="android:navigationBarColor">@color/roam_forest</item>
     </style>
 
 
