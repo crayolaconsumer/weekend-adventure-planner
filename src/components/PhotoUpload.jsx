@@ -7,8 +7,20 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Capacitor } from '@capacitor/core'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { compressImage } from '../utils/compressImage'
 import './PhotoUpload.css'
+
+// True when running inside Capacitor's WebView (iOS / Android shells),
+// false in a normal browser. The native path uses the @capacitor/camera
+// plugin, which surfaces a proper iOS/Android action sheet ("Take
+// Photo" vs "From Library"), requests the right OS permission for each
+// branch, and triggers the standard system prompts. The web path falls
+// back to a hidden <input type="file"> which uses iOS PHPicker /
+// Android system picker — neither requires runtime prompts on those
+// platforms, by design.
+const IS_NATIVE = Capacitor.isNativePlatform()
 
 // Get auth token for upload
 function getAuthToken() {
@@ -113,8 +125,58 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
     setDragOver(false)
   }
 
-  const handleClick = () => {
-    inputRef.current?.click()
+  const handleClick = async () => {
+    if (!IS_NATIVE) {
+      // Web: trigger the hidden <input type="file">. iOS WKWebView
+      // routes "Take Photo" through PHPicker (no prompt by design);
+      // browsers route through standard file dialog.
+      inputRef.current?.click()
+      return
+    }
+
+    // Native (Capacitor): use the Camera plugin. source: 'Prompt'
+    // surfaces the native action sheet so the user picks Camera vs
+    // Photo Library themselves; each branch triggers the appropriate
+    // OS permission prompt the first time it's used. Quality 90 +
+    // allowEditing:false keeps the file size manageable for our
+    // 5 MB server cap while preserving enough detail for review
+    // photos.
+    try {
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Prompt,
+        resultType: CameraResultType.Uri,
+        quality: 90,
+        allowEditing: false,
+        saveToGallery: false,
+        // promptLabelHeader is iOS-only — the title above the
+        // Take Photo / From Library / Cancel actions.
+        promptLabelHeader: 'Add a photo',
+        promptLabelPhoto: 'Choose from Library',
+        promptLabelPicture: 'Take Photo'
+      })
+
+      if (!photo?.webPath) return
+
+      // Convert the file:// URI Capacitor returns into a File object
+      // the existing handleFile() pipeline can compress + upload.
+      const response = await fetch(photo.webPath)
+      const blob = await response.blob()
+      const ext = photo.format || 'jpeg'
+      const file = new File([blob], `photo.${ext}`, { type: blob.type || `image/${ext}` })
+      await handleFile(file)
+    } catch (err) {
+      // User cancelled the action sheet → silent no-op. apns2-style
+      // 'User cancelled photos app' message comes through err.message
+      // on iOS, 'User cancelled' on Android. Permission denials
+      // surface as 'User denied access to camera' etc. — surface those
+      // so the user understands why nothing happened.
+      const msg = (err?.message || '').toLowerCase()
+      const isCancellation = msg.includes('cancel')
+      if (!isCancellation) {
+        console.error('Camera/library access failed:', err)
+        setError(err.message || 'Could not open the camera or library')
+      }
+    }
   }
 
   const handleRemove = () => {
