@@ -74,12 +74,11 @@
 	     (non-personalised) ads. ROAM+ subscribers see no ads at all. -->
 	<key>NSUserTrackingUsageDescription</key>
 	<string>ROAM uses this to show you ads relevant to your interests. You can decline and we'll show generic ads instead. Upgrade to ROAM+ to remove ads completely.</string>
-	<!-- Google AdMob app identifier. Replace the placeholder with the
-	     real ca-app-pub-…~… value from your AdMob console once the
-	     iOS app entry has been created there. Until then, the test
-	     value below serves Google's official test ads. -->
+	<!-- Google AdMob app identifier — real iOS app ID from the AdMob
+	     console (Go-Roam, publisher pub-9063326286159934). Real ad unit
+	     IDs are supplied at build time via VITE_ADMOB_IOS_* env vars. -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-3940256099942544~1458002511</string>
+	<string>ca-app-pub-9063326286159934~7862305032</string>
 	<!-- Required by AdMob SDK v9+ even when GADApplicationIdentifier is
 	     set — it tells iOS we're an ad-manager-aware app so Apple's
 	     static analyser doesn't reject the AdMob framework. -->
