@@ -82,12 +82,27 @@ export function isUsingTestIds() {
 // init (e.g. Discover mounting before the init effect's microtask has
 // run) is correctly sequenced. Once set, it's never cleared; init is
 // idempotent within a session.
+/**
+ * Per-request contextual targeting passed into AdMob ad requests. Wired
+ * to the native layer via the patched plugin (keywords -> request.keywords
+ * / AdRequest.Builder.addKeyword; contentUrl -> request.contentURL /
+ * setContentUrl). Built by src/utils/adTargeting.js.
+ */
+export interface AdTargeting {
+  keywords?: string[]
+  contentUrl?: string
+}
+
 let initPromise: Promise<void> | null = null
 let bannerVisible = false
 let interstitialPreparing = false
 let interstitialReady = false
 let lastInterstitialAt = 0
 let swipesSinceLastInterstitial = 0
+
+// Latest per-screen targeting, refreshed on each maybeShowInterstitial
+// call so background interstitial preloads use the most recent context.
+let latestTargeting: AdTargeting | undefined
 
 const MIN_INTERSTITIAL_INTERVAL_MS = 90_000
 const SWIPES_PER_INTERSTITIAL = 25
@@ -133,6 +148,11 @@ export function initAdMobIfNeeded(opts: {
       await AdMob.initialize({
         testingDevices: opts.testDeviceIds || [],
         initializeForTesting: isUsingTestIds(),
+        // Cap programmatic ad creative at PG to match ROAM's 4+ store
+        // rating — set globally at init (mirrored by AdMob console
+        // content-rating + blocking controls). MaxAdContentRating is a
+        // string enum exported by the plugin module.
+        maxAdContentRating: adMod.MaxAdContentRating.ParentalGuidance,
       })
     } catch (err) {
       if (import.meta.env.DEV) console.warn('[AdMob] initialize failed', err)
@@ -189,7 +209,7 @@ export function initAdMobIfNeeded(opts: {
  * earlier than init. The await here keeps SDK init + ATT/UMP consent
  * gating ahead of the first ad request.
  */
-export async function showBanner() {
+export async function showBanner(targeting?: AdTargeting) {
   if (!isNative()) return
   await initAdMobIfNeeded({ isPremium: false })
   if (bannerVisible) return
@@ -209,6 +229,8 @@ export async function showBanner() {
       // overlap our own bottom UI. Plugin accepts pixel margin.
       margin: 64,
       isTesting: isUsingTestIds(),
+      ...(targeting?.keywords?.length ? { keywords: targeting.keywords } : {}),
+      ...(targeting?.contentUrl ? { contentUrl: targeting.contentUrl } : {}),
     })
     bannerVisible = true
   } catch (err) {
@@ -252,6 +274,8 @@ async function prepareInterstitial() {
     await adMod.AdMob.prepareInterstitial({
       adId: ids.interstitial,
       isTesting: isUsingTestIds(),
+      ...(latestTargeting?.keywords?.length ? { keywords: latestTargeting.keywords } : {}),
+      ...(latestTargeting?.contentUrl ? { contentUrl: latestTargeting.contentUrl } : {}),
     })
     interstitialReady = true
   } catch (err) {
@@ -266,9 +290,11 @@ async function prepareInterstitial() {
  * we've crossed BOTH the per-swipe and time-based thresholds, shows the
  * interstitial. Cheap to call on every swipe.
  */
-export async function maybeShowInterstitial({ isPremium }: { isPremium: boolean }) {
+export async function maybeShowInterstitial({ isPremium, targeting }: { isPremium: boolean; targeting?: AdTargeting }) {
   if (isPremium) return
   if (!isNative()) return
+
+  if (targeting) latestTargeting = targeting
 
   swipesSinceLastInterstitial += 1
   if (swipesSinceLastInterstitial < SWIPES_PER_INTERSTITIAL) {

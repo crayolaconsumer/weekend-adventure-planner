@@ -1,0 +1,197 @@
+diff --git a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/helpers/RequestHelper.java b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/helpers/RequestHelper.java
+index 8affa64..cebde96 100644
+--- a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/helpers/RequestHelper.java
++++ b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/helpers/RequestHelper.java
+@@ -24,6 +24,21 @@ public final class RequestHelper {
+             adRequestBuilder.addNetworkExtrasBundle(AdMobAdapter.class, extras);
+         }
+ 
++        // Per-request contextual ad targeting (ROAM patch).
++        if (adOptions.contentUrl != null && !adOptions.contentUrl.isEmpty()) {
++            adRequestBuilder.setContentUrl(adOptions.contentUrl);
++        }
++        if (adOptions.keywords != null) {
++            for (String keyword : adOptions.keywords) {
++                if (keyword != null && !keyword.isEmpty()) {
++                    adRequestBuilder.addKeyword(keyword);
++                }
++            }
++        }
++        if (adOptions.neighboringContentUrls != null && !adOptions.neighboringContentUrls.isEmpty()) {
++            adRequestBuilder.setNeighboringContentUrls(adOptions.neighboringContentUrls);
++        }
++
+         return adRequestBuilder.build();
+     }
+ 
+diff --git a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/models/AdOptions.java b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/models/AdOptions.java
+index 9fdaf8b..9ed9c6d 100644
+--- a/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/models/AdOptions.java
++++ b/node_modules/@capacitor-community/admob/android/src/main/java/com/getcapacitor/community/admob/models/AdOptions.java
+@@ -1,9 +1,12 @@
+ package com.getcapacitor.community.admob.models;
+ 
+ import androidx.annotation.VisibleForTesting;
++import com.getcapacitor.JSArray;
+ import com.getcapacitor.PluginCall;
+ import com.getcapacitor.community.admob.banner.BannerAdSizeEnum;
+ import com.getcapacitor.community.admob.rewarded.models.SsvInfo;
++import java.util.ArrayList;
++import java.util.List;
+ 
+ /**
+  * Holds the options for an Ad Request
+@@ -66,6 +69,22 @@ public abstract class AdOptions {
+      */
+     public final SsvInfo ssvInfo;
+ 
++    /**
++     * Per-request contextual ad targeting (ROAM patch).
++     * Keywords describe the content the user is currently viewing.
++     */
++    public final List<String> keywords;
++
++    /**
++     * Content URL for contextual ad targeting (ROAM patch).
++     */
++    public final String contentUrl;
++
++    /**
++     * Neighboring content URLs for contextual ad targeting (ROAM patch).
++     */
++    public final List<String> neighboringContentUrls;
++
+     private AdOptions(PluginCall call) {
+         /*
+          * TODO: Since the Id in the Typescript AdOptions interface is not optional
+@@ -79,6 +98,9 @@ public abstract class AdOptions {
+         this.position = call.getString("position", "BOTTOM_CENTER");
+         this.margin = call.getInt("margin", 0);
+         this.npa = call.getBoolean("npa", false);
++        this.contentUrl = call.getString("contentUrl", null);
++        this.keywords = getStringList(call, "keywords");
++        this.neighboringContentUrls = getStringList(call, "neighboringContentUrls");
+         this.ssvInfo = new SsvInfo(call);
+ 
+         String sizeString = call.getString("adSize", BannerAdSizeEnum.ADAPTIVE_BANNER.name());
+@@ -93,6 +115,38 @@ public abstract class AdOptions {
+         this.npa = npa;
+         this.adSize = adSize;
+         this.ssvInfo = ssvInfo;
++        // Targeting fields are not used by the test builder; default them
++        // so the final fields are definitely assigned (ROAM patch).
++        this.contentUrl = null;
++        this.keywords = new ArrayList<>();
++        this.neighboringContentUrls = new ArrayList<>();
++    }
++
++    /**
++     * Parse a JS string array into a List&lt;String&gt;, swallowing malformed
++     * entries. JSArray.toList()/get() throw checked JSONException, so this
++     * helper exists to keep the constructors exception-free (ROAM patch).
++     */
++    private static List<String> getStringList(PluginCall call, String key) {
++        List<String> out = new ArrayList<>();
++        JSArray arr = call.getArray(key);
++        if (arr == null) {
++            return out;
++        }
++        try {
++            for (int i = 0; i < arr.length(); i++) {
++                Object value = arr.get(i);
++                if (value != null) {
++                    String s = String.valueOf(value);
++                    if (!s.isEmpty()) {
++                        out.add(s);
++                    }
++                }
++            }
++        } catch (org.json.JSONException e) {
++            // Malformed array — return whatever parsed cleanly so far.
++        }
++        return out;
+     }
+ 
+     /**
+diff --git a/node_modules/@capacitor-community/admob/dist/esm/shared/ad-options.interface.d.ts b/node_modules/@capacitor-community/admob/dist/esm/shared/ad-options.interface.d.ts
+index c7f0649..ab0901f 100644
+--- a/node_modules/@capacitor-community/admob/dist/esm/shared/ad-options.interface.d.ts
++++ b/node_modules/@capacitor-community/admob/dist/esm/shared/ad-options.interface.d.ts
+@@ -43,4 +43,19 @@ export interface AdOptions {
+      * @since 7.0.3
+      */
+     immersiveMode?: boolean;
++    /**
++     * Keywords describing the content the user is currently viewing, for
++     * contextual ad targeting. (ROAM patch — see patches/)
++     */
++    keywords?: string[];
++    /**
++     * URL of a page whose content matches what the user is viewing, for
++     * contextual ad targeting. (ROAM patch — see patches/)
++     */
++    contentUrl?: string;
++    /**
++     * URLs of neighboring content in a feed, for contextual ad targeting.
++     * (ROAM patch — see patches/)
++     */
++    neighboringContentUrls?: string[];
+ }
+diff --git a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
+index 6b20075..4c6ca14 100644
+--- a/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
++++ b/node_modules/@capacitor-community/admob/ios/Sources/AdMobPlugin/AdMobPlugin.swift
+@@ -103,7 +103,10 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+      */
+     @objc func showBanner(_ call: CAPPluginCall) {
+         let adUnitID = getAdId(call, "ca-app-pub-3940256099942544/6300978111")
+-        let request = self.GADRequestWithOption(call.getBool("npa") ?? false)
++        let keywords = call.getArray("keywords", String.self)
++        let contentUrl = call.getString("contentUrl")
++        let neighboringContentUrls = call.getArray("neighboringContentUrls", String.self)
++        let request = self.GADRequestWithOption(call.getBool("npa") ?? false, keywords, contentUrl, neighboringContentUrls)
+ 
+         DispatchQueue.main.async {
+             self.bannerExecutor.showBanner(call, request, adUnitID)
+@@ -134,7 +137,10 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+      */
+     @objc func prepareInterstitial(_ call: CAPPluginCall) {
+         let adUnitID = getAdId(call, "ca-app-pub-3940256099942544/1033173712")
+-        let request = self.GADRequestWithOption(call.getBool("npa") ?? false)
++        let keywords = call.getArray("keywords", String.self)
++        let contentUrl = call.getString("contentUrl")
++        let neighboringContentUrls = call.getArray("neighboringContentUrls", String.self)
++        let request = self.GADRequestWithOption(call.getBool("npa") ?? false, keywords, contentUrl, neighboringContentUrls)
+ 
+         DispatchQueue.main.async {
+             self.adInterstitialExecutor.prepareInterstitial(call, request, adUnitID)
+@@ -257,7 +263,7 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+         return adUnitID
+     }
+ 
+-    private func GADRequestWithOption(_ npa: Bool) -> Request {
++    private func GADRequestWithOption(_ npa: Bool, _ keywords: [String]? = nil, _ contentUrl: String? = nil, _ neighboringContentUrls: [String]? = nil) -> Request {
+         let request = Request()
+ 
+         if npa {
+@@ -266,6 +272,20 @@ public class AdMobPlugin: CAPPlugin, CAPBridgedPlugin {
+             request.register(extras)
+         }
+ 
++        // Per-request contextual ad targeting (ROAM patch). The Google
++        // Mobile Ads iOS SDK v11+ exposes these directly on Request.
++        if let keywords = keywords, !keywords.isEmpty {
++            request.keywords = keywords
++        }
++
++        if let contentUrl = contentUrl, !contentUrl.isEmpty {
++            request.contentURL = contentUrl
++        }
++
++        if let neighboringContentUrls = neighboringContentUrls, !neighboringContentUrls.isEmpty {
++            request.neighboringContentURLs = neighboringContentUrls
++        }
++
+         return request
+     }
+ 

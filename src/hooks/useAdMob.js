@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react'
 import { useSubscription } from './useSubscription'
 import { useAuth } from '../contexts/AuthContext'
 import { isNative } from '../utils/nativeBridge'
+import { buildAdTargeting } from '../utils/adTargeting'
 import {
   initAdMobIfNeeded,
   showBanner,
@@ -26,10 +27,20 @@ import {
  *   - When the user upgrades to premium mid-session, immediately hides
  *     the banner and resets all counters.
  */
-export function useAdMob({ bannerOnScreen = false } = {}) {
+export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {}) {
   const { user, loading: authLoading } = useAuth()
   const { isPremium } = useSubscription()
   const initRef = useRef(false)
+
+  // Hold the latest selected categories in a ref so the banner (shown
+  // once on mount) and per-swipe interstitials can read current context
+  // without re-running their effects on every category toggle. Seeded
+  // with the initial value via useRef and kept in sync via an effect
+  // (mutating a ref during render is disallowed by our lint rules).
+  const categoriesRef = useRef(selectedCategories)
+  useEffect(() => {
+    categoriesRef.current = selectedCategories
+  }, [selectedCategories])
 
   // One-time init when we know the user is non-premium and we're on native.
   // Re-runs if user state shifts (login/logout/upgrade) but the underlying
@@ -56,7 +67,11 @@ export function useAdMob({ bannerOnScreen = false } = {}) {
     if (!bannerOnScreen) return
 
     let cancelled = false
-    showBanner().catch(err => {
+    // Banner targeting is category-level (no single "current place" when
+    // the banner first mounts). Place-level targeting is added per-swipe
+    // on the interstitial path.
+    const targeting = buildAdTargeting({ selectedCategories: categoriesRef.current })
+    showBanner(targeting).catch(err => {
       if (!cancelled) console.warn('[useAdMob] showBanner failed', err)
     })
 
@@ -66,9 +81,13 @@ export function useAdMob({ bannerOnScreen = false } = {}) {
     }
   }, [bannerOnScreen, isPremium])
 
-  const trackSwipe = useCallback(() => {
+  const trackSwipe = useCallback((action, place) => {
     if (isPremium) return
-    maybeShowInterstitial({ isPremium }).catch(err => {
+    const targeting = buildAdTargeting({
+      selectedCategories: categoriesRef.current,
+      place: place || null,
+    })
+    maybeShowInterstitial({ isPremium, targeting }).catch(err => {
       console.warn('[useAdMob] interstitial failed', err)
     })
   }, [isPremium])
