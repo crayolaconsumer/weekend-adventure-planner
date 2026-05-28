@@ -165,7 +165,7 @@ async function handleList(req, res) {
     : []
   const reportedUsers = userIds.length
     ? await query(
-        `SELECT id, username, display_name, avatar_url, bio, is_banned
+        `SELECT id, username, display_name, avatar_url, is_banned
            FROM users WHERE id IN (?)`,
         [userIds]
       )
@@ -212,7 +212,6 @@ async function handleList(req, res) {
       reported_place_id: null,
       reported_place_name: null,
       reported_place_image_url: null,
-      reported_user_bio: null,
     }
 
     if (r.entity_type === 'contribution' || r.entity_type === 'photo') {
@@ -239,7 +238,6 @@ async function handleList(req, res) {
       if (u) {
         base.reported_username = base.reported_username || u.username
         base.reported_avatar_url = base.reported_avatar_url || u.avatar_url
-        base.reported_user_bio = u.bio
       }
     } else if (r.entity_type === 'place') {
       base.reported_place_id = r.entity_id

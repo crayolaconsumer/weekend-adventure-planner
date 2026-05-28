@@ -229,13 +229,9 @@ function ReportRow({ report, acting, onDecide }) {
               : 'Rating submitted, no text.'}
           </p>
         ) : isUser ? (
-          report.reported_user_bio ? (
-            <p>"{report.reported_user_bio}"</p>
-          ) : (
-            <p className="admin-report-content-muted">
-              This is a report on the user themselves — see "Reporter said" below for the specific allegation.
-            </p>
-          )
+          <p className="admin-report-content-muted">
+            This is a report on the user themselves — see "Reporter said" below for the specific allegation.
+          </p>
         ) : (
           <p className="admin-report-content-muted">
             Content not found in the database — may have already been deleted by the author.
