@@ -10,7 +10,7 @@ export default function Privacy() {
     <div className="legal-page">
       <article className="legal-article">
         <h1>Privacy Policy</h1>
-        <p className="legal-meta">Last updated: 10 May 2026</p>
+        <p className="legal-meta">Last updated: 28 May 2026</p>
 
         <p>
           ROAM ("we", "us") respects your privacy. This policy describes what
@@ -26,13 +26,14 @@ export default function Privacy() {
           <li><strong>Subscription data</strong> — when you purchase ROAM+ on the web, Stripe processes payment and we store only your customer ID, subscription state and expiry. We never see your card details. On iOS, subscriptions are billed by Apple and we receive only the transaction ID.</li>
           <li><strong>Push tokens</strong> — your device's APNS (iOS), FCM (Android) or VAPID (web) token, only if you enable notifications. Used solely to deliver the notifications you opt into.</li>
           <li><strong>Diagnostics</strong> — anonymous crash reports and performance traces via Sentry (only if configured), with your user ID attached so we can fix issues affecting you. Session replay text and media are masked.</li>
-          <li><strong>Product analytics</strong> — page views, key events (signed-up, place-saved, place-visited, upgrade-clicked, offline-pack-downloaded) via PostHog (only if configured). We respect Do-Not-Track and never share with third-party advertisers.</li>
+          <li><strong>Product analytics</strong> — page views, key events (signed-up, place-saved, place-visited, upgrade-clicked, offline-pack-downloaded) via PostHog (only if configured). We respect Do-Not-Track.</li>
+          <li><strong>Advertising (free tier only)</strong> — if you use ROAM without a ROAM+ subscription, we show ads via Google AdMob on iOS/Android and Google AdSense on the web, plus sponsored place cards from businesses we partner with. AdMob and AdSense may collect device identifiers (such as IDFA on iOS or Android Advertising ID), approximate location, and ad-interaction data to deliver and measure ads. On iOS you'll be asked to allow tracking before any personalised ads are shown; if you decline, you'll still see generic (non-personalised) ads. ROAM+ subscribers see <strong>no ads of any kind</strong>.</li>
         </ul>
 
         <h2>What we don't collect</h2>
         <ul>
           <li>Contacts, microphone audio, health data, financial card numbers.</li>
-          <li>No cross-app or cross-website tracking. No IDFA. No advertising SDKs.</li>
+          <li>No cross-app tracking outside of Google's ad ecosystem (which only operates when you're not on ROAM+ and have not declined tracking on iOS).</li>
         </ul>
 
         <h2>How we use it</h2>
@@ -43,6 +44,7 @@ export default function Privacy() {
         <h2>Who we share it with</h2>
         <ul>
           <li><strong>Processors that run the service:</strong> Vercel (hosting + storage), AWS RDS (database, EU region), Stripe (payments — web only), Apple/Google (sign-in providers, push notification gateways, iOS subscription billing), Sentry (crash reporting), PostHog (product analytics).</li>
+          <li><strong>Advertising partners (free tier only):</strong> Google AdMob (mobile), Google AdSense (web), and businesses whose sponsored places appear in your discovery feed. Google's advertising data practices are described at <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">policies.google.com/technologies/ads</a>. You can opt out of personalised Google ads at <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">adssettings.google.com</a>.</li>
           <li><strong>Other ROAM users:</strong> only the data you've explicitly chosen to make public — your username, display name, place tips/reviews, and (if your privacy settings allow) your visited-places map. Your email and exact location are never shown to other users.</li>
         </ul>
 

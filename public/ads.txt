@@ -1,0 +1,15 @@
+# ads.txt — Authorized Digital Sellers (IAB spec)
+# https://iabtechlab.com/ads-txt/
+#
+# Replace the placeholder publisher ID with your AdSense publisher ID
+# (without the "ca-" prefix) once your AdSense account is approved.
+# Until then this file should be present so Google's crawler can find
+# it during the approval process.
+#
+# Format: <ad-system>, <publisher-id>, <relationship>, <cert-authority-id>
+#   DIRECT       = you sell inventory directly
+#   RESELLER     = a third party sells on your behalf
+#
+# Google AdSense's IAB cert authority ID is f08c47fec0942fa0.
+
+google.com, pub-9063326286159934, DIRECT, f08c47fec0942fa0

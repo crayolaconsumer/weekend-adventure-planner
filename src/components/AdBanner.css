@@ -1,0 +1,31 @@
+.ad-banner {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ad-banner-placeholder {
+  height: 0;
+  overflow: hidden;
+}
+
+.ad-banner-label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary, #888);
+  opacity: 0.7;
+  padding: 0.125rem 0.5rem 0;
+  align-self: flex-start;
+}
+
+.ad-banner-slot {
+  width: 100%;
+  display: block;
+  min-height: 50px;
+}

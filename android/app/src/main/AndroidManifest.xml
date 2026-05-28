@@ -68,6 +68,15 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
+
+        <!-- Google AdMob app identifier. The string resource is the
+             ca-app-pub-…~… value from the AdMob console; replace the
+             placeholder in strings.xml once you've created the Android
+             app entry in AdMob. The current value is Google's official
+             Android test app ID, which serves test ads only. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id" />
     </application>
 
     <!-- Permissions -->

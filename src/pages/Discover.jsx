@@ -8,6 +8,8 @@ import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
+import AdBanner from '../components/AdBanner'
+import { useAdMob } from '../hooks/useAdMob'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -45,6 +47,11 @@ export default function Discover({ location }) {
   const { isPremium } = useSubscription()
   const { recordSwipe } = useSwipedPlaces()
   const { stats, incrementStat, updateStats } = useUserStats()
+
+  // AdMob lifecycle for free users on native: shows banner while
+  // Discover is mounted, fires interstitial every N swipes. No-op on
+  // web (AdBanner handles AdSense separately) and no-op for ROAM+.
+  const { trackSwipe } = useAdMob({ bannerOnScreen: true })
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [upgradePromptType, setUpgradePromptType] = useState('saves')
   const [places, setPlaces] = useState([])
@@ -860,6 +867,7 @@ export default function Discover({ location }) {
             sponsoredPlaces={sponsoredPlaces}
             userLocation={effectiveLocation}
             onSwipe={handleSwipe}
+            onAnySwipe={trackSwipe}
             onExpand={(place) => setSelectedPlace(place)}
             onEmpty={() => {}}
             onRefresh={() => loadPlaces(weather, { force: true })}
@@ -919,6 +927,11 @@ export default function Discover({ location }) {
           the swipe deck. The translucent swipe-card glow visually bled
           over the trending row when both shared this surface; community
           signals belong in social context anyway. */}
+
+      {/* AdSense banner for free web users. Renders nothing on native
+          (AdMob handles the overlay) and nothing for ROAM+ subscribers. */}
+      <AdBanner slot="banner" />
+
 
       {/* Place Detail Modal */}
       <AnimatePresence>

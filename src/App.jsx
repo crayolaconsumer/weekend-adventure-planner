@@ -19,6 +19,7 @@ const Privacy = lazy(() => import('./pages/Privacy'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Support = lazy(() => import('./pages/Support'))
 const AdminReports = lazy(() => import('./pages/AdminReports'))
+const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
 import NotFound from './pages/NotFound'
 import AdminRoute from './components/AdminRoute'
 
@@ -626,6 +627,7 @@ function App() {
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/support" element={<Support />} />
                       <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
+                      <Route path="/admin/campaigns" element={<AdminRoute><AdminCampaigns /></AdminRoute>} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>

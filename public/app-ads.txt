@@ -1,0 +1,10 @@
+# app-ads.txt — Authorized Digital Sellers for Apps (IAB Tech Lab spec)
+# https://iabtechlab.com/app-ads-txt/
+#
+# This file authorizes Google AdMob to sell ad inventory in our
+# iOS + Android apps. AdMob crawls this file at the developer URL
+# listed on the App Store / Play Store listing, so the file must
+# be reachable at https://go-roam.uk/app-ads.txt AND
+# https://www.go-roam.uk/app-ads.txt.
+
+google.com, pub-9063326286159934, DIRECT, f08c47fec0942fa0

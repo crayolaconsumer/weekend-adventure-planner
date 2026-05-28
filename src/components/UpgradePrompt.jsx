@@ -59,6 +59,12 @@ const PROMPT_CONFIGS = {
     description: 'Unlock Day Trip (75km) and Explorer (150km) modes for grand tours and weekend adventures.',
     cta: 'Unlock Extended Range',
     benefit: 'Discover places worth the drive'
+  },
+  ad_free: {
+    title: 'Tired of ads?',
+    description: 'Upgrade to ROAM+ and remove every ad — banners, interstitials, and sponsored cards. Pure exploration.',
+    cta: 'Go ad-free with ROAM+',
+    benefit: 'No ads, no interruptions, no compromises'
   }
 }
 

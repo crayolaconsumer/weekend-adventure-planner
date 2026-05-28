@@ -41,6 +41,9 @@
         "twitter": false
       },
       "logLevel": 1
+    },
+    "AdMob": {
+      "initializeForTesting": false
     }
   }
 }

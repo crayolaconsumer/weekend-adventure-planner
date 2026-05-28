@@ -59,6 +59,7 @@ export default function CardStack({
   sponsoredPlaces = [], // Array of { sponsored_id, place } objects
   userLocation = null, // For ad tracking
   onSwipe,
+  onAnySwipe, // Fires for EVERY swipe (incl. sponsored) — used by AdMob frequency cap
   onExpand,
   onEmpty,
   onRefresh,
@@ -302,6 +303,12 @@ export default function CardStack({
   const handleSwipe = (action) => {
     const currentItem = mergedPlaces[currentIndex]
     const place = currentItem?.place
+
+    // Fire BEFORE the sponsored short-circuit so AdMob's frequency cap
+    // counts every swipe equally (regular + sponsored). This is what
+    // drives the every-25-swipes interstitial — missing sponsored swipes
+    // would skew the count.
+    onAnySwipe?.(action, place)
 
     // Track sponsored card views for premium hint
     if (currentItem?.isSponsored) {
