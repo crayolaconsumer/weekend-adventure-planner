@@ -65,6 +65,8 @@ async function handler(req, res) {
     usersBanned,
     usersNew30d,
     ads7d,
+    auditTotal,
+    audit7d,
   ] = await Promise.all([
     queryOne(`SELECT COUNT(*) AS n FROM content_reports WHERE status = 'open'`).catch(() => null),
     queryOne(`SELECT COUNT(*) AS n FROM content_reports WHERE status = 'open' AND ai_severity = 'critical'`).catch(() => null),
@@ -92,6 +94,8 @@ async function handler(req, res) {
        FROM ad_impressions
        WHERE impressed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
     ).catch(() => null),
+    queryOne(`SELECT COUNT(*) AS n FROM admin_actions`).catch(() => null),
+    queryOne(`SELECT COUNT(*) AS n FROM admin_actions WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`).catch(() => null),
   ])
 
   return res.status(200).json({
@@ -119,6 +123,10 @@ async function handler(req, res) {
       impressions_7d: ads7d?.impressions ?? 0,
       clicks_7d: ads7d?.clicks ?? 0,
       saves_7d: ads7d?.saves ?? 0,
+    },
+    audit: {
+      actions_total: auditTotal?.n ?? 0,
+      actions_7d: audit7d?.n ?? 0,
     },
   })
 }

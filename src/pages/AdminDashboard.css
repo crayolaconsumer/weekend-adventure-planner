@@ -1,22 +1,6 @@
-.admin-dashboard {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 24px 20px 80px;
-}
-
-.admin-dashboard-header h1 {
-  margin: 0;
-  font-family: 'Newsreader', 'Fraunces', serif;
-  font-size: 2rem;
-  color: var(--roam-forest, #1a3a2f);
-  font-weight: 500;
-}
-
-.admin-dashboard-subtitle {
-  margin: 4px 0 32px;
-  color: var(--roam-stone, #6b6b6b);
-  font-size: 0.9rem;
-}
+/* The outer container styles (max-width, page padding, top header)
+   are owned by AdminLayout.css now. This file only owns the
+   dashboard-specific grids and cards. */
 
 .admin-dashboard-loading {
   text-align: center;
@@ -28,7 +12,7 @@
 
 .admin-dashboard-statgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
   margin-bottom: 36px;
 }
@@ -42,6 +26,38 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: relative;
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-dashboard-stat-link {
+  cursor: pointer;
+  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+}
+
+.admin-dashboard-stat-link:hover,
+.admin-dashboard-stat-link:focus-visible {
+  border-color: rgba(26, 58, 47, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26, 58, 47, 0.08);
+}
+
+.admin-dashboard-stat-link:hover .admin-dashboard-stat-arrow,
+.admin-dashboard-stat-link:focus-visible .admin-dashboard-stat-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.admin-dashboard-stat-arrow {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--roam-stone, #888);
+  font-size: 0.9rem;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .admin-dashboard-stat-danger  { border-left-color: #b22d2d; }
@@ -102,12 +118,14 @@
   padding: 16px 18px;
   text-decoration: none;
   color: inherit;
-  transition: border-color 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 
-.admin-dashboard-tool:hover {
+.admin-dashboard-tool:hover,
+.admin-dashboard-tool:focus-visible {
   border-color: rgba(26, 58, 47, 0.3);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26, 58, 47, 0.08);
 }
 
 .admin-dashboard-tool-warning {
@@ -184,4 +202,72 @@
 
 .admin-dashboard-tool-external p {
   font-size: 0.8rem;
+}
+
+/* ---- Recently strip ---- */
+
+.admin-dashboard-recent {
+  margin-bottom: 32px;
+}
+
+.admin-dashboard-recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.admin-dashboard-recent-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--roam-forest, #1a3a2f);
+}
+
+.admin-dashboard-recent-more {
+  font-size: 0.85rem;
+  color: var(--roam-forest, #1a3a2f);
+  text-decoration: none;
+}
+.admin-dashboard-recent-more:hover { text-decoration: underline; }
+
+.admin-dashboard-recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(26, 58, 47, 0.08);
+  border-radius: 10px;
+  padding: 6px 0;
+}
+
+.admin-dashboard-recent-row {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr max-content;
+  gap: 12px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  align-items: baseline;
+}
+
+.admin-dashboard-recent-row + .admin-dashboard-recent-row {
+  border-top: 1px solid rgba(26, 58, 47, 0.06);
+}
+
+.admin-dashboard-recent-actor {
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 600;
+}
+
+.admin-dashboard-recent-text {
+  color: var(--roam-forest, #1a3a2f);
+}
+
+.admin-dashboard-recent-time {
+  color: var(--roam-stone, #888);
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }

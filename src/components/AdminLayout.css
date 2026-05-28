@@ -1,0 +1,99 @@
+.admin-layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 20px 80px;
+  min-height: 100vh;
+}
+
+.admin-layout-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  margin-bottom: 8px;
+}
+
+.admin-layout-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--roam-stone, #6b6b6b);
+  text-decoration: none;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.admin-layout-back:hover,
+.admin-layout-back:focus-visible {
+  color: var(--roam-forest, #1a3a2f);
+  background: rgba(26, 58, 47, 0.06);
+}
+
+.admin-layout-back span[aria-hidden] {
+  font-size: 1.1em;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.admin-layout-back-placeholder {
+  display: block;
+  height: 1px;
+  width: 1px;
+}
+
+.admin-layout-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-layout-header {
+  margin: 8px 0 28px;
+}
+
+.admin-layout-breadcrumb {
+  font-size: 0.8125rem;
+  color: var(--roam-stone, #6b6b6b);
+  margin-bottom: 4px;
+}
+
+.admin-layout-breadcrumb a {
+  color: var(--roam-stone, #6b6b6b);
+  text-decoration: none;
+}
+
+.admin-layout-breadcrumb a:hover {
+  color: var(--roam-forest, #1a3a2f);
+  text-decoration: underline;
+}
+
+.admin-layout-breadcrumb-current {
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 500;
+}
+
+.admin-layout-title {
+  margin: 0;
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 2rem;
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.admin-layout-subtitle {
+  margin: 6px 0 0;
+  color: var(--roam-stone, #6b6b6b);
+  font-size: 0.95rem;
+  max-width: 60ch;
+}
+
+.admin-layout-content {
+  /* Children control their own grid / list layout; the wrapper just
+     reserves the container and provides consistent vertical rhythm. */
+}

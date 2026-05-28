@@ -21,6 +21,9 @@ const Support = lazy(() => import('./pages/Support'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminReports = lazy(() => import('./pages/AdminReports'))
 const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
+const AdminUsers = lazy(() => import('./pages/AdminUsers'))
+const AdminAds = lazy(() => import('./pages/AdminAds'))
+const AdminActivity = lazy(() => import('./pages/AdminActivity'))
 import NotFound from './pages/NotFound'
 import AdminRoute from './components/AdminRoute'
 
@@ -630,6 +633,9 @@ function App() {
                       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                       <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
                       <Route path="/admin/campaigns" element={<AdminRoute><AdminCampaigns /></AdminRoute>} />
+                      <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+                      <Route path="/admin/ads" element={<AdminRoute><AdminAds /></AdminRoute>} />
+                      <Route path="/admin/activity" element={<AdminRoute><AdminActivity /></AdminRoute>} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>

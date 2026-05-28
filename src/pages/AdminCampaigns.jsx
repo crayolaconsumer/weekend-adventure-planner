@@ -20,6 +20,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../hooks/useToast'
+import AdminLayout from '../components/AdminLayout'
 import './AdminCampaigns.css'
 
 function authHeaders() {
@@ -191,13 +192,11 @@ export default function AdminCampaigns() {
   }
 
   return (
-    <div className="admin-campaigns">
-      <header className="admin-campaigns-header">
-        <h1>Sponsored campaigns</h1>
-        <p className="admin-campaigns-subtitle">
-          Promote a local business in the discovery feed. Free users see these every 8 cards; ROAM+ users never see them.
-        </p>
-      </header>
+    <AdminLayout
+      title="Sponsored campaigns"
+      subtitle="Promote a local business in the discovery feed. Free users see these every 8 cards; ROAM+ users never see them."
+    >
+      <div className="admin-campaigns">
 
       <section className="admin-campaigns-section">
         <h2>Create campaign</h2>
@@ -416,7 +415,8 @@ export default function AdminCampaigns() {
           </ul>
         )}
       </section>
-    </div>
+      </div>
+    </AdminLayout>
   )
 }
 

@@ -14,6 +14,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../hooks/useToast'
 import ConfirmModal from '../components/ConfirmModal'
+import AdminLayout from '../components/AdminLayout'
 import './AdminReports.css'
 
 const STATUS_FILTERS = [
@@ -93,13 +94,11 @@ export default function AdminReports() {
   }
 
   return (
-    <div className="admin-reports">
-      <header className="admin-reports-header">
-        <h1>Reports queue</h1>
-        <p className="admin-reports-subtitle">
-          {total} {status} {severity ? `· ${severity}` : ''} report{total === 1 ? '' : 's'}
-        </p>
-      </header>
+    <AdminLayout
+      title="Reports"
+      subtitle={`${total} ${status}${severity ? ` · ${severity}` : ''} report${total === 1 ? '' : 's'}`}
+    >
+      <div className="admin-reports">
 
       <div className="admin-reports-filters">
         <div className="admin-reports-filter-group">
@@ -139,7 +138,8 @@ export default function AdminReports() {
           ))}
         </ul>
       )}
-    </div>
+      </div>
+    </AdminLayout>
   )
 }
 
