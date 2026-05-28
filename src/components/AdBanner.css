@@ -2,7 +2,12 @@
   position: relative;
   width: 100%;
   min-height: 0;
-  background: transparent;
+  /* Paper-tone band so the web AdSense ad sits inside a ROAM surface
+     rather than a bare white strip. Native renders no AdBanner (the
+     AdMob banner is an OS-drawn overlay), so this is web-only. */
+  background: var(--roam-paper, #f7f3ed);
+  border-top: 1px solid var(--roam-parchment, #ede7dc);
+  padding: 4px 0 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -10,7 +15,12 @@
 }
 
 .ad-banner-placeholder {
+  /* Pre-approval / no-fill: stay fully collapsed + invisible so there's
+     zero layout shift and no stray tinted strip before ads serve. */
   height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
   overflow: hidden;
 }
 
