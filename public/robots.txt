@@ -1,0 +1,11 @@
+# Allow Google's app-ads.txt crawler explicitly. This is Google's
+# recommended defensive setup per
+# https://support.google.com/admob/answer/9776740 — even without a
+# blocking robots.txt, having an explicit allow removes one variable
+# from the AdMob verification troubleshooting flow.
+User-agent: Google-adstxt
+Disallow:
+
+# Allow Googlebot / general crawling for the rest of the site.
+User-agent: *
+Allow: /

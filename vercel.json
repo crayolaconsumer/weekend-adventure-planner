@@ -26,7 +26,7 @@
     }
   },
   "rewrites": [
-    { "source": "/((?!api/|assets/|icons/|\\.well-known/|manifest\\.json|sw\\.js|robots\\.txt|ads\\.txt|app-ads\\.txt).*)", "destination": "/" }
+    { "source": "/((?!api/|assets/|icons/|\\.well-known/|manifest\\.json|sw\\.js|robots\\.txt|ads\\.txt|app-ads\\.txt|sitemap\\.xml).*)", "destination": "/" }
   ],
   "headers": [
     {
