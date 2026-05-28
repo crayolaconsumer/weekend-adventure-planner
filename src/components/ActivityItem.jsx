@@ -169,8 +169,18 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
           </div>
           {activity.id && (
             <ModerationMenu
-              entityType={activity.type === 'photo' ? 'photo' : 'contribution'}
-              entityId={activity.id}
+              entityType={
+                activity.type === 'photo' ? 'photo' :
+                activity.type === 'rating' ? 'review' :
+                'contribution'
+              }
+              // The activity feed prefixes rating IDs with "rating_" so the
+              // synthetic activity rows are distinguishable across types
+              // (api/activity/feed.js: CONCAT('rating_', pr.id)). Reports
+              // need the bare numeric primary key for the per-table lookup
+              // in /api/admin/reports, so strip the prefix here. The "user"
+              // / "place" types pass through unchanged.
+              entityId={String(activity.id).replace(/^rating_/, '')}
               entityLabel={
                 activity.type === 'photo' ? 'this photo' :
                 activity.type === 'tip' ? 'this tip' :

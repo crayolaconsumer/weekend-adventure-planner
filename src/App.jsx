@@ -18,6 +18,7 @@ const Pricing = lazy(() => import('./pages/Pricing'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Support = lazy(() => import('./pages/Support'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminReports = lazy(() => import('./pages/AdminReports'))
 const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
 import NotFound from './pages/NotFound'
@@ -626,6 +627,7 @@ function App() {
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/support" element={<Support />} />
+                      <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                       <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
                       <Route path="/admin/campaigns" element={<AdminRoute><AdminCampaigns /></AdminRoute>} />
                       {/* M17: 404 catch-all route */}

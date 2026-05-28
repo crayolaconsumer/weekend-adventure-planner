@@ -36,7 +36,7 @@ import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 const VALID_STATUSES = new Set(['open', 'reviewed', 'dismissed', 'actioned'])
 const VALID_SEVERITIES = new Set(['critical', 'high', 'medium', 'low'])
 const VALID_DECISIONS = new Set(['dismiss', 'review', 'action'])
-const VALID_ACTIONS = new Set(['hide_content', 'ban_user', 'none'])
+const VALID_ACTIONS = new Set(['hide_content', 'hide_review', 'ban_user', 'none'])
 
 // Uniform "this route does not exist" response. Used for EVERY reject
 // path — anonymous, non-admin, banned admin, bad origin, rate-limited.
@@ -109,16 +109,14 @@ async function handleList(req, res) {
        r.status, r.ai_severity, r.ai_reason, r.ai_action_taken, r.ai_triaged_at,
        r.created_at, r.reviewed_at, r.reviewed_by,
        reporter.username AS reporter_username,
+       reporter.avatar_url AS reporter_avatar_url,
        reported.username AS reported_username,
+       reported.avatar_url AS reported_avatar_url,
        reported.is_admin  AS reported_is_admin,
-       reported.is_banned AS reported_is_banned,
-       c.content AS content_text,
-       c.contribution_type AS content_type,
-       c.status AS content_status
+       reported.is_banned AS reported_is_banned
      FROM content_reports r
      LEFT JOIN users reporter ON r.reporter_id = reporter.id
      LEFT JOIN users reported ON r.reported_user_id = reported.id
-     LEFT JOIN contributions c ON r.entity_type IN ('contribution','photo') AND c.id = CAST(r.entity_id AS UNSIGNED)
      WHERE ${whereClause}
      ORDER BY
        FIELD(r.ai_severity, 'critical', 'high', 'medium', 'low'),
@@ -127,6 +125,130 @@ async function handleList(req, res) {
     [...params, limit, offset]
   )
 
+  // Hydrate the reported content per entity_type. Doing this as separate
+  // bulk lookups keeps each query trivially indexable; the old single-
+  // query approach with `CAST(entity_id AS UNSIGNED)` silently returned
+  // 0 for any non-numeric entity_id (including the legacy "rating_X"
+  // prefix from the activity feed) so reviewers never saw the actual
+  // reported content.
+  const contribIds = []
+  const reviewIds = []
+  const userIds = []
+  const placeIds = new Set()
+
+  for (const r of reports) {
+    const isNumericId = /^\d+$/.test(r.entity_id || '')
+    if (!isNumericId && r.entity_type !== 'place') continue
+    if (r.entity_type === 'contribution' || r.entity_type === 'photo') {
+      contribIds.push(parseInt(r.entity_id, 10))
+    } else if (r.entity_type === 'review') {
+      reviewIds.push(parseInt(r.entity_id, 10))
+    } else if (r.entity_type === 'user') {
+      userIds.push(parseInt(r.entity_id, 10))
+    } else if (r.entity_type === 'place') {
+      placeIds.add(r.entity_id)
+    }
+  }
+
+  const contribs = contribIds.length
+    ? await query(
+        `SELECT id, content, contribution_type, status, place_id, place_name, place_image_url
+           FROM contributions WHERE id IN (?)`,
+        [contribIds]
+      )
+    : []
+  const reviews = reviewIds.length
+    ? await query(
+        `SELECT id, rating, review, place_id FROM place_ratings WHERE id IN (?)`,
+        [reviewIds]
+      )
+    : []
+  const reportedUsers = userIds.length
+    ? await query(
+        `SELECT id, username, display_name, avatar_url, bio, is_banned
+           FROM users WHERE id IN (?)`,
+        [userIds]
+      )
+    : []
+
+  // Fold review place IDs into the lookup set so we can name them too.
+  for (const rev of reviews) {
+    if (rev.place_id) placeIds.add(rev.place_id)
+  }
+
+  // place_name isn't stored on place_ratings (only contributions cache
+  // it). Pull from whichever user-data table happens to have cached it
+  // — saved_places has the broadest coverage. UNION over visited_places
+  // catches places only the rater has visited.
+  const placeMap = new Map()
+  if (placeIds.size > 0) {
+    const placeIdArr = Array.from(placeIds)
+    const placeRows = await query(
+      `SELECT place_id, MIN(name) AS place_name FROM (
+         SELECT place_id, place_data->>'$.name' AS name FROM saved_places WHERE place_id IN (?)
+         UNION ALL
+         SELECT place_id, place_data->>'$.name' AS name FROM visited_places WHERE place_id IN (?)
+         UNION ALL
+         SELECT place_id, place_data->>'$.name' AS name FROM sponsored_places WHERE place_id IN (?)
+       ) AS p
+       WHERE name IS NOT NULL AND name <> ''
+       GROUP BY place_id`,
+      [placeIdArr, placeIdArr, placeIdArr]
+    )
+    for (const row of placeRows) placeMap.set(row.place_id, row.place_name)
+  }
+
+  const contribMap = new Map(contribs.map(c => [c.id, c]))
+  const reviewMap = new Map(reviews.map(r => [r.id, r]))
+  const userMap = new Map(reportedUsers.map(u => [u.id, u]))
+
+  const hydrated = reports.map(r => {
+    const base = {
+      ...r,
+      reported_content: null,
+      reported_content_type: null,
+      reported_content_status: null,
+      reported_rating: null,
+      reported_place_id: null,
+      reported_place_name: null,
+      reported_place_image_url: null,
+      reported_user_bio: null,
+    }
+
+    if (r.entity_type === 'contribution' || r.entity_type === 'photo') {
+      const c = contribMap.get(parseInt(r.entity_id, 10))
+      if (c) {
+        base.reported_content = c.content
+        base.reported_content_type = c.contribution_type
+        base.reported_content_status = c.status
+        base.reported_place_id = c.place_id
+        base.reported_place_name = c.place_name
+        base.reported_place_image_url = c.place_image_url
+      }
+    } else if (r.entity_type === 'review') {
+      const rev = reviewMap.get(parseInt(r.entity_id, 10))
+      if (rev) {
+        base.reported_content = rev.review
+        base.reported_content_type = 'review'
+        base.reported_rating = rev.rating
+        base.reported_place_id = rev.place_id
+        base.reported_place_name = placeMap.get(rev.place_id) || null
+      }
+    } else if (r.entity_type === 'user') {
+      const u = userMap.get(parseInt(r.entity_id, 10))
+      if (u) {
+        base.reported_username = base.reported_username || u.username
+        base.reported_avatar_url = base.reported_avatar_url || u.avatar_url
+        base.reported_user_bio = u.bio
+      }
+    } else if (r.entity_type === 'place') {
+      base.reported_place_id = r.entity_id
+      base.reported_place_name = placeMap.get(r.entity_id) || null
+    }
+
+    return base
+  })
+
   const totalRow = await queryOne(
     `SELECT COUNT(*) AS total FROM content_reports r WHERE ${whereClause}`,
     params
@@ -134,9 +256,9 @@ async function handleList(req, res) {
   const total = totalRow?.total ?? 0
 
   return res.status(200).json({
-    reports,
+    reports: hydrated,
     total,
-    hasMore: offset + reports.length < total,
+    hasMore: offset + hydrated.length < total,
     limit,
     offset,
   })
@@ -188,6 +310,17 @@ async function handleAction(req, res, user, ipKey) {
     }
     await update(
       `UPDATE contributions SET status = 'rejected' WHERE id = ?`,
+      [report.entity_id]
+    )
+  } else if (actionTaken === 'hide_review') {
+    if (report.entity_type !== 'review') {
+      return res.status(400).json({ error: 'hide_review only valid for review reports' })
+    }
+    // Null the review text but keep the rating score — the user's
+    // average rating still counts, only the offensive freeform text
+    // is removed. updated_at bumps so any cache layers refresh.
+    await update(
+      `UPDATE place_ratings SET review = NULL, updated_at = NOW() WHERE id = ?`,
       [report.entity_id]
     )
   } else if (actionTaken === 'ban_user') {

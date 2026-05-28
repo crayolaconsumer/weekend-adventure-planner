@@ -174,6 +174,55 @@
   color: #b22d2d;
 }
 
+.admin-report-content-muted {
+  color: var(--roam-stone, #6b6b6b);
+  font-style: italic;
+}
+
+.admin-report-place {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+.admin-report-place a {
+  color: var(--roam-forest, #1a3a2f);
+  text-decoration: underline;
+}
+.admin-report-place a:hover {
+  text-decoration: none;
+}
+
+.admin-report-rating {
+  font-size: 0.95rem;
+  color: #c87a2f;
+  letter-spacing: 1px;
+  margin: 0 0 6px;
+}
+.admin-report-rating-text {
+  color: var(--roam-stone, #6b6b6b);
+  font-size: 0.8rem;
+  margin-left: 4px;
+}
+
+.admin-report-reporter-said {
+  padding: 10px 12px;
+  background: var(--roam-paper, #f5f1e6);
+  border: 1px dashed rgba(178, 45, 45, 0.25);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+.admin-report-reporter-said .admin-report-details {
+  margin: 4px 0 0;
+  padding: 0;
+  border-left: none;
+  background: transparent;
+  border-radius: 0;
+  font-style: italic;
+}
+
 .admin-report-actions {
   display: flex;
   gap: 8px;

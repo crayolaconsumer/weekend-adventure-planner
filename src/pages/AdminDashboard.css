@@ -1,0 +1,187 @@
+.admin-dashboard {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+.admin-dashboard-header h1 {
+  margin: 0;
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 2rem;
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 500;
+}
+
+.admin-dashboard-subtitle {
+  margin: 4px 0 32px;
+  color: var(--roam-stone, #6b6b6b);
+  font-size: 0.9rem;
+}
+
+.admin-dashboard-loading {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--roam-stone, #6b6b6b);
+}
+
+/* ---- Stat grid ---- */
+
+.admin-dashboard-statgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 36px;
+}
+
+.admin-dashboard-stat {
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(26, 58, 47, 0.1);
+  border-left: 4px solid rgba(26, 58, 47, 0.18);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-dashboard-stat-danger  { border-left-color: #b22d2d; }
+.admin-dashboard-stat-warning { border-left-color: #c87a2f; }
+.admin-dashboard-stat-ok      { border-left-color: #6b8b73; }
+
+.admin-dashboard-stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--roam-stone, #6b6b6b);
+}
+
+.admin-dashboard-stat-value {
+  font-family: 'Newsreader', 'Fraunces', serif;
+  font-size: 1.75rem;
+  color: var(--roam-forest, #1a3a2f);
+  line-height: 1.2;
+  font-weight: 500;
+}
+
+.admin-dashboard-stat-hint {
+  font-size: 0.8rem;
+  color: var(--roam-stone, #6b6b6b);
+}
+
+/* ---- Tool sections ---- */
+
+.admin-dashboard-tools {
+  margin-bottom: 32px;
+}
+
+.admin-dashboard-tools h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--roam-forest, #1a3a2f);
+}
+
+.admin-dashboard-tools-muted h2 {
+  color: var(--roam-stone, #6b6b6b);
+  font-weight: 500;
+}
+
+.admin-dashboard-toolgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.admin-dashboard-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-surface-elevated);
+  border: 1px solid rgba(26, 58, 47, 0.12);
+  border-radius: 12px;
+  padding: 16px 18px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.admin-dashboard-tool:hover {
+  border-color: rgba(26, 58, 47, 0.3);
+  transform: translateY(-1px);
+}
+
+.admin-dashboard-tool-warning {
+  border-color: rgba(200, 122, 47, 0.4);
+}
+.admin-dashboard-tool-danger {
+  border-color: rgba(178, 45, 45, 0.45);
+}
+
+.admin-dashboard-tool-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-dashboard-tool h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 600;
+}
+
+.admin-dashboard-tool p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--roam-stone, #6b6b6b);
+  line-height: 1.4;
+}
+
+.admin-dashboard-tool-cta {
+  font-size: 0.85rem;
+  color: var(--roam-forest, #1a3a2f);
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.admin-dashboard-tool-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--roam-forest, #1a3a2f);
+  background: rgba(26, 58, 47, 0.06);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.admin-dashboard-tool-count span {
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--roam-stone, #6b6b6b);
+}
+
+.admin-dashboard-tool-count-warning {
+  background: rgba(200, 122, 47, 0.12);
+  color: #8a5a00;
+}
+.admin-dashboard-tool-count-warning span { color: #8a5a00; opacity: 0.7; }
+
+.admin-dashboard-tool-count-danger {
+  background: rgba(178, 45, 45, 0.12);
+  color: #962525;
+}
+.admin-dashboard-tool-count-danger span { color: #962525; opacity: 0.7; }
+
+.admin-dashboard-tool-external-icon {
+  font-size: 1rem;
+  color: var(--roam-stone, #6b6b6b);
+}
+
+.admin-dashboard-tool-external p {
+  font-size: 0.8rem;
+}

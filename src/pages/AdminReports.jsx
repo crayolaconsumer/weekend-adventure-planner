@@ -144,18 +144,39 @@ export default function AdminReports() {
 }
 
 function ReportRow({ report, acting, onDecide }) {
-  const isContent = report.entity_type === 'contribution' || report.entity_type === 'photo'
   const severity = report.ai_severity || 'untriaged'
   const created = report.created_at ? new Date(report.created_at).toLocaleString() : ''
   const [showBanConfirm, setShowBanConfirm] = useState(false)
   const banLabel = `@${report.reported_username || `user ${report.reported_user_id}`}`
+
+  const isContribution = report.entity_type === 'contribution' || report.entity_type === 'photo'
+  const isReview = report.entity_type === 'review'
+  const isUser = report.entity_type === 'user'
+  const isPlace = report.entity_type === 'place'
+
+  const hasContent = report.reported_content && String(report.reported_content).trim().length > 0
+
+  const contentLabel = isReview
+    ? 'Their review'
+    : isContribution
+      ? `Their ${report.reported_content_type || report.entity_type}`
+      : isUser
+        ? 'User profile'
+        : isPlace
+          ? 'Reported place'
+          : 'Reported item'
+
+  // The displayed entity-type label maps the underlying enum to
+  // something admin-friendly. Reviews used to show as "contribution" in
+  // the legacy data; the API hydrates them as 'review' now.
+  const entityTypeLabel = isReview ? 'review' : report.entity_type
 
   return (
     <li className={`admin-report admin-report-sev-${severity}`}>
       <div className="admin-report-row1">
         <span className={`admin-report-sev-badge sev-${severity}`}>{severity.toUpperCase()}</span>
         <span className="admin-report-entity">
-          {report.entity_type} <strong>#{report.entity_id}</strong>
+          {entityTypeLabel} <strong>#{report.entity_id}</strong>
         </span>
         <span className="admin-report-reason">{report.reason}</span>
         <span className="admin-report-time">{created}</span>
@@ -164,28 +185,81 @@ function ReportRow({ report, acting, onDecide }) {
       <div className="admin-report-row2">
         <div className="admin-report-meta">
           <strong>Reporter:</strong> @{report.reporter_username || 'anonymous'}
-          {report.reported_username && <> · <strong>Author:</strong> @{report.reported_username}</>}
+          {report.reported_username && (
+            <> · <strong>Author:</strong> @{report.reported_username}</>
+          )}
         </div>
-        {report.details && (
-          <blockquote className="admin-report-details">"{report.details}"</blockquote>
+      </div>
+
+      {/* Place context — link out to the place page so the admin can
+          see exactly where this content lives. */}
+      {report.reported_place_name && (
+        <div className="admin-report-place">
+          <span className="admin-report-content-label">Place</span>
+          <a
+            href={`/place/${report.reported_place_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {report.reported_place_name}
+          </a>
+        </div>
+      )}
+
+      {/* The actual content being reported — separated from the
+          reporter's freeform explanation so reviewers can tell at a
+          glance whether the offence is in the post or in the report. */}
+      <div className="admin-report-content">
+        <span className="admin-report-content-label">{contentLabel}</span>
+        {hasContent ? (
+          <>
+            {isReview && report.reported_rating != null && (
+              <div className="admin-report-rating">
+                {'★'.repeat(report.reported_rating)}
+                {'☆'.repeat(Math.max(0, 5 - report.reported_rating))}
+                <span className="admin-report-rating-text"> {report.reported_rating}/5</span>
+              </div>
+            )}
+            <p>"{report.reported_content}"</p>
+          </>
+        ) : isReview ? (
+          <p className="admin-report-content-muted">
+            {report.reported_rating != null
+              ? `${report.reported_rating}/5 star rating — no review text submitted.`
+              : 'Rating submitted, no text.'}
+          </p>
+        ) : isUser ? (
+          report.reported_user_bio ? (
+            <p>"{report.reported_user_bio}"</p>
+          ) : (
+            <p className="admin-report-content-muted">
+              This is a report on the user themselves — see "Reporter said" below for the specific allegation.
+            </p>
+          )
+        ) : (
+          <p className="admin-report-content-muted">
+            Content not found in the database — may have already been deleted by the author.
+          </p>
+        )}
+        {report.reported_content_status === 'rejected' && (
+          <span className="admin-report-content-flag">⨯ already hidden</span>
         )}
       </div>
+
+      {/* The reporter's own words about why they reported this — clearly
+          labelled so it can't be mistaken for the reported content itself. */}
+      {report.details && (
+        <div className="admin-report-reporter-said">
+          <span className="admin-report-content-label">Reporter said</span>
+          <blockquote className="admin-report-details">"{report.details}"</blockquote>
+        </div>
+      )}
 
       {report.ai_reason && (
         <div className="admin-report-ai">
           <span className="admin-report-ai-label">AI:</span> {report.ai_reason}
           {report.ai_action_taken && report.ai_action_taken !== 'none' && (
             <span className="admin-report-ai-action"> · auto: {report.ai_action_taken}</span>
-          )}
-        </div>
-      )}
-
-      {report.content_text && (
-        <div className="admin-report-content">
-          <span className="admin-report-content-label">Content:</span>
-          <p>{report.content_text}</p>
-          {report.content_status === 'rejected' && (
-            <span className="admin-report-content-flag">⨯ already hidden</span>
           )}
         </div>
       )}
@@ -205,13 +279,22 @@ function ReportRow({ report, acting, onDecide }) {
         >
           Mark reviewed
         </button>
-        {isContent && report.content_status !== 'rejected' && (
+        {isContribution && report.reported_content_status !== 'rejected' && (
           <button
             className="admin-report-btn admin-report-btn-destructive"
             disabled={acting}
             onClick={() => onDecide(report.id, 'action', 'hide_content')}
           >
             Hide content
+          </button>
+        )}
+        {isReview && hasContent && (
+          <button
+            className="admin-report-btn admin-report-btn-destructive"
+            disabled={acting}
+            onClick={() => onDecide(report.id, 'action', 'hide_review')}
+          >
+            Hide review text
           </button>
         )}
         {report.reported_user_id && (
