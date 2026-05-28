@@ -164,6 +164,16 @@ async function handleCreate(req, res, user, ipKey) {
   if (typeof budget_total_pence !== 'number' || budget_total_pence < 0) {
     return res.status(400).json({ error: 'budget_total_pence is required (>=0; 0 = unlimited)' })
   }
+  // Without this, a negative cpm_pence would make every ad impression
+  // DECREASE budget_spent_pence (impression handler does +=cpm_pence/1000),
+  // so the budget never exhausts. PATCH already guards against this; the
+  // create path was missing the check.
+  if (typeof cpm_pence !== 'number' || cpm_pence < 0) {
+    return res.status(400).json({ error: 'cpm_pence must be a non-negative number' })
+  }
+  if (typeof target_radius_km !== 'number' || target_radius_km < 1 || target_radius_km > 500) {
+    return res.status(400).json({ error: 'target_radius_km must be between 1 and 500' })
+  }
   if (typeof start_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(start_date)) {
     return res.status(400).json({ error: 'start_date is required (YYYY-MM-DD)' })
   }
@@ -248,7 +258,10 @@ async function handleUpdate(req, res, user, ipKey) {
 
   if (!Number.isInteger(id) || id <= 0) return NOT_FOUND(res)
 
-  const existing = await queryOne('SELECT id, status FROM sponsored_places WHERE id = ?', [id])
+  const existing = await queryOne(
+    'SELECT id, status, start_date, end_date FROM sponsored_places WHERE id = ?',
+    [id]
+  )
   if (!existing) return NOT_FOUND(res)
 
   const updates = []
@@ -309,6 +322,18 @@ async function handleUpdate(req, res, user, ipKey) {
     return res.status(400).json({ error: 'No updateable fields supplied' })
   }
 
+  // Cross-field date validation. When the client PATCHes only one of
+  // {start_date, end_date}, we'd otherwise let them set start > end
+  // (the create-time check `end_date >= start_date` only fires when
+  // both are supplied). An active campaign with reversed dates never
+  // matches /api/ads/sponsored's date filter, so it'd silently never
+  // serve. Validate against the merged final state.
+  const finalStart = start_date !== undefined ? start_date : toISODate(existing.start_date)
+  const finalEnd = end_date !== undefined ? end_date : toISODate(existing.end_date)
+  if (finalStart && finalEnd && finalEnd < finalStart) {
+    return res.status(400).json({ error: 'end_date must be on or after start_date' })
+  }
+
   // State-changing edits (status flips to active, or budget change)
   // require fresh login. Read-only metadata edits don't.
   const isStateChange = status !== undefined || budget_total_pence !== undefined
@@ -346,6 +371,16 @@ async function handleCancel(req, res, user, ipKey) {
   await auditLog(user.id, 'campaign.cancel', 'sponsored_place', String(id), null, ipKey, req.headers?.['user-agent'])
 
   return res.status(200).json({ success: true })
+}
+
+// MySQL DATE columns come back from mysql2 as JavaScript Date objects;
+// the rest of the validation works on YYYY-MM-DD strings so we
+// normalise. Slicing the ISO string is safer than toLocaleDateString
+// (timezone-stable) for date-only comparison.
+function toISODate(value) {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString().slice(0, 10)
+  return String(value).slice(0, 10)
 }
 
 async function auditLog(adminId, action, targetType, targetId, metadata, ip, userAgent) {

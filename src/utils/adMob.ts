@@ -76,7 +76,13 @@ export function isUsingTestIds() {
   return true
 }
 
-let initialized = false
+// initPromise is the single source of truth for "have we kicked off
+// AdMob.initialize() + ATT + UMP yet, and has it settled". showBanner
+// and prepareInterstitial both `await` this — so any caller that races
+// init (e.g. Discover mounting before the init effect's microtask has
+// run) is correctly sequenced. Once set, it's never cleared; init is
+// idempotent within a session.
+let initPromise: Promise<void> | null = null
 let bannerVisible = false
 let interstitialPreparing = false
 let interstitialReady = false
@@ -109,74 +115,83 @@ async function getAdMobModule() {
  * even where we could legally request it — minimises consent dialog
  * fatigue at the cost of lower CPM.
  */
-export async function initAdMobIfNeeded(opts: {
+export function initAdMobIfNeeded(opts: {
   isPremium: boolean
   testDeviceIds?: string[]
-} = { isPremium: false }) {
-  if (initialized) return
-  if (!isNative()) return
-  if (opts.isPremium) return
+} = { isPremium: false }): Promise<void> {
+  if (initPromise) return initPromise
+  if (!isNative()) return Promise.resolve()
+  if (opts.isPremium) return Promise.resolve()
 
-  const adMod = await getAdMobModule()
-  if (!adMod) return
+  initPromise = (async () => {
+    const adMod = await getAdMobModule()
+    if (!adMod) return
 
-  const { AdMob } = adMod
+    const { AdMob } = adMod
 
-  try {
-    await AdMob.initialize({
-      testingDevices: opts.testDeviceIds || [],
-      initializeForTesting: isUsingTestIds(),
-    })
-  } catch (err) {
-    if (import.meta.env.DEV) console.warn('[AdMob] initialize failed', err)
-    return
-  }
+    try {
+      await AdMob.initialize({
+        testingDevices: opts.testDeviceIds || [],
+        initializeForTesting: isUsingTestIds(),
+      })
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[AdMob] initialize failed', err)
+      return
+    }
 
-  // iOS ATT — request tracking authorization. On Android this is a no-op.
-  try {
-    const status = await AdMob.trackingAuthorizationStatus()
-    if (status.status === 'notDetermined') {
-      // Plugin shows the ATT prompt automatically on first ad request,
-      // but we want it to surface early (before the user sees an ad
-      // they can't tap). v8 exposes requestTrackingAuthorization.
-      const maybeRequest = (AdMob as unknown as {
-        requestTrackingAuthorization?: () => Promise<unknown>
-      }).requestTrackingAuthorization
-      if (typeof maybeRequest === 'function') {
-        await maybeRequest()
+    // iOS ATT — request tracking authorization. On Android this is a no-op.
+    try {
+      const status = await AdMob.trackingAuthorizationStatus()
+      if (status.status === 'notDetermined') {
+        // Plugin shows the ATT prompt automatically on first ad request,
+        // but we want it to surface early (before the user sees an ad
+        // they can't tap). v8 exposes requestTrackingAuthorization.
+        const maybeRequest = (AdMob as unknown as {
+          requestTrackingAuthorization?: () => Promise<unknown>
+        }).requestTrackingAuthorization
+        if (typeof maybeRequest === 'function') {
+          await maybeRequest()
+        }
       }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[AdMob] ATT check failed', err)
     }
-  } catch (err) {
-    if (import.meta.env.DEV) console.warn('[AdMob] ATT check failed', err)
-  }
 
-  // UMP — UK/EU consent. SDK decides whether a form is needed based on
-  // the user's region. We always request consent info; SDK is a no-op
-  // outside the EEA/UK.
-  try {
-    const consent = await AdMob.requestConsentInfo()
-    if (
-      consent &&
-      typeof consent === 'object' &&
-      'isConsentFormAvailable' in consent &&
-      (consent as { isConsentFormAvailable: boolean }).isConsentFormAvailable &&
-      'status' in consent &&
-      (consent as { status: string }).status === 'REQUIRED'
-    ) {
-      await AdMob.showConsentForm()
+    // UMP — UK/EU consent. SDK decides whether a form is needed based on
+    // the user's region. We always request consent info; SDK is a no-op
+    // outside the EEA/UK.
+    try {
+      const consent = await AdMob.requestConsentInfo()
+      if (
+        consent &&
+        typeof consent === 'object' &&
+        'isConsentFormAvailable' in consent &&
+        (consent as { isConsentFormAvailable: boolean }).isConsentFormAvailable &&
+        'status' in consent &&
+        (consent as { status: string }).status === 'REQUIRED'
+      ) {
+        await AdMob.showConsentForm()
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[AdMob] consent flow failed', err)
     }
-  } catch (err) {
-    if (import.meta.env.DEV) console.warn('[AdMob] consent flow failed', err)
-  }
+  })()
 
-  initialized = true
+  return initPromise
 }
 
 /**
  * Show the AdMob banner overlay at the bottom of the screen. Idempotent.
+ *
+ * Waits for `initAdMobIfNeeded()` to settle before requesting an ad — on
+ * cold start the banner effect in `useAdMob` and the init effect both
+ * run on Discover mount, but the showBanner call can resolve a tick
+ * earlier than init. The await here keeps SDK init + ATT/UMP consent
+ * gating ahead of the first ad request.
  */
 export async function showBanner() {
   if (!isNative()) return
+  await initAdMobIfNeeded({ isPremium: false })
   if (bannerVisible) return
   const ids = unitIds()
   if (!ids) return
@@ -222,6 +237,9 @@ export async function hideBanner() {
  */
 async function prepareInterstitial() {
   if (!isNative()) return
+  // Same init-gate as showBanner — never request an ad before
+  // AdMob.initialize() + ATT/UMP have run.
+  await initAdMobIfNeeded({ isPremium: false })
   if (interstitialPreparing || interstitialReady) return
   const ids = unitIds()
   if (!ids) return
