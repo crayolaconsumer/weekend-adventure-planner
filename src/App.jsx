@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
 // Lazy load page components for code splitting
@@ -637,28 +637,7 @@ function App() {
                 </Suspense>
               </main>
 
-              <nav className="nav-bar">
-                <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <CompassIcon />
-                  <span>Discover</span>
-                </NavLink>
-                <NavLink to="/events" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <CalendarIcon />
-                  <span>Events</span>
-                </NavLink>
-                <NavLink to="/plan" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <MapIcon />
-                  <span>Plan</span>
-                </NavLink>
-                <NavLink to="/wishlist" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <HeartIcon />
-                  <span>Saved</span>
-                </NavLink>
-                <NavLink to="/social" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <UsersIcon />
-                  <span>Social</span>
-                </NavLink>
-              </nav>
+              <ChromeNav />
             </div>
           </ErrorBoundary>
           </BrowserRouter>
@@ -667,6 +646,42 @@ function App() {
       </DistanceProvider>
     </AuthProvider>
     </ThemeProvider>
+  )
+}
+
+/**
+ * Bottom / top navigation strip — hidden on the operator console
+ * (/admin/*) because the admin pages have their own header and the
+ * user-facing tabs (Discover, Events, etc.) aren't applicable.
+ * On desktop the .nav-bar CSS positions itself at top:0, which was
+ * obscuring the admin dashboard heading before this gate was added.
+ */
+function ChromeNav() {
+  const { pathname } = useLocation()
+  if (pathname.startsWith('/admin')) return null
+  return (
+    <nav className="nav-bar">
+      <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <CompassIcon />
+        <span>Discover</span>
+      </NavLink>
+      <NavLink to="/events" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <CalendarIcon />
+        <span>Events</span>
+      </NavLink>
+      <NavLink to="/plan" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <MapIcon />
+        <span>Plan</span>
+      </NavLink>
+      <NavLink to="/wishlist" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <HeartIcon />
+        <span>Saved</span>
+      </NavLink>
+      <NavLink to="/social" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <UsersIcon />
+        <span>Social</span>
+      </NavLink>
+    </nav>
   )
 }
 
