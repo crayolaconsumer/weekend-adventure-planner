@@ -129,7 +129,26 @@ export default function DiscoverHeader({
             <span>{weather.description}</span>
           </div>
         )}
-        <div className="discover-mode">
+        {/* The travel-mode pill doubles as a filter trigger — it's the
+            easiest-to-reach control at the bottom of the hero, so tapping
+            it opens the same FilterModal as the top-right cog. Kept as a
+            div with button semantics so the existing pill styling is
+            untouched. */}
+        <div
+          className="discover-mode"
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => { hapticTap('light'); onOpenFilters?.() }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              hapticTap('light')
+              onOpenFilters?.()
+            }
+          }}
+          aria-label={`Travel mode: ${travelModeLabel}. Tap to open filters.`}
+        >
           <FilterIcon name={travelMode} size={18} />
           <span>{travelModeLabel}</span>
         </div>

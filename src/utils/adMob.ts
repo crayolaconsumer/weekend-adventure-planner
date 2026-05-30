@@ -225,9 +225,11 @@ export async function showBanner(targeting?: AdTargeting) {
       adId: ids.banner,
       adSize: BannerAdSize.ADAPTIVE_BANNER,
       position: BannerAdPosition.BOTTOM_CENTER,
-      // Buffer above the nav bar (which is ~64px) so the ad doesn't
-      // overlap our own bottom UI. Plugin accepts pixel margin.
-      margin: 64,
+      // Lift the banner above ROAM's own bottom nav (~64px). Android
+      // stacks the system gesture/nav bar below ours, so the plugin's
+      // BOTTOM_CENTER anchor needs more clearance there or the banner
+      // overlaps the tab bar (reported in the wild). iOS was fine at 64.
+      margin: getPlatform() === 'android' ? 100 : 64,
       isTesting: isUsingTestIds(),
       ...(targeting?.keywords?.length ? { keywords: targeting.keywords } : {}),
       ...(targeting?.contentUrl ? { contentUrl: targeting.contentUrl } : {}),

@@ -146,6 +146,18 @@ export function AuthProvider({ children }) {
     }
   }, [getStoredToken, clearStoredToken])
 
+  // Native: refresh auth + subscription state when the app returns to
+  // foreground. A RevenueCat webhook that flips the user to premium
+  // while the app was backgrounded must take effect on resume —
+  // otherwise a now-premium user keeps seeing ads. Cheap (one /api/auth
+  // call) and only fires on real foreground transitions, dispatched by
+  // nativeAppLifecycle's appStateChange listener.
+  useEffect(() => {
+    const onForeground = () => { checkAuth() }
+    window.addEventListener('roam-app-foreground', onForeground)
+    return () => window.removeEventListener('roam-app-foreground', onForeground)
+  }, [checkAuth])
+
   // Sync user identity to Sentry + PostHog when it changes — so errors
   // and analytics events carry the user_id/username that hit them.
   // No-ops when env vars aren't set.

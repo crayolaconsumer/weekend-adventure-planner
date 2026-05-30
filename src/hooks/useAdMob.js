@@ -62,6 +62,11 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
 
   // Banner lifecycle — bound to the screen the hook is mounted on.
   useEffect(() => {
+    // Wait for auth to resolve first. On cold start user=null makes
+    // isPremium read false even for a ROAM+ subscriber — without this
+    // gate the banner flashes up for premium users until their tier
+    // loads from the server. (Same fix already applied to web AdBanner.)
+    if (authLoading) return
     if (!isNative()) return
     if (isPremium) return
     if (!bannerOnScreen) return
@@ -79,9 +84,10 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
       cancelled = true
       hideBanner().catch(() => {})
     }
-  }, [bannerOnScreen, isPremium])
+  }, [authLoading, bannerOnScreen, isPremium])
 
   const trackSwipe = useCallback((action, place) => {
+    if (authLoading) return
     if (isPremium) return
     const targeting = buildAdTargeting({
       selectedCategories: categoriesRef.current,
@@ -90,7 +96,7 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
     maybeShowInterstitial({ isPremium, targeting }).catch(err => {
       console.warn('[useAdMob] interstitial failed', err)
     })
-  }, [isPremium])
+  }, [authLoading, isPremium])
 
   return { trackSwipe, isPremium }
 }

@@ -355,10 +355,17 @@ export default function Events({ location }) {
   // Pull-to-refresh: re-fetch when user pulls from the top. Disabled
   // while swipe view is active so PTR doesn't fight the card-stack
   // vertical-swipe gesture for "Go" (swipe-up).
+  // Pull-to-refresh must read the ACTUAL scroll container (.page-content,
+  // which is overflow-y:auto) — NOT the window. The body never scrolls,
+  // so window.scrollY stays 0 and PTR would think it's "at the top" on
+  // every touch, arming on any downward swipe and hijacking normal
+  // scroll-up (reported: "can't scroll back up, it refreshes"). Passing
+  // the container ref makes PTR only arm when the list is genuinely at top.
+  const pageContentRef = useRef(null)
   const ptrEnabled = viewMode !== VIEW_MODES.SWIPE && !selectedEvent
   const ptr = usePullToRefresh(
     async () => { await loadEvents() },
-    null,
+    pageContentRef,
     { enabled: ptrEnabled },
   )
 
@@ -721,7 +728,7 @@ export default function Events({ location }) {
         )}
       </AnimatePresence>
 
-      <div className="page-content">
+      <div className="page-content" ref={pageContentRef}>
         {loading ? (
           <div className="events-loading">
             <div className="events-loading-card" />

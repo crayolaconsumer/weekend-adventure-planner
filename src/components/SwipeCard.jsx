@@ -8,7 +8,7 @@ import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import { ContributionBadge } from './ContributionDisplay'
 import { useFormatDistance } from '../contexts/DistanceContext'
-import { tap as hapticTap, success as hapticSuccess, warn as hapticWarn } from '../utils/haptics'
+import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import FriendChips from './FriendChips'
@@ -364,18 +364,21 @@ export default function SwipeCard({
         const verticalDominant = Math.abs(my) > Math.abs(mx) * 0.7
 
         if (verticalDominant && (my < -swipeUpThreshold || (vy > velocityThreshold && dy < 0))) {
-          // Swipe up - Go now (heavy haptic — committing to an action)
-          hapticSuccess()
+          // Swipe up - Go now. Heavy impact: the most committal action,
+          // should land as a firm, decisive thud — distinct from a save.
+          hapticTap('heavy')
           animate(y, -500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('go'), 200)
         } else if (!verticalDominant && (mx > swipeThreshold || (vx > velocityThreshold && dx > 0))) {
-          // Swipe right - Like (success haptic — saving a place)
+          // Swipe right - Like/save. Success notification: the rewarding
+          // double-tap rhythm, distinct from the heavy "go" thud.
           hapticSuccess()
           animate(x, 500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('like'), 200)
         } else if (!verticalDominant && (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0))) {
-          // Swipe left - Nope (warn haptic — discarding)
-          hapticWarn()
+          // Swipe left - Nope. Light tap: a quick, low-stakes dismissal.
+          // (The old warn buzz felt too heavy/negative for a skip.)
+          hapticTap('light')
           animate(x, -500, { duration: 0.3 })
           setTimeout(() => onSwipe?.('nope'), 200)
         } else {
@@ -389,10 +392,13 @@ export default function SwipeCard({
   )
 
   const handleButtonClick = (action) => {
-    // Haptic feedback — match the gesture meaning. Fire-and-forget;
-    // no need to await since the user has already committed.
-    if (action === 'go' || action === 'like') hapticSuccess()
-    else if (action === 'nope') hapticWarn()
+    // Haptic feedback — match the gesture meaning, and keep each action
+    // distinct so the deck feels tactile rather than uniform. Heavy for
+    // "go" (committal thud), success rhythm for "like" (reward), light
+    // tap for "nope" (quick dismiss). Fire-and-forget.
+    if (action === 'go') hapticTap('heavy')
+    else if (action === 'like') hapticSuccess()
+    else if (action === 'nope') hapticTap('light')
     else hapticTap('light')
 
     // 'go' must fire onSwipe SYNCHRONOUSLY — CardStack uses it to call
