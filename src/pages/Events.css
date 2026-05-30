@@ -969,12 +969,13 @@
 .events-swipe-stack {
   position: relative;
   width: 100%;
-  max-width: 340px;
-  /* Fill more of the viewport on small phones so the empty area
-     above the bottom nav is minimised. Cap at 560px so the deck
-     doesn't bloat on tablets / desktop. */
+  /* Match the Discover deck: fill the viewport on phones. The old
+     340px width + 560px height caps left a narrow, centred card with
+     big side gutters and dead space above the nav — the "little box"
+     users reported. Desktop caps are restored in the ≥1024 rule below. */
+  max-width: 100%;
   height: calc(100% - 60px); /* Leave room for progress bar */
-  max-height: 560px;
+  max-height: none;
   margin: 0 auto;
 }
 
@@ -1799,6 +1800,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+  /* Fill the scroll area so a short list doesn't float at the top with
+     dead space below — the grid + load-more reach the bottom of the
+     viewport instead of sitting in a cramped box. */
+  min-height: 100%;
 }
 
 .events-load-more {
