@@ -84,26 +84,18 @@ export function composeBlurb(place) {
   if (!noun) return null
 
   const cuisine = firstCuisine(place.cuisine)
+  const cuisineApplies = cuisine && FOOD_TYPES.has(type)
   const listed = listedLabel(place)
-  const outdoor = place.outdoor_seating === 'yes'
 
-  // Only emit when we have a qualifier — otherwise the bare noun just
-  // repeats the existing type chip and adds nothing.
-  if (!cuisine && !listed && !outdoor) return null
+  // The blurb is the place's *identity* only — a cuisine ("Italian
+  // restaurant") or a listing/heritage status ("Grade II listed church").
+  // Amenities (outdoor seating, takeaway, …) are shown as feature chips
+  // instead, so no fact appears in two places. If we can't add anything
+  // beyond the bare type chip, return null and let that chip speak.
+  if (!cuisineApplies && !listed) return null
 
-  let lead
-  if (cuisine && FOOD_TYPES.has(type)) {
-    lead = `${cuisine} ${noun}`
-  } else if (listed) {
-    lead = `${listed} ${noun}`
-  } else {
-    lead = noun
-  }
-
-  let blurb = lead
-  if (outdoor) blurb += ' with outdoor seating'
-
-  return capitaliseFirst(blurb)
+  const lead = cuisineApplies ? `${cuisine} ${noun}` : `${listed} ${noun}`
+  return capitaliseFirst(lead)
 }
 
 /**

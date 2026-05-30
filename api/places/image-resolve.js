@@ -366,6 +366,48 @@ async function tryCommonsNameSearch(name) {
   } catch { return null }
 }
 
+// ─── Mapillary: crowd-sourced street-level imagery ────────────────────
+// Free API. For ordinary venues with no Wikipedia article and no website
+// og:image (the long tail — most restaurants/cafés in a town like
+// Hastings), Mapillary often has a recent street-level photo right
+// outside the door. It's "a real photo of roughly that place" — far
+// better than a generic category-stock image, so it slots in as the last
+// real-photo tier before the client's stock fallback.
+//
+// Dormant until MAPILLARY_TOKEN is set (server env / Vercel) — no token,
+// no call, no behaviour change. The token is a Mapillary client access
+// token; we tolerate it with or without the leading "MLY|".
+const MAPILLARY_TOKEN = process.env.MAPILLARY_TOKEN || null
+
+async function tryMapillary(lat, lng) {
+  if (!MAPILLARY_TOKEN) return null
+  // bbox must be < 0.01° square (Mapillary constraint). ~±0.0009° is a
+  // roughly 100m window around the venue — close enough to be its street.
+  const d = 0.0009
+  const bbox = [
+    (lng - d).toFixed(6), (lat - d).toFixed(6),
+    (lng + d).toFixed(6), (lat + d).toFixed(6),
+  ].join(',')
+  const token = MAPILLARY_TOKEN.startsWith('MLY|') ? MAPILLARY_TOKEN : `MLY|${MAPILLARY_TOKEN}`
+  const url = `https://graph.mapillary.com/images?fields=id,thumb_1024_url,captured_at&bbox=${bbox}&limit=10`
+  try {
+    const res = await fetchWithTimeout(url, { headers: { Authorization: `OAuth ${token}` } })
+    if (!res.ok) return null
+    const data = await res.json()
+    const imgs = Array.isArray(data?.data) ? data.data.filter(i => i?.thumb_1024_url) : []
+    if (!imgs.length) return null
+    // Freshest capture first — recent imagery best reflects the place today.
+    imgs.sort((a, b) => (b.captured_at || 0) - (a.captured_at || 0))
+    return {
+      url: imgs[0].thumb_1024_url,
+      source: 'mapillary',
+      attribution: { name: 'Street-level imagery', url: 'https://www.mapillary.com', source: 'Mapillary' },
+    }
+  } catch {
+    return null
+  }
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -420,13 +462,14 @@ async function handler(req, res) {
   // All sources are bounded by UPSTREAM_TIMEOUT_MS so a slow tier
   // doesn't gate response latency. Edge cache + memory cache hides
   // the cost on the second hit.
-  const [cm, wp, wd, og, geo, cn] = await Promise.all([
+  const [cm, wp, wd, og, geo, cn, mp] = await Promise.all([
     tryCommonsFile(commons),
     tryWikipedia(wikipedia),
     tryWikidata(wikidata),
     tryWebsiteOgImage(website),
     validCoords ? tryCommonsGeo(lat, lng, category) : Promise.resolve(null),
-    tryCommonsNameSearch(name)
+    tryCommonsNameSearch(name),
+    validCoords ? tryMapillary(lat, lng) : Promise.resolve(null)
   ])
 
   // ─── Pick the best result ─────────────────────────────────────
@@ -455,9 +498,13 @@ async function handler(req, res) {
                          category === 'nature' || category === 'entertainment' ||
                          category === 'active'
 
+  // Mapillary (mp) is the last real-photo tier in both orders — a true
+  // street-level shot near the coords, ahead of the client's generic
+  // category-stock fallback but behind every venue/landmark-specific
+  // source. Dormant unless MAPILLARY_TOKEN is configured.
   const value = isLandmarkLike
-    ? (cm || wp || wd || cn || geo || og || { url: null, source: null, attribution: null })
-    : (cm || og || wp || wd || geo || { url: null, source: null, attribution: null })
+    ? (cm || wp || wd || cn || geo || og || mp || { url: null, source: null, attribution: null })
+    : (cm || og || wp || wd || geo || mp || { url: null, source: null, attribution: null })
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't

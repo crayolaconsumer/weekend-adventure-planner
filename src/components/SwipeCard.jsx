@@ -98,6 +98,11 @@ export default function SwipeCard({
   // meaningful line + useful feature chips instead of a bare card.
   const blurb = composeBlurb(place)
   const features = placeFeatures(place)
+  // The blurb already names the type (e.g. "Italian restaurant"), so when
+  // it's shown we hide the separate bare type chip to avoid stating the
+  // type twice. A community tip or a real source description takes
+  // priority over the blurb (they're richer), so the type chip stays then.
+  const showBlurb = !topTip && !place.description && !!blurb
   const enrichedImageUrl = place.photo || place.image
   const placeholderUrl = getPlaceholderImage(place.id, category?.key)
   const sourceImageUrl = enrichedImageUrl || placeholderUrl
@@ -588,7 +593,7 @@ export default function SwipeCard({
               {openingState.state === 'closing_soon' && <span className="pulse-dot" />}
             </span>
           )}
-          {place.type && (
+          {place.type && !showBlurb && (
             <span className="swipe-card-meta-item type">
               {place.type.replace(/_/g, ' ')}
             </span>
