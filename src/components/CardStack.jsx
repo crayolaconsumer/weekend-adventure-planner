@@ -6,7 +6,7 @@ import SponsoredCard from './SponsoredCard'
 import EmptyStateIllustration from './icons/EmptyStateIllustration'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { enrichPlace } from '../utils/apiClient'
-import { resolvePlaceImageAsync } from '../utils/placeImage'
+import { resolvePlaceImageWithMeta } from '../utils/placeImage'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
 import { openDirections } from '../utils/navigation'
@@ -86,7 +86,7 @@ export default function CardStack({
     const applyEnrichedImage = (place) => {
       const enriched = enrichedImages[place.id]
       if (enriched && !place.photo && !place.image) {
-        return { ...place, image: enriched.url, imageSource: enriched.source }
+        return { ...place, image: enriched.url, imageSource: enriched.source, imageAttribution: enriched.attribution }
       }
       return place
     }
@@ -156,14 +156,14 @@ export default function CardStack({
     if (place.photo || place.image) return null
 
     try {
-      const imageUrl = await resolvePlaceImageAsync(place)
-      if (imageUrl) {
+      const meta = await resolvePlaceImageWithMeta(place)
+      if (meta?.url) {
         setEnrichedImages(prev => ({
           ...prev,
-          [place.id]: { url: imageUrl, source: 'resolver' }
+          [place.id]: { url: meta.url, source: meta.source, attribution: meta.attribution }
         }))
-        fetchAndCacheImage(imageUrl, place.id).catch(() => {})
-        return imageUrl
+        fetchAndCacheImage(meta.url, place.id).catch(() => {})
+        return meta.url
       }
     } catch (err) {
       console.warn(`[CardStack] Image fetch failed for ${place.id}:`, err.message)

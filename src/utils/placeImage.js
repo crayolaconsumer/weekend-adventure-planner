@@ -189,7 +189,11 @@ async function fetchEnhancedImage(place) {
       websiteHost = new URL(website.startsWith('http') ? website : `https://${website}`).hostname
     } catch { websiteHost = '' }
   }
-  const key = `image-resolve:v3:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${name || ''}|${category || ''}|${lat ?? ''},${lng ?? ''}`
+  // v4: cached value changed from a bare url string to { url, source,
+  // attribution } so callers can render a photo credit. Bumping the prefix
+  // skips the old string-format entries (they'd parse as objects and lose
+  // the cached image otherwise).
+  const key = `image-resolve:v4:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${name || ''}|${category || ''}|${lat ?? ''},${lng ?? ''}`
   const memHit = memoryCache.get(key)
   if (memHit !== undefined) return memHit
   const diskHit = readDiskEntry(key)
@@ -215,12 +219,15 @@ async function fetchEnhancedImage(place) {
       return null
     }
     const result = await res.json()
-    const url = result?.url || null
-    memoryCache.set(key, url)
-    // Disk-cache hits and 'no image' verdicts both — saves the round trip
-    // either way next time
-    saveDiskEntry(key, url)
-    return url
+    // Cache the full resolver verdict — url + provenance + attribution — so
+    // callers can render a photo credit (Commons CC-BY / Mapillary require
+    // it) without a second lookup. null = a cached 'no image' verdict.
+    const meta = result?.url
+      ? { url: result.url, source: result.source || null, attribution: result.attribution || null }
+      : null
+    memoryCache.set(key, meta)
+    saveDiskEntry(key, meta)
+    return meta
   } catch {
     memoryCache.set(key, null)
     return null
@@ -276,24 +283,43 @@ function pickStockImage(place) {
 }
 
 /**
- * Returns the best-known image URL, falling back through:
- *   1. Sync image fields already on the place
- *   2. Multi-source server resolver (Wiki/Wikidata/Commons/website/geosearch)
+ * Returns the best-known image AND its provenance as { url, source,
+ * attribution } so callers (the swipe card) can render a photo credit.
+ * Falls back through:
+ *   1. Sync image fields already on the place (carrying any place.imageSource
+ *      / place.imageAttribution set by enrichPlace)
+ *   2. Multi-source server resolver (Wiki/Wikidata/Commons/website/Mapillary)
  *   3. Category stock photo (Unsplash) — last resort so every card has a photo
- * Always returns a URL. Callers don't need a placeholder anymore.
+ * source/attribution are null for the sync-field and stock fallbacks.
+ * Always returns a usable url.
  */
-export async function resolvePlaceImageAsync(place) {
+export async function resolvePlaceImageWithMeta(place) {
   const sync = resolvePlaceImageSync(place)
-  if (sync) return sync
-  // fetchEnhancedImage can throw on network / abort / parse errors.
-  // We must still return a URL so CardStack's permanent "already tried"
-  // bookkeeping doesn't leave the place imageless forever — fall to the
-  // category stock photo on any failure.
+  if (sync) {
+    const data = place?.placeData || place || {}
+    return {
+      url: sync,
+      source: place?.imageSource ?? data.imageSource ?? null,
+      attribution: place?.imageAttribution ?? data.imageAttribution ?? null,
+    }
+  }
+  // fetchEnhancedImage can throw on network / abort / parse errors. We must
+  // still return a URL so CardStack's permanent "already tried" bookkeeping
+  // doesn't leave the place imageless forever — fall to stock on any failure.
   try {
-    const resolved = await fetchEnhancedImage(place)
-    if (resolved) return resolved
+    const meta = await fetchEnhancedImage(place)
+    if (meta?.url) return meta
   } catch (err) {
     console.warn('[placeImage] enhanced fetch failed, using stock:', err?.message)
   }
-  return pickStockImage(place)
+  return { url: pickStockImage(place), source: 'stock', attribution: null }
+}
+
+/**
+ * Returns the best-known image URL (string). Thin wrapper over
+ * resolvePlaceImageWithMeta for callers that only need the URL (PlaceImage,
+ * JustGoModal). Always returns a URL.
+ */
+export async function resolvePlaceImageAsync(place) {
+  return (await resolvePlaceImageWithMeta(place)).url
 }

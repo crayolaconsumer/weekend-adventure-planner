@@ -16,14 +16,16 @@ export interface WikipediaSummary {
   extract: string | null
   extractShort: string | null
   image: string | null
+  imageWidth: number | null
+  imageHeight: number | null
   url: string | null
 }
 
 interface WikipediaSummaryResponse {
   title?: string
   extract?: string
-  thumbnail?: { source?: string }
-  originalimage?: { source?: string }
+  thumbnail?: { source?: string; width?: number; height?: number }
+  originalimage?: { source?: string; width?: number; height?: number }
   content_urls?: { desktop?: { page?: string } }
 }
 
@@ -132,11 +134,18 @@ export async function fetchWikipediaSummary(title: string): Promise<WikipediaSum
 
     const data = await response.json() as WikipediaSummaryResponse
 
+    // Pair the dimensions with whichever image URL we actually return, so
+    // selectBestImage's resolution/aspect scoring sees real numbers instead
+    // of always-null (the previous bug: imageWidth/imageHeight were read in
+    // enrichPlace but never produced here).
+    const usingThumb = !!data.thumbnail?.source
     return {
       title: data.title ?? articleTitle,
       extract: data.extract ?? null,
       extractShort: data.extract ? truncateText(data.extract, 150) : null,
       image: data.thumbnail?.source || data.originalimage?.source || null,
+      imageWidth: (usingThumb ? data.thumbnail?.width : data.originalimage?.width) ?? null,
+      imageHeight: (usingThumb ? data.thumbnail?.height : data.originalimage?.height) ?? null,
       url: data.content_urls?.desktop?.page || null,
     }
   } catch (error) {

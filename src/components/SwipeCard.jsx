@@ -106,6 +106,11 @@ export default function SwipeCard({
   const enrichedImageUrl = place.photo || place.image
   const placeholderUrl = getPlaceholderImage(place.id, category?.key)
   const sourceImageUrl = enrichedImageUrl || placeholderUrl
+  // Photo credit threaded from the resolver/enrichment via
+  // place.imageAttribution. Commons CC-BY / Mapillary require a visible
+  // credit; we show honest provenance for every real photo (null for the
+  // category-stock fallback and bare OSM image= tags, which have none).
+  const photoCredit = enrichedImageUrl ? (place.imageAttribution?.source || null) : null
 
   // Track the last loaded source to detect enrichment updates
   const lastLoadedSourceRef = useRef(null)
@@ -506,11 +511,12 @@ export default function SwipeCard({
               onError={handleImageError}
               referrerPolicy="no-referrer"
             />
-            {/* Mapillary requires attribution on its street-level imagery.
-                Detected by CDN path (served from fbcdn.net/m1/) rather than
-                threading source through the string-keyed image cache. */}
-            {/\.fbcdn\.net\/m1\//.test(cachedImageUrl || sourceImageUrl || '') && (
-              <span className="swipe-card-photo-credit">Mapillary</span>
+            {/* Photo credit from the resolver's real attribution object
+                (threaded via place.imageAttribution). Commons CC-BY /
+                Mapillary require a visible credit; we show provenance for
+                every real photo. */}
+            {photoCredit && (
+              <span className="swipe-card-photo-credit">{photoCredit}</span>
             )}
           </>
         ) : (

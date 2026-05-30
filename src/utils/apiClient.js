@@ -949,7 +949,8 @@ export async function enrichPlace(place) {
               url: details.image,
               source: 'opentripmap',
               width: null,
-              height: null
+              height: null,
+              attribution: { name: null, url: details.website || null, source: 'OpenTripMap' }
             }))
           }
         }
@@ -972,7 +973,8 @@ export async function enrichPlace(place) {
               url: wiki.image,
               source: 'wikipedia',
               width: wiki.imageWidth || null,
-              height: wiki.imageHeight || null
+              height: wiki.imageHeight || null,
+              attribution: { name: wiki.title || null, url: wiki.url || null, source: 'Wikipedia' }
             }))
           }
         }
@@ -990,7 +992,8 @@ export async function enrichPlace(place) {
             url: image,
             source: 'wikidata',
             width: null,
-            height: null
+            height: null,
+            attribution: { name: null, url: null, source: 'Wikimedia Commons' }
           }))
         }
         return image
@@ -1010,6 +1013,7 @@ export async function enrichPlace(place) {
     if (bestImage) {
       enriched.image = bestImage.url
       enriched.imageSource = bestImage.source
+      enriched.imageAttribution = bestImage.attribution || null
     }
   }
 
