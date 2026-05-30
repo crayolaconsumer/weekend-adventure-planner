@@ -354,6 +354,25 @@
   border-radius: 1px;
 }
 
+/* Photo credit (e.g. Mapillary) — required attribution for street-level
+   imagery, tucked bottom-right over the scrim so it's unobtrusive. */
+.swipe-card-photo-credit {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 5;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 /* Composed blurb — the honest, data-derived fallback shown when there's
    no community tip and no source description. Not italic / not quoted
    (it isn't a quote), so it reads as a factual subtitle. */

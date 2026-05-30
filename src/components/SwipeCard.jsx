@@ -506,6 +506,12 @@ export default function SwipeCard({
               onError={handleImageError}
               referrerPolicy="no-referrer"
             />
+            {/* Mapillary requires attribution on its street-level imagery.
+                Detected by CDN path (served from fbcdn.net/m1/) rather than
+                threading source through the string-keyed image cache. */}
+            {/\.fbcdn\.net\/m1\//.test(cachedImageUrl || sourceImageUrl || '') && (
+              <span className="swipe-card-photo-credit">Mapillary</span>
+            )}
           </>
         ) : (
           // No usable photo (no source, or every fetch attempt failed).
