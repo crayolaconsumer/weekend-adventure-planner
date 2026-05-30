@@ -354,6 +354,40 @@
   border-radius: 1px;
 }
 
+/* Composed blurb — the honest, data-derived fallback shown when there's
+   no community tip and no source description. Not italic / not quoted
+   (it isn't a quote), so it reads as a factual subtitle. */
+.swipe-card-blurb {
+  margin-top: var(--space-sm);
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.4;
+  max-width: 95%;
+}
+
+/* Feature chips — real OSM amenities (outdoor seating, takeaway, etc.)
+   surfaced as small scannable pills over the card's dark scrim. */
+.swipe-card-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-sm);
+}
+
+.swipe-card-feature {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  white-space: nowrap;
+}
+
 /* Community tip */
 .swipe-card-tip {
   margin-top: var(--space-sm);

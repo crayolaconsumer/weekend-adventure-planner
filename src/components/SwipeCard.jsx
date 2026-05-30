@@ -9,6 +9,7 @@ import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../ut
 import { ContributionBadge } from './ContributionDisplay'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
+import { composeBlurb, placeFeatures } from '../utils/placeBlurb'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import FriendChips from './FriendChips'
@@ -91,6 +92,12 @@ export default function SwipeCard({
 
   // Get the source image URL and fallback
   const category = place.category
+  // Honest, specific fallbacks built from the structured OSM tags we
+  // already fetch (cuisine, outdoor_seating, listed status, etc.) — so
+  // an ordinary venue with no Wikipedia description still gets a
+  // meaningful line + useful feature chips instead of a bare card.
+  const blurb = composeBlurb(place)
+  const features = placeFeatures(place)
   const enrichedImageUrl = place.photo || place.image
   const placeholderUrl = getPlaceholderImage(place.id, category?.key)
   const sourceImageUrl = enrichedImageUrl || placeholderUrl
@@ -603,7 +610,17 @@ export default function SwipeCard({
           </div>
         ) : place.description ? (
           <p className="swipe-card-description">"{place.description}"</p>
+        ) : blurb ? (
+          <p className="swipe-card-blurb">{blurb}</p>
         ) : null}
+
+        {features.length > 0 && (
+          <div className="swipe-card-features">
+            {features.map(f => (
+              <span key={f} className="swipe-card-feature">{f}</span>
+            ))}
+          </div>
+        )}
 
         {place.address && (
           <p className="swipe-card-address">{place.address}</p>
