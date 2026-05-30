@@ -215,20 +215,26 @@ async function tryWebsiteOgImage(website) {
     const ct = res.headers.get('content-type') || ''
     if (!/text\/html|application\/xhtml/i.test(ct)) return null
 
-    // Stream-read up to 64 KB then bail — og tags live in the <head>.
-    // If the head is genuinely larger than this we don't want the image
-    // badly enough to download a megabyte of body.
+    // Stream-read the <head> then bail. Site builders (Wix, Squarespace,
+    // GoDaddy) inject enormous inline script/CSS into <head> *before* the
+    // og tags — measured og:image at ~108–112 KB on real venue sites — so
+    // a 64 KB cap silently missed them and venues fell back to a street
+    // photo instead of their own hero/food image. Read up to 256 KB, but
+    // stop the moment we've seen the share image (the common case) or
+    // </head>, so ordinary small sites still bail after a few KB.
     const reader = res.body?.getReader()
     if (!reader) return null
     let html = ''
     let received = 0
     const decoder = new TextDecoder('utf-8', { fatal: false })
-    while (received < 64 * 1024) {
+    while (received < 256 * 1024) {
       const { value, done } = await reader.read()
       if (done) break
       html += decoder.decode(value, { stream: true })
       received += value.byteLength
       if (/<\/head>/i.test(html)) break
+      // Got the share image — no need to keep pulling a huge body.
+      if (/property=["']og:image["']|name=["']twitter:image["']/i.test(html)) break
     }
     try { reader.cancel() } catch { /* noop */ }
 
