@@ -6,9 +6,10 @@
 .events-page {
   display: flex;
   flex-direction: column;
-  /* 80px nav + home-indicator safe area. 70px hard-coded was leaving
-     the last visible content row clipped behind the nav on Pro Max. */
-  height: calc(100dvh - 80px - env(safe-area-inset-bottom, 0));
+  min-height: 100vh;
+  min-height: var(--stable-vh, 100dvh);
+  height: 100vh;
+  height: var(--stable-vh, 100dvh);
   overflow: hidden;
   background: var(--roam-cream);
 }
@@ -775,10 +776,7 @@
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--space-md) 0;
-  /* Pin to the bottom of the flex-column page-content so a short list/deck
-     doesn't leave the attribution floating in a mid-page gap. */
   margin: 0;
-  margin-top: auto;
   flex-shrink: 0;
 }
 
@@ -970,26 +968,18 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Fill from the top like Discover's .card-stack so the deck claims the
-     full height and the progress bar sits just below it — not centred with
-     dead space collecting under the deck. flex:1 (not height:100%) so it
-     shares the flex-column page-content with the attribution without
-     overflowing — overflow would make swipe view scroll and fight the
-     card's vertical "Go" gesture. */
-  justify-content: flex-start;
+  justify-content: center;
   flex: 1 1 auto;
   min-height: 0;
-  padding: var(--space-xs) 0;
+  padding: var(--space-md) var(--space-md) var(--space-xs);
 }
 
 .events-swipe-stack {
   position: relative;
   width: 100%;
-  max-width: 100%;
-  /* Mirror Discover's .card-stack-wrapper: grow to fill the column so the
-     card claims the full height. The old fixed calc(100% - 60px) inside a
-     centred container left the card short with a gap below it. The progress
-     bar is now a sibling below (see Events.jsx), not a height reservation. */
+  max-width: 380px;
+  height: 100%;
+  max-height: none;
   flex: 1 1 auto;
   min-height: 280px;
   margin: 0 auto;
@@ -1017,14 +1007,19 @@
 .event-swipe-card {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  max-width: 100%;
+  aspect-ratio: 3/4;
+  max-height: 100%;
   border-radius: var(--radius-xl);
   overflow: hidden;
   background: var(--roam-forest);
   touch-action: none;
   cursor: grab;
   will-change: transform;
+  transform: translate3d(0, 0, 0);
   user-select: none;
 
   /* Softer 2-layer shadow. The previous 4-layer stack with rising
@@ -1411,37 +1406,37 @@
    ═══════════════════════════════════════════════════════ */
 
 .events-progress {
-  /* Now a normal flow sibling below the deck (was absolute inside the stack).
-     Sits centred under the card in the flex column. */
+  margin-top: var(--space-xl);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
-  width: 100%;
-  max-width: 200px;
+  gap: var(--space-sm);
   flex-shrink: 0;
-  margin-top: var(--space-sm);
 }
 
 .events-progress-bar {
-  width: 100%;
-  height: 3px;
+  width: 120px;
+  height: 4px;
   background: var(--roam-parchment);
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
 
 .events-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--roam-gold) 0%, var(--roam-gold-light) 100%);
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   transition: width 0.3s ease;
 }
 
 .events-progress-text {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-muted);
   font-weight: 500;
+  padding: 6px 14px;
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1816,9 +1811,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  /* No min-height:100% — forcing the container to fill the scroll area left
-     a huge gap below a short list (e.g. a single card). Natural height lets
-     the list size to its content; the attribution pins to the bottom. */
+  flex: 0 0 auto;
 }
 
 .events-load-more {

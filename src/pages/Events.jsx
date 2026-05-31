@@ -916,10 +916,9 @@ export default function Events({ location }) {
           </div>
         )}
 
-        {/* Attribution lives INSIDE .page-content so it flows right after the
-            cards/grid instead of sitting below the fixed-height deck, which
-            left a large empty gap above the bottom nav. */}
-        {apiStatus.sources.length > 0 && (
+        {/* Grid/list attribution flows directly after the results. Swipe cards
+            carry their source badge on-card, matching Discover's compact deck. */}
+        {apiStatus.sources.length > 0 && viewMode !== VIEW_MODES.SWIPE && (
           <p className="events-attribution">
             Events from {apiStatus.sources.map(s => getSourceInfo(s).name).join(', ')}
           </p>
