@@ -1400,26 +1400,27 @@
   margin-top: var(--space-md, 16px);
 }
 
+/* Standardised to match the Privacy section's toggles (.privacy-settings-toggle)
+   — the legible style the user asked to use everywhere: theme-aware track,
+   bright --color-accent when on (was a dark --roam-forest that vanished in
+   dark mode), boxed icon, theme-aware text. */
 .unified-profile-settings-toggle {
   display: flex;
   align-items: center;
   gap: var(--space-md, 12px);
+  width: 100%;
   padding: var(--space-md, 12px);
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--roam-parchment, #e8e0d0);
-  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
 }
 
 .unified-profile-settings-toggle:hover:not(:disabled) {
-  border-color: var(--roam-forest, #1a3a2f);
-}
-
-.unified-profile-settings-toggle.active {
-  background: rgba(26, 58, 47, 0.05);
-  border-color: var(--roam-forest, #1a3a2f);
+  border-color: var(--color-accent);
+  background: var(--color-surface-elevated);
 }
 
 .unified-profile-settings-toggle:disabled {
@@ -1428,8 +1429,20 @@
 }
 
 .unified-profile-settings-toggle .toggle-icon {
-  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
+  background: var(--color-surface-elevated);
+  border-radius: 10px;
+  color: var(--color-text-secondary);
+}
+
+.unified-profile-settings-toggle.active .toggle-icon {
+  background: rgba(224, 122, 95, 0.1);
+  color: var(--color-accent);
 }
 
 .unified-profile-settings-toggle .toggle-text {
@@ -1442,41 +1455,41 @@
 
 .unified-profile-settings-toggle .toggle-label {
   font-family: var(--font-body, 'Outfit', sans-serif);
-  font-size: var(--text-sm, 14px);
+  font-size: 0.95rem;
   font-weight: 500;
-  color: var(--roam-ink, #2c2c2c);
+  color: var(--color-text-primary);
 }
 
 .unified-profile-settings-toggle .toggle-desc {
   font-family: var(--font-body, 'Outfit', sans-serif);
-  font-size: var(--text-xs, 12px);
-  color: var(--roam-ink-muted, #6b6b6b);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
 }
 
-/* Toggle Switch */
+/* Toggle Switch — mirrors .privacy-settings-toggle .toggle-switch */
 .unified-profile-settings-toggle .toggle-switch {
   position: relative;
-  width: 44px;
-  height: 24px;
-  background: var(--roam-parchment, #e8e0d0);
-  border-radius: 12px;
+  width: 48px;
+  height: 28px;
+  background: var(--color-border);
+  border-radius: 14px;
   flex-shrink: 0;
   transition: background 0.2s ease;
 }
 
 .unified-profile-settings-toggle .toggle-switch.on {
-  background: var(--roam-forest, #1a3a2f);
+  background: var(--color-accent);
 }
 
 .unified-profile-settings-toggle .toggle-knob {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background: var(--color-surface-elevated);
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease;
 }
 
@@ -1493,7 +1506,8 @@
 }
 
 .unified-profile-settings-toggle.sub-toggle .toggle-icon {
-  font-size: 16px;
+  width: 32px;
+  height: 32px;
 }
 
 .unified-profile-settings-toggle.sub-toggle .toggle-label {

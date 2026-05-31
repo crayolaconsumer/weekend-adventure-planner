@@ -29,7 +29,7 @@ import NotificationsSection from './NotificationsSection'
 export default function SettingsTab({ user, onLogout }) {
   const { updateProfile, deleteAccount } = useAuth()
   const { isPremium, manageSubscription, loading: subLoading, error: subError, expiresAt, isCancelled } = useSubscription()
-  const { distanceUnit, setDistanceUnit } = useDistance()
+  const { distanceUnit, setDistanceUnit, formatDistance } = useDistance()
   const { preference: themePref, setPreference: setThemePref } = useTheme()
   const navigate = useNavigate()
 
@@ -83,10 +83,11 @@ export default function SettingsTab({ user, onLogout }) {
 
   // Travel mode options. Icon comes from FilterIcon via the mode key,
   // so no emoji field is needed here.
+  // Radius in km; the displayed unit follows the user's distance preference.
   const travelModes = {
-    walking: { label: 'Walking', desc: 'Up to 5km' },
-    driving: { label: 'Driving', desc: 'Up to 30km' },
-    transit: { label: 'Transit', desc: 'Up to 15km' },
+    walking: { label: 'Walking', radiusKm: 5 },
+    driving: { label: 'Driving', radiusKm: 30 },
+    transit: { label: 'Transit', radiusKm: 15 },
   }
 
   // Reset form when user changes
@@ -432,7 +433,7 @@ export default function SettingsTab({ user, onLogout }) {
               >
                 <span className="mode-icon"><FilterIcon name={key} size={24} /></span>
                 <span className="mode-label">{mode.label}</span>
-                <span className="mode-desc">{mode.desc}</span>
+                <span className="mode-desc">Up to {formatDistance(mode.radiusKm)}</span>
               </button>
             ))}
           </div>
