@@ -11,6 +11,7 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { formatDistanceToNow } from '../utils/dateUtils'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import { formatDisplayName } from '../utils/displayName'
 import { getCategoryForType } from '../utils/categories'
 import PremiumBadge from './PremiumBadge'
@@ -90,6 +91,12 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
     `https://ui-avatars.com/api/?name=${encodeURIComponent(friendlyName)}&background=E07A5F&color=fff`
 
   const timeAgo = activity.createdAt ? formatDistanceToNow(new Date(activity.createdAt)) : ''
+  // Distance from the user, set by the feed API when location is known. Shown
+  // so a far-away "Recent Activity" post (e.g. 109mi) isn't mistaken for local.
+  const formatDistance = useFormatDistance()
+  const distanceLabel = typeof activity.distanceMeters === 'number'
+    ? formatDistance(activity.distanceMeters / 1000, { withSuffix: true })
+    : null
 
   const verb = getActivityVerb(activity.type, activity.rating)
   const categoryKey = getCategoryKey(activity.place?.category)
@@ -165,7 +172,10 @@ export default function ActivityItem({ activity, index = 0, onSavePlace, hasVisi
                 </span>
               )}
             </p>
-            <span className="activity-item-time">{timeAgo}</span>
+            <span className="activity-item-time">
+              {timeAgo}
+              {distanceLabel && <> · {distanceLabel}</>}
+            </span>
           </div>
           {activity.id && (
             <ModerationMenu
