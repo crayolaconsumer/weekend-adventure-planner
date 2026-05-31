@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import EventCard from '../components/EventCard'
@@ -19,6 +19,8 @@ import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections } from '../utils/navigation'
 import { GOOD_CATEGORIES } from '../utils/categories'
+import { calculateDistance } from '../utils/placeFilter'
+import { getCurrentPosition as nativeGetCurrentPosition } from '../utils/nativePlugins'
 import './Wishlist.css'
 
 // Icons
@@ -143,6 +145,18 @@ export default function Wishlist() {
   const { isPremium } = useSubscription()
   const formatDistance = useFormatDistance()
 
+  // Live distance: saved places no longer carry a frozen save-time distance,
+  // so we recompute from the user's CURRENT location. getCurrentPosition reuses
+  // the OS's recent fix (maximumAge), so no extra permission prompt.
+  const [userLoc, setUserLoc] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    nativeGetCurrentPosition()
+      .then(pos => { if (!cancelled) setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   // Pagination state
   const [placesDisplayLimit, setPlacesDisplayLimit] = useState(PAGE_SIZE)
   const [eventsDisplayLimit, setEventsDisplayLimit] = useState(PAGE_SIZE)
@@ -222,7 +236,14 @@ export default function Wishlist() {
       })
 
   // Paginated items
-  const displayedPlaces = filteredWishlist.slice(0, placesDisplayLimit)
+  const displayedPlaces = filteredWishlist.slice(0, placesDisplayLimit).map(place => ({
+    ...place,
+    // Compute distance live from current location; never show the stale
+    // save-time value. Hidden (null) until we have a location fix.
+    distance: (userLoc && place.lat != null && place.lng != null)
+      ? calculateDistance(userLoc.lat, userLoc.lng, place.lat, place.lng)
+      : null
+  }))
   const displayedEvents = savedEvents.slice(0, eventsDisplayLimit)
   const hasMorePlaces = filteredWishlist.length > placesDisplayLimit
   const hasMoreEvents = savedEvents.length > eventsDisplayLimit
@@ -659,6 +680,7 @@ export default function Wishlist() {
       {detailPlace && (
         <PlaceDetail
           place={detailPlace}
+          userLocation={userLoc}
           onClose={() => setDetailPlace(null)}
           onGo={() => { goToPlace(detailPlace); setDetailPlace(null) }}
         />

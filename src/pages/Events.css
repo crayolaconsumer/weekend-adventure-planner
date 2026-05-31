@@ -823,7 +823,9 @@
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
   font-weight: 500;
-  color: var(--roam-stone);
+  /* Theme-aware: --roam-stone flips to dark forest in dark mode (illegible
+     on the dark toolbar). --color-text-secondary reads in both themes. */
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: color 0.2s ease;
   white-space: nowrap;
@@ -861,7 +863,9 @@
   background: var(--color-surface-elevated);
   border: 1px solid rgba(26, 58, 47, 0.1);
   border-radius: var(--radius-full);
-  color: var(--roam-stone);
+  /* Theme-aware: --roam-stone is dark-on-dark in dark mode. The icon must
+     stay legible on --color-surface-elevated in both themes. */
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   text-decoration: none;

@@ -941,6 +941,7 @@ export default function Discover({ location }) {
         {selectedPlace && (
           <PlaceDetail
             place={selectedPlace}
+            userLocation={effectiveLocation}
             onClose={() => setSelectedPlace(null)}
             onGo={(place) => {
               setPendingVisit(place)

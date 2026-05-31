@@ -211,10 +211,13 @@
   gap: 6px;
   padding: 8px 12px;
   margin-bottom: 16px;
-  background: var(--roam-cream);
+  /* --roam-cream equals the page background in dark mode, so the pill and the
+     "Your location" label disappeared. Elevated surface + theme-aware text
+     keeps it visible in both modes. */
+  background: var(--color-surface-elevated);
   border-radius: 8px;
   font-size: 13px;
-  color: var(--roam-ink-muted);
+  color: var(--color-text-secondary);
 }
 
 .social-hub-location-indicator svg {

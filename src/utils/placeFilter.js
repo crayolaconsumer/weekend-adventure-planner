@@ -581,7 +581,7 @@ export function enhancePlace(place, userLocation, context = {}) {
 /**
  * Calculate distance between two coordinates in km
  */
-function calculateDistance(lat1, lon1, lat2, lon2) {
+export function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371 // Earth's radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLon = (lon2 - lon1) * Math.PI / 180

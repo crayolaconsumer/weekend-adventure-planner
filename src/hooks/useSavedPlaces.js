@@ -88,6 +88,10 @@ export function useSavedPlaces() {
 
   const savePlace = useCallback(async (place) => {
     const placeWithTimestamp = { ...place, savedAt: Date.now() }
+    // Don't persist `distance`: it's computed from the user's location at save
+    // time, so a stored copy is wrong the moment they move. Saved views
+    // recompute it live from current location instead.
+    delete placeWithTimestamp.distance
 
     // Optimistic update - add to front of list
     setPlaces(prev => [placeWithTimestamp, ...prev.filter(p => p.id !== place.id)])

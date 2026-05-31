@@ -725,7 +725,10 @@
   min-height: 36px;
   padding: 8px 14px;
   background: var(--color-surface-elevated);
-  border: 1.5px solid var(--roam-parchment);
+  /* --roam-parchment equals the surface colour in dark mode, so the border
+     vanished and pills read as empty rectangles. --color-border stays a
+     visible hairline in both themes. */
+  border: 1.5px solid var(--color-border);
   border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 500;

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { enrichPlace } from '../utils/apiClient'
+import { calculateDistance } from '../utils/placeFilter'
 import { useAuth } from '../contexts/AuthContext'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { formatDistanceToNow } from '../utils/dateUtils'
@@ -146,7 +147,7 @@ const CalendarPlusIcon = () => (
 // intentional design choice rather than a misleading photo. Real photos
 // only come from place_data or Wikipedia (resolved via PlaceImage).
 
-export default function PlaceDetail({ place, onClose, onGo }) {
+export default function PlaceDetail({ place, onClose, onGo, userLocation = null }) {
   const { resolved: theme } = useTheme()
   const mapTile = theme === 'dark' ? DARK_TILE : VOYAGER_TILE
   const [enrichedPlace, setEnrichedPlace] = useState(place)
@@ -162,6 +163,14 @@ export default function PlaceDetail({ place, onClose, onGo }) {
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
   const { updatePlannedDate } = useSavedPlaces()
   const formatDistance = useFormatDistance()
+
+  // Distance from the user's CURRENT location (passed by the caller), not a
+  // value frozen when the place was saved. Falls back to any distance already
+  // on the place when no live location is available (e.g. opened from a screen
+  // that doesn't track location).
+  const liveDistance = (userLocation?.lat != null && place?.lat != null && place?.lng != null)
+    ? calculateDistance(userLocation.lat, userLocation.lng, place.lat, place.lng)
+    : enrichedPlace.distance
 
   // Fetch contributions on mount
   useEffect(() => {
@@ -449,10 +458,10 @@ export default function PlaceDetail({ place, onClose, onGo }) {
               {/* Unified meta strip — quick-info pills + place-badges in
                   one well-spaced row, instead of two cramped competing rows */}
               <div className="place-detail-meta">
-                {enrichedPlace.distance && (
+                {liveDistance && (
                   <span className="place-detail-pill">
                     <MapPinIcon />
-                    {formatDistance(enrichedPlace.distance, { withSuffix: true })}
+                    {formatDistance(liveDistance, { withSuffix: true })}
                   </span>
                 )}
                 {enrichedPlace.isOpen !== null && (

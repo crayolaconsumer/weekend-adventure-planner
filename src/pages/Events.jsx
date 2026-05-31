@@ -911,14 +911,16 @@ export default function Events({ location }) {
             </p>
           </div>
         )}
-      </div>
 
-      {/* Attribution */}
-      {apiStatus.sources.length > 0 && (
-        <p className="events-attribution">
-          Events from {apiStatus.sources.map(s => getSourceInfo(s).name).join(', ')}
-        </p>
-      )}
+        {/* Attribution lives INSIDE .page-content so it flows right after the
+            cards/grid instead of sitting below the fixed-height deck, which
+            left a large empty gap above the bottom nav. */}
+        {apiStatus.sources.length > 0 && (
+          <p className="events-attribution">
+            Events from {apiStatus.sources.map(s => getSourceInfo(s).name).join(', ')}
+          </p>
+        )}
+      </div>
 
       {/* Event Detail Modal */}
       {selectedEvent && (

@@ -17,6 +17,7 @@ import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
 import FilterIcon from './icons/FilterIcon'
 import DistanceBandSlider from './discover/DistanceBandSlider'
+import { useFormatDistance } from '../contexts/DistanceContext'
 import './FilterModal.css'
 
 // Backdrop animation
@@ -102,6 +103,7 @@ export function FilterModal({
   const sheetRef = useRef(null)
   const firstFocusableRef = useRef(null)
   const dragControls = useDragControls()
+  const formatDistance = useFormatDistance()
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Reset expanded state when modal opens - intentional state sync
@@ -311,7 +313,7 @@ export function FilterModal({
                           </span>
                           <span className="filter-modal-mode-label">{mode.label}</span>
                           <span className="filter-modal-mode-detail">
-                            Up to {mode.maxRadius / 1000}km
+                            Up to {formatDistance(mode.maxRadius / 1000)}
                           </span>
                           {isLocked && (
                             <span className="filter-modal-mode-badge">ROAM+</span>

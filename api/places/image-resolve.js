@@ -395,12 +395,15 @@ async function tryMapillary(lat, lng) {
     (lng + d).toFixed(6), (lat + d).toFixed(6),
   ].join(',')
   const token = MAPILLARY_TOKEN.startsWith('MLY|') ? MAPILLARY_TOKEN : `MLY|${MAPILLARY_TOKEN}`
-  const url = `https://graph.mapillary.com/images?fields=id,thumb_1024_url,captured_at&bbox=${bbox}&limit=10`
+  const url = `https://graph.mapillary.com/images?fields=id,thumb_1024_url,captured_at,is_pano&bbox=${bbox}&limit=10`
   try {
     const res = await fetchWithTimeout(url, { headers: { Authorization: `OAuth ${token}` } })
     if (!res.ok) return null
     const data = await res.json()
-    const imgs = Array.isArray(data?.data) ? data.data.filter(i => i?.thumb_1024_url) : []
+    // Drop 360°/equirectangular panoramas — rendered flat in an <img> they
+    // look badly warped (the whole street smeared across the card). Keep only
+    // flat perspective frames.
+    const imgs = Array.isArray(data?.data) ? data.data.filter(i => i?.thumb_1024_url && !i?.is_pano) : []
     if (!imgs.length) return null
     // Freshest capture first — recent imagery best reflects the place today.
     imgs.sort((a, b) => (b.captured_at || 0) - (a.captured_at || 0))
@@ -504,13 +507,15 @@ async function handler(req, res) {
                          category === 'nature' || category === 'entertainment' ||
                          category === 'active'
 
-  // Mapillary (mp) is the last real-photo tier in both orders — a true
-  // street-level shot near the coords, ahead of the client's generic
-  // category-stock fallback but behind every venue/landmark-specific
-  // source. Dormant unless MAPILLARY_TOKEN is configured.
+  // Mapillary (mp) is LANDMARKS-ONLY now, as the last real-photo tier — a
+  // street-level shot near a castle/monument is genuinely useful. For VENUES
+  // it's removed entirely: a street view of the pavement outside a restaurant
+  // is worse than the clean category-stock photo the client renders when we
+  // return null. (Panoramas are already filtered out in tryMapillary.)
+  // Dormant unless MAPILLARY_TOKEN is configured.
   const value = isLandmarkLike
     ? (cm || wp || wd || cn || geo || og || mp || { url: null, source: null, attribution: null })
-    : (cm || og || wp || wd || geo || mp || { url: null, source: null, attribution: null })
+    : (cm || og || wp || wd || geo || { url: null, source: null, attribution: null })
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't
