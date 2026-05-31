@@ -972,9 +972,13 @@
   align-items: center;
   /* Fill from the top like Discover's .card-stack so the deck claims the
      full height and the progress bar sits just below it — not centred with
-     dead space collecting under the deck. */
+     dead space collecting under the deck. flex:1 (not height:100%) so it
+     shares the flex-column page-content with the attribution without
+     overflowing — overflow would make swipe view scroll and fight the
+     card's vertical "Go" gesture. */
   justify-content: flex-start;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: var(--space-xs) 0;
 }
 
