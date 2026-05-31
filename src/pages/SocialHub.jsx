@@ -19,6 +19,7 @@ import { useToast } from '../hooks/useToast'
 import LocationAwareFeed from '../components/LocationAwareFeed'
 import TrendingPlaces from '../components/TrendingPlaces'
 import { formatDisplayName } from '../utils/displayName'
+import { reverseGeocodeLocality } from '../utils/apiClient'
 import PremiumBadge from '../components/PremiumBadge'
 import Avatar from '../components/Avatar'
 import LoadingState from '../components/LoadingState'
@@ -255,6 +256,7 @@ export default function SocialHub({ location }) {
   // Priority: prop > geolocation > default
   const [userLocation, setUserLocation] = useState(location)
   const [locationSource, setLocationSource] = useState(location ? 'prop' : null)
+  const [placeName, setPlaceName] = useState(null)
 
   // Update location if prop changes - prop always takes priority
   useEffect(() => {
@@ -304,6 +306,17 @@ export default function SocialHub({ location }) {
       )
     }
   }, [userLocation, locationSource, toast])
+
+  // Resolve the user's location to a town name so the "Your location" pill
+  // shows WHERE (e.g. "Hastings") rather than just a generic label.
+  useEffect(() => {
+    if (!userLocation?.lat || !userLocation?.lng) return
+    let cancelled = false
+    reverseGeocodeLocality(userLocation.lat, userLocation.lng)
+      .then(name => { if (!cancelled && name) setPlaceName(name) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [userLocation])
 
   if (authLoading) {
     return (
@@ -357,9 +370,9 @@ export default function SocialHub({ location }) {
         <div className="social-hub-location-indicator">
           <LocationPinIcon />
           <span>
-            {locationSource === 'geo' && 'Your location'}
-            {locationSource === 'prop' && 'Your location'}
-            {locationSource === 'default' && 'London (default)'}
+            {placeName
+              ? (locationSource === 'default' ? `${placeName} (default)` : placeName)
+              : (locationSource === 'default' ? 'London (default)' : 'Your location')}
           </span>
         </div>
       )}

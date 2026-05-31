@@ -564,7 +564,7 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
 // we have to import them explicitly — `export { x } from './y'` re-exports
 // to external call sites but does NOT bring `x` into the module's own scope.
 // Geocode + weather have no internal callers so a pure re-export is fine.
-export { reverseGeocode, geocodeAddress } from './apiClient/geocode'
+export { reverseGeocode, reverseGeocodeLocality, geocodeAddress } from './apiClient/geocode'
 export { fetchWeather, getWeatherDescription } from './apiClient/weather'
 
 import {

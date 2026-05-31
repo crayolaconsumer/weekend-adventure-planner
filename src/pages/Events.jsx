@@ -824,6 +824,7 @@ export default function Events({ location }) {
                 </div>
               </div>
             ) : (
+              <>
               <div className="events-swipe-stack">
                 <AnimatePresence>
                   {visibleCards.map((event, index) => (
@@ -842,21 +843,24 @@ export default function Events({ location }) {
                     />
                   ))}
                 </AnimatePresence>
-
-                {/* Progress indicator */}
-                <div className="events-progress">
-                  <div className="events-progress-bar">
-                    <div
-                      className="events-progress-fill"
-                      style={{ width: `${((currentIndex + 1) / allFilteredEvents.length) * 100}%` }}
-                    />
-                  </div>
-                  <span className="events-progress-text">
-                    {currentIndex + 1} of {allFilteredEvents.length}
-                    {loadingMore && ' (loading more...)'}
-                  </span>
-                </div>
               </div>
+
+              {/* Progress indicator — sibling BELOW the deck (mirrors
+                  Discover's card-stack-progress) so the deck fills the height
+                  instead of reserving 60px inside the stack. */}
+              <div className="events-progress">
+                <div className="events-progress-bar">
+                  <div
+                    className="events-progress-fill"
+                    style={{ width: `${((currentIndex + 1) / allFilteredEvents.length) * 100}%` }}
+                  />
+                </div>
+                <span className="events-progress-text">
+                  {currentIndex + 1} of {allFilteredEvents.length}
+                  {loadingMore && ' (loading more...)'}
+                </span>
+              </div>
+              </>
             )}
           </div>
         ) : (

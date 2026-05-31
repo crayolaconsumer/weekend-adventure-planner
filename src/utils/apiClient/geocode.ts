@@ -33,6 +33,30 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
 }
 
 /**
+ * Reverse geocode coordinates to a short locality label (town / city /
+ * village) for compact display — e.g. "Hastings" rather than the full
+ * "12, High Street, Hastings, East Sussex, England, …" display_name.
+ */
+export async function reverseGeocodeLocality(lat: number, lng: number): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${NOMINATIM_API}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+      { headers: { 'User-Agent': USER_AGENT } },
+    )
+    if (response.ok) {
+      const data = await response.json() as {
+        address?: { city?: string; town?: string; village?: string; suburb?: string; county?: string }
+      }
+      const a = data.address ?? {}
+      return a.city ?? a.town ?? a.village ?? a.suburb ?? a.county ?? null
+    }
+  } catch (error) {
+    console.warn('Reverse geocode (locality) failed:', error)
+  }
+  return null
+}
+
+/**
  * Geocode an address string to coordinates.
  */
 export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {

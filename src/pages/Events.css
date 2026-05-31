@@ -236,6 +236,10 @@
 .events-page .page-content {
   flex: 1;
   min-height: 0;
+  /* Flex column so the swipe deck / grid fills and the attribution pins to
+     the bottom (margin-top:auto) instead of floating mid-gap on short lists. */
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   /* Tight horizontal padding so the event card claims as much of the
@@ -770,8 +774,12 @@
   font-size: 11px;
   color: var(--color-text-muted);
   text-align: center;
-  padding: var(--space-lg) 0;
+  padding: var(--space-md) 0;
+  /* Pin to the bottom of the flex-column page-content so a short list/deck
+     doesn't leave the attribution floating in a mid-page gap. */
   margin: 0;
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -962,10 +970,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* Centre the card vertically so the empty space is balanced top
-     and bottom on short viewports (iPhone SE etc) instead of all
-     collecting under the deck. */
-  justify-content: center;
+  /* Fill from the top like Discover's .card-stack so the deck claims the
+     full height and the progress bar sits just below it — not centred with
+     dead space collecting under the deck. */
+  justify-content: flex-start;
   height: 100%;
   padding: var(--space-xs) 0;
 }
@@ -973,13 +981,13 @@
 .events-swipe-stack {
   position: relative;
   width: 100%;
-  /* Match the Discover deck: fill the viewport on phones. The old
-     340px width + 560px height caps left a narrow, centred card with
-     big side gutters and dead space above the nav — the "little box"
-     users reported. Desktop caps are restored in the ≥1024 rule below. */
   max-width: 100%;
-  height: calc(100% - 60px); /* Leave room for progress bar */
-  max-height: none;
+  /* Mirror Discover's .card-stack-wrapper: grow to fill the column so the
+     card claims the full height. The old fixed calc(100% - 60px) inside a
+     centred container left the card short with a gap below it. The progress
+     bar is now a sibling below (see Events.jsx), not a height reservation. */
+  flex: 1 1 auto;
+  min-height: 280px;
   margin: 0 auto;
 }
 
@@ -1399,16 +1407,16 @@
    ═══════════════════════════════════════════════════════ */
 
 .events-progress {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%) translateY(calc(100% + var(--space-sm)));
+  /* Now a normal flow sibling below the deck (was absolute inside the stack).
+     Sits centred under the card in the flex column. */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-xs);
   width: 100%;
   max-width: 200px;
+  flex-shrink: 0;
+  margin-top: var(--space-sm);
 }
 
 .events-progress-bar {
@@ -1804,10 +1812,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  /* Fill the scroll area so a short list doesn't float at the top with
-     dead space below — the grid + load-more reach the bottom of the
-     viewport instead of sitting in a cramped box. */
-  min-height: 100%;
+  /* No min-height:100% — forcing the container to fill the scroll area left
+     a huge gap below a short list (e.g. a single card). Natural height lets
+     the list size to its content; the attribution pins to the bottom. */
 }
 
 .events-load-more {
