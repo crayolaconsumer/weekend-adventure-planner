@@ -48,23 +48,26 @@ const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
 // Overpass endpoints with failover.
 // All accept the same query format; endpointsByPriority() orders them
 // healthy-first and tracks per-endpoint health so a slow/unhealthy
-// endpoint gets deprioritized for the next 5 min.
+// endpoint gets deprioritized for the next 5 min. The handler also
+// treats a 200-with-zero-elements as a SOFT failure and fails over to
+// the next mirror (see the fetch loop) — a degraded Overpass instance
+// returns empty 200s instead of erroring.
 //
-// Endpoint set reviewed 2026-06 after Discover started failing:
-//  - maps.mail.ru (VK) was suspended 2026-03-16 and now hard-returns
-//    403 — removed (it was the source of the "Overpass returned 403").
-//  - overpass.kumi.systems rebranded to Private.coffee; canonical host
-//    is overpass.private.coffee, which advertises no rate limit. Kept
-//    as a fallback (its no-limit policy is useful even if not fastest).
-//  - overpass.osm.ch (Swiss FOSSGIS mirror) added and listed first:
-//    it answered in ~0.25s during testing while overpass-api.de was
-//    returning 504s under load.
+// Endpoint set reviewed 2026-06 (live-tested while Discover was empty):
+//  - overpass.openstreetmap.fr — healthy + returns data + CORS; first.
+//  - overpass.osm.ch — fast when healthy, but was returning 200 + ZERO
+//    elements (degraded) during the incident; kept, but empty-failover
+//    + health tracking now route around it when it does this.
+//  - overpass-api.de — canonical FOSSGIS; flaky under load (504/406).
+//  - REMOVED overpass.private.coffee (timed out >300s in testing) and
+//    earlier maps.mail.ru (suspended 2026-03-16, 403).
 // Keep this list at 3 entries: 3 × PER_ENDPOINT_TIMEOUT_MS (18s) = 54s,
-// which fits inside the 60s maxDuration set in vercel.json.
+// inside the 60s maxDuration. Empty 200s return fast, so failover adds
+// little latency.
 const OVERPASS_ENDPOINTS = [
+  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass.osm.ch/api/interpreter',
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter'
+  'https://overpass-api.de/api/interpreter'
 ]
 
 // Track endpoint health for load balancing
@@ -271,7 +274,12 @@ export default async function handler(req, res) {
   const cacheKey = `overpass:${hashKey(query)}`
   if (isCacheEnabled()) {
     const cached = await cacheGet(cacheKey)
-    if (cached) {
+    // Only serve a cached entry that actually has places. A degraded
+    // Overpass instance can return 200 + zero elements; the success path
+    // below never caches that, but we guard here too so any previously
+    // poisoned empty entry self-heals on the next request instead of
+    // serving an empty Discover for the full 24h TTL.
+    if (cached && Array.isArray(cached.elements) && cached.elements.length > 0) {
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Cache', 'HIT')
       return res.status(200).json(cached)
@@ -284,6 +292,7 @@ export default async function handler(req, res) {
   // endpoint was slow we'd burn the entire budget on it and never get
   // to try the others — Vercel killed the function at 60s with 504.
   let lastError = null
+  let emptyResponse = null
   const PER_ENDPOINT_TIMEOUT_MS = 18000
 
   for (const endpoint of endpointsByPriority()) {
@@ -313,25 +322,33 @@ export default async function handler(req, res) {
       }
 
       const data = await response.json()
+
+      // A 200 with zero elements is Overpass's degraded-instance failure
+      // mode (osm.ch did exactly this on 2026-06) — NOT a real "no places
+      // here", since a healthy mirror returns the data. Treat empty as a
+      // SOFT failure: deprioritise this endpoint, remember the empty body
+      // as a last resort, and try the next mirror. Crucially we NEVER
+      // cache an empty result — caching it previously poisoned the tile
+      // for 24h and kept Discover empty long after Overpass recovered.
+      if (!Array.isArray(data.elements) || data.elements.length === 0) {
+        markEndpointFailed(endpoint)
+        emptyResponse = data
+        lastError = new Error(`Overpass returned 0 elements (degraded: ${endpoint})`)
+        console.warn(`[Overpass Proxy] 0 elements from ${endpoint} — failing over`)
+        continue
+      }
+
       markEndpointHealthy(endpoint)
 
-      // Persist to KV so subsequent callers in the 24h window get
-      // cache hits. waitUntil keeps the runtime alive until the write
-      // resolves — without it, returning the response can suspend the
-      // function instance before the cache write finishes. Failure is
-      // non-fatal: the next caller just pays the upstream cost again.
+      // Persist to KV so subsequent callers in the 24h window get cache
+      // hits, plus a 30-day "last known good" copy for the never-empty
+      // fallback below. Only non-empty results reach here, so we never
+      // cache a degraded-empty response.
       if (isCacheEnabled()) {
         waitUntil(cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {}))
-        // Also keep a 30-day "last known good" copy under a separate key.
-        // The all-endpoints-failed branch below serves this instead of a
-        // 503, so a paying user never gets an empty Discover during a total
-        // Overpass outage. Cheap: one extra KV write on the cache-miss path.
         waitUntil(cacheSet(`overpass:stale:${hashKey(query)}`, data, 30 * 24 * 60 * 60).catch(() => {}))
       }
 
-      // The Cache-Control header is mostly aspirational on a POST
-      // (CDNs won't honour it), but kept for any custom proxy that
-      // does. Our real cache is KV, set above.
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
       res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
@@ -363,12 +380,23 @@ export default async function handler(req, res) {
   // on-device seed floor.
   if (isCacheEnabled()) {
     const staleData = await cacheGet(`overpass:stale:${hashKey(query)}`)
-    if (staleData) {
+    if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Overpass-Cache', 'STALE')
       res.setHeader('X-Overpass-Fallback', 'stale')
       return res.status(200).json(staleData)
     }
+  }
+
+  // If every mirror responded but they all returned a valid, EMPTY 200
+  // (and we have no stale data), return that empty result rather than a
+  // 503 — a genuinely empty area is not an outage, and the client still
+  // merges Wikipedia/OTM. Not cached (no-store) so it re-checks next time
+  // in case the emptiness was transient degradation rather than reality.
+  if (emptyResponse) {
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('X-Overpass-Cache', 'EMPTY')
+    return res.status(200).json(emptyResponse)
   }
 
   // Detail kept server-side only — the lastError message can include
