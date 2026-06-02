@@ -24,6 +24,7 @@ export const config = {
 }
 
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
+import { isFeatureEnabled } from '../../lib/flags.js'
 import { applyRateLimit } from '../../lib/rateLimit.js'
 import { waitUntil } from '@vercel/functions'
 
@@ -291,6 +292,27 @@ export default async function handler(req, res) {
   // Previously each endpoint had a 55s timeout, so if the first picked
   // endpoint was slow we'd burn the entire budget on it and never get
   // to try the others — Vercel killed the function at 60s with 504.
+  // Kill-switch: if the `overpassProxy` feature flag is turned OFF (a KV
+  // write, no deploy), make ZERO live Overpass calls — serve the 30-day
+  // stale copy if we have one, else 503. Lets us instantly shed live
+  // upstream load during an incident (runaway cost / OSM IP-ban risk).
+  // Reached only on a cache MISS (cache HITs already returned above), and
+  // fails OPEN: if the flag read fails or the flag is absent, this is a
+  // no-op and the proxy works normally.
+  if (!(await isFeatureEnabled('overpassProxy'))) {
+    if (isCacheEnabled()) {
+      const staleData = await cacheGet(`overpass:stale:${hashKey(query)}`)
+      if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('X-Overpass-Cache', 'STALE')
+        res.setHeader('X-Overpass-Fallback', 'killswitch')
+        return res.status(200).json(staleData)
+      }
+    }
+    res.setHeader('Retry-After', '120')
+    return res.status(503).json({ error: 'Discover temporarily in cache-only mode' })
+  }
+
   let lastError = null
   let emptyResponse = null
   const PER_ENDPOINT_TIMEOUT_MS = 18000
