@@ -18,6 +18,7 @@ import { makeCacheKey, makeKey, getWithSWR, setCache } from './geoCache'
 import { selectBestImage } from './imageScoring'
 import { recordApiCall } from './apiTelemetry'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
+import { nearestSeed } from './seedFloor'
 
 // Public Overpass instances for the CLIENT-DIRECT fallback — used only
 // when the server proxy (/api/places/overpass/nearby) times out. This
@@ -751,7 +752,21 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   canCommitProgress = true
 
   // Merge and deduplicate all sources
-  const merged = mergeAndDedupe(osmPlacesForMerge, otmPlaces, wikiPlaces)
+  let merged = mergeAndDedupe(osmPlacesForMerge, otmPlaces, wikiPlaces)
+
+  // Never-empty floor: if the live sources + caches yielded fewer than the
+  // floor (e.g. a brand-new tile during a total Overpass outage, or offline),
+  // top up with the nearest bundled seed landmarks so the deck is never empty.
+  // Pure local array math — no network, cannot fail. Deduped by coords against
+  // what we already have; seed places are tagged source:'seed', low quality.
+  const SEED_FLOOR = 8
+  if (merged.length < SEED_FLOOR) {
+    const have = new Set(merged.map(p => `${(p.lat ?? 0).toFixed(4)},${(p.lng ?? 0).toFixed(4)}`))
+    const topup = nearestSeed(lat, lng, SEED_FLOOR - merged.length)
+      .filter(s => !have.has(`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`))
+    if (topup.length) merged = [...merged, ...topup]
+  }
+
   onProgressiveCommit?.(merged)
   return merged
 }
