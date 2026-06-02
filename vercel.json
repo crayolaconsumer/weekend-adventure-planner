@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/prewarm-overpass",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/discover-probe",
+      "schedule": "13,43 * * * *"
     }
   ],
   "functions": {
