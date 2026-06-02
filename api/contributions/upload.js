@@ -14,6 +14,7 @@
 import { requireAuth } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { isFeatureEnabled } from '../lib/flags.js'
 
 // Try to import Vercel Blob - may not be installed
 let put = null
@@ -44,6 +45,12 @@ async function handler(req, res) {
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, 'upload')
   if (rateLimitError) {
     return res.status(rateLimitError.status).json(rateLimitError)
+  }
+
+  // Kill-switch: instantly stop accepting uploads (KV flag, no deploy) if
+  // they become a cost/abuse vector during an influx. Fails open.
+  if (!(await isFeatureEnabled('contributionsUpload'))) {
+    return res.status(503).json({ error: 'Photo uploads are temporarily disabled' })
   }
 
   // Require authentication

@@ -40,6 +40,7 @@ import {
   WEEKEND_PLANS_NUDGE_JOB
 } from '../lib/cronRuns.js'
 import { sendPushToUser, sendPushToUserWithStats } from '../lib/pushNotifications.js'
+import { isFeatureEnabled } from '../lib/flags.js'
 import { waitUntil } from '@vercel/functions'
 
 // Friday-evening copy register. Lighter than Saturday's
@@ -69,6 +70,13 @@ export default async function handler(req, res) {
 
   if (!isVercelCron && authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  // Kill-switch: pause discretionary marketing nudges instantly via the
+  // pushNudges KV flag (no deploy). Fails open.
+  if (!(await isFeatureEnabled('pushNudges'))) {
+    await recordCronRun({ jobName: WEEKEND_PLANS_NUDGE_JOB, eligibleCount: 0, sentCount: 0, failedCount: 0, perPlatform: createPlatformBreakdown(), errorMessage: 'pushNudges flag off — skipped' }).catch(() => {})
+    return res.status(200).json({ success: true, message: 'pushNudges disabled', skipped: true })
   }
 
   let eligibleCount = 0
