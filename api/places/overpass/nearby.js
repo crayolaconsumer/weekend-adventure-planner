@@ -46,13 +46,25 @@ const OVERPASS_RATE_LIMIT = {
 const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
 
 // Overpass endpoints with failover.
-// All three accept the same query format; we round-robin via
-// selectEndpoint() and track per-endpoint health so a slow/unhealthy
+// All accept the same query format; endpointsByPriority() orders them
+// healthy-first and tracks per-endpoint health so a slow/unhealthy
 // endpoint gets deprioritized for the next 5 min.
+//
+// Endpoint set reviewed 2026-06 after Discover started failing:
+//  - maps.mail.ru (VK) was suspended 2026-03-16 and now hard-returns
+//    403 — removed (it was the source of the "Overpass returned 403").
+//  - overpass.kumi.systems rebranded to Private.coffee; canonical host
+//    is overpass.private.coffee, which advertises no rate limit. Kept
+//    as a fallback (its no-limit policy is useful even if not fastest).
+//  - overpass.osm.ch (Swiss FOSSGIS mirror) added and listed first:
+//    it answered in ~0.25s during testing while overpass-api.de was
+//    returning 504s under load.
+// Keep this list at 3 entries: 3 × PER_ENDPOINT_TIMEOUT_MS (18s) = 54s,
+// which fits inside the 60s maxDuration set in vercel.json.
 const OVERPASS_ENDPOINTS = [
+  'https://overpass.osm.ch/api/interpreter',
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+  'https://overpass.private.coffee/api/interpreter'
 ]
 
 // Track endpoint health for load balancing
@@ -310,6 +322,11 @@ export default async function handler(req, res) {
       // non-fatal: the next caller just pays the upstream cost again.
       if (isCacheEnabled()) {
         waitUntil(cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {}))
+        // Also keep a 30-day "last known good" copy under a separate key.
+        // The all-endpoints-failed branch below serves this instead of a
+        // 503, so a paying user never gets an empty Discover during a total
+        // Overpass outage. Cheap: one extra KV write on the cache-miss path.
+        waitUntil(cacheSet(`overpass:stale:${hashKey(query)}`, data, 30 * 24 * 60 * 60).catch(() => {}))
       }
 
       // The Cache-Control header is mostly aspirational on a POST
@@ -334,8 +351,25 @@ export default async function handler(req, res) {
     }
   }
 
-  // All attempts failed
+  // All attempts failed.
   console.error('[Overpass Proxy] All endpoints failed:', lastError?.message)
+
+  // Never-empty fallback: serve the last known good result for this exact
+  // query (up to 30d old, written on every success above) instead of 503.
+  // A deck of slightly-stale REAL places beats an empty Discover for a
+  // paying user during a total Overpass outage. Flagged via header so the
+  // degraded mode stays observable in telemetry. Brand-new tiles never
+  // fetched before still 503 — that gap is covered by the planned
+  // on-device seed floor.
+  if (isCacheEnabled()) {
+    const staleData = await cacheGet(`overpass:stale:${hashKey(query)}`)
+    if (staleData) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('X-Overpass-Cache', 'STALE')
+      res.setHeader('X-Overpass-Fallback', 'stale')
+      return res.status(200).json(staleData)
+    }
+  }
 
   // Detail kept server-side only — the lastError message can include
   // upstream URLs, timeouts, and infra hints we shouldn't echo to clients.

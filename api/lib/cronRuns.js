@@ -2,6 +2,7 @@ import { query } from './db.js'
 
 export const RE_ENGAGEMENT_NUDGE_JOB = 're-engagement-nudge'
 export const WEEKEND_PLANS_NUDGE_JOB = 'weekend-plans-nudge'
+export const VISIT_REMINDERS_JOB = 'visit-reminders'
 
 export function createPlatformBreakdown() {
   return {

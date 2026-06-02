@@ -47,6 +47,41 @@ const CITIES = [
   { name: 'Luton', lat: 51.8787, lng: -0.4200 },
   { name: 'Dunstable', lat: 51.8859, lng: -0.5210 },
   { name: 'St Albans', lat: 51.7553, lng: -0.3360 },
+  // Global launch set — major worldwide cities across continents.
+  // Added alongside the UK core so first-card reload perf is warm
+  // for international users from day one. Lat/lng are city-centre.
+  // Europe
+  { name: 'Paris', lat: 48.8566, lng: 2.3522 },
+  { name: 'Berlin', lat: 52.5200, lng: 13.4050 },
+  { name: 'Madrid', lat: 40.4168, lng: -3.7038 },
+  { name: 'Rome', lat: 41.9028, lng: 12.4964 },
+  { name: 'Amsterdam', lat: 52.3676, lng: 4.9041 },
+  { name: 'Lisbon', lat: 38.7223, lng: -9.1393 },
+  { name: 'Dublin', lat: 53.3498, lng: -6.2603 },
+  // North America
+  { name: 'New York', lat: 40.7128, lng: -74.0060 },
+  { name: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
+  { name: 'Chicago', lat: 41.8781, lng: -87.6298 },
+  { name: 'Toronto', lat: 43.6532, lng: -79.3832 },
+  { name: 'Mexico City', lat: 19.4326, lng: -99.1332 },
+  // South America
+  { name: 'Sao Paulo', lat: -23.5505, lng: -46.6333 },
+  { name: 'Buenos Aires', lat: -34.6037, lng: -58.3816 },
+  // Asia
+  { name: 'Tokyo', lat: 35.6762, lng: 139.6503 },
+  { name: 'Seoul', lat: 37.5665, lng: 126.9780 },
+  { name: 'Singapore', lat: 1.3521, lng: 103.8198 },
+  { name: 'Hong Kong', lat: 22.3193, lng: 114.1694 },
+  { name: 'Bangkok', lat: 13.7563, lng: 100.5018 },
+  { name: 'Mumbai', lat: 19.0760, lng: 72.8777 },
+  // Middle East
+  { name: 'Dubai', lat: 25.2048, lng: 55.2708 },
+  // Oceania
+  { name: 'Sydney', lat: -33.8688, lng: 151.2093 },
+  { name: 'Melbourne', lat: -37.8136, lng: 144.9631 },
+  { name: 'Auckland', lat: -36.8485, lng: 174.7633 },
+  // Africa
+  { name: 'Cape Town', lat: -33.9249, lng: 18.4241 },
 ]
 
 const RADII = [

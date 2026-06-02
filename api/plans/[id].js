@@ -198,20 +198,27 @@ async function handlePut(req, res, id) {
       // Delete existing stops
       await conn.query('DELETE FROM plan_stops WHERE plan_id = ?', [id])
 
-      // Insert new stops
-      for (let i = 0; i < stops.length; i++) {
-        const stop = stops[i]
-        await conn.query(
-          `INSERT INTO plan_stops (plan_id, place_id, place_data, sort_order, scheduled_time, duration_minutes)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
+      // Insert new stops in a SINGLE multi-row INSERT. The previous
+      // per-stop loop held the transaction's connection open for N
+      // sequential round-trips to the London DB — from a far Vercel
+      // region a 20-stop plan tied up a pooled connection for ~3s.
+      if (stops.length > 0) {
+        const rowPlaceholders = stops.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')
+        const values = []
+        stops.forEach((stop, i) => {
+          values.push(
             id,
             stop.placeId || stop.id,
             JSON.stringify(stop.placeData || stop),
             i + 1,
             stop.scheduledTime || null,
             stop.durationMinutes || stop.duration || 60
-          ]
+          )
+        })
+        await conn.query(
+          `INSERT INTO plan_stops (plan_id, place_id, place_data, sort_order, scheduled_time, duration_minutes)
+           VALUES ${rowPlaceholders}`,
+          values
         )
       }
     })

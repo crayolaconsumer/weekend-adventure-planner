@@ -676,6 +676,14 @@ async function dispatchFcmDetailed(sub, payload) {
               // white square. Letting the manifest default win gives
               // us the brand compass mark.
               tag: payload.tag || 'roam-notification',
+              // Route to the high-importance channel the app creates
+              // (PushNotifications.createChannel in usePushNotifications.js)
+              // and declares as the manifest default. On Android 8+ the
+              // CHANNEL — not this payload's priority — decides whether the
+              // push makes a sound / shows a heads-up banner. MUST match
+              // 'roam_default' in both the client and the manifest, or the
+              // push routes to a non-existent channel and shows silently.
+              channel_id: 'roam_default',
               // NOTE: NO click_action here. Previously we set it to
               // `payload.url || '/'`, but click_action on FCM is an
               // Android Intent action name — Android tried to launch

@@ -19,15 +19,24 @@ import { selectBestImage } from './imageScoring'
 import { recordApiCall } from './apiTelemetry'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 
-// Public Overpass instances — full list per OSM wiki at
-// https://wiki.openstreetmap.org/wiki/Overpass_API. Two main, two
-// regional mirrors. All accept the same QL and emit CORS headers so
-// browser fetch() works directly without a proxy.
+// Public Overpass instances for the CLIENT-DIRECT fallback — used only
+// when the server proxy (/api/places/overpass/nearby) times out. This
+// path runs in the browser/WebView, so every endpoint here MUST return
+// `Access-Control-Allow-Origin` or the browser blocks the response.
+// Verified 2026-06 (live POST with Origin header):
+//   - overpass.osm.ch + overpass.openstreetmap.fr both send ACAO:* and
+//     answered in <0.6s — listed first.
+//   - overpass-api.de is canonical but does NOT send ACAO on POST, so
+//     it's CORS-blocked on web (still works on native via the fetch
+//     interceptor). Kept last as a degraded fallback only.
+//   - REMOVED maps.mail.ru (VK, suspended 2026-03-16 → hard 403) and
+//     overpass.kumi.systems (rebranded to Private.coffee, which also
+//     omits ACAO). Those + private.coffee live in the SERVER proxy list
+//     (api/places/overpass/nearby.js) where CORS does not apply.
 const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.osm.ch/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+  'https://overpass-api.de/api/interpreter'
 ]
 
 const WIKIPEDIA_API = 'https://en.wikipedia.org/api/rest_v1'

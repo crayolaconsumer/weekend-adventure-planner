@@ -9,6 +9,7 @@
  */
 
 import { notifyPlannedVisit, getPlannedVisitsForToday } from '../lib/pushNotifications.js'
+import { recordCronRun, VISIT_REMINDERS_JOB } from '../lib/cronRuns.js'
 
 export default async function handler(req, res) {
   // Verify cron secret or Vercel cron header
@@ -22,11 +23,22 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  let eligibleCount = 0
+  let sent = 0
+  let failed = 0
+
   try {
     // Get all visits planned for today
     const plannedVisits = await getPlannedVisitsForToday()
+    eligibleCount = plannedVisits.length
 
     if (plannedVisits.length === 0) {
+      await recordCronRun({
+        jobName: VISIT_REMINDERS_JOB,
+        eligibleCount,
+        sentCount: sent,
+        failedCount: failed
+      })
       return res.status(200).json({
         success: true,
         message: 'No planned visits for today',
@@ -41,8 +53,15 @@ export default async function handler(req, res) {
       )
     )
 
-    const sent = results.filter(r => r.status === 'fulfilled' && r.value === true).length
-    const failed = results.filter(r => r.status === 'rejected' || r.value === false).length
+    sent = results.filter(r => r.status === 'fulfilled' && r.value === true).length
+    failed = results.filter(r => r.status === 'rejected' || r.value === false).length
+
+    await recordCronRun({
+      jobName: VISIT_REMINDERS_JOB,
+      eligibleCount,
+      sentCount: sent,
+      failedCount: failed
+    })
 
     return res.status(200).json({
       success: true,
@@ -53,6 +72,17 @@ export default async function handler(req, res) {
     })
   } catch (error) {
     console.error('Visit reminders cron error:', error)
+    try {
+      await recordCronRun({
+        jobName: VISIT_REMINDERS_JOB,
+        eligibleCount,
+        sentCount: sent,
+        failedCount: Math.max(failed, eligibleCount - sent),
+        errorMessage: error.message
+      })
+    } catch (recordErr) {
+      console.error('[cron] failed to record visit-reminders run:', recordErr?.message || recordErr)
+    }
     // Don't echo error.message to the response — this is a cron endpoint
     // but any caller could probe internal errors (DB hostnames, query
     // fragments, etc.). Full detail stays in server logs.

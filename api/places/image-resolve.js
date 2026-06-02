@@ -462,26 +462,19 @@ async function handler(req, res) {
     return res.status(200).json(memHit.value)
   }
 
-  // ─── Six-source parallel race ─────────────────────────────────
-  // Run every reasonable image source in parallel. Each returns either
-  // a hit ({ url, source, attribution }) or null. We then pick by
-  // category-aware preference order — restaurants want venue-website
-  // og:image first, landmarks want Wikipedia first, etc.
+  // ─── Priority-ordered resolution with early exit ──────────────
+  // Previously this fired all ~7 sources in parallel for every place
+  // and picked the best by preference order. At scale that's millions
+  // of upstream calls. Instead we run the highest-signal sources first
+  // and only fall through to the expensive tail (Commons name-search,
+  // Commons geosearch, Mapillary) when nothing earlier produced a hit.
   //
-  // All sources are bounded by UPSTREAM_TIMEOUT_MS so a slow tier
-  // doesn't gate response latency. Edge cache + memory cache hides
-  // the cost on the second hit.
-  const [cm, wp, wd, og, geo, cn, mp] = await Promise.all([
-    tryCommonsFile(commons),
-    tryWikipedia(wikipedia),
-    tryWikidata(wikidata),
-    tryWebsiteOgImage(website),
-    validCoords ? tryCommonsGeo(lat, lng, category) : Promise.resolve(null),
-    tryCommonsNameSearch(name),
-    validCoords ? tryMapillary(lat, lng) : Promise.resolve(null)
-  ])
-
-  // ─── Pick the best result ─────────────────────────────────────
+  // Tiers preserve the SAME preference order as before within each
+  // category — we only sacrifice the cross-source "absolute best of N"
+  // tie-break (e.g. if both wp and wd hit, we still take wp). Each
+  // source stays bounded by UPSTREAM_TIMEOUT_MS; the edge + memory
+  // caches still hide the cost on the second hit.
+  //
   // Different categories want different sources:
   //   - Landmarks (historic, culture, nature, entertainment, active):
   //     curated databases (Wikipedia / Wikidata / Commons by name)
@@ -494,28 +487,71 @@ async function handler(req, res) {
   //     Commons name-search is DELIBERATELY EXCLUDED for venue
   //     categories: searching "Afghan" / "Syrian" / "Vietnamese" etc.
   //     on Commons returns a flood of war / military photography that
-  //     surfaces as the hero image for cuisine restaurants. The denylist
-  //     filter in tryCommonsNameSearch catches most of it, but the
-  //     correct fix for venues is "don't use name search at all —
-  //     restaurants don't have Commons files of themselves." For
+  //     surfaces as the hero image for cuisine restaurants. For
   //     landmarks (Stonehenge, Westminster Abbey) the same search
   //     usefully returns the named place's photo, so keep it there.
   //
-  // Mapper-vetted sources (cm = OSM-declared Commons file) always
-  // come first in both orders — they're the highest-curated signal.
+  // Mapper-vetted sources (cm = OSM-declared Commons file) always come
+  // first — they're the highest-curated signal and cost no upstream
+  // call (tryCommonsFile just builds a URL from the OSM tag).
   const isLandmarkLike = category === 'historic' || category === 'culture' ||
                          category === 'nature' || category === 'entertainment' ||
                          category === 'active'
 
-  // Mapillary (mp) is LANDMARKS-ONLY now, as the last real-photo tier — a
-  // street-level shot near a castle/monument is genuinely useful. For VENUES
-  // it's removed entirely: a street view of the pavement outside a restaurant
-  // is worse than the clean category-stock photo the client renders when we
-  // return null. (Panoramas are already filtered out in tryMapillary.)
-  // Dormant unless MAPILLARY_TOKEN is configured.
-  const value = isLandmarkLike
-    ? (cm || wp || wd || cn || geo || og || mp || { url: null, source: null, attribution: null })
-    : (cm || og || wp || wd || geo || { url: null, source: null, attribution: null })
+  // Within a tier we still pick by the original left-to-right preference,
+  // so ties resolve exactly as before. firstHit returns the first source
+  // in `results` that produced a usable image.
+  const firstHit = results => results.find(r => r && r.url) || null
+
+  let value = null
+
+  // Tier 0 — mapper-vetted Commons file (no network).
+  value = tryCommonsFile(commons)
+
+  if (isLandmarkLike) {
+    // Tier 1 — high-signal curated databases, in parallel.
+    if (!value) {
+      const [wp, wd] = await Promise.all([
+        tryWikipedia(wikipedia),
+        tryWikidata(wikidata)
+      ])
+      value = firstHit([wp, wd])
+    }
+    // Tier 2 — expensive tail: Commons name-search, Commons geosearch,
+    // venue website og:image. Only reached when nothing curated hit.
+    if (!value) {
+      const [cn, geo, og] = await Promise.all([
+        tryCommonsNameSearch(name),
+        validCoords ? tryCommonsGeo(lat, lng, category) : Promise.resolve(null),
+        tryWebsiteOgImage(website)
+      ])
+      value = firstHit([cn, geo, og])
+    }
+    // Tier 3 — Mapillary, last real-photo tier (landmarks only, dormant
+    // unless MAPILLARY_TOKEN is configured). Panoramas filtered upstream.
+    if (!value && validCoords) {
+      value = await tryMapillary(lat, lng)
+    }
+  } else {
+    // Venue order: website og:image first, then curated databases.
+    // Tier 1 — venue website + curated, in parallel.
+    if (!value) {
+      const [og, wp, wd] = await Promise.all([
+        tryWebsiteOgImage(website),
+        tryWikipedia(wikipedia),
+        tryWikidata(wikidata)
+      ])
+      value = firstHit([og, wp, wd])
+    }
+    // Tier 2 — Commons geosearch (category-gated; returns null for venue
+    // categories, so this is effectively a no-op safety net rather than a
+    // real upstream call for most venues).
+    if (!value && validCoords) {
+      value = await tryCommonsGeo(lat, lng, category)
+    }
+  }
+
+  if (!value) value = { url: null, source: null, attribution: null }
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't

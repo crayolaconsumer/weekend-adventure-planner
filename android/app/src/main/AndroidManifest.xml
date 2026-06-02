@@ -32,19 +32,28 @@
                 <data android:scheme="roam" />
             </intent-filter>
 
-            <!-- App Links: HTTPS go-roam.uk paths open the app instead
+            <!-- App Links: HTTPS www.go-roam.uk paths open the app instead
                  of the browser when the user has it installed. Requires
                  /.well-known/assetlinks.json on the domain to verify
                  ownership. autoVerify=true means Android validates the
                  file on install and silently routes verified paths to
                  the app without an "open with" prompt. Mirrors iOS's
-                 applinks:www.go-roam.uk associated domain. -->
+                 applinks:www.go-roam.uk associated domain.
+
+                 ONLY www is declared — NOT the bare apex go-roam.uk.
+                 The apex is a Vercel 307 redirect to www, and Google's
+                 Digital Asset Links verifier refuses to follow redirects
+                 (ERROR_CODE_REDIRECT), so declaring the apex made Play
+                 Console report the domain as "not verified". Every link
+                 the app generates already uses www, so the apex is
+                 redundant. Do NOT re-add go-roam.uk here unless the apex
+                 first serves /.well-known/assetlinks.json directly with
+                 no redirect. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="www.go-roam.uk" />
-                <data android:scheme="https" android:host="go-roam.uk" />
             </intent-filter>
         </activity>
 
@@ -68,6 +77,19 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
+
+        <!-- Default FCM notification channel. On Android 8+ (API 26) the
+             notification's importance — and therefore whether it makes a
+             sound and shows a heads-up banner — is determined by its
+             CHANNEL, not by the FCM message priority. This channel id MUST
+             match the one the app creates via PushNotifications.createChannel
+             (usePushNotifications.js) and the channel_id the server sets on
+             the FCM payload (api/lib/pushNotifications.js): all three use
+             'roam_default'. FCM uses this value whenever an incoming message
+             doesn't explicitly set a channel_id. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="roam_default" />
 
         <!-- Google AdMob app identifier. The string resource is the
              ca-app-pub-…~… value from the AdMob console; replace the

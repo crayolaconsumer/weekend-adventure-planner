@@ -57,35 +57,43 @@ async function handleGet(req, res, user) {
     [user.id]
   )
 
-  // Get places for each collection
-  const collectionsWithPlaces = await Promise.all(
-    collections.map(async (col) => {
-      const places = await query(
-        `SELECT place_id, place_data, note, added_at
-         FROM collection_places
-         WHERE collection_id = ?
-         ORDER BY added_at DESC`,
-        [col.id]
-      )
+  // Fetch ALL places for the user's collections in ONE query (previously
+  // an N+1: one query per collection, which held a pooled DB connection
+  // for N sequential round-trips to the London DB). Scoped to this user's
+  // own collection ids, then grouped in memory below.
+  const collectionIds = collections.map(c => c.id)
+  const placesByCollection = {}
+  if (collectionIds.length > 0) {
+    const placeholders = collectionIds.map(() => '?').join(',')
+    const allPlaces = await query(
+      `SELECT collection_id, place_id, place_data, note, added_at
+       FROM collection_places
+       WHERE collection_id IN (${placeholders})
+       ORDER BY added_at DESC`,
+      collectionIds
+    )
+    for (const p of allPlaces) {
+      if (!placesByCollection[p.collection_id]) placesByCollection[p.collection_id] = []
+      placesByCollection[p.collection_id].push({
+        placeId: p.place_id,
+        placeData: safeJsonParse(p.place_data),
+        note: p.note,
+        addedAt: new Date(p.added_at).getTime()
+      })
+    }
+  }
 
-      return {
-        id: col.id,
-        name: col.name,
-        emoji: col.emoji || '📍',
-        description: col.description || '',
-        visibility: col.is_public ? 'public' : 'private',
-        placeCount: col.place_count,
-        places: places.map(p => ({
-          placeId: p.place_id,
-          placeData: safeJsonParse(p.place_data),
-          note: p.note,
-          addedAt: new Date(p.added_at).getTime()
-        })),
-        createdAt: new Date(col.created_at).getTime(),
-        updatedAt: new Date(col.updated_at).getTime()
-      }
-    })
-  )
+  const collectionsWithPlaces = collections.map((col) => ({
+    id: col.id,
+    name: col.name,
+    emoji: col.emoji || '📍',
+    description: col.description || '',
+    visibility: col.is_public ? 'public' : 'private',
+    placeCount: col.place_count,
+    places: placesByCollection[col.id] || [],
+    createdAt: new Date(col.created_at).getTime(),
+    updatedAt: new Date(col.updated_at).getTime()
+  }))
 
   return res.status(200).json({ collections: collectionsWithPlaces })
 }

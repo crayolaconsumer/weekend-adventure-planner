@@ -200,6 +200,34 @@ export function usePushNotifications() {
         }
         setPermission('granted')
 
+        // Android 8+ (API 26): notification importance is set by the
+        // CHANNEL, not the FCM message priority. Without a high-importance
+        // channel, pushes land in a low-importance bucket and show
+        // silently (no sound / no heads-up banner). Create our channel
+        // here so the server's android.notification.channel_id ('roam_default')
+        // and the manifest's default_notification_channel_id both resolve
+        // to a HIGH-importance channel. createChannel is idempotent — safe
+        // to call on every subscribe. Guarded to Android so iOS/web are
+        // unaffected (the API is Android O+ only).
+        if (getPlatform() === 'android') {
+          try {
+            await PushNotifications.createChannel({
+              id: 'roam_default',
+              name: 'ROAM Notifications',
+              description: 'General notifications from ROAM',
+              importance: 5,   // HIGH — makes sound + heads-up banner
+              visibility: 1,   // PUBLIC — show full content on lock screen
+              sound: 'default',
+              vibration: true,
+              lights: true
+            })
+          } catch {
+            // Non-fatal — channel creation failing shouldn't block
+            // token registration. Worst case, notifications fall back
+            // to the OS default channel behaviour.
+          }
+        }
+
         // Token comes back via the 'registration' event listener — APNS
         // registration is async after register() resolves. Set listeners
         // BEFORE register() to avoid races.

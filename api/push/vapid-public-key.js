@@ -27,6 +27,9 @@ async function handler(req, res) {
     return res.status(500).json({ error: 'Push notifications not configured' })
   }
 
+  // Static public value — safe for shared/CDN caching with long SWR.
+  res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800')
+
   return res.status(200).json({ publicKey })
 }
 
