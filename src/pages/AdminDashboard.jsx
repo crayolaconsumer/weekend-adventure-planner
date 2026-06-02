@@ -24,6 +24,15 @@ import { useToast } from '../hooks/useToast'
 import AdminLayout from '../components/AdminLayout'
 import './AdminDashboard.css'
 
+// Runtime kill-switches surfaced in the dashboard. Keys MUST match
+// api/lib/flags.js DEFAULTS + api/admin/flags.js.
+const FLAG_META = [
+  { key: 'overpassProxy', label: 'Overpass proxy (live POI)', desc: 'OFF → serve cached/stale Discover only, zero live upstream calls. Sheds Overpass load / cost.' },
+  { key: 'contributionsUpload', label: 'Photo uploads', desc: 'OFF → reject new contribution photo uploads (abuse / storage-cost control).' },
+  { key: 'pushNudges', label: 'Marketing push nudges', desc: 'OFF → pause re-engagement + weekend nudge crons. (Visit reminders unaffected.)' },
+  { key: 'discover', label: 'Discover (client gate)', desc: 'Client-read flag to disable the Discover deck app-side; consumed from the next app build.' },
+]
+
 function authHeaders() {
   const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -87,15 +96,21 @@ export default function AdminDashboard() {
   const [data, setData] = useState(null)
   const [recent, setRecent] = useState([])
   const [loading, setLoading] = useState(true)
+  const [health, setHealth] = useState(null)
+  const [flags, setFlags] = useState(null)
+  const [flagBusy, setFlagBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [dashRes, recentRes] = await Promise.all([
+      const [dashRes, recentRes, healthRes, flagsRes] = await Promise.all([
         fetch('/api/admin/dashboard', { credentials: 'include', headers: authHeaders() }),
         // Recently-activity strip — best-effort, doesn't block the dashboard.
         fetch('/api/admin/activity?limit=5', { credentials: 'include', headers: authHeaders() })
           .catch(() => null),
+        // System health + feature flags — best-effort, never block the page.
+        fetch('/api/health').catch(() => null),
+        fetch('/api/admin/flags', { credentials: 'include', headers: authHeaders() }).catch(() => null),
       ])
 
       if (!dashRes.ok) throw new Error(`HTTP ${dashRes.status}`)
@@ -108,12 +123,45 @@ export default function AdminDashboard() {
       } else {
         setRecent([])
       }
+
+      // /api/health returns 503 when degraded — still parse the body for it.
+      if (healthRes) {
+        try { setHealth(await healthRes.json()) } catch { setHealth({ status: 'degraded', db: 'fail', kv: 'fail' }) }
+      }
+      if (flagsRes && flagsRes.ok) {
+        try { setFlags((await flagsRes.json()).flags) } catch { /* leave null */ }
+      }
     } catch (err) {
       toast.error(`Failed to load dashboard: ${err.message}`)
     } finally {
       setLoading(false)
     }
   }, [toast])
+
+  const toggleFlag = useCallback(async (name) => {
+    if (!flags || flagBusy) return
+    const desired = !flags[name]
+    const before = flags
+    setFlags({ ...flags, [name]: desired }) // optimistic
+    setFlagBusy(true)
+    try {
+      const res = await fetch('/api/admin/flags', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flags: { [name]: desired } }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      setFlags(json.flags)
+      toast.success(`${name} ${desired ? 'enabled' : 'DISABLED'} — live within ~60s`)
+    } catch (err) {
+      setFlags(before) // revert
+      toast.error(`Failed to update ${name}: ${err.message}`)
+    } finally {
+      setFlagBusy(false)
+    }
+  }, [flags, flagBusy, toast])
 
   useEffect(() => { load() }, [load])
 
@@ -176,6 +224,30 @@ export default function AdminDashboard() {
                 to="/admin/users?filter=new"
                 hint={data?.users?.banned ? `${data.users.banned} banned` : 'No bans'}
               />
+            </section>
+
+            <section className="admin-dashboard-tools">
+              <h2>System health &amp; controls</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '18px' }}>
+                <HealthPill label="API" state={health ? (health.status === 'ok' ? 'ok' : 'bad') : 'unknown'} text={health ? (health.status === 'ok' ? 'Operational' : 'Degraded') : '—'} />
+                <HealthPill label="Database" state={health?.db === 'ok' ? 'ok' : (health ? 'bad' : 'unknown')} text={health?.db || '—'} />
+                <HealthPill label="Cache (KV)" state={health?.kv === 'ok' ? 'ok' : health?.kv === 'disabled' ? 'warn' : (health ? 'bad' : 'unknown')} text={health?.kv || '—'} />
+                {health?.ts && <span style={{ alignSelf: 'center', fontSize: '12px', color: '#6b6b6b' }}>checked {timeAgo(health.ts)}</span>}
+              </div>
+
+              <h3 style={{ margin: '0 0 4px' }}>Feature kill-switches</h3>
+              <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#6b6b6b' }}>
+                Turn a feature OFF to shed load or stop abuse instantly — no deploy. Changes go live within ~60s. Everything defaults ON.
+              </p>
+              {flags ? (
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {FLAG_META.map(f => (
+                    <FlagRow key={f.key} meta={f} on={flags[f.key] !== false} busy={flagBusy} onToggle={() => toggleFlag(f.key)} />
+                  ))}
+                </div>
+              ) : (
+                <p className="admin-dashboard-loading" style={{ fontSize: '13px' }}>Flags unavailable (KV off, or not signed in as admin).</p>
+              )}
             </section>
 
             <section className="admin-dashboard-tools">
@@ -324,5 +396,44 @@ function ExternalCard({ href, title, description }) {
       </div>
       <p>{description}</p>
     </a>
+  )
+}
+
+const HEALTH_COLORS = { ok: '#1a7f4b', bad: '#b22d2d', warn: '#c87a2f', unknown: '#9b9b9b' }
+
+function HealthPill({ label, state, text }) {
+  const color = HEALTH_COLORS[state] || HEALTH_COLORS.unknown
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: '1px solid #e6e3d8', borderRadius: '8px', background: '#fff' }}>
+      <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+      <span style={{ fontSize: '13px', fontWeight: 600, color: '#1a3a2f' }}>{label}</span>
+      <span style={{ fontSize: '12px', color, textTransform: 'capitalize' }}>{text}</span>
+    </div>
+  )
+}
+
+function FlagRow({ meta, on, busy, onToggle }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '10px 12px', border: `1px solid ${on ? '#e6e3d8' : '#e7c3c3'}`, borderRadius: '8px', background: on ? '#fff' : '#fcf3f3' }}>
+      <div style={{ minWidth: 0 }}>
+        <strong style={{ display: 'block', fontSize: '14px', color: '#1a3a2f' }}>
+          {meta.label}{!on && <span style={{ color: '#b22d2d', fontWeight: 700 }}> · DISABLED</span>}
+        </strong>
+        <span style={{ fontSize: '12px', color: '#6b6b6b' }}>{meta.desc}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={busy}
+        aria-pressed={on}
+        style={{
+          flexShrink: 0, minWidth: '64px', padding: '7px 14px', borderRadius: '999px', border: 'none',
+          fontWeight: 700, fontSize: '13px', cursor: busy ? 'wait' : 'pointer',
+          background: on ? '#1a7f4b' : '#b22d2d', color: '#fff', opacity: busy ? 0.6 : 1,
+        }}
+      >
+        {on ? 'ON' : 'OFF'}
+      </button>
+    </div>
   )
 }
