@@ -11,6 +11,7 @@ import L from 'leaflet'
 import { motion } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
+import PlaceImage from './PlaceImage'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import 'leaflet/dist/leaflet.css'
 import './DiscoverMap.css'
@@ -109,11 +110,11 @@ function PlacePopup({ place, onSelect, formatDistance }) {
 
   return (
     <div className="map-popup-content">
-      {place.photo && (
-        <div className="map-popup-image">
-          <img src={place.photo} alt={place.name} referrerPolicy="no-referrer" />
-        </div>
-      )}
+      {/* Shared PlaceImage so the map popup resolves the same real photo
+          (with brand placeholder fallback) as the card/list/detail. */}
+      <div className="map-popup-image">
+        <PlaceImage place={place} src={place.photo || undefined} alt={place.name} />
+      </div>
       <div className="map-popup-info">
         {category && (
           <span className="map-popup-category" style={{ '--cat-color': category.color }}>

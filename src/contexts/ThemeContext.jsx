@@ -26,6 +26,10 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 
 const STORAGE_KEY = 'roam_theme'
 const ThemeContext = createContext(null)
+const NATIVE_BACKGROUND = {
+  light: '#faf8f5',
+  dark: '#0d1b16'
+}
 
 function getSystemPrefersDark() {
   if (typeof window === 'undefined' || !window.matchMedia) return false
@@ -56,7 +60,7 @@ function applyTheme(resolved) {
   // updates the chrome immediately on web.
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) {
-    meta.setAttribute('content', resolved === 'dark' ? '#0d1b16' : '#1a3a2f')
+    meta.setAttribute('content', resolved === 'dark' ? '#0d1b16' : '#faf8f5')
   }
 }
 
@@ -66,10 +70,12 @@ async function applyNativeStatusBar(resolved) {
   if (typeof window === 'undefined' || !window.Capacitor?.isNativePlatform?.()) return
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar')
+    const backgroundColor = resolved === 'dark' ? NATIVE_BACKGROUND.dark : NATIVE_BACKGROUND.light
     // Style.Light = LIGHT icons (use on dark bg); Style.Dark = dark icons.
     await StatusBar.setStyle({ style: resolved === 'dark' ? Style.Light : Style.Dark })
+    await StatusBar.setBackgroundColor({ color: backgroundColor })
     if (window.Capacitor.getPlatform() === 'android') {
-      await StatusBar.setBackgroundColor({ color: resolved === 'dark' ? '#0d1b16' : '#1a3a2f' })
+      await window.Capacitor.Plugins?.RoamTheme?.setSystemBarsBackground?.({ color: backgroundColor })
     }
   } catch {
     /* plugin missing / not on native — no-op */

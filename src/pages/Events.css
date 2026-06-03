@@ -292,8 +292,6 @@
   max-height: 88dvh;
   display: flex;
   flex-direction: column;
-  /* Account for iPhone home indicator */
-  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 /* Drag handle visual — matches FilterModal */
@@ -311,17 +309,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* Claim more of the viewport on phones — was auto-sizing to content
-     and only filling ~55% of the screen on iPhone SE, leaving the
-     bottom rows (Price Range, etc) cut off. min-height pushes the
-     sheet to take 70vh so the visible categories+radius+price fit
-     without ambiguous "is there more?" cropping. Max stays at the
-     panel-level 88dvh ceiling. */
-  min-height: min(72vh, 580px);
-  /* Bottom padding accounts for the iPhone home indicator safe area */
-  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0));
+  padding-bottom: var(--space-lg);
 }
 
 /* Filter Section */
@@ -577,17 +569,20 @@
   justify-content: flex-end;
   gap: var(--space-sm);
   padding-top: var(--space-md);
-  border-top: 1px solid var(--roam-parchment);
+  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom, 0));
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
 }
 
 .events-filter-reset {
   padding: 10px 18px;
   background: transparent;
-  border: 1.5px solid var(--roam-parchment);
+  border: 1.5px solid var(--color-border);
   border-radius: var(--radius-full);
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--roam-stone);
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1598,10 +1593,6 @@
 
   .events-filter-panel-inner {
     padding: var(--space-md);
-    /* Bump the on-phone min-height so the sheet feels properly
-       fullscreen — was 72vh which was still leaving a void at the
-       bottom on iPhone SE. */
-    min-height: 85vh;
   }
 
   .events-category-option {

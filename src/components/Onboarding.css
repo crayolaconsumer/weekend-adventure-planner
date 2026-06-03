@@ -87,7 +87,7 @@
 .onboarding-subtitle {
   font-size: var(--text-lg);
   font-weight: 500;
-  color: var(--roam-stone);
+  color: var(--color-text-secondary);
   margin: 0 0 var(--space-md) 0;
 }
 

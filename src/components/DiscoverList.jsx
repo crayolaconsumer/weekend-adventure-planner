@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
+import PlaceImage from './PlaceImage'
 import { getOpeningState } from '../utils/openingHours'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import './DiscoverList.css'
@@ -64,21 +65,18 @@ function ListItem({ place, isSelected, onSelect, onSave, onGo, index, formatDist
       role="button"
       aria-label={`${place.name}. ${formatDistance(place.distance) || ''}. Press Enter to view details.`}
     >
-      {/* Thumbnail */}
+      {/* Thumbnail — use the shared PlaceImage so the list resolves the same
+          real photo (async, with brand placeholder fallback) the swipe card and
+          detail modal show, instead of only a raw place.photo that's usually
+          absent on OSM POIs. */}
       <div className="list-item-thumb">
-        {place.photo ? (
-          <img src={place.photo} alt="" loading="lazy" referrerPolicy="no-referrer" />
-        ) : (
-          <div className="list-item-thumb-placeholder" aria-hidden="true">
-            {/* Generic map-pin glyph — the category badge below carries
-                the type-specific iconography, so this is purely a
-                visual placeholder. */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          </div>
-        )}
+        <PlaceImage
+          place={place}
+          src={place.photo || undefined}
+          alt=""
+          className="list-item-thumb-image"
+          imgProps={{ loading: 'lazy' }}
+        />
       </div>
 
       {/* Content */}

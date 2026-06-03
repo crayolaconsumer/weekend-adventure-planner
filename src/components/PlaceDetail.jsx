@@ -25,7 +25,7 @@ import { openDirections, openExternalLink } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
 import { fetchWikipediaSummary } from '../utils/placeImage'
 import { getWeeklySchedule } from '../utils/openingHours'
-import { MapContainer, TileLayer, Marker } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './PlaceDetail.css'
@@ -50,6 +50,31 @@ const brandPinIcon = L.divIcon({
 const VOYAGER_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
 const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
 const VOYAGER_ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+function MapResizeFix() {
+  const map = useMap()
+
+  useEffect(() => {
+    const fix = () => map.invalidateSize({ animate: false, pan: false })
+    // The map only mounts after the modal's open animation completes, so its
+    // container is already at final, untransformed size. A short cascade plus
+    // a ResizeObserver keep it correct through any later reflow (device
+    // rotation, scrollbar, dynamic content) without relying on fragile
+    // open-animation timing.
+    const timers = [0, 60, 200].map(delay => setTimeout(fix, delay))
+    let observer
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(fix)
+      observer.observe(map.getContainer())
+    }
+    return () => {
+      timers.forEach(clearTimeout)
+      observer?.disconnect()
+    }
+  }, [map])
+
+  return null
+}
 
 const WEEKDAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 }
 function todayWeekdayName() {
@@ -197,19 +222,24 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null 
   // Fetch enriched data when modal opens
   // Uses cached enrichPlace results for instant loads if CardStack prefetched
   useEffect(() => {
+    let cancelled = false
     const fetchDetails = async () => {
       setLoading(true)
       try {
         // enrichPlace has 30-minute caching - will be instant if prefetched
         const enriched = await enrichPlace(place)
+        // The modal instance is reused across place switches (no key), so a
+        // slow enrichPlace(A) must not overwrite a newer place B.
+        if (cancelled) return
         setEnrichedPlace({ ...place, ...enriched })
       } catch (error) {
-        console.error('Failed to enrich place:', error)
+        if (!cancelled) console.error('Failed to enrich place:', error)
       }
-      setLoading(false)
+      if (!cancelled) setLoading(false)
     }
 
     fetchDetails()
+    return () => { cancelled = true }
   }, [place])
 
   // Track blob URLs for proper cleanup (prevents memory leaks)
@@ -560,19 +590,26 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null 
                 transition={{ delay: 0.27 }}
               >
                 <div className="place-detail-map">
-                  <MapContainer
-                    center={[enrichedPlace.lat, enrichedPlace.lng]}
-                    zoom={15}
-                    scrollWheelZoom={false}
-                    dragging={false}
-                    doubleClickZoom={false}
-                    zoomControl={false}
-                    className="place-detail-map-leaflet"
-                    attributionControl={false}
-                  >
-                    <TileLayer url={mapTile} attribution={VOYAGER_ATTRIBUTION} detectRetina key={mapTile} />
-                    <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} />
-                  </MapContainer>
+                  {/* Mount the map only after the open animation settles —
+                      initialising Leaflet mid-transform leaves blank tile
+                      strips that no later invalidateSize reliably fixes. */}
+                  {animationComplete && (
+                    <MapContainer
+                      key={enrichedPlace.id}
+                      center={[enrichedPlace.lat, enrichedPlace.lng]}
+                      zoom={15}
+                      scrollWheelZoom={false}
+                      dragging={false}
+                      doubleClickZoom={false}
+                      zoomControl={false}
+                      className="place-detail-map-leaflet"
+                      attributionControl={false}
+                    >
+                      <MapResizeFix />
+                      <TileLayer url={mapTile} attribution={VOYAGER_ATTRIBUTION} detectRetina key={mapTile} />
+                      <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} />
+                    </MapContainer>
+                  )}
                 </div>
               </motion.div>
             )}

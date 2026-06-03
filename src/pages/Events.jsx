@@ -690,39 +690,39 @@ export default function Events({ location }) {
                   </div>
                 </motion.div>
 
-                {/* Apply/Close Actions */}
-                <motion.div
-                  className="events-filter-actions"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  {(activeFilterCount > 0 || seenEventIds.size > 0) && (
-                    <button
-                      className="events-filter-reset"
-                      onClick={() => {
-                        setSearchRadius(25)
-                        setSelectedCategories([])
-                        setPriceFilter('any')
-                        setSortBy('recommended')
-                        setHideSoldOut(false)
-                        setHideSeen(true)
-                        resetSeenEvents()
-                        setCurrentIndex(0)
-                        setDisplayLimit(EVENTS_PAGE_SIZE)
-                      }}
-                    >
-                      Reset all
-                    </button>
-                  )}
-                  <button
-                    className="events-filter-apply"
-                    onClick={() => setFiltersOpen(false)}
-                  >
-                    Show {allFilteredEvents.length} events
-                  </button>
-                </motion.div>
               </div>
+              {/* Apply/Close Actions */}
+              <motion.div
+                className="events-filter-actions"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {(activeFilterCount > 0 || seenEventIds.size > 0) && (
+                  <button
+                    className="events-filter-reset"
+                    onClick={() => {
+                      setSearchRadius(25)
+                      setSelectedCategories([])
+                      setPriceFilter('any')
+                      setSortBy('recommended')
+                      setHideSoldOut(false)
+                      setHideSeen(true)
+                      resetSeenEvents()
+                      setCurrentIndex(0)
+                      setDisplayLimit(EVENTS_PAGE_SIZE)
+                    }}
+                  >
+                    Reset all
+                  </button>
+                )}
+                <button
+                  className="events-filter-apply"
+                  onClick={() => setFiltersOpen(false)}
+                >
+                  Show {allFilteredEvents.length} events
+                </button>
+              </motion.div>
             </motion.div>
           </>
         )}

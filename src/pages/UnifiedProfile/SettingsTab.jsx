@@ -630,10 +630,11 @@ export default function SettingsTab({ user, onLogout }) {
                 marginTop: 12,
                 width: '100%',
                 padding: '10px 12px',
-                border: '1px solid rgba(26,58,47,0.2)',
+                border: '1px solid var(--color-border)',
                 borderRadius: 8,
                 fontSize: 15,
-                background: '#fff',
+                background: 'var(--color-surface-elevated)',
+                color: 'var(--color-text-primary)',
               }}
             />
             {deleteError && (

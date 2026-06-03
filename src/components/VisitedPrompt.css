@@ -20,6 +20,9 @@
   position: relative;
   width: 100%;
   max-width: 340px;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
   background: var(--roam-cream);
   border-radius: var(--radius-xl);
   padding: var(--space-xl);
@@ -52,6 +55,9 @@
 }
 
 .visited-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;

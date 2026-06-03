@@ -21,6 +21,10 @@
   padding: var(--space-xl);
   width: 100%;
   max-width: 400px;
+  /* Cap + scroll so the textarea + Skip/Share actions stay reachable when
+     the soft keyboard shrinks the viewport. */
+  max-height: 90dvh;
+  overflow-y: auto;
   box-shadow: var(--shadow-xl);
 }
 

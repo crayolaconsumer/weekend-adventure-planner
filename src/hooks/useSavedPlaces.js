@@ -93,8 +93,16 @@ export function useSavedPlaces() {
     // recompute it live from current location instead.
     delete placeWithTimestamp.distance
 
-    // Optimistic update - add to front of list
-    setPlaces(prev => [placeWithTimestamp, ...prev.filter(p => p.id !== place.id)])
+    // Optimistic update — add to front. Preserve the original savedAt when
+    // re-saving an already-saved place so the "Saved" date doesn't jump to now
+    // (server also preserves saved_at on conflict); only stamp now for a new save.
+    setPlaces(prev => {
+      const existing = prev.find(p => p.id === place.id)
+      const entry = existing?.savedAt != null
+        ? { ...placeWithTimestamp, savedAt: existing.savedAt }
+        : placeWithTimestamp
+      return [entry, ...prev.filter(p => p.id !== place.id)]
+    })
 
     // Analytics — fire-and-forget, no-op when PostHog isn't initialised
     import('../utils/analytics').then(({ track }) => track('place-saved', {
@@ -122,20 +130,28 @@ export function useSavedPlaces() {
       } catch (err) {
         // Revert optimistic update
         setPlaces(prev => prev.filter(p => p.id !== place.id))
-        // Save to localStorage as fallback
+        // Save to localStorage as fallback (preserve original savedAt on re-save)
         const saved = localStorage.getItem(STORAGE_KEY)
         const current = saved ? JSON.parse(saved) : []
-        const updated = [placeWithTimestamp, ...current.filter(p => p.id !== place.id)]
+        const existingLocal = current.find(p => p.id === place.id)
+        const fallbackEntry = existingLocal?.savedAt != null
+          ? { ...placeWithTimestamp, savedAt: existingLocal.savedAt }
+          : placeWithTimestamp
+        const updated = [fallbackEntry, ...current.filter(p => p.id !== place.id)]
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
         // Re-add to state from localStorage fallback
         setPlaces(updated)
         return { success: false, error: err.message, fallback: true }
       }
     } else {
-      // localStorage update
+      // localStorage update (preserve original savedAt on re-save)
       const saved = localStorage.getItem(STORAGE_KEY)
       const current = saved ? JSON.parse(saved) : []
-      const updated = [placeWithTimestamp, ...current.filter(p => p.id !== place.id)]
+      const existingLocal = current.find(p => p.id === place.id)
+      const localEntry = existingLocal?.savedAt != null
+        ? { ...placeWithTimestamp, savedAt: existingLocal.savedAt }
+        : placeWithTimestamp
+      const updated = [localEntry, ...current.filter(p => p.id !== place.id)]
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
       return { success: true }
     }

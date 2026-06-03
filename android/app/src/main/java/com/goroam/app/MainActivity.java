@@ -50,6 +50,7 @@ public class MainActivity extends BridgeActivity
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RoamThemePlugin.class);
         super.onCreate(savedInstanceState);
 
         // Android 15 (API 35) onwards enforces edge-to-edge for any app
@@ -64,8 +65,14 @@ public class MainActivity extends BridgeActivity
         // for window insets on the content view and apply them as padding,
         // shifting the WebView frame below the status bar and above the
         // gesture/nav bar. This mirrors iOS's `contentInset:"always"`.
+        int backgroundColor = getColor(R.color.roam_window_background);
+        getWindow().getDecorView().setBackgroundColor(backgroundColor);
+        getWindow().setStatusBarColor(backgroundColor);
+        getWindow().setNavigationBarColor(backgroundColor);
+
         View root = findViewById(android.R.id.content);
         if (root != null) {
+            root.setBackgroundColor(backgroundColor);
             ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
                 Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
                 v.setPadding(bars.left, bars.top, bars.right, bars.bottom);

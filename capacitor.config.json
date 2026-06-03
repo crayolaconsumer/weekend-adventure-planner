@@ -26,8 +26,8 @@
       "splashImmersive": false
     },
     "StatusBar": {
-      "backgroundColor": "#1a3a2f",
-      "style": "LIGHT",
+      "backgroundColor": "#faf8f5",
+      "style": "DARK",
       "overlaysWebView": false
     },
     "PushNotifications": {

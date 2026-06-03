@@ -22,15 +22,24 @@ export default function MapPreviewBand({ places, onClick, label = 'View map' }) 
       const lng = (typeof p?.lng === 'number') ? p.lng :
                   (typeof p?.lon === 'number') ? p.lon :
                   data.lng ?? data.lon
-      const category =
+      // category may be a full object ({key,color,...}), a plain string
+      // ('food'), or live under placeData / categoryKey. Resolve a key from
+      // any of these so string/legacy rows don't collapse to the fallback color.
+      const catObj =
         (typeof p?.category === 'object' && p.category) ? p.category :
         (typeof data.category === 'object' && data.category) ? data.category :
         null
+      const categoryKey =
+        catObj?.key ||
+        (typeof p?.category === 'string' ? p.category : null) ||
+        (typeof data.category === 'string' ? data.category : null) ||
+        p?.categoryKey || data.categoryKey || null
       return {
         id: p?.id || p?.placeId || data.id || data.placeId,
         lat,
         lng,
-        category
+        categoryKey,
+        categoryColor: catObj?.color || null
       }
     })
     const validPlaces = normalised.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
@@ -55,7 +64,10 @@ export default function MapPreviewBand({ places, onClick, label = 'View map' }) 
         ...place,
         x: ((place.lng - padded.minLng) / lngRange) * 100,
         y: ((padded.maxLat - place.lat) / latRange) * 100,
-        color: GOOD_CATEGORIES[place.category]?.color || '#1a3a2f'
+        // place.category is normalised to the full object above, so index
+        // Color by the resolved categoryKey (handles object/string/legacy),
+        // falling back to the object's own color, then the brand default.
+        color: GOOD_CATEGORIES[place.categoryKey]?.color || place.categoryColor || '#1a3a2f'
       }))
     }
   }, [places])

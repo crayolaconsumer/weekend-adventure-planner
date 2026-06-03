@@ -74,8 +74,8 @@
 }
 
 .filter-modal-sheet.expanded {
-  max-height: var(--stable-vh, 100dvh);
-  height: var(--stable-vh, 100dvh);
+  max-height: 100dvh;
+  height: 100dvh;
   border-radius: 0;
   padding-top: env(safe-area-inset-top, 0);
 }

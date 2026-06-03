@@ -110,10 +110,20 @@ export function useUserProfile(username) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // Navigating between profiles reuses this hook; only the latest fetch may
+  // write state so a slow request for profile A can't clobber profile B.
+  const fetchIdRef = useRef(0)
 
   const fetchProfile = useCallback(async () => {
-    if (!username) return
+    if (!username) {
+      // Invalidate any in-flight fetch for a previous profile and clear it.
+      fetchIdRef.current += 1
+      setProfile(null)
+      setLoading(false)
+      return
+    }
 
+    const fetchId = ++fetchIdRef.current
     setLoading(true)
     setError(null)
 
@@ -123,6 +133,7 @@ export function useUserProfile(username) {
         headers: getAuthHeaders()
       })
 
+      if (fetchId !== fetchIdRef.current) return
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('User not found')
@@ -131,11 +142,12 @@ export function useUserProfile(username) {
       }
 
       const data = await response.json()
+      if (fetchId !== fetchIdRef.current) return
       setProfile(data)
     } catch (err) {
-      setError(err.message)
+      if (fetchId === fetchIdRef.current) setError(err.message)
     } finally {
-      setLoading(false)
+      if (fetchId === fetchIdRef.current) setLoading(false)
     }
   }, [username])
 
@@ -334,9 +346,22 @@ export function useUnifiedActivityFeed(typeFilter = null) {
   const typeFilterRef = useRef(typeFilter)
   typeFilterRef.current = typeFilter
 
-  const fetchActivities = useCallback(async (offset = 0, isRefresh = false) => {
-    if (!isAuthenticated) return
+  // Only the latest fetch may write state, so a stale filter-switch /
+  // pull-to-refresh response can't overwrite the current list (mirrors
+  // useFriendActivity.js's fetchIdRef pattern).
+  const fetchIdRef = useRef(0)
 
+  const fetchActivities = useCallback(async (offset = 0, isRefresh = false) => {
+    if (!isAuthenticated) {
+      // Invalidate any in-flight fetch so its late response can't write
+      // state after auth flips off, and clear loading so a mounted
+      // consumer isn't left stuck in a loading state.
+      ++fetchIdRef.current
+      setLoading(false)
+      return
+    }
+
+    const currentFetchId = ++fetchIdRef.current
     setLoading(true)
     if (isRefresh) {
       setError(null)
@@ -359,6 +384,9 @@ export function useUnifiedActivityFeed(typeFilter = null) {
 
       const data = await response.json()
 
+      // Drop the result if a newer fetch has started since (stale response).
+      if (currentFetchId !== fetchIdRef.current) return
+
       if (offset === 0) {
         setActivities(data.activities || [])
       } else {
@@ -366,9 +394,9 @@ export function useUnifiedActivityFeed(typeFilter = null) {
       }
       setHasMore(data.hasMore || false)
     } catch (err) {
-      setError(err.message)
+      if (currentFetchId === fetchIdRef.current) setError(err.message)
     } finally {
-      setLoading(false)
+      if (currentFetchId === fetchIdRef.current) setLoading(false)
     }
   }, [isAuthenticated])
 
@@ -380,7 +408,8 @@ export function useUnifiedActivityFeed(typeFilter = null) {
 
   const refresh = useCallback(() => {
     setActivities([])
-    fetchActivities(0, true)
+    // Return the promise so pull-to-refresh awaits the real settle.
+    return fetchActivities(0, true)
   }, [fetchActivities])
 
   // Refetch when typeFilter changes
@@ -439,15 +468,20 @@ export function useUserSearch() {
   const [error, setError] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState(0)
+  // Search-as-you-type fires overlapping requests; only the latest may write
+  // results so a slower earlier query ('jo') can't overwrite a newer one ('john').
+  const fetchIdRef = useRef(0)
 
   const search = useCallback(async (query, offset = 0) => {
     if (!query || query.trim().length < 2) {
+      ++fetchIdRef.current
       setResults([])
       setTotal(0)
       setHasMore(false)
       return
     }
 
+    const fetchId = ++fetchIdRef.current
     setLoading(true)
     setError(null)
 
@@ -460,12 +494,14 @@ export function useUserSearch() {
         }
       )
 
+      if (fetchId !== fetchIdRef.current) return
       if (!response.ok) {
         throw new Error('Search failed')
       }
 
       const data = await response.json()
 
+      if (fetchId !== fetchIdRef.current) return
       if (offset === 0) {
         setResults(data.users)
       } else {
@@ -474,9 +510,9 @@ export function useUserSearch() {
       setTotal(data.total)
       setHasMore(data.hasMore)
     } catch (err) {
-      setError(err.message)
+      if (fetchId === fetchIdRef.current) setError(err.message)
     } finally {
-      setLoading(false)
+      if (fetchId === fetchIdRef.current) setLoading(false)
     }
   }, [])
 
@@ -487,10 +523,14 @@ export function useUserSearch() {
   }, [loading, hasMore, results.length, search])
 
   const clearResults = useCallback(() => {
+    // Invalidate any in-flight search so a late response can't repopulate
+    // results after the query was cleared.
+    fetchIdRef.current += 1
     setResults([])
     setTotal(0)
     setHasMore(false)
     setError(null)
+    setLoading(false)
   }, [])
 
   return { results, loading, error, total, hasMore, search, loadMore, clearResults }

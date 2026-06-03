@@ -54,6 +54,7 @@ function getActivityVerb(type, rating) {
     case 'photo':
       return 'shared a photo from'
     case 'rating':
+      if (rating === null || rating === undefined) return 'rated'
       return rating > 3 ? 'recommends' : "doesn't recommend"
     default:
       return 'shared activity about'

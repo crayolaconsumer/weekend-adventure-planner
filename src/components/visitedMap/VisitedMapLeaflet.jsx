@@ -55,6 +55,28 @@ function FlyToFocused({ places, focusedPlaceId }) {
   return null
 }
 
+// The map mounts after an async fetch inside an opacity-animated route, so
+// its container can settle to final size a frame or two after init — leaving
+// blank tile holes + mis-placed clusters. Re-measure on a short cascade and on
+// any later layout change (matches DiscoverMap's guard).
+function MapResizeFix() {
+  const map = useMap()
+  useEffect(() => {
+    const fix = () => map.invalidateSize({ animate: false, pan: false })
+    const timers = [0, 50, 150, 300, 500].map(d => setTimeout(fix, d))
+    let observer
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(fix)
+      observer.observe(map.getContainer())
+    }
+    return () => {
+      timers.forEach(clearTimeout)
+      observer?.disconnect()
+    }
+  }, [map])
+  return null
+}
+
 export default function VisitedMapLeaflet({ places, onPinTap, focusedPlaceId }) {
   const { resolved: theme } = useTheme()
   const tileUrl = theme === 'dark' ? TILE_URL_DARK : TILE_URL_LIGHT
@@ -94,6 +116,7 @@ export default function VisitedMapLeaflet({ places, onPinTap, focusedPlaceId }) 
         scrollWheelZoom={true}
       >
         <TileLayer url={tileUrl} attribution={ATTRIBUTION} detectRetina key={tileUrl} />
+        <MapResizeFix />
         <FitToBounds places={normalizedPlaces} />
         <FlyToFocused places={normalizedPlaces} focusedPlaceId={focusedPlaceId} />
         <MarkerClusterGroup chunkedLoading maxClusterRadius={45}>

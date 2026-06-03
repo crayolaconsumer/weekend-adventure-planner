@@ -304,6 +304,17 @@ export default function SocialHub({ location }) {
         },
         { enableHighAccuracy: true, timeout: 10000 }
       )
+    } else if (!userLocation) {
+      // Geolocation API unavailable — fall back to London so the feed
+      // (which now waits for a settled location source) can resolve
+      // instead of skeletoning forever.
+      if (!locationToastShown.current) {
+        locationToastShown.current = true
+        toast.info("Couldn't get your location - showing London by default")
+      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- terminal fallback so locationSource settles
+      setUserLocation({ lat: 51.5074, lng: -0.1278 })
+      setLocationSource('default')
     }
   }, [userLocation, locationSource, toast])
 
@@ -390,7 +401,7 @@ export default function SocialHub({ location }) {
             >
               {isAuthenticated ? (
                 <>
-                  <LocationAwareFeed location={userLocation} />
+                  <LocationAwareFeed location={userLocation} locationReady={locationSource !== null} />
                   {/* Community signal — what's popular right now. Sits
                       below the friend feed: 'what people I follow are
                       doing' first, 'what everyone's loving' second. */}

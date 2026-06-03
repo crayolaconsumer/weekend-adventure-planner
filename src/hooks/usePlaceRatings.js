@@ -27,7 +27,7 @@ export function usePlaceRatings() {
   // categoryKey) on top so they survive a refresh — those only live in
   // localStorage today since the API row doesn't have columns for them.
   function normaliseServerRating(serverRow, localRow) {
-    const visitedAt = serverRow.updatedAt || serverRow.createdAt || Date.now()
+    const visitedAt = serverRow.createdAt || Date.now()
     return {
       placeId: serverRow.placeId,
       recommended: serverRow.rating >= 4,

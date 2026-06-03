@@ -38,9 +38,16 @@ export function useVisitedPlaces() {
   // L8: Add loading state for individual operations
   const [saving, setSaving] = useState(false)
   const syncedRef = useRef(false)
+  // Cancel an in-flight load so a fast logout→login (or unmount) can't let a
+  // stale request resolve and clobber state. Mirrors useSavedPlaces.
+  const abortControllerRef = useRef(null)
 
   // Load visited places
   const loadVisited = useCallback(async () => {
+    if (abortControllerRef.current) abortControllerRef.current.abort()
+    abortControllerRef.current = new AbortController()
+    const { signal } = abortControllerRef.current
+
     setLoading(true)
 
     try {
@@ -48,11 +55,13 @@ export function useVisitedPlaces() {
         const token = getAuthToken()
         const response = await fetch('/api/users/visited', {
           credentials: 'include',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          signal
         })
 
         if (response.ok) {
           const data = await response.json()
+          if (signal.aborted) return
           setVisitedPlaces(data.visited || [])
           // Cache in localStorage
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data.visited || []))
@@ -63,10 +72,12 @@ export function useVisitedPlaces() {
         setVisitedPlaces(loadLocalVisited())
       }
     } catch (err) {
+      if (err.name === 'AbortError') return
       console.error('Error loading visited places:', err)
       setVisitedPlaces(loadLocalVisited())
     } finally {
-      setLoading(false)
+      // A superseded/aborted request must not flip loading — the newer one owns it.
+      if (!signal.aborted) setLoading(false)
     }
   }, [isAuthenticated])
 
@@ -109,6 +120,10 @@ export function useVisitedPlaces() {
   useEffect(() => {
     if (authLoading) return
     loadVisited()
+    // Cancel the in-flight load on unmount / auth change.
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort()
+    }
   }, [isAuthenticated, authLoading, loadVisited])
 
   // Mark a place as visited
@@ -133,18 +148,21 @@ export function useVisitedPlaces() {
       distance = R * c
     }
 
-    const visitedEntry = {
+    // Preserve the original visited_at when this is an edit of an existing
+    // visit (editing a review re-calls markVisited and must NOT re-stamp the
+    // visit to "now"); only stamp now for a genuinely new visit.
+    const makeEntry = (existingVisitedAt) => ({
       placeId,
       placeData: place,
-      visitedAt: Date.now(),
+      visitedAt: existingVisitedAt ?? Date.now(),
       rating,
       distance
-    }
+    })
 
     // Optimistic local update
     setVisitedPlaces(prev => {
-      const filtered = prev.filter(v => v.placeId !== placeId)
-      return [visitedEntry, ...filtered]
+      const existing = prev.find(v => v.placeId === placeId)
+      return [makeEntry(existing?.visitedAt), ...prev.filter(v => v.placeId !== placeId)]
     })
 
     // Analytics — fire-and-forget, no-op when PostHog isn't initialised
@@ -154,10 +172,11 @@ export function useVisitedPlaces() {
       hasDistance: distance != null,
     }))
 
-    // Update localStorage
+    // Update localStorage (preserve original visitedAt likewise)
     const local = loadLocalVisited()
+    const existingLocal = local.find(v => v.placeId === placeId)
     const filtered = local.filter(v => v.placeId !== placeId)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([visitedEntry, ...filtered]))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([makeEntry(existingLocal?.visitedAt), ...filtered]))
 
     // Sync to API if authenticated
     if (isAuthenticated) {

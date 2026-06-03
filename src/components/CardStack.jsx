@@ -24,6 +24,22 @@ const LOADING_MESSAGES = [
   { title: 'Almost there', subtitle: 'Curating the best spots...' },
 ]
 
+function withEnrichmentTags(place) {
+  const tags = place?.tags || {}
+  return {
+    ...place,
+    wikipedia: place?.wikipedia || tags.wikipedia,
+    wikidata: place?.wikidata || tags.wikidata,
+    xid: place?.xid || tags.xid,
+  }
+}
+
+function hasEnrichmentTags(place) {
+  if (!place) return false
+  const tags = place.tags || {}
+  return Boolean(place.wikipedia || tags.wikipedia || place.wikidata || tags.wikidata || place.xid || tags.xid)
+}
+
 // Compass icon component
 const CompassIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -156,6 +172,23 @@ export default function CardStack({
     if (place.photo || place.image) return null
 
     try {
+      if (hasEnrichmentTags(place)) {
+        const enriched = await enrichPlace(withEnrichmentTags(place))
+        const imageUrl = enriched?.image || enriched?.photo
+        if (imageUrl) {
+          setEnrichedImages(prev => ({
+            ...prev,
+            [place.id]: {
+              url: imageUrl,
+              source: enriched.imageSource || null,
+              attribution: enriched.imageAttribution || null
+            }
+          }))
+          fetchAndCacheImage(imageUrl, place.id).catch(() => {})
+          return imageUrl
+        }
+      }
+
       const meta = await resolvePlaceImageWithMeta(place)
       if (meta?.url) {
         setEnrichedImages(prev => ({
@@ -247,7 +280,7 @@ export default function CardStack({
 
       try {
         // enrichPlace has internal caching, so this just warms the cache
-        await enrichPlace(place)
+        await enrichPlace(withEnrichmentTags(place))
       } catch {
         // Silently ignore prefetch errors
       }

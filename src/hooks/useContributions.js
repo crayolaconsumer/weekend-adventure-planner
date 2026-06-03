@@ -4,7 +4,7 @@
  * Fetch and manage contributions for places.
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
@@ -22,10 +22,20 @@ export function useContributions(placeId) {
   const [contributions, setContributions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // Only the latest fetch may write state, so switching places fast can't
+  // leave a previous place's tips showing (stale-response guard).
+  const fetchIdRef = useRef(0)
 
   const fetchContributions = useCallback(async () => {
-    if (!placeId) return
+    if (!placeId) {
+      // Invalidate any in-flight fetch for a previous place and clear stale tips.
+      fetchIdRef.current += 1
+      setContributions([])
+      setLoading(false)
+      return
+    }
 
+    const fetchId = ++fetchIdRef.current
     setLoading(true)
     setError(null)
 
@@ -35,17 +45,19 @@ export function useContributions(placeId) {
         headers: getAuthHeaders()
       })
 
+      if (fetchId !== fetchIdRef.current) return
       if (!response.ok) {
         throw new Error('Failed to fetch contributions')
       }
 
       const data = await response.json()
+      if (fetchId !== fetchIdRef.current) return
       setContributions(data.contributions || [])
     } catch {
       // Silently fail - API might not be configured in development
-      setError('Contributions unavailable')
+      if (fetchId === fetchIdRef.current) setError('Contributions unavailable')
     } finally {
-      setLoading(false)
+      if (fetchId === fetchIdRef.current) setLoading(false)
     }
   }, [placeId])
 
@@ -69,10 +81,17 @@ export function useUserContributions(userId) {
   const [contributions, setContributions] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const fetchIdRef = useRef(0)
 
   const fetchContributions = useCallback(async () => {
-    if (!userId) return
+    if (!userId) {
+      fetchIdRef.current += 1
+      setContributions([])
+      setLoading(false)
+      return
+    }
 
+    const fetchId = ++fetchIdRef.current
     setLoading(true)
     setError(null)
 
@@ -82,17 +101,19 @@ export function useUserContributions(userId) {
         headers: getAuthHeaders()
       })
 
+      if (fetchId !== fetchIdRef.current) return
       if (!response.ok) {
         throw new Error('Failed to fetch contributions')
       }
 
       const data = await response.json()
+      if (fetchId !== fetchIdRef.current) return
       setContributions(data.contributions || [])
     } catch {
       // Silently fail - API might not be configured in development
-      setError('Contributions unavailable')
+      if (fetchId === fetchIdRef.current) setError('Contributions unavailable')
     } finally {
-      setLoading(false)
+      if (fetchId === fetchIdRef.current) setLoading(false)
     }
   }, [userId])
 

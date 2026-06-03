@@ -10,6 +10,11 @@
 
 import { isNative, getPlatform } from './nativeBridge'
 
+const NATIVE_BACKGROUND = {
+  light: '#faf8f5',
+  dark: '#0d1b16'
+}
+
 // ─── Sign in with Apple (native iOS) ─────────────────────────────
 // On web, AuthModal uses Apple's JS SDK directly. On native iOS,
 // Capacitor's plugin returns the same identityToken format that
@@ -366,12 +371,14 @@ export async function configureStatusBar() {
     // correct from the splash hand-off, so read it here.
     const isDark = typeof document !== 'undefined' &&
       document.documentElement.getAttribute('data-theme') === 'dark'
+    const backgroundColor = isDark ? NATIVE_BACKGROUND.dark : NATIVE_BACKGROUND.light
     // Capacitor convention is inverted from "what the user sees":
     //   Style.Light = LIGHT icons (use on DARK bg)
     //   Style.Dark  = DARK icons (use on LIGHT bg)
     await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark })
+    await StatusBar.setBackgroundColor({ color: backgroundColor })
     if (getPlatform() === 'android') {
-      await StatusBar.setBackgroundColor({ color: isDark ? '#0d1b16' : '#1a3a2f' })
+      await window.Capacitor?.Plugins?.RoamTheme?.setSystemBarsBackground?.({ color: backgroundColor })
     }
   } catch {
     /* ignore */

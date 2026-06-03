@@ -11,16 +11,9 @@ import { formatEventDate, formatPriceRange, getSourceInfo } from '../utils/event
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { openDirections, openExternalLink } from '../utils/navigation'
+// Shared with EventCard so card and detail show the SAME fallback image.
+import { getEventPlaceholderImage } from '../pages/Events/placeholderImage'
 import './EventDetail.css'
-
-// Event category placeholder images
-const EVENT_IMAGES = {
-  music: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80',
-  entertainment: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=800&q=80',
-  culture: 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=800&q=80',
-  nightlife: 'https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=800&q=80',
-  default: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80'
-}
 
 // Icons
 const CloseIcon = () => (
@@ -149,8 +142,8 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
   if (!event) return null
 
   const sourceInfo = getSourceInfo(event.source)
-  const categoryImage = EVENT_IMAGES[event.categories?.[0]] || EVENT_IMAGES.default
-  const imageUrl = event.imageUrl || categoryImage
+  // Shared helper so the detail hero matches the card's fallback exactly.
+  const imageUrl = event.imageUrl || getEventPlaceholderImage(event.id, event.categories)
 
   // Format full date with day of week
   const formatFullDate = (date) => {

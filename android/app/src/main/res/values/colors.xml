@@ -5,9 +5,9 @@
          Matches the ROAM forest-green brand mark. -->
     <color name="notification_color">#1a3a2f</color>
 
-    <!-- ROAM brand forest green, used as the Activity windowBackground
-         + status-bar tint so any safe-area inset gap above the WebView
-         (Pixel 10 Pro XL / Android 16 edge-to-edge enforcement) shows
-         in brand colour rather than the system default light grey. -->
+    <!-- ROAM brand forest green. -->
     <color name="roam_forest">#1a3a2f</color>
+
+    <!-- Activity inset strip background; values-night supplies dark. -->
+    <color name="roam_window_background">#faf8f5</color>
 </resources>

@@ -123,7 +123,7 @@
   justify-content: center;
   font-weight: 600;
   font-size: 1.1rem;
-  color: var(--roam-stone);
+  color: var(--color-text-secondary);
   background: var(--roam-parchment);
 }
 

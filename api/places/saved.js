@@ -159,13 +159,14 @@ async function handlePost(req, res, user) {
     }
   }
 
-  // Upsert: insert or update if exists
+  // Upsert: insert or update if exists. Preserve the original saved_at on
+  // conflict — a re-save (or sync re-POST) must not bump the "Saved" date
+  // shown in Wishlist; only refresh the cached place_data.
   await query(
     `INSERT INTO saved_places (user_id, place_id, place_data, saved_at)
      VALUES (?, ?, ?, NOW())
      ON DUPLICATE KEY UPDATE
-       place_data = VALUES(place_data),
-       saved_at = VALUES(saved_at)`,
+       place_data = VALUES(place_data)`,
     [user.id, placeId, JSON.stringify(placeData)]
   )
 
@@ -178,12 +179,19 @@ async function handlePost(req, res, user) {
     )
   )
 
+  // Return the ACTUAL stored saved_at (preserved on a re-save) rather than now,
+  // so the client reflects the true save time instead of bumping it.
+  const savedRow = await queryOne(
+    'SELECT saved_at FROM saved_places WHERE user_id = ? AND place_id = ?',
+    [user.id, placeId]
+  )
+
   return res.status(201).json({
     success: true,
     place: {
       ...placeData,
       id: placeId,
-      savedAt: Date.now()
+      savedAt: savedRow?.saved_at ? new Date(savedRow.saved_at).getTime() : Date.now()
     }
   })
 }

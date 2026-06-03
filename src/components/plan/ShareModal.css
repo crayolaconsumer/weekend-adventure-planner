@@ -29,6 +29,8 @@
   width: 100%;
   max-width: 400px;
   max-height: calc(var(--stable-vh, 100vh) - 100px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   box-shadow:
     0 20px 60px rgba(0, 0, 0, 0.3),
@@ -79,6 +81,9 @@
 
 /* Body */
 .share-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 20px;
 }
 

@@ -238,6 +238,7 @@ export function FilterModal({
             dragListener={false}
             dragConstraints={{ top: -120, bottom: 200 }}
             dragElastic={0.2}
+            dragSnapToOrigin
             onDragEnd={handleDragEnd}
             tabIndex={-1}
           >

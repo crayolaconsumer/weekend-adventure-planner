@@ -25,7 +25,7 @@
   padding: 24px;
   width: 100%;
   max-width: 480px;
-  max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
 }
 @media (min-width: 640px) {
@@ -109,10 +109,17 @@
 }
 
 .edit-review-actions {
+  /* Pin Save/Cancel to the bottom of the scroll area so they stay reachable
+     when the review textarea + soft keyboard make the modal content overflow. */
+  position: sticky;
+  bottom: 0;
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 16px;
+  padding-top: 12px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--roam-cream);
 }
 .edit-review-cancel,
 .edit-review-save {

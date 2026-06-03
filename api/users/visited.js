@@ -110,8 +110,11 @@ async function handlePost(req, res, user) {
   // place_id) constraint and MySQL's affectedRows return value, the
   // first writer wins atomically:
   //   affectedRows = 1 → new row inserted (true new visit)
-  //   affectedRows = 2 → existing row updated (re-visit, ON DUPLICATE)
-  //   affectedRows = 0 → no change (shouldn't happen with visited_at = NOW())
+  //   affectedRows = 2 → existing row updated (edit of notes/rating)
+  //   affectedRows = 0 → no actual change (re-save with identical data)
+  // We deliberately DON'T bump visited_at on the update branch: editing a
+  // review (EditReviewModal re-calls markVisited) must not re-stamp an old
+  // visit to "just now" on the Visited map. visited_at = original visit time.
   let isNewVisit = false
   await transaction(async (conn) => {
     const [result] = await conn.query(
@@ -120,8 +123,7 @@ async function handlePost(req, res, user) {
        ON DUPLICATE KEY UPDATE
          place_data = COALESCE(VALUES(place_data), place_data),
          notes = COALESCE(VALUES(notes), notes),
-         rating = COALESCE(VALUES(rating), rating),
-         visited_at = NOW()`,
+         rating = COALESCE(VALUES(rating), rating)`,
       [user.id, placeId, placeData ? JSON.stringify(placeData) : null, notes || null, rating || null]
     )
     isNewVisit = result.affectedRows === 1

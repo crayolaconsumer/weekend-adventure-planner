@@ -221,7 +221,7 @@ async function handleGet(req, res) {
         )`
         reviewParams.push(currentUser.id, currentUser.id)
       }
-      reviewSql += ' ORDER BY pr.updated_at DESC LIMIT ?'
+      reviewSql += ' ORDER BY pr.created_at DESC LIMIT ?'
       reviewParams.push(safeLimit)
 
       const reviews = await query(reviewSql, reviewParams)
@@ -239,7 +239,7 @@ async function handleGet(req, res) {
           // Carry the rating along so the client can render a
           // recommendation badge alongside the review text.
           rating: r.rating,
-          createdAt: new Date(r.updated_at || r.created_at).toISOString(),
+          createdAt: new Date(r.created_at).toISOString(),
           placeName: null,
           placeCategory: null,
           placeImageUrl: null,

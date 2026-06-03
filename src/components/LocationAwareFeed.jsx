@@ -7,7 +7,7 @@
  * - "Everywhere" section: all other activity
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
@@ -24,22 +24,43 @@ function getAuthHeaders() {
 const NEAR_THRESHOLD = 5000     // 5km
 const FURTHER_THRESHOLD = 50000 // 50km
 
-export default function LocationAwareFeed({ location }) {
+export default function LocationAwareFeed({ location, locationReady = true }) {
   const { isAuthenticated } = useAuth()
   const { savePlace } = useSavedPlaces()
   const { visitedPlaces } = useVisitedPlaces()
 
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(false)
+  // Separate "first/refresh load" flag so the skeleton stays up while a
+  // fresh (offset 0) fetch is in flight — including the prop→geolocation→
+  // London location-resolution refetch — instead of flashing the previous
+  // location-less results. Starts true so the first paint is a skeleton.
+  const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [offset, setOffset] = useState(0)
 
+  // Only the latest fetch may write state, so a stale/out-of-order
+  // response (e.g. the location-less fetch landing after the location one)
+  // can't clobber the current list. Mirrors useFriendActivity.js.
+  const fetchIdRef = useRef(0)
+
   // Fetch activities with location filtering
   const fetchActivities = useCallback(async (newOffset = 0, isRefresh = false) => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) {
+      // Invalidate any in-flight authenticated fetch so its late response
+      // can't write state after auth flips off.
+      ++fetchIdRef.current
+      setLoading(false)
+      setInitialLoading(false)
+      return
+    }
 
+    const currentFetchId = ++fetchIdRef.current
     setLoading(true)
+    if (newOffset === 0) {
+      setInitialLoading(true)
+    }
     if (isRefresh) {
       setError(null)
     }
@@ -47,8 +68,8 @@ export default function LocationAwareFeed({ location }) {
     try {
       let url = `/api/activity/feed?limit=20&offset=${newOffset}`
 
-      // Add location parameters if available
-      if (location?.lat && location?.lng) {
+      // Add location parameters if available (0 is a valid coordinate).
+      if (location?.lat != null && location?.lng != null) {
         url += `&lat=${location.lat}&lng=${location.lng}&radius=50000`
       }
 
@@ -63,6 +84,9 @@ export default function LocationAwareFeed({ location }) {
 
       const data = await response.json()
 
+      // Drop the result if a newer fetch has started since (stale response).
+      if (currentFetchId !== fetchIdRef.current) return
+
       if (newOffset === 0) {
         setActivities(data.activities || [])
       } else {
@@ -72,16 +96,23 @@ export default function LocationAwareFeed({ location }) {
       setHasMore(data.hasMore || false)
       setOffset(newOffset + (data.activities?.length || 0))
     } catch (err) {
-      setError(err.message)
+      if (currentFetchId === fetchIdRef.current) setError(err.message)
     } finally {
-      setLoading(false)
+      if (currentFetchId === fetchIdRef.current) {
+        setLoading(false)
+        setInitialLoading(false)
+      }
     }
   }, [isAuthenticated, location])
 
-  // Initial fetch
+  // Initial fetch — wait until SocialHub has settled location resolution
+  // (prop → geolocation → London fallback) so we never fetch/render the
+  // location-less feed first and flash results the location-aware fetch
+  // then filters out. initialLoading stays true (skeleton) until then.
   useEffect(() => {
+    if (!locationReady) return
     fetchActivities(0, true)
-  }, [fetchActivities])
+  }, [fetchActivities, locationReady])
 
   // Group activities by distance
   const groupedActivities = useMemo(() => {
@@ -140,7 +171,7 @@ export default function LocationAwareFeed({ location }) {
     fetchActivities(0, true)
   }
 
-  if (loading && activities.length === 0) {
+  if (initialLoading) {
     return (
       <div className="location-aware-feed">
         <div className="location-aware-feed-section">
