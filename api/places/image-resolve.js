@@ -506,7 +506,7 @@ async function handler(req, res) {
   let value = null
 
   // Tier 0 — mapper-vetted Commons file (no network).
-  value = tryCommonsFile(commons)
+  value = await tryCommonsFile(commons)
 
   if (isLandmarkLike) {
     // Tier 1 — high-signal curated databases, in parallel.
