@@ -79,7 +79,11 @@ export default async function handler(req, res) {
   const failures = results.filter(r => !r.ok)
   const healthy = results.length - failures.length
 
-  if (failures.length > 0) {
+  // Only EMAIL when >=2 of the 4 probe cities fail — a single-city blip is
+  // usually a transient Overpass wobble that self-heals, and paging on every
+  // one is noise (especially during a launch). Every run is still recorded in
+  // cron_runs below, so the full health history is preserved either way.
+  if (failures.length >= 2) {
     const detail = results
       .map(r => `${r.ok ? 'OK  ' : 'FAIL'} ${r.city}: ${r.ok ? `${r.count} places` : r.reason}`)
       .join('\n')

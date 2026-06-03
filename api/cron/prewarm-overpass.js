@@ -16,7 +16,11 @@ import { recordCronRun } from '../lib/cronRuns.js'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 
 const JOB_NAME = 'overpass-prewarm'
-const DELAY_BETWEEN_CALLS_MS = 1000
+// 4s between chained warm calls (was 1s). Warming 48 cities × 5 radii = 240
+// queries from one Vercel egress IP at 1/s tripped Overpass's per-IP rate
+// limit (a run failed ~236/240). 1 query / 4s stays under the burst threshold
+// so the cache actually warms; ~16 min wall-clock at 3am is fine.
+const DELAY_BETWEEN_CALLS_MS = 4000
 
 const CITIES = [
   { name: 'London', lat: 51.5074, lng: -0.1278 },
