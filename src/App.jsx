@@ -24,8 +24,13 @@ const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
 const AdminUsers = lazy(() => import('./pages/AdminUsers'))
 const AdminAds = lazy(() => import('./pages/AdminAds'))
 const AdminActivity = lazy(() => import('./pages/AdminActivity'))
+const AdminPromotedEvents = lazy(() => import('./pages/AdminPromotedEvents'))
+const PartnersHome = lazy(() => import('./pages/Partners/PartnersHome'))
+const PartnerDashboard = lazy(() => import('./pages/Partners/PartnerDashboard'))
+const PartnerEvent = lazy(() => import('./pages/Partners/PartnerEvent'))
 import NotFound from './pages/NotFound'
 import AdminRoute from './components/AdminRoute'
+import PartnerRoute from './components/PartnerRoute'
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -38,6 +43,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // import DebugHud from './components/DebugHud'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
+import LocationSync from './components/LocationSync'
 import ReSignInBanner from './components/ReSignInBanner'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
@@ -405,10 +411,16 @@ function ProfileRedirect({ onOpenAuth }) {
 }
 
 function App() {
+  // The web-only partner portal is a standalone B2B surface — it must bypass
+  // the consumer onboarding overlay and geolocation prompt. App sits above
+  // BrowserRouter, so we read the entry path directly (partners land here via
+  // a full page load from a marketing link, so this is reliable at mount).
+  const isPartnerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/partners')
+
   const [location, setLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !localStorage.getItem('roam_onboarded')
+    return !localStorage.getItem('roam_onboarded') && !isPartnerPath
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState('login')
@@ -501,6 +513,8 @@ function App() {
   useEffect(() => {
     // Don't request location while onboarding is showing
     if (showOnboarding) return
+    // The partner portal never uses device location — don't prompt for it.
+    if (isPartnerPath) return
 
     // Route via the native plugin on Capacitor — Android REQUIRES the
     // plugin to trigger the runtime permission dialog (the web
@@ -511,17 +525,20 @@ function App() {
     // nativeGetCurrentPosition falls through to navigator.geolocation.
     nativeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000 })
       .then((position) => {
+        // fromDeviceFix marks a GENUINE device fix — only these are persisted
+        // for "events near you" (the London fallback below must never be).
         setLocation({
           lat: position.coords.latitude,
-          lng: position.coords.longitude
+          lng: position.coords.longitude,
+          fromDeviceFix: true
         })
       })
       .catch((error) => {
         setLocationError(error?.message || 'Geolocation failed')
-        // Default to London as fallback
-        setLocation({ lat: 51.5074, lng: -0.1278 })
+        // Default to London as fallback (display only — not a real fix).
+        setLocation({ lat: 51.5074, lng: -0.1278, isFallback: true })
       })
-  }, [showOnboarding])
+  }, [showOnboarding, isPartnerPath])
 
   // Retry location permission
   const retryLocation = () => {
@@ -529,7 +546,8 @@ function App() {
       .then((position) => {
         setLocation({
           lat: position.coords.latitude,
-          lng: position.coords.longitude
+          lng: position.coords.longitude,
+          fromDeviceFix: true
         })
         setLocationError(null)
       })
@@ -550,7 +568,7 @@ function App() {
             <div className="app">
               {/* Onboarding for first-time users */}
               <AnimatePresence>
-                {showOnboarding && (
+                {showOnboarding && !isPartnerPath && (
                   <Onboarding onComplete={() => setShowOnboarding(false)} />
                 )}
               </AnimatePresence>
@@ -580,6 +598,10 @@ function App() {
 
               {/* Floating Notification Bell */}
               {!showOnboarding && <NotificationBell />}
+
+              {/* Persist coarse location (signed-in only) for "events near you"
+                  push targeting. Renders nothing; skipped on the partner portal. */}
+              {!showOnboarding && !isPartnerPath && <LocationSync location={location} />}
 
               {/* Watches useUserBadges across the whole app — toasts
                   any newly-awarded badge regardless of which page the
@@ -636,6 +658,12 @@ function App() {
                       <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
                       <Route path="/admin/ads" element={<AdminRoute><AdminAds /></AdminRoute>} />
                       <Route path="/admin/activity" element={<AdminRoute><AdminActivity /></AdminRoute>} />
+                      <Route path="/admin/promoted-events" element={<AdminRoute><AdminPromotedEvents /></AdminRoute>} />
+                      {/* Web-only partner portal (hidden on native apps) */}
+                      <Route path="/partners" element={<PartnerRoute><PartnersHome /></PartnerRoute>} />
+                      <Route path="/partners/dashboard" element={<PartnerRoute><PartnerDashboard /></PartnerRoute>} />
+                      <Route path="/partners/events/new" element={<PartnerRoute><PartnerEvent /></PartnerRoute>} />
+                      <Route path="/partners/events/:id" element={<PartnerRoute><PartnerEvent /></PartnerRoute>} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
@@ -665,6 +693,8 @@ function App() {
 function ChromeNav() {
   const { pathname } = useLocation()
   if (pathname.startsWith('/admin')) return null
+  // Partner portal is a standalone web surface with its own chrome.
+  if (pathname.startsWith('/partners')) return null
   return (
     <nav className="nav-bar">
       <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>

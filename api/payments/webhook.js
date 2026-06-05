@@ -13,8 +13,9 @@
 
 import Stripe from 'stripe'
 import { queryOne, insert, transaction } from '../lib/db.js'
-import { sendPaymentFailedEmail } from '../lib/email.js'
+import { sendPaymentFailedEmail, sendPromoReceiptEmail } from '../lib/email.js'
 import { withCors } from '../lib/cors.js'
+import { quotePromotion, PROMO_PRICING } from '../lib/promoPricing.js'
 
 // Validate required environment variables at module load
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -24,7 +25,14 @@ if (!process.env.STRIPE_WEBHOOK_SECRET) {
   console.error('FATAL: STRIPE_WEBHOOK_SECRET not configured')
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+// Lazy init — constructing Stripe with an undefined key throws at module load,
+// which would mask the intended "Webhook not configured" 500 on a deploy that
+// lacks the key. Build it on first use.
+let stripeClient = null
+function getStripe() {
+  if (!stripeClient) stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY)
+  return stripeClient
+}
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
 // Disable body parsing - Stripe requires raw body for signature verification
@@ -61,7 +69,7 @@ async function handler(req, res) {
     // Verify webhook signature
     let event
     try {
-      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret)
+      event = getStripe().webhooks.constructEvent(rawBody, signature, webhookSecret)
     } catch (err) {
       console.error('Webhook signature verification failed:', err.message)
       return res.status(400).json({ error: 'Invalid signature' })
@@ -86,11 +94,14 @@ async function handler(req, res) {
       )
     }
 
-    // Handle the event with transaction for data consistency
-    await transaction(async (conn) => {
+    // Handle the event in a transaction. Side-effects that must NOT double-fire
+    // on a Stripe retry (the receipt email) are RETURNED and dispatched only
+    // after the commit succeeds.
+    const afterCommit = await transaction(async (conn) => {
+      let result = null
       switch (event.type) {
         case 'checkout.session.completed':
-          await handleCheckoutCompleted(event.data.object, conn)
+          result = await handleCheckoutCompleted(event.data.object, conn)
           break
 
         case 'customer.subscription.created':
@@ -110,6 +121,10 @@ async function handler(req, res) {
           await handleInvoicePaid(event.data.object, conn)
           break
 
+        case 'charge.refunded':
+          await handlePromotedEventRefund(event.data.object, conn)
+          break
+
         default:
           // Unhandled event types are silently ignored
       }
@@ -121,7 +136,15 @@ async function handler(req, res) {
          WHERE stripe_event_id = ?`,
         [event.id]
       )
+      return result
     })
+
+    // Post-commit side-effects — reached only if the transaction committed, so a
+    // rolled-back attempt sends nothing and the eventual committing retry sends once.
+    if (afterCommit?.receiptEmail) {
+      sendPromoReceiptEmail(afterCommit.receiptEmail.to, afterCommit.receiptEmail.details)
+        .catch((err) => console.error('[webhook] promo receipt email failed:', err?.message || err))
+    }
 
     return res.status(200).json({ received: true })
 
@@ -137,6 +160,12 @@ async function handler(req, res) {
  * @param {Object} conn - Database connection for transaction
  */
 async function handleCheckoutCompleted(session, conn) {
+  // One-time payment for a promoted ("Featured") event — not a subscription.
+  // Returns a post-commit side-effect payload (the receipt email), if any.
+  if (session.metadata?.type === 'promoted_event') {
+    return handlePromotedEventPaid(session, conn)
+  }
+
   const customerId = session.customer
   const subscriptionId = session.subscription
 
@@ -153,7 +182,7 @@ async function handleCheckoutCompleted(session, conn) {
   }
 
   // Get subscription details from Stripe
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
   const plan = subscription.metadata?.plan || 'premium_monthly'
 
   // Update user tier. subscription_source = 'stripe' lets the RC webhook
@@ -187,6 +216,106 @@ async function handleCheckoutCompleted(session, conn) {
       subscription.current_period_start,
       subscription.current_period_end
     ]
+  )
+}
+
+/**
+ * Activate a promoted event after its one-time payment succeeds.
+ * Auto-publish: a paid event goes straight to active/live (moderation is
+ * reactive — reports + admin removal + kill-switch).
+ * @param {Object} session - Stripe checkout session (mode: 'payment')
+ * @param {Object} conn - Database connection for transaction
+ */
+async function handlePromotedEventPaid(session, conn) {
+  const promotedEventId = Number(session.metadata?.promoted_event_id)
+  if (!Number.isInteger(promotedEventId) || promotedEventId <= 0) {
+    console.error('promoted_event checkout missing/invalid id:', session.metadata)
+    return
+  }
+
+  const [rows] = await conn.query(
+    `SELECT pe.title, pe.promo_radius_km, pe.promo_starts_on, pe.promo_ends_on, pe.push_boost, pe.currency,
+            pa.contact_email, pa.org_name
+     FROM promoted_events pe JOIN partner_accounts pa ON pe.partner_id = pa.id
+     WHERE pe.id = ?`,
+    [promotedEventId]
+  )
+  const ev = rows[0]
+  if (!ev) { console.error('promoted_event not found for paid checkout:', promotedEventId); return }
+
+  // Reconcile what was actually paid against the current price (the event could
+  // have been edited cheaper→pricier during pending_payment with the Stripe tab
+  // still open). Recompute server-side:
+  const baseQuote = quotePromotion({
+    radiusKm: ev.promo_radius_km, startOn: ev.promo_starts_on, endOn: ev.promo_ends_on, pushBoost: false
+  })
+  const amountPaid = typeof session.amount_total === 'number' ? session.amount_total : 0
+  const basePence = baseQuote.valid ? baseQuote.pricePence : Infinity
+  const baseCovered = amountPaid >= basePence
+  // Honour the boost only if the payment covered base + boost.
+  const finalBoost = (ev.push_boost && amountPaid >= basePence + PROMO_PRICING.pushBoostPence) ? 1 : 0
+  if (!baseCovered) {
+    console.warn('[webhook] promoted_event underpaid — marking paid but NOT activating (manual review):',
+      promotedEventId, 'paid', amountPaid, 'base', basePence)
+  }
+
+  // Record the payment idempotently. Activate ONLY when (a) the base price was
+  // actually covered AND (b) the event is still awaiting payment — a partner can
+  // cancel, or an admin remove, while the Stripe tab is open; without the status
+  // guard a late webhook would resurrect a cancelled event. A paid-but-not-active
+  // row (cancelled, or underpaid) surfaces as "refund/review owed", not live.
+  const [upd] = await conn.query(
+    `UPDATE promoted_events
+       SET payment_status = 'paid',
+           stripe_payment_intent_id = ?,
+           push_boost = ?,
+           status = CASE WHEN ? = 1 AND status IN ('pending_payment', 'draft') THEN 'active' ELSE status END
+     WHERE id = ? AND payment_status <> 'paid'`,
+    [session.payment_intent || null, finalBoost, baseCovered ? 1 : 0, promotedEventId]
+  )
+  const transitioned = (upd?.affectedRows || 0) > 0
+
+  // Return the receipt to be sent AFTER the transaction commits, and ONLY when
+  // this run actually flipped the row — so a Stripe retry after a rolled-back
+  // transaction can never double-send the email.
+  if (transitioned && baseCovered && ev.contact_email) {
+    return {
+      receiptEmail: {
+        to: ev.contact_email,
+        details: {
+          title: ev.title, orgName: ev.org_name, amountPence: amountPaid, currency: ev.currency || 'GBP',
+          radiusKm: ev.promo_radius_km, promoStartsOn: ev.promo_starts_on, promoEndsOn: ev.promo_ends_on,
+          pushBoost: !!finalBoost
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Refund handling: when a promoted-event charge is refunded, stop serving it.
+ * Matches only promoted_events (subscriptions don't carry a payment intent here).
+ * @param {Object} charge - Stripe charge object
+ * @param {Object} conn - Database connection for transaction
+ */
+async function handlePromotedEventRefund(charge, conn) {
+  const paymentIntent = charge?.payment_intent
+  if (!paymentIntent) return
+  // Only cancel on a FULL refund. A partial refund (e.g. refunding just the £15
+  // boost) must not kill the whole live campaign.
+  const fullyRefunded = charge.refunded === true ||
+    (typeof charge.amount_refunded === 'number' && typeof charge.amount === 'number' &&
+      charge.amount > 0 && charge.amount_refunded >= charge.amount)
+  if (!fullyRefunded) {
+    console.warn('[webhook] partial refund — leaving promoted event live:', paymentIntent)
+    return
+  }
+  await conn.query(
+    `UPDATE promoted_events
+       SET payment_status = 'refunded', status = 'cancelled'
+     WHERE stripe_payment_intent_id = ? AND payment_status = 'paid'`,
+    [paymentIntent]
   )
 }
 
@@ -356,7 +485,7 @@ async function handleInvoicePaid(invoice, conn) {
     return
   }
 
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
   if (!['active', 'trialing'].includes(subscription.status)) return
 
   // Ensure user is marked as premium and refresh the period metadata. If

@@ -1,0 +1,46 @@
+/* AdminPromotedEvents — operator moderation list. */
+
+.ape-filters { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+.ape-filter {
+  padding: 6px 12px; border: 1px solid var(--color-border); background: var(--color-surface);
+  border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: 600;
+  color: var(--color-text-secondary); cursor: pointer;
+}
+/* Fixed brand green (var(--roam-forest) flips to light sage in dark mode). */
+.ape-filter.active { background: #1a3a2f; color: #fff; border-color: #1a3a2f; }
+
+.ape-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+.ape-row {
+  display: flex; gap: var(--space-md); justify-content: space-between; align-items: flex-start;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--space-md);
+}
+.ape-row.is-removed { opacity: 0.6; }
+.ape-row-main { min-width: 0; flex: 1; }
+.ape-title { margin: 6px 0 4px; font-size: var(--text-base); }
+.ape-meta { font-size: var(--text-sm); color: var(--color-text-secondary); margin: 0 0 2px; }
+.ape-stats { font-size: var(--text-xs); color: var(--color-text-muted); margin: 0 0 6px; }
+
+.ape-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.ape-badge {
+  font-size: var(--text-xs); font-weight: 700; padding: 2px 8px; border-radius: var(--radius-full);
+  background: var(--color-surface-elevated); color: var(--color-text-secondary); text-transform: capitalize;
+}
+.ape-badge.mod-live { background: color-mix(in srgb, var(--color-success) 18%, transparent); color: var(--color-success); }
+.ape-badge.mod-flagged { background: var(--roam-gold); color: #1a3a2f; }
+.ape-badge.mod-removed { background: color-mix(in srgb, var(--roam-red) 16%, transparent); color: var(--roam-red); }
+.ape-badge.pay-paid { background: color-mix(in srgb, var(--color-success) 14%, transparent); color: var(--color-success); }
+.ape-badge.pay-unpaid { background: var(--roam-gold); color: #1a3a2f; }
+
+.ape-actions { display: flex; flex-direction: column; gap: 6px; }
+.ape-btn {
+  font: inherit; font-weight: 700; font-size: var(--text-sm); cursor: pointer;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-primary); border-radius: var(--radius-md); padding: 8px 14px;
+}
+.ape-btn.danger { color: var(--roam-red); border-color: color-mix(in srgb, var(--roam-red) 40%, transparent); }
+.ape-btn:disabled { opacity: 0.55; cursor: default; }
+
+.ape-link { background: none; border: none; color: var(--roam-forest); font-weight: 600; cursor: pointer; padding: 0; font-size: var(--text-sm); }
+.ape-muted { color: var(--color-text-muted); }
+.ape-error { color: var(--roam-red); }

@@ -58,13 +58,14 @@ async function getPreferences(res, user) {
       newFollower: !!prefs.new_follower,
       planShared: !!prefs.plan_shared,
       weeklyDigest: !!prefs.weekly_digest,
-      visitReminder: prefs.visit_reminder !== undefined ? !!prefs.visit_reminder : true
+      visitReminder: prefs.visit_reminder !== undefined ? !!prefs.visit_reminder : true,
+      localEvents: prefs.local_events !== undefined && prefs.local_events !== null ? !!prefs.local_events : true
     }
   })
 }
 
 async function updatePreferences(req, res, user) {
-  const { newContribution, newFollower, planShared, weeklyDigest, visitReminder } = req.body
+  const { newContribution, newFollower, planShared, weeklyDigest, visitReminder, localEvents } = req.body
 
   // Build update query dynamically based on provided fields
   const updates = []
@@ -90,6 +91,10 @@ async function updatePreferences(req, res, user) {
     updates.push('visit_reminder = ?')
     values.push(visitReminder ? 1 : 0)
   }
+  if (typeof localEvents === 'boolean') {
+    updates.push('local_events = ?')
+    values.push(localEvents ? 1 : 0)
+  }
 
   if (updates.length === 0) {
     return res.status(400).json({ error: 'No valid preferences to update' })
@@ -107,6 +112,12 @@ async function updatePreferences(req, res, user) {
     `UPDATE notification_preferences SET ${updates.join(', ')} WHERE user_id = ?`,
     values
   )
+
+  // Opting out of local events purges the stored coarse location too — the
+  // opt-out should erase the data, not just stop sending.
+  if (localEvents === false) {
+    await query('DELETE FROM user_locations WHERE user_id = ?', [user.id]).catch(() => {})
+  }
 
   // Return updated preferences
   return getPreferences(res, user)

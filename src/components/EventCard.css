@@ -4,7 +4,11 @@
    ═══════════════════════════════════════════════════════ */
 
 .event-card {
-  background: var(--roam-cream);
+  /* Elevated surface, not --roam-cream: cream is the BASE page bg and flips to
+     the deepest surface in dark mode, so a cream card vanished into the feed
+     (the full variant has no border, only a forest-tinted shadow). This token
+     lifts above the page in both themes (#fff light / parchment dark). */
+  background: var(--color-surface-elevated);
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
@@ -153,6 +157,75 @@
   border-radius: var(--radius-full);
 }
 
+/* "Featured" badge for paid promoted events — top-left so it never
+   collides with the sold-out badge (top-right). Brand gold on forest. */
+.event-card-featured {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  z-index: 1;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* Fixed dark green on gold — var(--roam-forest) flips to light sage in dark
+     mode and would wash out against the (constant) gold pill. */
+  color: #1a3a2f;
+  background: var(--roam-gold);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Admission chip (compact) + static CTA (full) for door-sale / free events,
+   so a no-online-ticket event never falsely reads "Get Tickets". */
+.event-card-admission {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #1a3a2f;
+  background: var(--roam-gold);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* Featured (paid) cards get a restrained gold frame so they read as bought,
+   not just badged. Gold is constant across themes; #1a3a2f-safe accents. */
+.event-card-full.is-featured {
+  /* Full card has no border (separation is the shadow ring below), so a
+     border-color here would be inert — the gold frame is the box-shadow. */
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--roam-gold) 35%, transparent), var(--shadow-md);
+}
+.event-card-compact.is-featured {
+  border-color: color-mix(in srgb, var(--roam-gold) 45%, var(--roam-parchment));
+}
+/* A non-interactive Featured card (nothing to open) shouldn't show a pointer. */
+.event-card-compact:not([role="button"]) { cursor: default; }
+.event-card-org {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-xs);
+}
+
+.event-card-cta-static {
+  text-align: center;
+  font-weight: 600;
+  color: var(--roam-forest);
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--roam-forest) 40%, transparent);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+/* "or pay on the door" — shown under the Get-tickets CTA when an event is
+   sold both online and at the door, so neither channel is hidden. */
+.event-card-door-note {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin: var(--space-xs) 0 0;
+}
+
 .event-card-full .event-card-body {
   padding: var(--space-md);
 }
@@ -255,7 +328,10 @@
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 600;
-  color: white;
+  /* Fixed dark green on the constant gold — matches every other gold pill
+     (.event-card-featured / .event-card-admission). white was ~2:1 contrast
+     and var(--roam-forest) would flip to light sage and wash out in dark mode. */
+  color: #1a3a2f;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -266,5 +342,8 @@
 
 .event-card-full .event-card-cta:disabled {
   background: var(--roam-stone);
+  /* Explicit, theme-safe label colour — stone flips light/dark, so neither the
+     inherited dark-green nor white reads in both themes. */
+  color: var(--color-text-secondary);
   cursor: not-allowed;
 }

@@ -21,7 +21,7 @@ export default function Privacy() {
         <h2>Data we collect</h2>
         <ul>
           <li><strong>Account data</strong> — email, optional display name, profile photo URL (from Google/Apple sign-in when used). Used to authenticate you and personalize your experience.</li>
-          <li><strong>Location</strong> — your device's coordinates, only when granted. Used to recommend nearby places and centre the offline pack. Coarse location of places you mark as visited is stored to render your personal visited-map.</li>
+          <li><strong>Location</strong> — your device's coordinates, only when granted. Used to recommend nearby places and centre the offline pack. Coarse location of places you mark as visited is stored to render your personal visited-map. If you keep “Local Events Near You” notifications on (Settings), we also store a single coarse (~1km) last-known location so we can tell you about events happening nearby; turning that off stops this and erases the stored point.</li>
           <li><strong>User content</strong> — saved places, place reviews and tips, photos you upload, collections you create, follow connections. Stored to deliver the social and discovery features you use.</li>
           <li><strong>Subscription data</strong> — when you purchase ROAM+ on the web, Stripe processes payment and we store only your customer ID, subscription state and expiry. We never see your card details. On iOS, subscriptions are billed by Apple and we receive only the transaction ID.</li>
           <li><strong>Push tokens</strong> — your device's APNS (iOS), FCM (Android) or VAPID (web) token, only if you enable notifications. Used solely to deliver the notifications you opt into.</li>

@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/discover-probe",
       "schedule": "13,43 * * * *"
+    },
+    {
+      "path": "/api/cron/promoted-event-push",
+      "schedule": "5,20,35,50 * * * *"
+    },
+    {
+      "path": "/api/cron/local-events-digest",
+      "schedule": "0 17 * * 4"
     }
   ],
   "functions": {
@@ -27,6 +35,12 @@
     },
     "api/cron/prewarm-overpass.js": {
       "maxDuration": 120
+    },
+    "api/cron/promoted-event-push.js": {
+      "maxDuration": 300
+    },
+    "api/cron/local-events-digest.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [
