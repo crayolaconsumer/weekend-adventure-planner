@@ -269,6 +269,11 @@ export default function AdminDashboard() {
                   countLabel="active"
                 />
                 <ToolCard
+                  to="/admin/promoted-events"
+                  title="Promoted events"
+                  description="Moderate self-serve Featured events from venues & organisers."
+                />
+                <ToolCard
                   to="/admin/users"
                   title="Users"
                   description="Browse signed-up users, view engagement stats, and manage bans."

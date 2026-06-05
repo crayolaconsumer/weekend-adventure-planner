@@ -24,6 +24,7 @@ const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
 const AdminUsers = lazy(() => import('./pages/AdminUsers'))
 const AdminAds = lazy(() => import('./pages/AdminAds'))
 const AdminActivity = lazy(() => import('./pages/AdminActivity'))
+const AdminPromotedEvents = lazy(() => import('./pages/AdminPromotedEvents'))
 const PartnersHome = lazy(() => import('./pages/Partners/PartnersHome'))
 const PartnerDashboard = lazy(() => import('./pages/Partners/PartnerDashboard'))
 const PartnerEvent = lazy(() => import('./pages/Partners/PartnerEvent'))
@@ -533,7 +534,7 @@ function App() {
         // Default to London as fallback
         setLocation({ lat: 51.5074, lng: -0.1278 })
       })
-  }, [showOnboarding])
+  }, [showOnboarding, isPartnerPath])
 
   // Retry location permission
   const retryLocation = () => {
@@ -648,6 +649,7 @@ function App() {
                       <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
                       <Route path="/admin/ads" element={<AdminRoute><AdminAds /></AdminRoute>} />
                       <Route path="/admin/activity" element={<AdminRoute><AdminActivity /></AdminRoute>} />
+                      <Route path="/admin/promoted-events" element={<AdminRoute><AdminPromotedEvents /></AdminRoute>} />
                       {/* Web-only partner portal (hidden on native apps) */}
                       <Route path="/partners" element={<PartnerRoute><PartnersHome /></PartnerRoute>} />
                       <Route path="/partners/dashboard" element={<PartnerRoute><PartnerDashboard /></PartnerRoute>} />
