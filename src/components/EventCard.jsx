@@ -85,6 +85,9 @@ export default function EventCard({ event, variant = 'compact' }) {
   // otherwise it shows a static label so it can never read as a dead button.
   const showButton = hasLink || !event.isFeatured
   const staticLabel = admissionLabel || priceLabel || 'Details to follow'
+  // A Featured card with nothing to open must NOT pose as a clickable button
+  // (dead-end). Aggregator cards keep their existing behaviour.
+  const interactive = !event.isFeatured || hasLink
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -96,14 +99,18 @@ export default function EventCard({ event, variant = 'compact' }) {
   if (variant === 'compact') {
     return (
       <motion.div
-        className="event-card event-card-compact"
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        tabIndex={0}
-        role="button"
-        aria-label={`${event.name} on ${dateLabel}${admissionLabel ? `, ${admissionLabel}` : event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}.${hasLink ? ' Press Enter to view details.' : ''}`}
+        className={`event-card event-card-compact${event.isFeatured ? ' is-featured' : ''}`}
+        {...(interactive
+          ? {
+              onClick: handleClick,
+              onKeyDown: handleKeyDown,
+              tabIndex: 0,
+              role: 'button',
+              whileHover: { scale: 1.02 },
+              whileTap: { scale: 0.98 },
+              'aria-label': `${event.name} on ${dateLabel}${admissionLabel ? `, ${admissionLabel}` : event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view details.`
+            }
+          : { 'aria-label': `${event.name} on ${dateLabel}${admissionLabel ? `, ${admissionLabel}` : ''}` })}
       >
         <div className="event-card-image">
           {event.isFeatured && (
@@ -155,7 +162,7 @@ export default function EventCard({ event, variant = 'compact' }) {
   // Full variant
   return (
     <motion.article
-      className="event-card event-card-full"
+      className={`event-card event-card-full${event.isFeatured ? ' is-featured' : ''}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
     >
@@ -186,6 +193,10 @@ export default function EventCard({ event, variant = 'compact' }) {
         </div>
 
         <h3 className="event-card-title">{event.name}</h3>
+
+        {event.isFeatured && event.orgName && (
+          <p className="event-card-org">Featured by {event.orgName}</p>
+        )}
 
         {event.description && (
           <p className="event-card-description">{event.description}</p>

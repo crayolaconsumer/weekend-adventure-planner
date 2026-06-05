@@ -12,6 +12,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../hooks/useToast'
 import EventCard from '../../components/EventCard'
+import ConfirmDialog from './ConfirmDialog'
 import {
   getPartnerEvent, createPartnerEvent, updatePartnerEvent,
   getPromoQuote, startPromoCheckout, formatPence
@@ -80,6 +81,7 @@ export default function PartnerEvent() {
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [confirmTimedOut, setConfirmTimedOut] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
 
   const paid = event?.payment_status === 'paid'
   const paidBanner = searchParams.get('paid') // 'success' | 'cancelled'
@@ -252,6 +254,7 @@ export default function PartnerEvent() {
     } catch (err) {
       setError(err?.message || 'Could not start checkout')
       setBusy(false)
+      setReviewing(false)
     }
   }
 
@@ -324,6 +327,9 @@ export default function PartnerEvent() {
           </div>
           <p className="partners-muted small">
             Showing within {event.promo_radius_km}km from {fmtDate(event.promo_starts_on)} to {fmtDate(event.promo_ends_on)}.
+          </p>
+          <p className="partners-muted small">
+            Paid {formatPence(event.price_paid_pence)}{event.push_boost ? ' (incl. nearby-phone push)' : ''} · a receipt has been emailed to you.
           </p>
         </section>
       )}
@@ -504,7 +510,7 @@ export default function PartnerEvent() {
             {!isNew && (
               <button className="partners-btn primary"
                 disabled={busy || !quote || (form.ticket_type === 'online' && !String(form.info_url).trim())}
-                onClick={payNow}>
+                onClick={() => setReviewing(true)}>
                 {busy ? '…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
               </button>
             )}
@@ -512,6 +518,26 @@ export default function PartnerEvent() {
           {isNew && <p className="partners-hint">Save your draft first, then pay to publish.</p>}
         </>
       )}
+
+      <ConfirmDialog
+        open={reviewing && !!quote}
+        title="Review & pay"
+        body={quote ? (
+          <div className="partners-review">
+            <div className="partners-review-row"><span>Event</span><strong>{(form.title || '').trim() || 'Your event'}</strong></div>
+            <div className="partners-review-row"><span>Featured</span><strong>{fmtDate(form.promo_starts_on)} – {fmtDate(form.promo_ends_on)} ({quote.days}d)</strong></div>
+            <div className="partners-review-row"><span>Reach</span><strong>{quote.band?.label} · within {quote.radiusKm}km</strong></div>
+            {form.push_boost && <div className="partners-review-row"><span>Nearby-phone push</span><strong>+£15</strong></div>}
+            <div className="partners-review-row total"><span>Total</span><strong>{formatPence(quote.pricePence)}</strong></div>
+            <p className="partners-muted small">One-off — no subscription. You’ll pay securely on Stripe.</p>
+          </div>
+        ) : null}
+        confirmLabel={quote ? `Pay ${formatPence(quote.pricePence)}` : 'Pay'}
+        cancelLabel="Back"
+        busy={busy}
+        onConfirm={payNow}
+        onCancel={() => setReviewing(false)}
+      />
     </Shell>
   )
 }

@@ -128,8 +128,56 @@ Happy exploring!
   })
 }
 
+/**
+ * Receipt for a paid promoted event ("you're live").
+ * @param {string} toEmail - partner contact email
+ * @param {object} details - { title, orgName, amountPence, currency, radiusKm, promoStartsOn, promoEndsOn, pushBoost }
+ */
+export async function sendPromoReceiptEmail(toEmail, details = {}) {
+  const {
+    title = 'Your event', orgName, amountPence = 0, currency = 'GBP',
+    radiusKm, promoStartsOn, promoEndsOn, pushBoost = false
+  } = details
+  const amount = `${currency === 'GBP' ? '£' : ''}${(amountPence / 100).toFixed(2)}`
+  const fmt = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+  const window = `${fmt(promoStartsOn)} to ${fmt(promoEndsOn)}`
+  const boostLine = pushBoost ? 'Nearby-phone push: included' : ''
+
+  return sendEmail({
+    to: toEmail,
+    subject: `Your ROAM receipt — ${title}`,
+    text: `Thanks${orgName ? `, ${orgName}` : ''}.
+
+${title} is now a Featured event on ROAM.
+
+Receipt
+- Amount paid: ${amount}
+- Featured: ${window}
+- Reach: within ${radiusKm}km
+${pushBoost ? '- Nearby-phone push: included\n' : ''}
+This is a one-off payment — no subscription.
+Manage your event: https://www.go-roam.uk/partners/dashboard
+
+- The ROAM Team`,
+    html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; color:#222;">
+  <h2 style="color:#1a3a2f;">You're live on ROAM</h2>
+  <p>Thanks${orgName ? `, ${orgName}` : ''} — <strong>${title}</strong> is now a Featured event near you.</p>
+  <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+    <tr><td style="padding:8px 0; color:#666;">Amount paid</td><td style="padding:8px 0; text-align:right; font-weight:700;">${amount}</td></tr>
+    <tr><td style="padding:8px 0; color:#666;">Featured</td><td style="padding:8px 0; text-align:right;">${window}</td></tr>
+    <tr><td style="padding:8px 0; color:#666;">Reach</td><td style="padding:8px 0; text-align:right;">within ${radiusKm}km</td></tr>
+    ${boostLine ? `<tr><td style="padding:8px 0; color:#666;">Nearby-phone push</td><td style="padding:8px 0; text-align:right;">included</td></tr>` : ''}
+  </table>
+  <p style="color:#666; font-size:13px;">One-off payment — no subscription.</p>
+  <p><a href="https://www.go-roam.uk/partners/dashboard" style="display:inline-block; padding:12px 24px; background:#1a3a2f; color:#fff; text-decoration:none; border-radius:8px; font-weight:600;">View your event</a></p>
+  <p style="color:#888; font-size:12px;">ROAM · go-roam.uk</p>
+</div>`
+  })
+}
+
 export default {
   sendEmail,
   sendPaymentFailedEmail,
-  sendWelcomeEmail
+  sendWelcomeEmail,
+  sendPromoReceiptEmail
 }

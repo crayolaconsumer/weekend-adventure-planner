@@ -13,7 +13,7 @@
 
 import Stripe from 'stripe'
 import { queryOne, insert, transaction } from '../lib/db.js'
-import { sendPaymentFailedEmail } from '../lib/email.js'
+import { sendPaymentFailedEmail, sendPromoReceiptEmail } from '../lib/email.js'
 import { withCors } from '../lib/cors.js'
 import { quotePromotion, PROMO_PRICING } from '../lib/promoPricing.js'
 
@@ -216,7 +216,10 @@ async function handlePromotedEventPaid(session, conn) {
   }
 
   const [rows] = await conn.query(
-    'SELECT promo_radius_km, promo_starts_on, promo_ends_on, push_boost FROM promoted_events WHERE id = ?',
+    `SELECT pe.title, pe.promo_radius_km, pe.promo_starts_on, pe.promo_ends_on, pe.push_boost, pe.currency,
+            pa.contact_email, pa.org_name
+     FROM promoted_events pe JOIN partner_accounts pa ON pe.partner_id = pa.id
+     WHERE pe.id = ?`,
     [promotedEventId]
   )
   const ev = rows[0]
@@ -252,6 +255,16 @@ async function handlePromotedEventPaid(session, conn) {
      WHERE id = ? AND payment_status <> 'paid'`,
     [session.payment_intent || null, finalBoost, baseCovered ? 1 : 0, promotedEventId]
   )
+
+  // Fire the receipt / "you're live" email (non-blocking — never roll back a
+  // payment over an email failure).
+  if (baseCovered && ev.contact_email) {
+    sendPromoReceiptEmail(ev.contact_email, {
+      title: ev.title, orgName: ev.org_name, amountPence: amountPaid, currency: ev.currency || 'GBP',
+      radiusKm: ev.promo_radius_km, promoStartsOn: ev.promo_starts_on, promoEndsOn: ev.promo_ends_on,
+      pushBoost: !!finalBoost
+    }).catch((err) => console.error('[webhook] promo receipt email failed:', err?.message || err))
+  }
 }
 
 /**

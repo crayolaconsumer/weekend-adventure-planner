@@ -27,7 +27,7 @@ export default function ConfirmDialog({
       <div className="partners-modal" role="dialog" aria-modal="true" aria-labelledby="pcd-title"
         onClick={(e) => e.stopPropagation()}>
         <h3 id="pcd-title" className="partners-modal-title">{title}</h3>
-        {body && <p className="partners-modal-body">{body}</p>}
+        {body && <div className="partners-modal-body">{body}</div>}
         <div className="partners-modal-actions">
           <button className="partners-btn ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</button>
           <button ref={confirmRef} className={`partners-btn ${danger ? 'danger-solid' : 'primary'}`}

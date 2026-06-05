@@ -184,6 +184,24 @@
   white-space: nowrap;
 }
 
+/* Featured (paid) cards get a restrained gold frame so they read as bought,
+   not just badged. Gold is constant across themes; #1a3a2f-safe accents. */
+.event-card-full.is-featured {
+  border-color: color-mix(in srgb, var(--roam-gold) 60%, var(--roam-parchment));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--roam-gold) 35%, transparent), var(--shadow-md);
+}
+.event-card-compact.is-featured {
+  border-color: color-mix(in srgb, var(--roam-gold) 45%, var(--roam-parchment));
+}
+/* A non-interactive Featured card (nothing to open) shouldn't show a pointer. */
+.event-card-compact:not([role="button"]) { cursor: default; }
+.event-card-org {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--roam-forest);
+  margin: 0 0 var(--space-xs);
+}
+
 .event-card-cta-static {
   text-align: center;
   font-weight: 600;

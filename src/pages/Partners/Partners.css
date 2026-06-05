@@ -334,6 +334,15 @@
 .partners-advanced[open] summary::before { transform: rotate(90deg); }
 .partners-advanced .partners-row { margin-top: var(--space-xs); }
 
+/* Review & pay sheet */
+.partners-review { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.partners-review-row { display: flex; justify-content: space-between; gap: var(--space-md); font-size: var(--text-sm); }
+.partners-review-row span { color: var(--color-text-muted); }
+.partners-review-row strong { text-align: right; }
+.partners-review-row.total { border-top: 1px solid var(--color-border); padding-top: 8px; margin-top: 4px; font-size: var(--text-base); }
+.partners-review-row.total strong { color: var(--roam-forest); }
+.partners-review .partners-muted { margin-top: 4px; }
+
 /* Save-state indicator */
 .partners-savestate { font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted); margin: var(--space-sm) 0 0; }
 .partners-savestate.dirty { color: var(--roam-forest); }
