@@ -110,6 +110,10 @@ async function handler(req, res) {
           await handleInvoicePaid(event.data.object, conn)
           break
 
+        case 'charge.refunded':
+          await handlePromotedEventRefund(event.data.object, conn)
+          break
+
         default:
           // Unhandled event types are silently ignored
       }
@@ -210,14 +214,36 @@ async function handlePromotedEventPaid(session, conn) {
     return
   }
 
-  // Idempotent: only the first paid event flips it to active.
+  // Record the payment idempotently, but ONLY transition to 'active' if the
+  // event is still awaiting payment. A partner can cancel (status='cancelled')
+  // or an admin can remove an event while its Stripe tab is still open; without
+  // the status guard a late webhook would resurrect it and publish an event
+  // nobody wanted live. A cancelled-but-paid row keeps status='cancelled' and
+  // payment_status='paid' so it surfaces as "refund owed", not live.
   await conn.query(
     `UPDATE promoted_events
        SET payment_status = 'paid',
-           status = 'active',
-           stripe_payment_intent_id = ?
+           stripe_payment_intent_id = ?,
+           status = CASE WHEN status IN ('pending_payment', 'draft') THEN 'active' ELSE status END
      WHERE id = ? AND payment_status <> 'paid'`,
     [session.payment_intent || null, promotedEventId]
+  )
+}
+
+/**
+ * Refund handling: when a promoted-event charge is refunded, stop serving it.
+ * Matches only promoted_events (subscriptions don't carry a payment intent here).
+ * @param {Object} charge - Stripe charge object
+ * @param {Object} conn - Database connection for transaction
+ */
+async function handlePromotedEventRefund(charge, conn) {
+  const paymentIntent = charge?.payment_intent
+  if (!paymentIntent) return
+  await conn.query(
+    `UPDATE promoted_events
+       SET payment_status = 'refunded', status = 'cancelled'
+     WHERE stripe_payment_intent_id = ? AND payment_status = 'paid'`,
+    [paymentIntent]
   )
 }
 

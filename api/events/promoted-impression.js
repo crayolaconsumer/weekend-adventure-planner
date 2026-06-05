@@ -57,17 +57,25 @@ async function handler(req, res) {
     const user = await getUserFromRequest(req)
     const userId = user?.id || null
 
+    // Only record interactions for an event that is actually being served.
+    // This is a public, unauthenticated beacon — without this gate, anyone
+    // could POST arbitrary ids and pollute a partner's analytics. (Bounded:
+    // analytics only — there is no billing tied to impressions.)
+    const servable = await query(
+      `SELECT 1 FROM promoted_events
+       WHERE id = ? AND status = 'active' AND payment_status = 'paid' AND moderation_status = 'live'
+       LIMIT 1`,
+      [idValidation.id]
+    )
+    if (servable.length === 0) {
+      return res.status(200).json({ success: false, ignored: true })
+    }
+
     if (action === 'impression') {
-      const existing = await query(
-        `SELECT id FROM promoted_event_impressions
-         WHERE promoted_event_id = ? AND session_id = ?`,
-        [idValidation.id, session_id]
-      )
-      if (existing.length > 0) {
-        return res.status(200).json({ success: true, duplicate: true })
-      }
+      // INSERT IGNORE + UNIQUE(promoted_event_id, session_id) makes per-session
+      // dedup atomic — no check-then-insert race under concurrent beacons.
       await insert(
-        `INSERT INTO promoted_event_impressions
+        `INSERT IGNORE INTO promoted_event_impressions
          (promoted_event_id, user_id, session_id, user_lat, user_lng)
          VALUES (?, ?, ?, ?, ?)`,
         [idValidation.id, userId, session_id, validatedLat, validatedLng]

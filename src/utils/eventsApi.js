@@ -173,6 +173,10 @@ function deduplicateEvents(events) {
  * Build a deduplication key with name + date + location bucket
  */
 function buildEventKey(event) {
+  // First-party promoted events are distinct, paid entities — key each by its
+  // own id so two of them can never dedup-drop one another (and a promoted
+  // listing is never collapsed into an aggregator one).
+  if (event.source === 'roam_promoted') return event.id
   const name = normalizeText(event.name)
   const dateKey = event.datetime?.start?.toDateString() || 'nodate'
   const locationKey = getLocationKey(event)
@@ -185,6 +189,9 @@ function buildEventKey(event) {
  * e.g., "Taylor Swift - Eras Tour" vs "Taylor Swift: The Eras Tour"
  */
 function buildFuzzyEventKey(event) {
+  // Promoted events are keyed exactly (see buildEventKey) — skip fuzzy matching
+  // so two distinct paid events with similar names can't drop each other.
+  if (event.source === 'roam_promoted') return null
   const name = event.name || ''
   // Extract first 3 significant words (skip articles and connectors)
   const words = name.toLowerCase()

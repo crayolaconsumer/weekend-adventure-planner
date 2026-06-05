@@ -313,7 +313,7 @@ export default function PartnerEvent() {
                 return (
                   <button type="button" key={p.key}
                     className={`partners-preset ${active ? 'active' : ''}`}
-                    onClick={() => applyPreset(p)}>
+                    onClick={() => applyPreset(p)} aria-pressed={active}>
                     {p.recommended && <span className="partners-preset-tag">Popular</span>}
                     <span className="partners-preset-icon"><Icon /></span>
                     <span className="partners-preset-name">{p.label}</span>
@@ -369,7 +369,9 @@ export default function PartnerEvent() {
               {busy ? 'Saving…' : isNew ? 'Save draft' : 'Save changes'}
             </button>
             {!isNew && (
-              <button className="partners-btn primary" disabled={busy || !quote} onClick={payNow}>
+              <button className="partners-btn primary"
+                disabled={busy || !quote || (form.ticket_type === 'online' && !String(form.info_url).trim())}
+                onClick={payNow}>
                 {busy ? '…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
               </button>
             )}

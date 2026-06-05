@@ -6,7 +6,8 @@
   border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: 600;
   color: var(--color-text-secondary); cursor: pointer;
 }
-.ape-filter.active { background: var(--roam-forest); color: #fff; border-color: var(--roam-forest); }
+/* Fixed brand green (var(--roam-forest) flips to light sage in dark mode). */
+.ape-filter.active { background: #1a3a2f; color: #fff; border-color: #1a3a2f; }
 
 .ape-list { display: flex; flex-direction: column; gap: var(--space-sm); }
 .ape-row {
@@ -26,10 +27,10 @@
   background: var(--color-surface-elevated); color: var(--color-text-secondary); text-transform: capitalize;
 }
 .ape-badge.mod-live { background: color-mix(in srgb, var(--color-success) 18%, transparent); color: var(--color-success); }
-.ape-badge.mod-flagged { background: color-mix(in srgb, var(--roam-gold) 24%, transparent); color: var(--roam-forest); }
+.ape-badge.mod-flagged { background: var(--roam-gold); color: #1a3a2f; }
 .ape-badge.mod-removed { background: color-mix(in srgb, var(--roam-red) 16%, transparent); color: var(--roam-red); }
 .ape-badge.pay-paid { background: color-mix(in srgb, var(--color-success) 14%, transparent); color: var(--color-success); }
-.ape-badge.pay-unpaid { background: color-mix(in srgb, var(--roam-gold) 20%, transparent); color: var(--roam-forest); }
+.ape-badge.pay-unpaid { background: var(--roam-gold); color: #1a3a2f; }
 
 .ape-actions { display: flex; flex-direction: column; gap: 6px; }
 .ape-btn {

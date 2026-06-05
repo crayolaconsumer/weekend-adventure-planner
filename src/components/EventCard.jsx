@@ -81,6 +81,10 @@ export default function EventCard({ event, variant = 'compact' }) {
   const ctaText = ticketType === 'online' ? 'Get tickets'
     : ticketType ? 'More info'  // door / free that still has an info link
       : 'Get Tickets'           // aggregator events — unchanged
+  // A Featured card only gets a clickable CTA when there's actually a link;
+  // otherwise it shows a static label so it can never read as a dead button.
+  const showButton = hasLink || !event.isFeatured
+  const staticLabel = admissionLabel || priceLabel || 'Details to follow'
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -199,7 +203,7 @@ export default function EventCard({ event, variant = 'compact' }) {
 
         {event.isSoldOut ? (
           <button className="event-card-cta" disabled>Sold Out</button>
-        ) : (hasLink || !admissionLabel) ? (
+        ) : showButton ? (
           <motion.button
             className="event-card-cta"
             onClick={handleClick}
@@ -210,8 +214,9 @@ export default function EventCard({ event, variant = 'compact' }) {
             <ExternalLinkIcon />
           </motion.button>
         ) : (
-          // Door / free event with no link — show admission, nothing to open.
-          <div className="event-card-cta event-card-cta-static">{admissionLabel}</div>
+          // Featured event with no link (door / free / link-less) — show a
+          // static label, never a button that does nothing.
+          <div className="event-card-cta event-card-cta-static">{staticLabel}</div>
         )}
       </div>
     </motion.article>

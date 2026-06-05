@@ -47,9 +47,13 @@ async function handler(req, res) {
   if (!user) return
 
   try {
-    const partner = await queryOne('SELECT id FROM partner_accounts WHERE user_id = ?', [user.id])
+    const partner = await queryOne('SELECT id, status FROM partner_accounts WHERE user_id = ?', [user.id])
     if (!partner) {
       return res.status(403).json({ error: 'No partner account', code: 'NO_PARTNER' })
+    }
+    // A suspended partner can still view their events, but not mutate them.
+    if (req.method !== 'GET' && partner.status !== 'active') {
+      return res.status(403).json({ error: 'This partner account is suspended', code: 'PARTNER_SUSPENDED' })
     }
 
     if (req.method === 'GET') return handleGet(req, res, partner.id)
@@ -158,10 +162,15 @@ async function handleCancel(req, res, partnerId) {
   const idCheck = validateId(req.query.id)
   if (!idCheck.valid) return res.status(400).json({ error: 'Invalid id' })
   const current = await queryOne(
-    'SELECT id, status FROM promoted_events WHERE id = ? AND partner_id = ?',
+    'SELECT id, status, payment_status FROM promoted_events WHERE id = ? AND partner_id = ?',
     [idCheck.id, partnerId]
   )
   if (!current) return res.status(404).json({ error: 'Not found' })
+  // A paid event represents money taken — don't let self-serve cancel strand a
+  // charge; route to support for a refund (which flips it via the webhook).
+  if (current.payment_status === 'paid') {
+    return res.status(409).json({ error: 'Paid events can’t be cancelled here — contact support for a refund.', code: 'PAID_NO_CANCEL' })
+  }
   await query(
     `UPDATE promoted_events SET status = 'cancelled' WHERE id = ? AND partner_id = ?`,
     [idCheck.id, partnerId]
@@ -229,6 +238,11 @@ function parseEventBody(body) {
   }
   if (promo_ends_on < promo_starts_on) {
     return { valid: false, message: 'Promotion end must be on or after the start' }
+  }
+  // Don't price/charge for a promotion window that has already finished.
+  const todayIso = new Date().toISOString().slice(0, 10)
+  if (promo_ends_on < todayIso) {
+    return { valid: false, message: 'The promotion end date is in the past' }
   }
 
   return {

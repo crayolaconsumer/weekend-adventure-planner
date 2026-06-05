@@ -10,7 +10,9 @@
 }
 
 .partners-hero {
-  background: linear-gradient(135deg, var(--roam-forest) 0%, var(--roam-forest-dark) 100%);
+  /* Fixed brand greens (NOT var(--roam-forest), which flips to light sage in
+     dark mode and would leave white text unreadable). */
+  background: linear-gradient(135deg, #1a3a2f 0%, #142d24 100%);
   color: #fff;
   padding: var(--space-xl) var(--space-md);
 }
@@ -71,7 +73,7 @@
   flex: 1; padding: 8px; border: 1px solid var(--color-border); background: var(--color-background);
   border-radius: var(--radius-md); font-weight: 600; color: var(--color-text-secondary); cursor: pointer;
 }
-.partners-tabs button.active { background: var(--roam-forest); color: #fff; border-color: var(--roam-forest); }
+.partners-tabs button.active { background: #1a3a2f; color: #fff; border-color: #1a3a2f; }
 
 .partners-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-md); }
 .partners-actions.sticky {
@@ -85,7 +87,7 @@
 }
 .partners-btn:disabled { opacity: 0.55; cursor: default; }
 .partners-btn.sm { padding: 8px 12px; font-size: var(--text-sm); }
-.partners-btn.primary { background: var(--roam-forest); color: #fff; }
+.partners-btn.primary { background: #1a3a2f; color: #fff; }
 .partners-btn.ghost { background: var(--color-surface); color: var(--color-text-primary); border-color: var(--color-border); }
 .partners-btn.danger { background: transparent; color: var(--roam-red); border-color: color-mix(in srgb, var(--roam-red) 40%, transparent); }
 
@@ -111,8 +113,10 @@
 }
 .partners-status.s-active { background: color-mix(in srgb, var(--color-success) 18%, transparent); color: var(--color-success); }
 .partners-status.s-draft { background: var(--color-surface-elevated); color: var(--color-text-muted); }
-.partners-status.s-pending_payment { background: color-mix(in srgb, var(--roam-gold) 22%, transparent); color: var(--roam-forest); }
-.partners-status.s-unpaid { background: color-mix(in srgb, var(--roam-gold) 22%, transparent); color: var(--roam-forest); }
+/* Solid gold (constant in both themes) + fixed dark green text — a translucent
+   gold tint over the dark surface would leave dark text unreadable in dark mode. */
+.partners-status.s-pending_payment { background: var(--roam-gold); color: #1a3a2f; }
+.partners-status.s-unpaid { background: var(--roam-gold); color: #1a3a2f; }
 .partners-status.s-cancelled, .partners-status.s-removed { background: color-mix(in srgb, var(--roam-red) 16%, transparent); color: var(--roam-red); }
 
 .partners-empty { text-align: center; padding: var(--space-xl) 0; display: flex; flex-direction: column; gap: var(--space-md); align-items: center; }
@@ -180,7 +184,7 @@
 .partners-preset-tag {
   position: absolute; top: -9px; right: 10px; font-size: 10px; font-weight: 700;
   letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px;
-  background: var(--roam-gold); color: var(--roam-forest); border-radius: var(--radius-full);
+  background: var(--roam-gold); color: #1a3a2f; border-radius: var(--radius-full);
 }
 
 /* --- Reach band selector --- */

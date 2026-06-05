@@ -48,15 +48,26 @@ async function handler(req, res) {
 
     // Ownership + state check (joined so a partner can only pay for own events).
     const event = await queryOne(
-      `SELECT pe.*, pa.user_id AS owner_user_id
+      `SELECT pe.*, pa.user_id AS owner_user_id, pa.status AS partner_status
        FROM promoted_events pe
        JOIN partner_accounts pa ON pe.partner_id = pa.id
        WHERE pe.id = ? AND pa.user_id = ?`,
       [idCheck.id, user.id]
     )
     if (!event) return res.status(404).json({ error: 'Event not found' })
+    if (event.partner_status !== 'active') {
+      return res.status(403).json({ error: 'This partner account is suspended', code: 'PARTNER_SUSPENDED' })
+    }
     if (event.payment_status === 'paid') {
       return res.status(409).json({ error: 'This event is already paid for' })
+    }
+    if (event.status === 'cancelled') {
+      return res.status(409).json({ error: 'This event has been cancelled' })
+    }
+    // An "online" event with no ticket link would publish a dead "Get tickets"
+    // CTA — block payment until there's a link (or switch to door/free).
+    if (event.ticket_type === 'online' && !event.info_url) {
+      return res.status(400).json({ error: 'Add a ticket link before paying, or set admission to “Pay on the door” / “Free entry”.', code: 'TICKET_LINK_REQUIRED' })
     }
 
     // Recompute the price authoritatively — ignore any stored/sent value.
