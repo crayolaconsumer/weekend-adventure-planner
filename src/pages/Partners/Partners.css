@@ -239,3 +239,14 @@
 .partners-boost-check.on { background: #1a3a2f; border-color: #1a3a2f; }
 
 .partners-banner.success { display: flex; align-items: center; gap: 8px; }
+
+/* Post-payment "confirming" state — shown while we poll for the webhook. */
+.partners-confirming { display: flex; align-items: flex-start; gap: var(--space-md); }
+.partners-spinner {
+  width: 22px; height: 22px; flex-shrink: 0; margin-top: 2px; border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, var(--roam-forest) 22%, transparent);
+  border-top-color: var(--roam-forest);
+  animation: partners-spin 0.7s linear infinite;
+}
+@keyframes partners-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .partners-spinner { animation: none; } }

@@ -75,6 +75,7 @@ export default function PartnerEvent() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [confirmTimedOut, setConfirmTimedOut] = useState(false)
 
   const paid = event?.payment_status === 'paid'
   const paidBanner = searchParams.get('paid') // 'success' | 'cancelled'
@@ -97,6 +98,30 @@ export default function PartnerEvent() {
     if (!user) { navigate('/partners'); return }
     if (!isNew) load()
   }, [authLoading, user, isNew, load, navigate])
+
+  // Returning from Stripe (?paid=success) races the webhook — confirm the REAL
+  // payment_status by polling briefly, rather than claiming "live" from a URL.
+  const awaitingConfirmation = paidBanner === 'success' && !!event && !paid
+  useEffect(() => {
+    if (!awaitingConfirmation) return
+    setConfirmTimedOut(false)
+    let stop = false
+    let attempts = 0
+    const tick = async () => {
+      if (stop) return
+      if (attempts >= 10) { setConfirmTimedOut(true); return }
+      attempts++
+      try {
+        const res = await getPartnerEvent(id)
+        if (stop) return
+        setEvent(res.event)
+        if (res.event?.payment_status === 'paid') return
+      } catch { /* keep trying */ }
+      if (!stop) timer = setTimeout(tick, 2500)
+    }
+    let timer = setTimeout(tick, 2000)
+    return () => { stop = true; clearTimeout(timer) }
+  }, [awaitingConfirmation, id])
 
   // Refresh quote whenever radius / dates change and are valid.
   useEffect(() => {
@@ -212,10 +237,27 @@ export default function PartnerEvent() {
     <Shell onBack={() => navigate('/partners/dashboard')}>
       <h1 className="partners-h1">{isNew ? 'Create an event' : paid ? form.title : 'Edit event'}</h1>
 
-      {paidBanner === 'success' && (
+      {/* Only claim "live" once payment_status is actually 'paid'. */}
+      {paid && paidBanner === 'success' && (
         <div className="partners-banner success"><StarIcon size={18} /> Payment received — your event is live.</div>
       )}
-      {paidBanner === 'cancelled' && <div className="partners-banner">Checkout cancelled. You can pay whenever you’re ready.</div>}
+      {paidBanner === 'cancelled' && !paid && (
+        <div className="partners-banner">Checkout cancelled. You can pay whenever you’re ready.</div>
+      )}
+
+      {awaitingConfirmation && (
+        <section className="partners-card partners-confirming">
+          <span className="partners-spinner" aria-hidden="true" />
+          <div>
+            <h2>{confirmTimedOut ? 'Still confirming your payment' : 'Confirming your payment…'}</h2>
+            <p className="partners-muted small">
+              {confirmTimedOut
+                ? 'This is taking longer than usual. Your card was charged — please don’t pay again. It’ll go live automatically once confirmed; refresh in a minute or contact support if it persists.'
+                : 'Just a moment — your event goes live the instant payment is confirmed. No need to pay again.'}
+            </p>
+          </div>
+        </section>
+      )}
 
       {paid && event && (
         <section className="partners-card">
@@ -231,7 +273,7 @@ export default function PartnerEvent() {
         </section>
       )}
 
-      {!paid && (
+      {!paid && !awaitingConfirmation && (
         <>
           <section className="partners-card">
             <h2>Event details</h2>
