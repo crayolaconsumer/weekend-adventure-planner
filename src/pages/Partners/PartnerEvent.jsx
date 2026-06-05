@@ -7,9 +7,11 @@
  * "Pay & publish".
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../hooks/useToast'
+import EventCard from '../../components/EventCard'
 import {
   getPartnerEvent, createPartnerEvent, updatePartnerEvent,
   getPromoQuote, startPromoCheckout, formatPence
@@ -63,8 +65,10 @@ export default function PartnerEvent() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
+  const { showToast } = useToast()
   const [searchParams] = useSearchParams()
   const isNew = !id
+  const savedRef = useRef(null) // JSON snapshot of the last-saved form (dirty tracking)
 
   const [form, setForm] = useState(blankForm)
   const [event, setEvent] = useState(null)
@@ -85,7 +89,9 @@ export default function PartnerEvent() {
     try {
       const res = await getPartnerEvent(id)
       setEvent(res.event)
-      setForm(eventToForm(res.event))
+      const f = eventToForm(res.event)
+      setForm(f)
+      savedRef.current = JSON.stringify(f)
       setLoadState('ready')
     } catch (err) {
       if (err.code === 'NO_PARTNER' || err.status === 401) { navigate('/partners'); return }
@@ -139,6 +145,22 @@ export default function PartnerEvent() {
     // Re-quote only when targeting (radius/dates/boost) changes — not every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.promo_radius_km, form.promo_starts_on, form.promo_ends_on, form.push_boost])
+
+  // Snapshot the initial form for a NEW event so "dirty" is meaningful.
+  useEffect(() => {
+    if (isNew && savedRef.current == null) savedRef.current = JSON.stringify(form)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew])
+
+  const isDirty = savedRef.current != null && JSON.stringify(form) !== savedRef.current
+
+  // Warn before leaving with unsaved edits.
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }))
 
@@ -204,10 +226,13 @@ export default function PartnerEvent() {
       const payload = formToPayload(form)
       if (isNew) {
         const res = await createPartnerEvent(payload)
+        savedRef.current = JSON.stringify(form)
         navigate(`/partners/events/${res.event.id}`)
       } else {
         const res = await updatePartnerEvent({ id: Number(id), ...payload })
         setEvent(res.event)
+        savedRef.current = JSON.stringify(form)
+        showToast('Saved', 'success')
       }
     } catch (err) {
       setError(err?.message || 'Could not save')
@@ -229,6 +254,27 @@ export default function PartnerEvent() {
       setBusy(false)
     }
   }
+
+  // Live, pixel-accurate preview of the in-app Featured card. No promotedId →
+  // EventCard's impression tracking never fires for the preview.
+  const previewEvent = useMemo(() => ({
+    id: 'preview',
+    isFeatured: true,
+    source: 'roam_promoted',
+    name: (form.title || '').trim() || 'Your event title',
+    description: (form.description || '').trim(),
+    datetime: { start: form.starts_at ? new Date(form.starts_at) : null },
+    venue: {
+      name: (form.venue_name || '').trim() || (form.address || '').trim() || 'Your venue',
+      address: (form.address || '').trim()
+    },
+    categories: form.category ? [form.category] : [],
+    pricing: previewPricing(form),
+    isSoldOut: false,
+    imageUrl: form.image_url || null,
+    ticketUrl: form.info_url || null,
+    ticketType: form.ticket_type
+  }), [form])
 
   if (loadState === 'loading') return (
     <Shell onBack={() => navigate('/partners/dashboard')}>
@@ -284,11 +330,25 @@ export default function PartnerEvent() {
 
       {!paid && !awaitingConfirmation && (
         <>
+          <section className="partners-card partners-preview-panel">
+            <h2>Preview</h2>
+            <p className="partners-muted small">Exactly how it appears in the app’s “What’s On” feed.</p>
+            <div className="partners-preview-frame" aria-hidden="true">
+              <EventCard event={previewEvent} variant="full" />
+            </div>
+          </section>
+
           <section className="partners-card">
             <h2>Event details</h2>
             <div className="partners-form">
-              <label>Title *<input value={form.title} onChange={set('title')} maxLength={160} /></label>
-              <label>Description<textarea rows={4} value={form.description} onChange={set('description')} maxLength={2000} /></label>
+              <label>
+                <span className="partners-label-row">Title * <span className="partners-count">{(form.title || '').length}/160</span></span>
+                <input value={form.title} onChange={set('title')} maxLength={160} placeholder="e.g. Riverside Summer Jazz Night" />
+              </label>
+              <label>
+                <span className="partners-label-row">Description <span className="partners-count">{(form.description || '').length}/2000</span></span>
+                <textarea rows={4} value={form.description} onChange={set('description')} maxLength={2000} placeholder="What's the event? Who's it for? What makes it worth a night out?" />
+              </label>
               <label>Category
                 <select value={form.category} onChange={set('category')}>
                   <option value="">—</option>
@@ -308,11 +368,15 @@ export default function PartnerEvent() {
                 </div>
                 <p className={`partners-hint ${geo.status === 'error' ? 'is-error' : 'is-ok'}`} aria-live="polite">{geo.message}</p>
               </div>
-              <div className="partners-row">
-                <label>Latitude *<input type="number" step="any" value={form.lat} onChange={set('lat')} placeholder="51.5074" /></label>
-                <label>Longitude *<input type="number" step="any" value={form.lng} onChange={set('lng')} placeholder="-0.1278" /></label>
-              </div>
-              <p className="partners-hint">Enter the address and tap “Find on map”, or paste coordinates from Google Maps.</p>
+              <p className="partners-hint">Type the address and tap “Find on map” — we’ll place the pin for you.</p>
+              <details className="partners-advanced">
+                <summary>Set exact coordinates</summary>
+                <div className="partners-row">
+                  <label>Latitude *<input type="number" step="any" value={form.lat} onChange={set('lat')} placeholder="51.5074" /></label>
+                  <label>Longitude *<input type="number" step="any" value={form.lng} onChange={set('lng')} placeholder="-0.1278" /></label>
+                </div>
+                <p className="partners-hint">Usually filled by “Find on map”. Paste from Google Maps (right-click → coordinates) if needed.</p>
+              </details>
               <div className="partners-row">
                 <label>Starts *<input type="datetime-local" value={form.starts_at} onChange={set('starts_at')} /></label>
                 <label>Ends<input type="datetime-local" value={form.ends_at} onChange={set('ends_at')} /></label>
@@ -427,9 +491,15 @@ export default function PartnerEvent() {
 
           {error && <p className="partners-error" role="alert">{error}</p>}
 
+          {!isNew && (
+            <p className={`partners-savestate ${isDirty ? 'dirty' : ''}`} aria-live="polite">
+              {isDirty ? '● Unsaved changes' : '✓ All changes saved'}
+            </p>
+          )}
+
           <div className="partners-actions sticky">
-            <button className="partners-btn ghost" disabled={busy} onClick={save}>
-              {busy ? 'Saving…' : isNew ? 'Save draft' : 'Save changes'}
+            <button className="partners-btn ghost" disabled={busy || !isDirty} onClick={save}>
+              {busy ? 'Saving…' : isNew ? 'Save draft' : isDirty ? 'Save changes' : 'Saved'}
             </button>
             {!isNew && (
               <button className="partners-btn primary"
@@ -468,9 +538,13 @@ function Stat({ label, value }) {
 
 function blankForm() {
   const today = isoDate(0)
+  // Sensible defaults: a week out, 7–10pm — feels considered, not a blank slate.
+  const start = new Date(); start.setDate(start.getDate() + 7); start.setHours(19, 0, 0, 0)
+  const end = new Date(start.getTime() + 3 * 3600 * 1000)
   return {
     title: '', description: '', category: '', venue_name: '', address: '',
-    lat: '', lng: '', starts_at: '', ends_at: '', info_url: '', price_info: '', image_url: '',
+    lat: '', lng: '', starts_at: toLocalInput(start), ends_at: toLocalInput(end),
+    info_url: '', price_info: '', image_url: '',
     ticket_type: 'online', push_boost: false,
     promo_radius_km: 25, promo_starts_on: today, promo_ends_on: isoDate(14)
   }
@@ -533,4 +607,11 @@ function daysBetween(a, b) {
 function isPresetActive(form, preset) {
   if (Number(form.promo_radius_km) !== preset.radiusKm) return false
   return daysBetween(form.promo_starts_on, form.promo_ends_on) === preset.days
+}
+function previewPricing(f) {
+  if (f.ticket_type === 'free' || /free/i.test(f.price_info || '')) {
+    return { isFree: true, minPrice: 0, maxPrice: 0, currency: 'GBP' }
+  }
+  const m = (f.price_info || '').replace(/,/g, '').match(/\d+(\.\d+)?/)
+  return { isFree: false, minPrice: m ? Number(m[0]) : null, maxPrice: null, currency: 'GBP' }
 }

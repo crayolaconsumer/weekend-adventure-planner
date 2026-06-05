@@ -319,6 +319,31 @@
   .partners-band-name svg, .partners-boost-check svg { animation: none; }
 }
 
+/* Character counts + label rows */
+.partners-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); }
+.partners-count { font-weight: 400; font-size: var(--text-xs); color: var(--color-text-muted); white-space: nowrap; }
+
+/* "Advanced" coordinate disclosure */
+.partners-advanced { margin-top: 2px; }
+.partners-advanced summary {
+  cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--roam-forest);
+  list-style: none; padding: 4px 0; user-select: none;
+}
+.partners-advanced summary::-webkit-details-marker { display: none; }
+.partners-advanced summary::before { content: '▸'; display: inline-block; margin-right: 6px; transition: transform 0.15s; }
+.partners-advanced[open] summary::before { transform: rotate(90deg); }
+.partners-advanced .partners-row { margin-top: var(--space-xs); }
+
+/* Save-state indicator */
+.partners-savestate { font-size: var(--text-xs); font-weight: 600; color: var(--color-text-muted); margin: var(--space-sm) 0 0; }
+.partners-savestate.dirty { color: var(--roam-forest); }
+
+/* Live in-app card preview (non-interactive). */
+.partners-preview-frame {
+  max-width: 360px; margin: var(--space-md) auto 0; pointer-events: none;
+  border-radius: var(--radius-lg);
+}
+
 /* Post-payment "confirming" state — shown while we poll for the webhook. */
 .partners-confirming { display: flex; align-items: flex-start; gap: var(--space-md); }
 .partners-spinner {
