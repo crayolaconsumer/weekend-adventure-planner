@@ -334,7 +334,7 @@ export default function PartnerEvent() {
         </section>
       )}
 
-      {!paid && !awaitingConfirmation && (
+      {!awaitingConfirmation && (isNew || (event && event.status !== 'cancelled' && event.status !== 'expired')) && (
         <>
           <section className="partners-card partners-preview-panel">
             <h2>Preview</h2>
@@ -421,6 +421,17 @@ export default function PartnerEvent() {
             </div>
           </section>
 
+          {paid ? (
+          <section className="partners-card">
+            <h2>Promotion</h2>
+            <div className="partners-review">
+              <div className="partners-review-row"><span>Reach</span><strong>within {event.promo_radius_km}km</strong></div>
+              <div className="partners-review-row"><span>Featured</span><strong>{fmtDate(event.promo_starts_on)} – {fmtDate(event.promo_ends_on)}</strong></div>
+              <div className="partners-review-row"><span>Paid</span><strong>{formatPence(event.price_paid_pence)}{event.push_boost ? ' (incl. nearby-phone push)' : ''}</strong></div>
+            </div>
+            <p className="partners-hint">Reach, dates and price are locked once your event is live. To change them, create a new promotion.</p>
+          </section>
+          ) : (
           <section className="partners-card">
             <h2>Promotion</h2>
             <p className="partners-muted small">Pick a package, or set your own reach and dates below.</p>
@@ -494,6 +505,7 @@ export default function PartnerEvent() {
               </div>
             </div>
           </section>
+          )}
 
           {error && <p className="partners-error" role="alert">{error}</p>}
 
@@ -503,19 +515,29 @@ export default function PartnerEvent() {
             </p>
           )}
 
-          <div className="partners-actions sticky">
-            <button className="partners-btn ghost" disabled={busy || !isDirty} onClick={save}>
-              {busy ? 'Saving…' : isNew ? 'Save draft' : isDirty ? 'Save changes' : 'Saved'}
-            </button>
-            {!isNew && (
-              <button className="partners-btn primary"
-                disabled={busy || !quote || (form.ticket_type === 'online' && !String(form.info_url).trim())}
-                onClick={() => setReviewing(true)}>
-                {busy ? '…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
+          {paid ? (
+            <div className="partners-actions sticky">
+              <button className="partners-btn primary" disabled={busy || !isDirty} onClick={save}>
+                {busy ? 'Saving…' : isDirty ? 'Save changes' : 'Saved'}
               </button>
-            )}
-          </div>
-          {isNew && <p className="partners-hint">Save your draft first, then pay to publish.</p>}
+            </div>
+          ) : (
+            <>
+              <div className="partners-actions sticky">
+                <button className="partners-btn ghost" disabled={busy || !isDirty} onClick={save}>
+                  {busy ? 'Saving…' : isNew ? 'Save draft' : isDirty ? 'Save changes' : 'Saved'}
+                </button>
+                {!isNew && (
+                  <button className="partners-btn primary"
+                    disabled={busy || !quote || (form.ticket_type === 'online' && !String(form.info_url).trim())}
+                    onClick={() => setReviewing(true)}>
+                    {busy ? '…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
+                  </button>
+                )}
+              </div>
+              {isNew && <p className="partners-hint">Save your draft first, then pay to publish.</p>}
+            </>
+          )}
         </>
       )}
 

@@ -24,7 +24,6 @@ const ALLOWED_CATEGORIES = new Set([
   'music', 'comedy', 'theatre', 'sports', 'nightlife', 'food', 'family', 'culture', 'entertainment'
 ])
 const TICKET_TYPES = new Set(['online', 'door', 'free'])
-const EDITABLE_STATUSES = new Set(['draft', 'pending_payment'])
 
 async function handler(req, res) {
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method)) {
@@ -130,13 +129,31 @@ async function handleUpdate(req, res, partnerId) {
     [idCheck.id, partnerId]
   )
   if (!current) return res.status(404).json({ error: 'Not found' })
-  if (!EDITABLE_STATUSES.has(current.status)) {
+  if (current.status === 'cancelled' || current.status === 'expired') {
     return res.status(409).json({ error: 'This event can no longer be edited' })
   }
 
   const parsed = parseEventBody(req.body)
   if (!parsed.valid) return res.status(400).json({ error: parsed.message })
   const v = parsed.value
+
+  // A LIVE (paid) event stays editable for content, but its reach/dates/price/
+  // boost are locked — those were paid for. Only draft/pending events re-quote.
+  if (current.payment_status === 'paid') {
+    await query(
+      `UPDATE promoted_events SET
+         title = ?, description = ?, category = ?, venue_name = ?, address = ?, lat = ?, lng = ?,
+         starts_at = ?, ends_at = ?, image_url = ?, info_url = ?, price_info = ?, ticket_type = ?
+       WHERE id = ? AND partner_id = ?`,
+      [
+        v.title, v.description, v.category, v.venue_name, v.address, v.lat, v.lng,
+        v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info, v.ticket_type,
+        idCheck.id, partnerId
+      ]
+    )
+    const event = await queryOne('SELECT * FROM promoted_events WHERE id = ?', [idCheck.id])
+    return res.status(200).json({ event })
+  }
 
   const quote = quotePromotion({ radiusKm: v.promo_radius_km, startOn: v.promo_starts_on, endOn: v.promo_ends_on, pushBoost: !!v.push_boost })
   if (!quote.valid) return res.status(400).json({ error: quote.message })
