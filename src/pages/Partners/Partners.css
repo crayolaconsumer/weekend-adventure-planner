@@ -225,7 +225,7 @@
   transition: border-color 0.15s, background 0.15s;
 }
 .partners-boost:hover { border-color: var(--roam-gold); }
-.partners-boost.active { border-color: #1a3a2f; background: color-mix(in srgb, var(--roam-gold) 10%, transparent); }
+.partners-boost.active { border-color: var(--roam-forest); background: color-mix(in srgb, var(--roam-gold) 10%, transparent); }
 .partners-boost-ic { display: inline-flex; color: var(--roam-forest); flex-shrink: 0; }
 .partners-boost-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .partners-boost-title { font-weight: 700; font-size: var(--text-sm); display: flex; align-items: center; gap: 6px; }
@@ -376,7 +376,7 @@
 /* --- Richer empty state --- */
 .partners-empty-icon {
   display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px;
-  border-radius: var(--radius-full); background: color-mix(in srgb, var(--roam-gold) 18%, transparent);
+  border-radius: var(--radius-full); background: var(--roam-gold); /* solid so the dark-green icon reads in dark mode */
   color: #1a3a2f; margin-bottom: var(--space-xs);
 }
 .partners-empty h2 { font-family: var(--font-display); font-size: var(--text-lg); margin: 0; }
@@ -389,7 +389,7 @@
 .partners-step { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-lg); }
 .partners-step-num {
   display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
-  border-radius: 50%; background: color-mix(in srgb, var(--roam-gold) 24%, transparent);
+  border-radius: 50%; background: var(--roam-gold); /* solid so the numeral reads in dark mode */
   color: #1a3a2f; font-weight: 800; font-family: var(--font-display); margin-bottom: var(--space-sm);
 }
 .partners-step h3 { font-size: var(--text-base); margin: 0 0 4px; }
