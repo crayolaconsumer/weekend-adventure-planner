@@ -104,6 +104,10 @@ function mapToRoamEvent(p) {
     isSoldOut: false,
     imageUrl: p.imageUrl || null,
     ticketUrl: p.infoUrl || null,
+    // Admission model: 'online' (buy online), 'door' (pay on the door), 'free'.
+    // Drives the card's call-to-action so a no-link / door / free event reads
+    // correctly instead of falsely saying "Get Tickets".
+    ticketType: p.ticketType || 'online',
     distanceKm: typeof p.distanceKm === 'number' ? p.distanceKm : null
   }
 }

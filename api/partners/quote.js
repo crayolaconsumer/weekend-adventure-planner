@@ -10,7 +10,7 @@ import { requireAuth } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { isFeatureEnabled } from '../lib/flags.js'
-import { quotePromotion, ALLOWED_RADII_KM, PROMO_PRICING } from '../lib/promoPricing.js'
+import { quotePromotion, ALLOWED_RADII_KM, REACH_BANDS, PROMO_PRESETS } from '../lib/promoPricing.js'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -36,7 +36,7 @@ async function handler(req, res) {
 
   return res.status(200).json({
     quote,
-    options: { allowedRadiiKm: ALLOWED_RADII_KM, pricing: PROMO_PRICING }
+    options: { allowedRadiiKm: ALLOWED_RADII_KM, bands: REACH_BANDS, presets: PROMO_PRESETS }
   })
 }
 

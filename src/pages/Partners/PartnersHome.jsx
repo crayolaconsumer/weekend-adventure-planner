@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { getPartnerAccount, savePartnerAccount } from '../../utils/partnersClient'
+import { CompassMark, ReachIcon, MegaphoneIcon, StarIcon } from './icons'
 import './Partners.css'
 
 export default function PartnersHome() {
@@ -39,13 +40,21 @@ export default function PartnersHome() {
     <div className="partners-shell">
       <header className="partners-hero">
         <div className="partners-hero-inner">
-          <span className="partners-kicker">ROAM for Partners</span>
+          <div className="partners-brand">
+            <CompassMark size={36} />
+            <span className="partners-wordmark">ROAM <em>for Partners</em></span>
+          </div>
           <h1>Put your event in front of locals.</h1>
           <p>
             Promote your event to ROAM users near you. Pick a radius and dates,
             pay a single flat fee, and your event appears as a <strong>Featured</strong>
             {' '}listing in the “What’s On” feed — ranked above everything else nearby.
           </p>
+          <ul className="partners-points">
+            <li><span className="partners-point-ic"><ReachIcon level={3} size={22} /></span> Reach people within your chosen radius</li>
+            <li><span className="partners-point-ic"><StarIcon size={18} /></span> Featured placement, above the listings</li>
+            <li><span className="partners-point-ic"><MegaphoneIcon size={18} /></span> One flat fee — no commission on tickets</li>
+          </ul>
         </div>
       </header>
 

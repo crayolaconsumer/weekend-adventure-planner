@@ -56,7 +56,7 @@ async function handler(req, res) {
       SELECT
         pe.id, pe.title, pe.description, pe.category,
         pe.venue_name, pe.address, pe.lat, pe.lng,
-        pe.starts_at, pe.ends_at, pe.image_url, pe.info_url, pe.price_info,
+        pe.starts_at, pe.ends_at, pe.image_url, pe.info_url, pe.price_info, pe.ticket_type,
         pe.promo_radius_km,
         pa.org_name
       FROM promoted_events pe
@@ -105,6 +105,7 @@ async function handler(req, res) {
         imageUrl: row.image_url,
         infoUrl: row.info_url,
         priceInfo: row.price_info,
+        ticketType: row.ticket_type,
         orgName: row.org_name,
         distanceKm: distance
       }))

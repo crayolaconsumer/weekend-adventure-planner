@@ -5,22 +5,39 @@
  * ALWAYS recomputed here from the stored promotion parameters at checkout —
  * the client price is never trusted.
  *
- * Formula:  price = baseFee + days*perDay + days*radiusKm*perKmPerDay
- *   days   = inclusive nights of the promo window (promo_starts_on..promo_ends_on)
- *   radius = snapped to an allowed option
- * Worked example: 14 days @ 25km = 200 + 14*150 + 14*25*3 = 3350p = £33.50
+ * Model: transparent "reach bands". The purchased radius maps to a band, each
+ * band has a flat per-day rate, and price = days × rate (floored to a whole
+ * pound, £10 minimum). Legible for a non-technical organiser — "Town reach,
+ * 14 days, £35".
+ *
+ *   Local   ≤10km   £1.50/day      Town  ≤25km   £2.50/day
+ *   City    ≤50km   £4.00/day      Region ≤100km £6.00/day
+ *
+ * Worked: Town, 14 days = 14 × £2.50 = £35.00.
  */
 
 export const ALLOWED_RADII_KM = [5, 10, 25, 50, 100]
 
+// Ordered by ascending maxKm — bandForRadius picks the first that fits.
+export const REACH_BANDS = Object.freeze([
+  { key: 'local', label: 'Local', maxKm: 10, dayPence: 150 },
+  { key: 'town', label: 'Town', maxKm: 25, dayPence: 250 },
+  { key: 'city', label: 'City', maxKm: 50, dayPence: 400 },
+  { key: 'region', label: 'Region', maxKm: 100, dayPence: 600 }
+])
+
 export const PROMO_PRICING = Object.freeze({
-  baseFeePence: 200,        // £2.00 flat base
-  perDayPence: 150,         // £1.50 / day
-  perKmPerDayPence: 3,      // £0.03 / km / day
-  minPricePence: 300,       // never charge less than £3.00
-  maxDays: 90,              // a single campaign caps at 90 days
+  minPricePence: 1000, // £10 floor — keeps the payment spam-gate while staying inviting
+  maxDays: 90,
   currency: 'GBP'
 })
+
+// One-click presets (just pre-fill the dials — same engine underneath).
+export const PROMO_PRESETS = Object.freeze([
+  { key: 'taster', label: 'Taster', radiusKm: 10, days: 7, blurb: 'Local reach, one week' },
+  { key: 'standard', label: 'Standard', radiusKm: 25, days: 14, blurb: 'Town reach, two weeks', recommended: true },
+  { key: 'bignight', label: 'Big night', radiusKm: 50, days: 30, blurb: 'City reach, one month' }
+])
 
 /** Snap an arbitrary radius to the nearest allowed option. */
 export function clampRadiusKm(km) {
@@ -33,6 +50,12 @@ export function clampRadiusKm(km) {
     if (d < bestDiff) { bestDiff = d; best = r }
   }
   return best
+}
+
+/** The reach band a (clamped) radius falls into. */
+export function bandForRadius(km) {
+  const radius = clampRadiusKm(km)
+  return REACH_BANDS.find(b => radius <= b.maxKm) || REACH_BANDS[REACH_BANDS.length - 1]
 }
 
 /**
@@ -51,7 +74,7 @@ export function promoDays(startOn, endOn) {
 /**
  * Produce a price quote for a promotion.
  * @returns {{ valid: boolean, message?: string, days?: number, radiusKm?: number,
- *             pricePence?: number, currency?: string, breakdown?: object }}
+ *             band?: object, pricePence?: number, currency?: string, breakdown?: object }}
  */
 export function quotePromotion({ radiusKm, startOn, endOn }) {
   const days = promoDays(startOn, endOn)
@@ -62,20 +85,20 @@ export function quotePromotion({ radiusKm, startOn, endOn }) {
     return { valid: false, message: `A campaign can run at most ${PROMO_PRICING.maxDays} days` }
   }
   const radius = clampRadiusKm(radiusKm)
+  const band = bandForRadius(radius)
 
-  const base = PROMO_PRICING.baseFeePence
-  const time = days * PROMO_PRICING.perDayPence
-  const reach = days * radius * PROMO_PRICING.perKmPerDayPence
-  const raw = base + time + reach
-  const pricePence = Math.max(PROMO_PRICING.minPricePence, Math.ceil(raw))
+  const raw = days * band.dayPence
+  const flooredToPound = Math.floor(raw / 100) * 100
+  const pricePence = Math.max(PROMO_PRICING.minPricePence, flooredToPound)
 
   return {
     valid: true,
     days,
     radiusKm: radius,
+    band: { key: band.key, label: band.label, maxKm: band.maxKm, dayPence: band.dayPence },
     pricePence,
     currency: PROMO_PRICING.currency,
-    breakdown: { baseFeePence: base, timePence: time, reachPence: reach }
+    breakdown: { dayPence: band.dayPence, days }
   }
 }
 
@@ -92,4 +115,7 @@ function toUtcDate(value) {
   return null
 }
 
-export default { ALLOWED_RADII_KM, PROMO_PRICING, clampRadiusKm, promoDays, quotePromotion }
+export default {
+  ALLOWED_RADII_KM, REACH_BANDS, PROMO_PRICING, PROMO_PRESETS,
+  clampRadiusKm, bandForRadius, promoDays, quotePromotion
+}

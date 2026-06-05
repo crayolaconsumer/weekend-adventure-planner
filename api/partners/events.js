@@ -23,6 +23,7 @@ import { quotePromotion, clampRadiusKm } from '../lib/promoPricing.js'
 const ALLOWED_CATEGORIES = new Set([
   'music', 'comedy', 'theatre', 'sports', 'nightlife', 'food', 'family', 'culture', 'entertainment'
 ])
+const TICKET_TYPES = new Set(['online', 'door', 'free'])
 const EDITABLE_STATUSES = new Set(['draft', 'pending_payment'])
 
 async function handler(req, res) {
@@ -101,13 +102,13 @@ async function handleCreate(req, res, partnerId) {
   const result = await query(
     `INSERT INTO promoted_events
        (partner_id, title, description, category, venue_name, address, lat, lng,
-        starts_at, ends_at, image_url, info_url, price_info,
+        starts_at, ends_at, image_url, info_url, price_info, ticket_type,
         promo_radius_km, promo_starts_on, promo_ends_on, price_paid_pence, currency,
         payment_status, moderation_status, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'live', 'draft')`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'live', 'draft')`,
     [
       partnerId, v.title, v.description, v.category, v.venue_name, v.address, v.lat, v.lng,
-      v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info,
+      v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info, v.ticket_type,
       quote.radiusKm, v.promo_starts_on, v.promo_ends_on, quote.pricePence, quote.currency
     ]
   )
@@ -139,12 +140,12 @@ async function handleUpdate(req, res, partnerId) {
   await query(
     `UPDATE promoted_events SET
        title = ?, description = ?, category = ?, venue_name = ?, address = ?, lat = ?, lng = ?,
-       starts_at = ?, ends_at = ?, image_url = ?, info_url = ?, price_info = ?,
+       starts_at = ?, ends_at = ?, image_url = ?, info_url = ?, price_info = ?, ticket_type = ?,
        promo_radius_km = ?, promo_starts_on = ?, promo_ends_on = ?, price_paid_pence = ?
      WHERE id = ? AND partner_id = ?`,
     [
       v.title, v.description, v.category, v.venue_name, v.address, v.lat, v.lng,
-      v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info,
+      v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info, v.ticket_type,
       quote.radiusKm, v.promo_starts_on, v.promo_ends_on, quote.pricePence,
       idCheck.id, partnerId
     ]
@@ -218,6 +219,7 @@ function parseEventBody(body) {
   if (info_url && !isHttpUrl(info_url)) return { valid: false, message: 'Invalid info/ticket URL' }
 
   const price_info = body.price_info ? sanitizeString(body.price_info).slice(0, 60) : null
+  const ticket_type = TICKET_TYPES.has(body.ticket_type) ? body.ticket_type : 'online'
 
   const promo_radius_km = clampRadiusKm(body.promo_radius_km)
   const promo_starts_on = toDateOnly(body.promo_starts_on)
@@ -234,7 +236,7 @@ function parseEventBody(body) {
     value: {
       title, description, category, venue_name, address,
       lat: coords.lat, lng: coords.lng,
-      starts_at, ends_at, image_url, info_url, price_info,
+      starts_at, ends_at, image_url, info_url, price_info, ticket_type,
       promo_radius_km, promo_starts_on, promo_ends_on
     }
   }

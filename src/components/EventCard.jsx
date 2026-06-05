@@ -71,6 +71,17 @@ export default function EventCard({ event, variant = 'compact' }) {
   const dateLabel = formatEventDate(event.datetime.start)
   const imageUrl = event.imageUrl || getEventPlaceholderImage(event.id, event.categories)
 
+  // Admission model — only first-party (Featured) events carry ticketType.
+  // Lets a door-sale or free event read correctly instead of "Get Tickets".
+  const ticketType = event.isFeatured ? (event.ticketType || 'online') : null
+  const admissionLabel = ticketType === 'door' ? 'Pay on the door'
+    : ticketType === 'free' ? 'Free entry'
+      : null
+  const hasLink = !!event.ticketUrl
+  const ctaText = ticketType === 'online' ? 'Get tickets'
+    : ticketType ? 'More info'  // door / free that still has an info link
+      : 'Get Tickets'           // aggregator events — unchanged
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
@@ -88,7 +99,7 @@ export default function EventCard({ event, variant = 'compact' }) {
         whileTap={{ scale: 0.98 }}
         tabIndex={0}
         role="button"
-        aria-label={`${event.name} on ${dateLabel}${event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view tickets.`}
+        aria-label={`${event.name} on ${dateLabel}${admissionLabel ? `, ${admissionLabel}` : event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}.${hasLink ? ' Press Enter to view details.' : ''}`}
       >
         <div className="event-card-image">
           {event.isFeatured && (
@@ -115,7 +126,9 @@ export default function EventCard({ event, variant = 'compact' }) {
               <CalendarIcon />
               {dateLabel}
             </span>
-            {event.pricing.isFree && (
+            {admissionLabel ? (
+              <span className="event-card-admission">{admissionLabel}</span>
+            ) : event.pricing.isFree && (
               <span className="event-card-free">Free</span>
             )}
           </div>
@@ -184,16 +197,22 @@ export default function EventCard({ event, variant = 'compact' }) {
           </div>
         </div>
 
-        <motion.button
-          className="event-card-cta"
-          onClick={handleClick}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          disabled={event.isSoldOut}
-        >
-          {event.isSoldOut ? 'Sold Out' : 'Get Tickets'}
-          {!event.isSoldOut && <ExternalLinkIcon />}
-        </motion.button>
+        {event.isSoldOut ? (
+          <button className="event-card-cta" disabled>Sold Out</button>
+        ) : (hasLink || !admissionLabel) ? (
+          <motion.button
+            className="event-card-cta"
+            onClick={handleClick}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {ctaText}
+            <ExternalLinkIcon />
+          </motion.button>
+        ) : (
+          // Door / free event with no link — show admission, nothing to open.
+          <div className="event-card-cta event-card-cta-static">{admissionLabel}</div>
+        )}
       </div>
     </motion.article>
   )

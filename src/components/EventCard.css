@@ -170,6 +170,28 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* Admission chip (compact) + static CTA (full) for door-sale / free events,
+   so a no-online-ticket event never falsely reads "Get Tickets". */
+.event-card-admission {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--roam-forest);
+  background: color-mix(in srgb, var(--roam-gold) 22%, transparent);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.event-card-cta-static {
+  text-align: center;
+  font-weight: 600;
+  color: var(--roam-forest);
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--roam-forest) 40%, transparent);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
 .event-card-full .event-card-body {
   padding: var(--space-md);
 }
