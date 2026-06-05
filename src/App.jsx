@@ -24,8 +24,12 @@ const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
 const AdminUsers = lazy(() => import('./pages/AdminUsers'))
 const AdminAds = lazy(() => import('./pages/AdminAds'))
 const AdminActivity = lazy(() => import('./pages/AdminActivity'))
+const PartnersHome = lazy(() => import('./pages/Partners/PartnersHome'))
+const PartnerDashboard = lazy(() => import('./pages/Partners/PartnerDashboard'))
+const PartnerEvent = lazy(() => import('./pages/Partners/PartnerEvent'))
 import NotFound from './pages/NotFound'
 import AdminRoute from './components/AdminRoute'
+import PartnerRoute from './components/PartnerRoute'
 
 import Onboarding from './components/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -405,10 +409,16 @@ function ProfileRedirect({ onOpenAuth }) {
 }
 
 function App() {
+  // The web-only partner portal is a standalone B2B surface — it must bypass
+  // the consumer onboarding overlay and geolocation prompt. App sits above
+  // BrowserRouter, so we read the entry path directly (partners land here via
+  // a full page load from a marketing link, so this is reliable at mount).
+  const isPartnerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/partners')
+
   const [location, setLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !localStorage.getItem('roam_onboarded')
+    return !localStorage.getItem('roam_onboarded') && !isPartnerPath
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState('login')
@@ -501,6 +511,8 @@ function App() {
   useEffect(() => {
     // Don't request location while onboarding is showing
     if (showOnboarding) return
+    // The partner portal never uses device location — don't prompt for it.
+    if (isPartnerPath) return
 
     // Route via the native plugin on Capacitor — Android REQUIRES the
     // plugin to trigger the runtime permission dialog (the web
@@ -550,7 +562,7 @@ function App() {
             <div className="app">
               {/* Onboarding for first-time users */}
               <AnimatePresence>
-                {showOnboarding && (
+                {showOnboarding && !isPartnerPath && (
                   <Onboarding onComplete={() => setShowOnboarding(false)} />
                 )}
               </AnimatePresence>
@@ -636,6 +648,11 @@ function App() {
                       <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
                       <Route path="/admin/ads" element={<AdminRoute><AdminAds /></AdminRoute>} />
                       <Route path="/admin/activity" element={<AdminRoute><AdminActivity /></AdminRoute>} />
+                      {/* Web-only partner portal (hidden on native apps) */}
+                      <Route path="/partners" element={<PartnerRoute><PartnersHome /></PartnerRoute>} />
+                      <Route path="/partners/dashboard" element={<PartnerRoute><PartnerDashboard /></PartnerRoute>} />
+                      <Route path="/partners/events/new" element={<PartnerRoute><PartnerEvent /></PartnerRoute>} />
+                      <Route path="/partners/events/:id" element={<PartnerRoute><PartnerEvent /></PartnerRoute>} />
                       {/* M17: 404 catch-all route */}
                       <Route path="*" element={<NotFound />} />
                     </Routes>
@@ -665,6 +682,8 @@ function App() {
 function ChromeNav() {
   const { pathname } = useLocation()
   if (pathname.startsWith('/admin')) return null
+  // Partner portal is a standalone web surface with its own chrome.
+  if (pathname.startsWith('/partners')) return null
   return (
     <nav className="nav-bar">
       <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
