@@ -10,6 +10,7 @@
 
 import { fetchTicketmasterEvents } from './ticketmasterApi'
 import { fetchSkiddleEvents } from './skiddleApi'
+import { fetchPromotedEvents } from './promotedEventsApi'
 
 const COMBINED_CACHE_TTL = 15 * 60 * 1000 // 15 minutes
 const PAST_EVENT_GRACE_HOURS = 6
@@ -44,18 +45,27 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30, options = {}) {
     return combinedCache.data
   }
 
+  // Promoted ("Featured") first-party events are only fetched on the initial
+  // load — "Load More" paginates the aggregator sources, not the featured set.
+  const promotedPromise = startPage === 0
+    ? fetchPromotedEvents(lat, lng, radiusKm)
+    : Promise.resolve([])
+
   // Fetch from all sources in parallel
-  const [ticketmasterResult, skiddleResult] = await Promise.allSettled([
+  const [ticketmasterResult, skiddleResult, promotedResult] = await Promise.allSettled([
     fetchTicketmasterEvents(lat, lng, radiusKm, { pagesToFetch, startPage }),
-    fetchSkiddleEvents(lat, lng, Math.round(radiusKm * 0.621371)) // Convert to miles
+    fetchSkiddleEvents(lat, lng, Math.round(radiusKm * 0.621371)), // Convert to miles
+    promotedPromise
   ])
 
   // Extract events from new response format
   const tmData = ticketmasterResult.status === 'fulfilled' ? ticketmasterResult.value : { events: [], pagination: null }
   const skiddleEvents = skiddleResult.status === 'fulfilled' ? skiddleResult.value : []
+  const promotedEvents = promotedResult.status === 'fulfilled' ? promotedResult.value : []
 
-  // Combine results
+  // Combine results — promoted first so they win any dedup collision.
   const allEvents = [
+    ...promotedEvents,
     ...tmData.events,
     ...skiddleEvents
   ]
@@ -119,7 +129,9 @@ export async function fetchMoreEvents(lat, lng, radiusKm, startPage, pagesToFetc
 function deduplicateEvents(events) {
   const seenByPrimary = new Map()  // primaryKey -> event
   const seenByFuzzy = new Map()    // fuzzyKey -> primaryKey (reverse lookup)
-  const sourceRank = { ticketmaster: 1, skiddle: 2 }
+  // roam_promoted ranks highest (0): a paid featured event always wins a
+  // collision with the same event sourced from an aggregator.
+  const sourceRank = { roam_promoted: 0, ticketmaster: 1, skiddle: 2 }
 
   for (const event of events) {
     const primaryKey = buildEventKey(event)
@@ -339,6 +351,11 @@ function scoreEvent(event, { now, radiusKm }) {
   if (event.source === 'ticketmaster') score += 4
   if (event.source === 'skiddle') score += 2
 
+  // Paid "Featured" events sort above organic results — but only once they've
+  // already passed the radius/recency filters above (server-enforced), so the
+  // boost lifts genuinely-nearby promoted events, never distant ones.
+  if (event.isFeatured) score += 1000
+
   return Math.round(score * 10) / 10
 }
 
@@ -500,7 +517,8 @@ export function formatPriceRange(pricing) {
 export function getSourceInfo(source) {
   const sources = {
     ticketmaster: { name: 'Ticketmaster', color: '#026CDF' },
-    skiddle: { name: 'Skiddle', color: '#FF5500' }
+    skiddle: { name: 'Skiddle', color: '#FF5500' },
+    roam_promoted: { name: 'Featured', color: '#d4a855' }
   }
   return sources[source] || { name: source, color: '#666' }
 }

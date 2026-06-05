@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { useDrag } from '@use-gesture/react'
 import { formatEventDate, formatPriceRange, getSourceInfo } from '../../utils/eventsApi'
+import { trackPromotedEvent } from '../../utils/promotedEventsApi'
 import { getEventPlaceholderImage } from './placeholderImage'
 import { XIcon, HeartIcon, TicketIcon, CalendarSmallIcon, MapPinIcon } from './icons'
 
@@ -27,6 +28,24 @@ export default function SwipeableEventCard({ event, onSwipe, onTap, style, isTop
   const sourceInfo = getSourceInfo(event.source)
   const imageUrl = event.imageUrl || getEventPlaceholderImage(event.id, event.categories)
 
+  // Count a "Featured" impression when this promoted card reaches the top of
+  // the stack (server dedups per session, so re-stacking won't double-count).
+  useEffect(() => {
+    if (isTop && event?.isFeatured && event?.promotedId) {
+      trackPromotedEvent(event.promotedId, 'impression')
+    }
+  }, [isTop, event?.isFeatured, event?.promotedId])
+
+  // Emit a swipe and, for featured events, record the conversion:
+  // "go" (open tickets) = click, "like" (save) = save.
+  const emitSwipe = (action, ev) => {
+    if (ev?.isFeatured && ev?.promotedId) {
+      if (action === 'go') trackPromotedEvent(ev.promotedId, 'click')
+      else if (action === 'like') trackPromotedEvent(ev.promotedId, 'save')
+    }
+    onSwipe?.(action, ev)
+  }
+
   // Transform values based on drag
   const rotate = useTransform(x, [-200, 200], [-15, 15])
   const likeOpacity = useTransform(x, [0, 100], [0, 1])
@@ -51,13 +70,13 @@ export default function SwipeableEventCard({ event, onSwipe, onTap, style, isTop
 
         if (mx > swipeThreshold || (vx > velocityThreshold && dx > 0)) {
           animate(x, 500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('like', event), 200)
+          setTimeout(() => emitSwipe('like', event), 200)
         } else if (mx < -swipeThreshold || (vx > velocityThreshold && dx < 0)) {
           animate(x, -500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('nope', event), 200)
+          setTimeout(() => emitSwipe('nope', event), 200)
         } else if (my < -swipeThreshold || (vy > velocityThreshold && dy < 0)) {
           animate(y, -500, { duration: 0.3 })
-          setTimeout(() => onSwipe?.('go', event), 200)
+          setTimeout(() => emitSwipe('go', event), 200)
         } else {
           animate(x, 0, { type: 'spring', stiffness: 300, damping: 30 })
           animate(y, 0, { type: 'spring', stiffness: 300, damping: 30 })
@@ -75,7 +94,7 @@ export default function SwipeableEventCard({ event, onSwipe, onTap, style, isTop
     } else if (action === 'go') {
       animate(y, -500, { duration: 0.3 })
     }
-    setTimeout(() => onSwipe?.(action, event), 200)
+    setTimeout(() => emitSwipe(action, event), 200)
   }
 
   const handleCardClick = (e) => {

@@ -153,6 +153,23 @@
   border-radius: var(--radius-full);
 }
 
+/* "Featured" badge for paid promoted events — top-left so it never
+   collides with the sold-out badge (top-right). Brand gold on forest. */
+.event-card-featured {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  z-index: 1;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--roam-forest);
+  background: var(--roam-gold);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
 .event-card-full .event-card-body {
   padding: var(--space-md);
 }

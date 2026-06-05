@@ -30,6 +30,7 @@ const DEFAULTS = Object.freeze({
   overpassProxy: true,
   contributionsUpload: true,
   pushNudges: true,
+  promotedEvents: true,
 })
 
 const CACHE_TTL_MS = 30 * 1000

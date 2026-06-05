@@ -4,8 +4,10 @@
  * Displays event information in compact or full variants.
  */
 
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { formatEventDate, formatPriceRange } from '../utils/eventsApi'
+import { trackPromotedEvent } from '../utils/promotedEventsApi'
 // Shared with EventDetail so card and detail show the SAME fallback image.
 import { getEventPlaceholderImage } from '../pages/Events/placeholderImage'
 import './EventCard.css'
@@ -45,9 +47,19 @@ const ExternalLinkIcon = () => (
 )
 
 export default function EventCard({ event, variant = 'compact' }) {
+  // Count a "Featured" impression once per mount (server dedups per session).
+  useEffect(() => {
+    if (event?.isFeatured && event?.promotedId) {
+      trackPromotedEvent(event.promotedId, 'impression')
+    }
+  }, [event?.isFeatured, event?.promotedId])
+
   if (!event) return null
 
   const handleClick = () => {
+    if (event.isFeatured && event.promotedId) {
+      trackPromotedEvent(event.promotedId, 'click')
+    }
     if (event.ticketUrl) {
       // openExternalUrl uses Capacitor Browser on native (in-app SF
       // Safari View / Custom Tabs UX), window.open on web.
@@ -79,6 +91,9 @@ export default function EventCard({ event, variant = 'compact' }) {
         aria-label={`${event.name} on ${dateLabel}${event.pricing?.isFree ? ', Free' : priceLabel ? `, ${priceLabel}` : ''}. Press Enter to view tickets.`}
       >
         <div className="event-card-image">
+          {event.isFeatured && (
+            <div className="event-card-featured" aria-label="Featured event">Featured</div>
+          )}
           <img
             src={imageUrl}
             alt={event.name}
@@ -128,6 +143,9 @@ export default function EventCard({ event, variant = 'compact' }) {
       animate={{ opacity: 1, y: 0 }}
     >
       <div className="event-card-image">
+        {event.isFeatured && (
+          <div className="event-card-featured" aria-label="Featured event">Featured</div>
+        )}
         <img src={imageUrl} alt={event.name} loading="lazy" referrerPolicy="no-referrer" />
         {event.isSoldOut && (
           <div className="event-card-sold-out-badge">Sold Out</div>
