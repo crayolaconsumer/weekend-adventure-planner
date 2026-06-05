@@ -59,11 +59,15 @@ export default function PartnersHome() {
       </header>
 
       <main className="partners-main">
-        {loading && <p className="partners-muted">Loading…</p>}
+        {(loading || (user && checking)) && (
+          <section className="partners-card" aria-hidden="true">
+            <div className="partners-skel partners-skel-title" />
+            <div className="partners-skel partners-skel-line" style={{ width: '80%' }} />
+            <div className="partners-skel partners-skel-line" style={{ width: '55%' }} />
+          </section>
+        )}
 
         {!loading && !user && <SignedOut />}
-
-        {!loading && user && checking && <p className="partners-muted">Loading your account…</p>}
 
         {!loading && user && !checking && partner === null && (
           <CreateOrg

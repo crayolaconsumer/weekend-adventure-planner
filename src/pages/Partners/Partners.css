@@ -240,6 +240,85 @@
 
 .partners-banner.success { display: flex; align-items: center; gap: 8px; }
 
+/* ============================ Polish pass ============================ */
+
+/* --- Skeleton loaders --- */
+.partners-skel {
+  position: relative; overflow: hidden;
+  background: color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  border-radius: var(--radius-md);
+}
+.partners-skel::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-text-primary) 6%, transparent), transparent);
+  animation: partners-shimmer 1.3s infinite;
+}
+@keyframes partners-shimmer { 100% { transform: translateX(100%); } }
+.partners-skel-line { height: 14px; margin: 8px 0; }
+.partners-skel-title { height: 22px; width: 55%; margin-bottom: var(--space-sm); }
+.partners-skel-card { height: 120px; margin-bottom: var(--space-sm); border-radius: var(--radius-lg); }
+.partners-skel-stack { display: flex; flex-direction: column; gap: var(--space-sm); }
+
+/* --- Branded confirm modal --- */
+.partners-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+  padding: var(--space-md); background: rgba(10, 20, 16, 0.55); backdrop-filter: blur(2px);
+  animation: partners-fade 0.15s ease;
+}
+.partners-modal {
+  width: 100%; max-width: 420px; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  padding: var(--space-lg); box-shadow: var(--shadow-xl); animation: partners-pop 0.16s ease;
+}
+.partners-modal-title { font-family: var(--font-display); font-size: var(--text-lg); margin: 0 0 var(--space-xs); }
+.partners-modal-body { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0 0 var(--space-md); }
+.partners-modal-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; }
+.partners-btn.danger-solid { background: var(--roam-red); color: #fff; }
+@keyframes partners-fade { from { opacity: 0; } }
+@keyframes partners-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+
+/* --- Micro-interactions (hover lift / press) --- */
+.partners-btn { transition: transform 0.12s ease, opacity 0.15s, box-shadow 0.15s; }
+.partners-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.partners-btn:active:not(:disabled) { transform: translateY(0); }
+.partners-btn.primary:hover:not(:disabled) { box-shadow: 0 4px 14px rgba(26, 58, 47, 0.28); }
+.partners-preset, .partners-band, .partners-seg, .partners-boost { transition: transform 0.12s ease, border-color 0.15s, background 0.15s, box-shadow 0.15s; }
+.partners-preset:hover, .partners-band:hover, .partners-seg:hover, .partners-boost:hover { transform: translateY(-1px); }
+.partners-event { transition: transform 0.12s ease, box-shadow 0.15s, border-color 0.15s; }
+.partners-event:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--roam-gold) 50%, var(--color-border)); }
+.partners-band-name svg, .partners-boost-check svg { animation: partners-check 0.2s ease; }
+@keyframes partners-check { from { opacity: 0; transform: scale(0.5); } }
+.partners-price { transition: color 0.2s ease; }
+
+/* --- Focus-visible (keyboard) --- */
+.partners-btn:focus-visible, .partners-link:focus-visible, .partners-tabs button:focus-visible,
+.partners-preset:focus-visible, .partners-band:focus-visible, .partners-seg:focus-visible,
+.partners-boost:focus-visible, .partners-event-main:focus-visible, .partners-find:focus-visible {
+  outline: 2px solid var(--roam-gold); outline-offset: 2px; border-radius: var(--radius-md);
+}
+.partners-form input:focus-visible, .partners-form select:focus-visible, .partners-form textarea:focus-visible {
+  outline: none; /* handled by border + ring above */
+}
+
+/* --- Mobile ergonomics + safe area --- */
+.partners-actions.sticky { padding-bottom: calc(var(--space-sm) + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 560px) {
+  .partners-actions.sticky { flex-direction: column-reverse; }
+  .partners-actions.sticky .partners-btn { width: 100%; }
+  .partners-event { flex-direction: column; }
+  .partners-event-actions { flex-direction: row; flex-wrap: wrap; width: 100%; }
+  .partners-event-actions .partners-btn { flex: 1; }
+}
+
+/* --- Respect reduced motion across the portal --- */
+@media (prefers-reduced-motion: reduce) {
+  .partners-skel::after { animation: none; }
+  .partners-btn, .partners-preset, .partners-band, .partners-seg, .partners-boost, .partners-event { transition: none; }
+  .partners-btn:hover, .partners-preset:hover, .partners-band:hover, .partners-seg:hover, .partners-boost:hover, .partners-event:hover { transform: none; }
+  .partners-modal, .partners-modal-overlay { animation: none; }
+  .partners-band-name svg, .partners-boost-check svg { animation: none; }
+}
+
 /* Post-payment "confirming" state — shown while we poll for the webhook. */
 .partners-confirming { display: flex; align-items: flex-start; gap: var(--space-md); }
 .partners-spinner {

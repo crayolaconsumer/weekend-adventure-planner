@@ -230,7 +230,16 @@ export default function PartnerEvent() {
     }
   }
 
-  if (loadState === 'loading') return <Shell><p className="partners-muted">Loading…</p></Shell>
+  if (loadState === 'loading') return (
+    <Shell onBack={() => navigate('/partners/dashboard')}>
+      <div className="partners-skel partners-skel-title" />
+      <section className="partners-card" aria-hidden="true">
+        <div className="partners-skel partners-skel-line" style={{ width: '40%' }} />
+        <div className="partners-skel partners-skel-card" />
+        <div className="partners-skel partners-skel-line" style={{ width: '70%' }} />
+      </section>
+    </Shell>
+  )
   if (loadState === 'error') return <Shell><p className="partners-error">Couldn’t load this event.</p></Shell>
 
   return (
@@ -297,9 +306,7 @@ export default function PartnerEvent() {
                     <PinIcon size={16} /> {geo.status === 'loading' ? 'Finding…' : 'Find on map'}
                   </button>
                 </div>
-                {geo.message && (
-                  <p className={`partners-hint ${geo.status === 'error' ? 'is-error' : 'is-ok'}`}>{geo.message}</p>
-                )}
+                <p className={`partners-hint ${geo.status === 'error' ? 'is-error' : 'is-ok'}`} aria-live="polite">{geo.message}</p>
               </div>
               <div className="partners-row">
                 <label>Latitude *<input type="number" step="any" value={form.lat} onChange={set('lat')} placeholder="51.5074" /></label>
@@ -339,7 +346,7 @@ export default function PartnerEvent() {
               <label>Event image
                 <input type="file" accept="image/*" onChange={onUpload} disabled={uploading} />
               </label>
-              {uploading && <p className="partners-muted small">Uploading…</p>}
+              <p className="partners-muted small" aria-live="polite">{uploading ? 'Uploading…' : ''}</p>
               {form.image_url && <img className="partners-preview" src={form.image_url} alt="Event" />}
             </div>
           </section>
@@ -418,7 +425,7 @@ export default function PartnerEvent() {
             </div>
           </section>
 
-          {error && <p className="partners-error">{error}</p>}
+          {error && <p className="partners-error" role="alert">{error}</p>}
 
           <div className="partners-actions sticky">
             <button className="partners-btn ghost" disabled={busy} onClick={save}>

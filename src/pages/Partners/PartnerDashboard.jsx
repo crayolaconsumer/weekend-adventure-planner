@@ -5,9 +5,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../hooks/useToast'
 import {
   listPartnerEvents, cancelPartnerEvent, startPromoCheckout, formatPence
 } from '../../utils/partnersClient'
+import ConfirmDialog from './ConfirmDialog'
 import './Partners.css'
 
 const STATUS_LABELS = {
@@ -21,9 +23,11 @@ const STATUS_LABELS = {
 export default function PartnerDashboard() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [events, setEvents] = useState([])
   const [state, setState] = useState('loading') // loading | ready | error
   const [busyId, setBusyId] = useState(null)
+  const [confirmId, setConfirmId] = useState(null) // event pending cancel-confirmation
 
   const load = useCallback(async () => {
     setState('loading')
@@ -49,23 +53,27 @@ export default function PartnerDashboard() {
       const res = await startPromoCheckout(id)
       if (res?.url) window.location.href = res.url
     } catch (err) {
-      alert(err?.message || 'Could not start checkout')
+      showToast(err?.message || 'We couldn’t open checkout — nothing was charged.', 'error')
       setBusyId(null)
     }
   }
 
-  const cancel = async (id) => {
-    if (!confirm('Cancel this event? This cannot be undone.')) return
+  const confirmCancel = async () => {
+    const id = confirmId
     setBusyId(id)
     try {
       await cancelPartnerEvent(id)
+      setConfirmId(null)
       await load()
+      showToast('Event cancelled.', 'success')
     } catch (err) {
-      alert(err?.message || 'Could not cancel')
+      showToast(err?.message || 'Could not cancel that event.', 'error')
     } finally {
       setBusyId(null)
     }
   }
+
+  const openEvent = (id) => navigate(`/partners/events/${id}`)
 
   return (
     <div className="partners-shell">
@@ -77,8 +85,25 @@ export default function PartnerDashboard() {
       <main className="partners-main">
         <h1 className="partners-h1">Your events</h1>
 
-        {state === 'loading' && <p className="partners-muted">Loading…</p>}
-        {state === 'error' && <p className="partners-error">Couldn’t load your events. <button className="partners-link" onClick={load}>Retry</button></p>}
+        {state === 'loading' && (
+          <ul className="partners-list" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="partners-event">
+                <div className="partners-event-main">
+                  <div className="partners-skel partners-skel-line" style={{ width: '30%' }} />
+                  <div className="partners-skel partners-skel-line" style={{ width: '70%', height: 18 }} />
+                  <div className="partners-skel partners-skel-line" style={{ width: '50%' }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {state === 'error' && (
+          <p className="partners-error" role="alert">
+            Couldn’t load your events. <button className="partners-link" onClick={load}>Retry</button>
+          </p>
+        )}
 
         {state === 'ready' && events.length === 0 && (
           <div className="partners-empty">
@@ -91,10 +116,17 @@ export default function PartnerDashboard() {
           <ul className="partners-list">
             {events.map((ev) => (
               <li key={ev.id} className="partners-event">
-                <div className="partners-event-main" onClick={() => navigate(`/partners/events/${ev.id}`)}>
+                <div
+                  className="partners-event-main"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Edit ${ev.title}`}
+                  onClick={() => openEvent(ev.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEvent(ev.id) } }}
+                >
                   <div className="partners-event-head">
                     <span className={`partners-status s-${ev.status}`}>{STATUS_LABELS[ev.status] || ev.status}</span>
-                    {ev.payment_status === 'unpaid' && <span className="partners-status s-unpaid">Unpaid</span>}
+                    {ev.payment_status === 'unpaid' && ev.status !== 'cancelled' && <span className="partners-status s-unpaid">Unpaid</span>}
                     {ev.moderation_status === 'removed' && <span className="partners-status s-removed">Removed</span>}
                   </div>
                   <h3>{ev.title}</h3>
@@ -111,9 +143,9 @@ export default function PartnerDashboard() {
                       {busyId === ev.id ? '…' : `Pay ${formatPence(ev.price_paid_pence)}`}
                     </button>
                   )}
-                  <button className="partners-btn ghost sm" onClick={() => navigate(`/partners/events/${ev.id}`)}>Edit</button>
-                  {ev.status !== 'cancelled' && (
-                    <button className="partners-btn danger sm" disabled={busyId === ev.id} onClick={() => cancel(ev.id)}>Cancel</button>
+                  <button className="partners-btn ghost sm" onClick={() => openEvent(ev.id)}>Edit</button>
+                  {ev.status !== 'cancelled' && ev.payment_status !== 'paid' && (
+                    <button className="partners-btn danger sm" disabled={busyId === ev.id} onClick={() => setConfirmId(ev.id)}>Cancel</button>
                   )}
                 </div>
               </li>
@@ -121,6 +153,18 @@ export default function PartnerDashboard() {
           </ul>
         )}
       </main>
+
+      <ConfirmDialog
+        open={confirmId != null}
+        title="Cancel this event?"
+        body="This removes the draft and can’t be undone. (Paid events can’t be cancelled here — contact support for a refund.)"
+        confirmLabel="Cancel event"
+        cancelLabel="Keep it"
+        danger
+        busy={busyId === confirmId}
+        onConfirm={confirmCancel}
+        onCancel={() => setConfirmId(null)}
+      />
     </div>
   )
 }
