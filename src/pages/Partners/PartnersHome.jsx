@@ -73,6 +73,7 @@ export default function PartnersHome() {
           <CreateOrg
             defaultEmail={user.email}
             onCreated={(p) => { setPartner(p); navigate('/partners/dashboard') }}
+            onSignOut={logout}
           />
         )}
 
@@ -154,7 +155,7 @@ function SignedOut() {
   )
 }
 
-function CreateOrg({ defaultEmail, onCreated }) {
+function CreateOrg({ defaultEmail, onCreated, onSignOut }) {
   const [orgName, setOrgName] = useState('')
   const [contactEmail, setContactEmail] = useState(defaultEmail || '')
   const [contactPhone, setContactPhone] = useState('')
@@ -184,7 +185,10 @@ function CreateOrg({ defaultEmail, onCreated }) {
   return (
     <section className="partners-card">
       <h2>Set up your organiser account</h2>
-      <p className="partners-muted">Tell us who’s running the events. You can change this later.</p>
+      <p className="partners-muted">
+        Signed in as <strong>{defaultEmail}</strong>. Tell us who’s running the events — you can change this later.
+        {onSignOut && <> · <button type="button" className="partners-link" onClick={onSignOut}>Not you? Sign out</button></>}
+      </p>
       <form onSubmit={submit} className="partners-form">
         <label>
           Organisation / venue name *
