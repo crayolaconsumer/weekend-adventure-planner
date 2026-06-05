@@ -18,7 +18,7 @@ import {
   getPromoQuote, startPromoCheckout, formatPence
 } from '../../utils/partnersClient'
 import { geocodeAddress } from '../../utils/apiClient/geocode'
-import { ReachIcon, CheckIcon, StarIcon, PinIcon, SparkIcon, MegaphoneIcon } from './icons'
+import { ReachIcon, CheckIcon, StarIcon, PinIcon, SparkIcon, MegaphoneIcon, ArrowLeftIcon } from './icons'
 import './Partners.css'
 
 // Preset key → icon component, and band key → ReachIcon level.
@@ -339,7 +339,9 @@ export default function PartnerEvent() {
           <section className="partners-card partners-preview-panel">
             <h2>Preview</h2>
             <p className="partners-muted small">Exactly how it appears in the app’s “What’s On” feed.</p>
-            <div className="partners-preview-frame" aria-hidden="true">
+            {/* inert removes the preview's descendants from tab order AND the a11y
+                tree, so the focusable CTA inside isn't a hidden keyboard trap. */}
+            <div className="partners-preview-frame" {...{ inert: '' }}>
               <EventCard event={previewEvent} variant="full" />
             </div>
           </section>
@@ -568,7 +570,9 @@ function Shell({ children, onBack }) {
   return (
     <div className="partners-shell">
       <header className="partners-bar">
-        <button className="partners-link" onClick={onBack || (() => history.back())}>← Dashboard</button>
+        <button className="partners-back" onClick={onBack || (() => history.back())}>
+          <ArrowLeftIcon /> Dashboard
+        </button>
       </header>
       <main className="partners-main">{children}</main>
     </div>

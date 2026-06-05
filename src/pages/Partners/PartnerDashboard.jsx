@@ -10,6 +10,7 @@ import {
   listPartnerEvents, cancelPartnerEvent, startPromoCheckout, formatPence
 } from '../../utils/partnersClient'
 import ConfirmDialog from './ConfirmDialog'
+import { ArrowLeftIcon, PlusIcon, MegaphoneIcon } from './icons'
 import './Partners.css'
 
 const STATUS_LABELS = {
@@ -78,12 +79,33 @@ export default function PartnerDashboard() {
   return (
     <div className="partners-shell">
       <header className="partners-bar">
-        <button className="partners-link" onClick={() => navigate('/partners')}>← Partner home</button>
-        <button className="partners-btn primary sm" onClick={() => navigate('/partners/events/new')}>+ New event</button>
+        <button className="partners-back" onClick={() => navigate('/partners')}>
+          <ArrowLeftIcon /> Partner home
+        </button>
+        <button className="partners-btn primary sm" onClick={() => navigate('/partners/events/new')}>
+          <PlusIcon size={15} /> New event
+        </button>
       </header>
 
       <main className="partners-main">
         <h1 className="partners-h1">Your events</h1>
+
+        {state === 'ready' && events.length > 0 && (() => {
+          const totals = events.reduce((a, e) => ({
+            live: a.live + (e.status === 'active' ? 1 : 0),
+            views: a.views + Number(e.impressions || 0),
+            clicks: a.clicks + Number(e.clicks || 0),
+            saves: a.saves + Number(e.saves || 0)
+          }), { live: 0, views: 0, clicks: 0, saves: 0 })
+          return (
+            <div className="partners-overview">
+              <div className="partners-overview-stat"><span className="num">{totals.live}</span><span className="lbl">Live now</span></div>
+              <div className="partners-overview-stat"><span className="num">{totals.views.toLocaleString('en-GB')}</span><span className="lbl">Views</span></div>
+              <div className="partners-overview-stat"><span className="num">{totals.clicks.toLocaleString('en-GB')}</span><span className="lbl">Clicks</span></div>
+              <div className="partners-overview-stat"><span className="num">{totals.saves.toLocaleString('en-GB')}</span><span className="lbl">Saves</span></div>
+            </div>
+          )
+        })()}
 
         {state === 'loading' && (
           <ul className="partners-list" aria-hidden="true">
@@ -107,8 +129,12 @@ export default function PartnerDashboard() {
 
         {state === 'ready' && events.length === 0 && (
           <div className="partners-empty">
-            <p>You haven’t created any events yet.</p>
-            <button className="partners-btn primary" onClick={() => navigate('/partners/events/new')}>Create your first event</button>
+            <span className="partners-empty-icon"><MegaphoneIcon size={26} /></span>
+            <h2>Get your first event seen</h2>
+            <p className="partners-muted">Create an event and promote it to locals — it can be live in minutes.</p>
+            <button className="partners-btn primary" onClick={() => navigate('/partners/events/new')}>
+              <PlusIcon size={15} /> Create your first event
+            </button>
           </div>
         )}
 
@@ -116,6 +142,9 @@ export default function PartnerDashboard() {
           <ul className="partners-list">
             {events.map((ev) => (
               <li key={ev.id} className="partners-event">
+                {ev.image_url && (
+                  <img className="partners-event-thumb" src={ev.image_url} alt="" loading="lazy" referrerPolicy="no-referrer" />
+                )}
                 <div
                   className="partners-event-main"
                   role="button"

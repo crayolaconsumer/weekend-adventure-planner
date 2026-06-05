@@ -93,6 +93,38 @@ export default function PartnersHome() {
         )}
       </main>
 
+      <section className="partners-section">
+        <h2 className="partners-section-title">How it works</h2>
+        <div className="partners-steps">
+          <div className="partners-step">
+            <span className="partners-step-num">1</span>
+            <h3>Create your event</h3>
+            <p>Add the details and an image — with a live preview of exactly how your card will look.</p>
+          </div>
+          <div className="partners-step">
+            <span className="partners-step-num">2</span>
+            <h3>Choose your reach</h3>
+            <p>Pick how far to broadcast and for how long. One flat fee, shown upfront — no commission.</p>
+          </div>
+          <div className="partners-step">
+            <span className="partners-step-num">3</span>
+            <h3>Go live to locals</h3>
+            <p>It appears as a Featured listing in “What’s On”, ranked above everything else nearby.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="partners-section">
+        <h2 className="partners-section-title">Simple, flat pricing</h2>
+        <div className="partners-pricing">
+          <div className="partners-price-card"><span className="tier">Local</span><span className="from">£1.50<small>/day</small></span><span className="rad">up to 10km</span></div>
+          <div className="partners-price-card"><span className="tier">Town</span><span className="from">£2.50<small>/day</small></span><span className="rad">up to 25km</span></div>
+          <div className="partners-price-card"><span className="tier">City</span><span className="from">£4<small>/day</small></span><span className="rad">up to 50km</span></div>
+          <div className="partners-price-card"><span className="tier">Region</span><span className="from">£6<small>/day</small></span><span className="rad">up to 100km</span></div>
+        </div>
+        <p className="partners-pricing-note">From £10. One-off payment — no subscription, no commission on ticket sales.</p>
+      </section>
+
       <footer className="partners-footer">
         <span>ROAM for Partners</span>
         <a href="/terms">Terms</a>

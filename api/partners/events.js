@@ -133,13 +133,14 @@ async function handleUpdate(req, res, partnerId) {
     return res.status(409).json({ error: 'This event can no longer be edited' })
   }
 
-  const parsed = parseEventBody(req.body)
+  const isPaid = current.payment_status === 'paid'
+  const parsed = parseEventBody(req.body, { contentOnly: isPaid })
   if (!parsed.valid) return res.status(400).json({ error: parsed.message })
   const v = parsed.value
 
   // A LIVE (paid) event stays editable for content, but its reach/dates/price/
   // boost are locked — those were paid for. Only draft/pending events re-quote.
-  if (current.payment_status === 'paid') {
+  if (isPaid) {
     await query(
       `UPDATE promoted_events SET
          title = ?, description = ?, category = ?, venue_name = ?, address = ?, lat = ?, lng = ?,
@@ -152,7 +153,9 @@ async function handleUpdate(req, res, partnerId) {
       ]
     )
     const event = await queryOne('SELECT * FROM promoted_events WHERE id = ?', [idCheck.id])
-    return res.status(200).json({ event })
+    // Include stats so the client's setEvent(res.event) keeps the live counts.
+    const stats = await statsFor(idCheck.id)
+    return res.status(200).json({ event: { ...event, stats } })
   }
 
   const quote = quotePromotion({ radiusKm: v.promo_radius_km, startOn: v.promo_starts_on, endOn: v.promo_ends_on, pushBoost: !!v.push_boost })
@@ -208,8 +211,9 @@ async function statsFor(eventId) {
   }
 }
 
-/** Validate + normalise an event payload shared by create/update. */
-function parseEventBody(body) {
+/** Validate + normalise an event payload shared by create/update.
+ *  contentOnly=true skips promotion-field validation (used for paid live edits). */
+function parseEventBody(body, { contentOnly = false } = {}) {
   if (!body || typeof body !== 'object') return { valid: false, message: 'Missing body' }
 
   const title = sanitizeString(body.title)
@@ -248,19 +252,27 @@ function parseEventBody(body) {
   const ticket_type = TICKET_TYPES.has(body.ticket_type) ? body.ticket_type : 'online'
   const push_boost = (body.push_boost === true || body.push_boost === 1) ? 1 : 0
 
-  const promo_radius_km = clampRadiusKm(body.promo_radius_km)
-  const promo_starts_on = toDateOnly(body.promo_starts_on)
-  const promo_ends_on = toDateOnly(body.promo_ends_on)
-  if (!promo_starts_on || !promo_ends_on) {
-    return { valid: false, message: 'Valid promotion start and end dates are required' }
-  }
-  if (promo_ends_on < promo_starts_on) {
-    return { valid: false, message: 'Promotion end must be on or after the start' }
-  }
-  // Don't price/charge for a promotion window that has already finished.
-  const todayIso = new Date().toISOString().slice(0, 10)
-  if (promo_ends_on < todayIso) {
-    return { valid: false, message: 'The promotion end date is in the past' }
+  // Promotion fields are validated ONLY when they're editable (draft/pending).
+  // For a paid event (contentOnly) they're locked and ignored, so a content
+  // edit must not be blocked by e.g. "promotion end date is in the past".
+  let promo_radius_km = null
+  let promo_starts_on = null
+  let promo_ends_on = null
+  if (!contentOnly) {
+    promo_radius_km = clampRadiusKm(body.promo_radius_km)
+    promo_starts_on = toDateOnly(body.promo_starts_on)
+    promo_ends_on = toDateOnly(body.promo_ends_on)
+    if (!promo_starts_on || !promo_ends_on) {
+      return { valid: false, message: 'Valid promotion start and end dates are required' }
+    }
+    if (promo_ends_on < promo_starts_on) {
+      return { valid: false, message: 'Promotion end must be on or after the start' }
+    }
+    // Don't price/charge for a promotion window that has already finished.
+    const todayIso = new Date().toISOString().slice(0, 10)
+    if (promo_ends_on < todayIso) {
+      return { valid: false, message: 'The promotion end date is in the past' }
+    }
   }
 
   return {
