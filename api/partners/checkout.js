@@ -22,7 +22,15 @@ import { quotePromotion } from '../lib/promoPricing.js'
 if (!process.env.STRIPE_SECRET_KEY) {
   console.error('FATAL: STRIPE_SECRET_KEY not configured (partners/checkout)')
 }
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+
+// Lazy init — constructing Stripe with an undefined key throws at module load,
+// which would surface as an opaque platform 500 (e.g. on a preview deploy that
+// lacks the key). Build it on first use, after the key-present check below.
+let stripeClient = null
+function getStripe() {
+  if (!stripeClient) stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY)
+  return stripeClient
+}
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -83,7 +91,7 @@ async function handler(req, res) {
     // Ensure the user has a Stripe customer (shared with subscriptions).
     let stripeCustomerId = user.stripe_customer_id
     if (!stripeCustomerId) {
-      const customer = await stripe.customers.create({
+      const customer = await getStripe().customers.create({
         email: user.email,
         metadata: { user_id: String(user.id), username: user.username || '' }
       })
@@ -92,7 +100,7 @@ async function handler(req, res) {
     }
 
     const origin = req.headers.origin || process.env.APP_URL || 'https://www.go-roam.uk'
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       customer: stripeCustomerId,
       mode: 'payment',
       payment_method_types: ['card'],
