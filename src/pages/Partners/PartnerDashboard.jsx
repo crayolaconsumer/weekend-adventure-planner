@@ -163,13 +163,13 @@ export default function PartnerDashboard() {
                     {fmtDate(ev.starts_at)} · {ev.promo_radius_km}km radius · {formatPence(ev.price_paid_pence)}
                   </p>
                   <p className="partners-stats">
-                    {Number(ev.impressions || 0)} views · {Number(ev.clicks || 0)} clicks · {Number(ev.saves || 0)} saves
+                    {Number(ev.impressions || 0).toLocaleString('en-GB')} views · {Number(ev.clicks || 0).toLocaleString('en-GB')} clicks · {Number(ev.saves || 0).toLocaleString('en-GB')} saves
                   </p>
                 </div>
                 <div className="partners-event-actions">
                   {ev.payment_status === 'unpaid' && ev.status !== 'cancelled' && (
                     <button className="partners-btn primary sm" disabled={busyId === ev.id} onClick={() => pay(ev.id)}>
-                      {busyId === ev.id ? '…' : `Pay ${formatPence(ev.price_paid_pence)}`}
+                      {busyId === ev.id ? 'Opening…' : `Pay ${formatPence(ev.price_paid_pence)}`}
                     </button>
                   )}
                   <button className="partners-btn ghost sm" onClick={() => openEvent(ev.id)}>Edit</button>
@@ -188,6 +188,7 @@ export default function PartnerDashboard() {
         title="Cancel this event?"
         body="This removes the draft and can’t be undone. (Paid events can’t be cancelled here — contact support for a refund.)"
         confirmLabel="Cancel event"
+        busyLabel="Cancelling…"
         cancelLabel="Keep it"
         danger
         busy={busyId === confirmId}
@@ -202,5 +203,7 @@ function fmtDate(value) {
   if (!value) return 'Date TBA'
   const d = new Date(value)
   if (isNaN(d)) return 'Date TBA'
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  // Same day/month/year format as the event editor's promo dates (no weekday)
+  // so a partner sees one consistent date style across the portal.
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }

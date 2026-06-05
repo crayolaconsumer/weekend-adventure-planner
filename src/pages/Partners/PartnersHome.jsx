@@ -120,8 +120,8 @@ export default function PartnersHome() {
         <div className="partners-pricing">
           <div className="partners-price-card"><span className="tier">Local</span><span className="from">£1.50<small>/day</small></span><span className="rad">up to 10km</span></div>
           <div className="partners-price-card"><span className="tier">Town</span><span className="from">£2.50<small>/day</small></span><span className="rad">up to 25km</span></div>
-          <div className="partners-price-card"><span className="tier">City</span><span className="from">£4<small>/day</small></span><span className="rad">up to 50km</span></div>
-          <div className="partners-price-card"><span className="tier">Region</span><span className="from">£6<small>/day</small></span><span className="rad">up to 100km</span></div>
+          <div className="partners-price-card"><span className="tier">City</span><span className="from">£4.00<small>/day</small></span><span className="rad">up to 50km</span></div>
+          <div className="partners-price-card"><span className="tier">Region</span><span className="from">£6.00<small>/day</small></span><span className="rad">up to 100km</span></div>
         </div>
         <p className="partners-pricing-note">From £10. One-off payment — no subscription, no commission on ticket sales.</p>
       </section>
@@ -206,7 +206,7 @@ function CreateOrg({ defaultEmail, onCreated, onSignOut }) {
           Website (optional)
           <input type="url" placeholder="https://…" value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} />
         </label>
-        {error && <p className="partners-error">{error}</p>}
+        {error && <p className="partners-error" role="alert">{error}</p>}
         <button className="partners-btn primary" disabled={busy} type="submit">
           {busy ? 'Saving…' : 'Create account'}
         </button>

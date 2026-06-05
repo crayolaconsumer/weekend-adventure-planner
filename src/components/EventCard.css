@@ -4,7 +4,11 @@
    ═══════════════════════════════════════════════════════ */
 
 .event-card {
-  background: var(--roam-cream);
+  /* Elevated surface, not --roam-cream: cream is the BASE page bg and flips to
+     the deepest surface in dark mode, so a cream card vanished into the feed
+     (the full variant has no border, only a forest-tinted shadow). This token
+     lifts above the page in both themes (#fff light / parchment dark). */
+  background: var(--color-surface-elevated);
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
@@ -187,7 +191,8 @@
 /* Featured (paid) cards get a restrained gold frame so they read as bought,
    not just badged. Gold is constant across themes; #1a3a2f-safe accents. */
 .event-card-full.is-featured {
-  border-color: color-mix(in srgb, var(--roam-gold) 60%, var(--roam-parchment));
+  /* Full card has no border (separation is the shadow ring below), so a
+     border-color here would be inert — the gold frame is the box-shadow. */
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--roam-gold) 35%, transparent), var(--shadow-md);
 }
 .event-card-compact.is-featured {
@@ -323,7 +328,10 @@
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 600;
-  color: white;
+  /* Fixed dark green on the constant gold — matches every other gold pill
+     (.event-card-featured / .event-card-admission). white was ~2:1 contrast
+     and var(--roam-forest) would flip to light sage and wash out in dark mode. */
+  color: #1a3a2f;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -334,5 +342,8 @@
 
 .event-card-full .event-card-cta:disabled {
   background: var(--roam-stone);
+  /* Explicit, theme-safe label colour — stone flips light/dark, so neither the
+     inherited dark-green nor white reads in both themes. */
+  color: var(--color-text-secondary);
   cursor: not-allowed;
 }

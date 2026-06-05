@@ -68,13 +68,6 @@
 .partners-hint { font-size: var(--text-xs); color: var(--color-text-muted); margin: 0; }
 .partners-preview { max-width: 100%; border-radius: var(--radius-md); margin-top: var(--space-xs); }
 
-.partners-tabs { display: flex; gap: var(--space-xs); margin-bottom: var(--space-sm); }
-.partners-tabs button {
-  flex: 1; padding: 8px; border: 1px solid var(--color-border); background: var(--color-background);
-  border-radius: var(--radius-md); font-weight: 600; color: var(--color-text-secondary); cursor: pointer;
-}
-.partners-tabs button.active { background: #1a3a2f; color: #fff; border-color: #1a3a2f; }
-
 .partners-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-md); }
 .partners-actions.sticky {
   position: sticky; bottom: 0; background: var(--color-background);
@@ -292,7 +285,7 @@
 .partners-price { transition: color 0.2s ease; }
 
 /* --- Focus-visible (keyboard) --- */
-.partners-btn:focus-visible, .partners-link:focus-visible, .partners-tabs button:focus-visible,
+.partners-btn:focus-visible, .partners-link:focus-visible,
 .partners-preset:focus-visible, .partners-band:focus-visible, .partners-seg:focus-visible,
 .partners-boost:focus-visible, .partners-event-main:focus-visible, .partners-find:focus-visible {
   outline: 2px solid var(--roam-gold); outline-offset: 2px; border-radius: var(--radius-md);
@@ -331,6 +324,7 @@
   list-style: none; padding: 4px 0; user-select: none;
 }
 .partners-advanced summary::-webkit-details-marker { display: none; }
+.partners-advanced summary:focus-visible { outline: 2px solid var(--roam-gold); outline-offset: 2px; border-radius: var(--radius-sm); }
 .partners-advanced summary::before { content: '▸'; display: inline-block; margin-right: 6px; transition: transform 0.15s; }
 .partners-advanced[open] summary::before { transform: rotate(90deg); }
 .partners-advanced .partners-row { margin-top: var(--space-xs); }

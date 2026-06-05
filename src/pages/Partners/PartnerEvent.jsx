@@ -259,7 +259,7 @@ export default function PartnerEvent() {
         const res = await updatePartnerEvent({ id: Number(id), ...payload })
         setEvent(res.event)
         savedRef.current = JSON.stringify(form)
-        showToast('Saved', 'success')
+        showToast('Saved.', 'success')
       }
     } catch (err) {
       setError(err?.message || 'Could not save')
@@ -314,7 +314,13 @@ export default function PartnerEvent() {
       </section>
     </Shell>
   )
-  if (loadState === 'error') return <Shell><p className="partners-error">Couldn’t load this event.</p></Shell>
+  if (loadState === 'error') return (
+    <Shell onBack={() => navigate('/partners/dashboard')}>
+      <p className="partners-error" role="alert">
+        Couldn’t load this event. <button className="partners-link" onClick={load}>Retry</button>
+      </p>
+    </Shell>
+  )
 
   return (
     <Shell onBack={() => navigate('/partners/dashboard')}>
@@ -380,7 +386,7 @@ export default function PartnerEvent() {
               </label>
               <label>
                 <span className="partners-label-row">Description <span className="partners-count">{(form.description || '').length}/2000</span></span>
-                <textarea rows={4} value={form.description} onChange={set('description')} maxLength={2000} placeholder="What's the event? Who's it for? What makes it worth a night out?" />
+                <textarea rows={4} value={form.description} onChange={set('description')} maxLength={2000} placeholder="What’s the event? Who’s it for? What makes it worth a night out?" />
               </label>
               <label>Category
                 <select value={form.category} onChange={set('category')}>
@@ -544,7 +550,7 @@ export default function PartnerEvent() {
 
           {!isNew && (
             <p className={`partners-savestate ${isDirty ? 'dirty' : ''}`} aria-live="polite">
-              {isDirty ? '● Unsaved changes' : '✓ All changes saved'}
+              {isDirty ? 'Unsaved changes' : <>All changes saved <CheckIcon size={13} /></>}
             </p>
           )}
 
@@ -564,7 +570,7 @@ export default function PartnerEvent() {
                   <button className="partners-btn primary"
                     disabled={busy || !quote || (admissionState(form.ticket_type).online && !String(form.info_url).trim())}
                     onClick={() => setReviewing(true)}>
-                    {busy ? '…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
+                    {busy ? 'Opening…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
                   </button>
                 )}
               </div>
@@ -588,6 +594,7 @@ export default function PartnerEvent() {
           </div>
         ) : null}
         confirmLabel={quote ? `Pay ${formatPence(quote.pricePence)}` : 'Pay'}
+        busyLabel="Opening…"
         cancelLabel="Back"
         busy={busy}
         onConfirm={payNow}
@@ -613,7 +620,7 @@ function Shell({ children, onBack }) {
 function Stat({ label, value }) {
   return (
     <div className="partners-stat">
-      <span className="partners-stat-value">{Number(value)}</span>
+      <span className="partners-stat-value">{Number(value).toLocaleString('en-GB')}</span>
       <span className="partners-stat-label">{label}</span>
     </div>
   )
