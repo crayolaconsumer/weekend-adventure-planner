@@ -216,4 +216,26 @@
 .partners-seg-label { font-weight: 700; font-size: var(--text-sm); }
 .partners-seg-hint { font-size: 11px; color: var(--color-text-muted); }
 
+/* --- "Notify nearby phones" boost toggle --- */
+.partners-boost {
+  display: flex; align-items: center; gap: var(--space-sm); cursor: pointer; font: inherit;
+  text-align: left; width: 100%; padding: var(--space-md);
+  border: 1.5px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface); color: var(--color-text-primary);
+  transition: border-color 0.15s, background 0.15s;
+}
+.partners-boost:hover { border-color: var(--roam-gold); }
+.partners-boost.active { border-color: #1a3a2f; background: color-mix(in srgb, var(--roam-gold) 10%, transparent); }
+.partners-boost-ic { display: inline-flex; color: var(--roam-forest); flex-shrink: 0; }
+.partners-boost-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.partners-boost-title { font-weight: 700; font-size: var(--text-sm); display: flex; align-items: center; gap: 6px; }
+.partners-boost-price { font-weight: 700; color: #1a3a2f; background: var(--roam-gold); padding: 1px 7px; border-radius: var(--radius-full); font-size: var(--text-xs); }
+.partners-boost-desc { font-size: var(--text-xs); color: var(--color-text-muted); }
+.partners-boost-check {
+  width: 24px; height: 24px; border-radius: var(--radius-full); flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--color-border); color: #fff;
+}
+.partners-boost-check.on { background: #1a3a2f; border-color: #1a3a2f; }
+
 .partners-banner.success { display: flex; align-items: center; gap: 8px; }

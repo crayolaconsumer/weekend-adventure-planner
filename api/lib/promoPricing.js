@@ -28,6 +28,7 @@ export const REACH_BANDS = Object.freeze([
 
 export const PROMO_PRICING = Object.freeze({
   minPricePence: 1000, // £10 floor — keeps the payment spam-gate while staying inviting
+  pushBoostPence: 1500, // one-off "notify nearby phones" add-on (£15)
   maxDays: 90,
   currency: 'GBP'
 })
@@ -76,7 +77,7 @@ export function promoDays(startOn, endOn) {
  * @returns {{ valid: boolean, message?: string, days?: number, radiusKm?: number,
  *             band?: object, pricePence?: number, currency?: string, breakdown?: object }}
  */
-export function quotePromotion({ radiusKm, startOn, endOn }) {
+export function quotePromotion({ radiusKm, startOn, endOn, pushBoost = false }) {
   const days = promoDays(startOn, endOn)
   if (days == null) {
     return { valid: false, message: 'Invalid promotion dates' }
@@ -89,16 +90,20 @@ export function quotePromotion({ radiusKm, startOn, endOn }) {
 
   const raw = days * band.dayPence
   const flooredToPound = Math.floor(raw / 100) * 100
-  const pricePence = Math.max(PROMO_PRICING.minPricePence, flooredToPound)
+  const basePence = Math.max(PROMO_PRICING.minPricePence, flooredToPound)
+  const boost = pushBoost ? PROMO_PRICING.pushBoostPence : 0
 
   return {
     valid: true,
     days,
     radiusKm: radius,
     band: { key: band.key, label: band.label, maxKm: band.maxKm, dayPence: band.dayPence },
-    pricePence,
+    pushBoost: !!pushBoost,
+    pushBoostPence: boost,
+    basePence,
+    pricePence: basePence + boost,   // total charged
     currency: PROMO_PRICING.currency,
-    breakdown: { dayPence: band.dayPence, days }
+    breakdown: { dayPence: band.dayPence, days, basePence, pushBoostPence: boost }
   }
 }
 

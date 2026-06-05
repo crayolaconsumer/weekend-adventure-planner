@@ -71,10 +71,12 @@ async function handler(req, res) {
     }
 
     // Recompute the price authoritatively — ignore any stored/sent value.
+    // Includes the push-boost add-on if the organiser opted into it.
     const quote = quotePromotion({
       radiusKm: event.promo_radius_km,
       startOn: event.promo_starts_on,
-      endOn: event.promo_ends_on
+      endOn: event.promo_ends_on,
+      pushBoost: !!event.push_boost
     })
     if (!quote.valid) return res.status(400).json({ error: quote.message })
 

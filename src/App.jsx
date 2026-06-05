@@ -43,6 +43,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // import DebugHud from './components/DebugHud'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
+import LocationSync from './components/LocationSync'
 import ReSignInBanner from './components/ReSignInBanner'
 import SubscriptionSuccessModal from './components/SubscriptionSuccessModal'
 import InstallBanner from './components/InstallBanner'
@@ -593,6 +594,10 @@ function App() {
 
               {/* Floating Notification Bell */}
               {!showOnboarding && <NotificationBell />}
+
+              {/* Persist coarse location (signed-in only) for "events near you"
+                  push targeting. Renders nothing; skipped on the partner portal. */}
+              {!showOnboarding && !isPartnerPath && <LocationSync location={location} />}
 
               {/* Watches useUserBadges across the whole app — toasts
                   any newly-awarded badge regardless of which page the

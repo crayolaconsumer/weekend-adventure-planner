@@ -58,13 +58,14 @@ async function getPreferences(res, user) {
       newFollower: !!prefs.new_follower,
       planShared: !!prefs.plan_shared,
       weeklyDigest: !!prefs.weekly_digest,
-      visitReminder: prefs.visit_reminder !== undefined ? !!prefs.visit_reminder : true
+      visitReminder: prefs.visit_reminder !== undefined ? !!prefs.visit_reminder : true,
+      localEvents: prefs.local_events !== undefined && prefs.local_events !== null ? !!prefs.local_events : true
     }
   })
 }
 
 async function updatePreferences(req, res, user) {
-  const { newContribution, newFollower, planShared, weeklyDigest, visitReminder } = req.body
+  const { newContribution, newFollower, planShared, weeklyDigest, visitReminder, localEvents } = req.body
 
   // Build update query dynamically based on provided fields
   const updates = []
@@ -89,6 +90,10 @@ async function updatePreferences(req, res, user) {
   if (typeof visitReminder === 'boolean') {
     updates.push('visit_reminder = ?')
     values.push(visitReminder ? 1 : 0)
+  }
+  if (typeof localEvents === 'boolean') {
+    updates.push('local_events = ?')
+    values.push(localEvents ? 1 : 0)
   }
 
   if (updates.length === 0) {

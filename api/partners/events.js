@@ -100,20 +100,20 @@ async function handleCreate(req, res, partnerId) {
   if (!parsed.valid) return res.status(400).json({ error: parsed.message })
   const v = parsed.value
 
-  const quote = quotePromotion({ radiusKm: v.promo_radius_km, startOn: v.promo_starts_on, endOn: v.promo_ends_on })
+  const quote = quotePromotion({ radiusKm: v.promo_radius_km, startOn: v.promo_starts_on, endOn: v.promo_ends_on, pushBoost: !!v.push_boost })
   if (!quote.valid) return res.status(400).json({ error: quote.message })
 
   const result = await query(
     `INSERT INTO promoted_events
        (partner_id, title, description, category, venue_name, address, lat, lng,
         starts_at, ends_at, image_url, info_url, price_info, ticket_type,
-        promo_radius_km, promo_starts_on, promo_ends_on, price_paid_pence, currency,
+        promo_radius_km, promo_starts_on, promo_ends_on, price_paid_pence, currency, push_boost,
         payment_status, moderation_status, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'live', 'draft')`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unpaid', 'live', 'draft')`,
     [
       partnerId, v.title, v.description, v.category, v.venue_name, v.address, v.lat, v.lng,
       v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info, v.ticket_type,
-      quote.radiusKm, v.promo_starts_on, v.promo_ends_on, quote.pricePence, quote.currency
+      quote.radiusKm, v.promo_starts_on, v.promo_ends_on, quote.pricePence, quote.currency, v.push_boost
     ]
   )
   const id = result.insertId
@@ -138,19 +138,19 @@ async function handleUpdate(req, res, partnerId) {
   if (!parsed.valid) return res.status(400).json({ error: parsed.message })
   const v = parsed.value
 
-  const quote = quotePromotion({ radiusKm: v.promo_radius_km, startOn: v.promo_starts_on, endOn: v.promo_ends_on })
+  const quote = quotePromotion({ radiusKm: v.promo_radius_km, startOn: v.promo_starts_on, endOn: v.promo_ends_on, pushBoost: !!v.push_boost })
   if (!quote.valid) return res.status(400).json({ error: quote.message })
 
   await query(
     `UPDATE promoted_events SET
        title = ?, description = ?, category = ?, venue_name = ?, address = ?, lat = ?, lng = ?,
        starts_at = ?, ends_at = ?, image_url = ?, info_url = ?, price_info = ?, ticket_type = ?,
-       promo_radius_km = ?, promo_starts_on = ?, promo_ends_on = ?, price_paid_pence = ?
+       promo_radius_km = ?, promo_starts_on = ?, promo_ends_on = ?, price_paid_pence = ?, push_boost = ?
      WHERE id = ? AND partner_id = ?`,
     [
       v.title, v.description, v.category, v.venue_name, v.address, v.lat, v.lng,
       v.starts_at, v.ends_at, v.image_url, v.info_url, v.price_info, v.ticket_type,
-      quote.radiusKm, v.promo_starts_on, v.promo_ends_on, quote.pricePence,
+      quote.radiusKm, v.promo_starts_on, v.promo_ends_on, quote.pricePence, v.push_boost,
       idCheck.id, partnerId
     ]
   )
@@ -229,6 +229,7 @@ function parseEventBody(body) {
 
   const price_info = body.price_info ? sanitizeString(body.price_info).slice(0, 60) : null
   const ticket_type = TICKET_TYPES.has(body.ticket_type) ? body.ticket_type : 'online'
+  const push_boost = (body.push_boost === true || body.push_boost === 1) ? 1 : 0
 
   const promo_radius_km = clampRadiusKm(body.promo_radius_km)
   const promo_starts_on = toDateOnly(body.promo_starts_on)
@@ -250,7 +251,7 @@ function parseEventBody(body) {
     value: {
       title, description, category, venue_name, address,
       lat: coords.lat, lng: coords.lng,
-      starts_at, ends_at, image_url, info_url, price_info, ticket_type,
+      starts_at, ends_at, image_url, info_url, price_info, ticket_type, push_boost,
       promo_radius_km, promo_starts_on, promo_ends_on
     }
   }

@@ -19,6 +19,14 @@
     {
       "path": "/api/cron/discover-probe",
       "schedule": "13,43 * * * *"
+    },
+    {
+      "path": "/api/cron/promoted-event-push",
+      "schedule": "5,20,35,50 * * * *"
+    },
+    {
+      "path": "/api/cron/local-events-digest",
+      "schedule": "0 17 * * 4"
     }
   ],
   "functions": {

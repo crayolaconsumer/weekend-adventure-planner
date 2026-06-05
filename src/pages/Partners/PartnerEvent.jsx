@@ -101,9 +101,9 @@ export default function PartnerEvent() {
   // Refresh quote whenever radius / dates change and are valid.
   useEffect(() => {
     let cancelled = false
-    const { promo_radius_km, promo_starts_on, promo_ends_on } = form
+    const { promo_radius_km, promo_starts_on, promo_ends_on, push_boost } = form
     if (!promo_starts_on || !promo_ends_on) { setQuote(null); return }
-    getPromoQuote({ radiusKm: promo_radius_km, promo_starts_on, promo_ends_on })
+    getPromoQuote({ radiusKm: promo_radius_km, promo_starts_on, promo_ends_on, pushBoost: push_boost })
       .then((res) => {
         if (cancelled) return
         setQuote(res.quote)
@@ -111,9 +111,9 @@ export default function PartnerEvent() {
       })
       .catch(() => { if (!cancelled) setQuote(null) })
     return () => { cancelled = true }
-    // Re-quote only when targeting (radius/dates) changes — not on every keystroke.
+    // Re-quote only when targeting (radius/dates/boost) changes — not every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.promo_radius_km, form.promo_starts_on, form.promo_ends_on])
+  }, [form.promo_radius_km, form.promo_starts_on, form.promo_ends_on, form.push_boost])
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e?.target ? e.target.value : e }))
 
@@ -349,12 +349,26 @@ export default function PartnerEvent() {
                 <label>Show until *<input type="date" value={form.promo_ends_on} onChange={set('promo_ends_on')} /></label>
               </div>
 
+              <button type="button"
+                className={`partners-boost ${form.push_boost ? 'active' : ''}`}
+                onClick={() => setForm((f) => ({ ...f, push_boost: !f.push_boost }))}
+                aria-pressed={form.push_boost}>
+                <span className="partners-boost-ic"><MegaphoneIcon /></span>
+                <span className="partners-boost-text">
+                  <span className="partners-boost-title">Notify nearby phones <span className="partners-boost-price">+£15</span></span>
+                  <span className="partners-boost-desc">Send a one-off push to opted-in ROAM users near you when this goes live.</span>
+                </span>
+                <span className={`partners-boost-check ${form.push_boost ? 'on' : ''}`}>
+                  {form.push_boost && <CheckIcon size={15} />}
+                </span>
+              </button>
+
               <div className="partners-quote">
                 {quote
                   ? <>
                       <span className="partners-price">{formatPence(quote.pricePence)}</span>
                       <span className="partners-muted small">
-                        {quote.band?.label || ''} reach · {quote.days} day{quote.days === 1 ? '' : 's'} · one-off, no subscription
+                        {quote.band?.label || ''} reach · {quote.days} day{quote.days === 1 ? '' : 's'}{quote.pushBoost ? ' · incl. £15 nearby-phone push' : ''} · one-off, no subscription
                       </span>
                     </>
                   : <span className="partners-muted small">Choose your reach and dates to see the price.</span>}
@@ -408,7 +422,7 @@ function blankForm() {
   return {
     title: '', description: '', category: '', venue_name: '', address: '',
     lat: '', lng: '', starts_at: '', ends_at: '', info_url: '', price_info: '', image_url: '',
-    ticket_type: 'online',
+    ticket_type: 'online', push_boost: false,
     promo_radius_km: 25, promo_starts_on: today, promo_ends_on: isoDate(14)
   }
 }
@@ -420,7 +434,7 @@ function eventToForm(ev) {
     lat: ev.lat ?? '', lng: ev.lng ?? '',
     starts_at: toLocalInput(ev.starts_at), ends_at: toLocalInput(ev.ends_at),
     info_url: ev.info_url || '', price_info: ev.price_info || '', image_url: ev.image_url || '',
-    ticket_type: ev.ticket_type || 'online',
+    ticket_type: ev.ticket_type || 'online', push_boost: !!ev.push_boost,
     promo_radius_km: ev.promo_radius_km || 25,
     promo_starts_on: (ev.promo_starts_on || '').slice(0, 10),
     promo_ends_on: (ev.promo_ends_on || '').slice(0, 10)
@@ -436,6 +450,7 @@ function formToPayload(f) {
     ends_at: f.ends_at ? new Date(f.ends_at).toISOString() : null,
     info_url: f.info_url || null, price_info: f.price_info || null, image_url: f.image_url || null,
     ticket_type: f.ticket_type || 'online',
+    push_boost: !!f.push_boost,
     promo_radius_km: Number(f.promo_radius_km),
     promo_starts_on: f.promo_starts_on, promo_ends_on: f.promo_ends_on
   }

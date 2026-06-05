@@ -31,6 +31,7 @@ export default function NotificationsSection({ user }) {
     planShared: true,
     weeklyDigest: true,
     visitReminder: true,
+    localEvents: true,
   })
   const [prefsLoading, setPrefsLoading] = useState(true)
   const [diagnostics, setDiagnostics] = useState(null)
@@ -339,6 +340,21 @@ export default function NotificationsSection({ user }) {
                 <span className="toggle-desc">Reminder on your planned visit day</span>
               </span>
               <span className={`toggle-switch ${prefs.visitReminder ? 'on' : ''}`}>
+                <span className="toggle-knob" />
+              </span>
+            </button>
+
+            <button
+              className={`unified-profile-settings-toggle sub-toggle ${prefs.localEvents ? 'active' : ''}`}
+              onClick={() => updatePref('localEvents', !prefs.localEvents)}
+              aria-pressed={prefs.localEvents}
+            >
+              <span className="toggle-icon"><ToggleIcon name="map" size={20} /></span>
+              <span className="toggle-text">
+                <span className="toggle-label">Local Events Near You</span>
+                <span className="toggle-desc">Featured events happening close by</span>
+              </span>
+              <span className={`toggle-switch ${prefs.localEvents ? 'on' : ''}`}>
                 <span className="toggle-knob" />
               </span>
             </button>

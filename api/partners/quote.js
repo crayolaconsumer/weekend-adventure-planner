@@ -27,8 +27,8 @@ async function handler(req, res) {
   const user = await requireAuth(req, res)
   if (!user) return
 
-  const { radiusKm, promo_starts_on, promo_ends_on } = req.body || {}
-  const quote = quotePromotion({ radiusKm, startOn: promo_starts_on, endOn: promo_ends_on })
+  const { radiusKm, promo_starts_on, promo_ends_on, pushBoost } = req.body || {}
+  const quote = quotePromotion({ radiusKm, startOn: promo_starts_on, endOn: promo_ends_on, pushBoost })
 
   if (!quote.valid) {
     return res.status(400).json({ error: quote.message })
