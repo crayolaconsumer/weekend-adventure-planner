@@ -137,6 +137,12 @@ async function handler(req, res) {
  * @param {Object} conn - Database connection for transaction
  */
 async function handleCheckoutCompleted(session, conn) {
+  // One-time payment for a promoted ("Featured") event — not a subscription.
+  if (session.metadata?.type === 'promoted_event') {
+    await handlePromotedEventPaid(session, conn)
+    return
+  }
+
   const customerId = session.customer
   const subscriptionId = session.subscription
 
@@ -187,6 +193,31 @@ async function handleCheckoutCompleted(session, conn) {
       subscription.current_period_start,
       subscription.current_period_end
     ]
+  )
+}
+
+/**
+ * Activate a promoted event after its one-time payment succeeds.
+ * Auto-publish: a paid event goes straight to active/live (moderation is
+ * reactive — reports + admin removal + kill-switch).
+ * @param {Object} session - Stripe checkout session (mode: 'payment')
+ * @param {Object} conn - Database connection for transaction
+ */
+async function handlePromotedEventPaid(session, conn) {
+  const promotedEventId = Number(session.metadata?.promoted_event_id)
+  if (!Number.isInteger(promotedEventId) || promotedEventId <= 0) {
+    console.error('promoted_event checkout missing/invalid id:', session.metadata)
+    return
+  }
+
+  // Idempotent: only the first paid event flips it to active.
+  await conn.query(
+    `UPDATE promoted_events
+       SET payment_status = 'paid',
+           status = 'active',
+           stripe_payment_intent_id = ?
+     WHERE id = ? AND payment_status <> 'paid'`,
+    [session.payment_intent || null, promotedEventId]
   )
 }
 
