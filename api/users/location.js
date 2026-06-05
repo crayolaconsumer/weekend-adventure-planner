@@ -9,7 +9,7 @@
  */
 
 import { requireAuth } from '../lib/auth.js'
-import { query } from '../lib/db.js'
+import { query, queryOne } from '../lib/db.js'
 import { parseCoordinates } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
@@ -29,6 +29,17 @@ async function handler(req, res) {
   if (!coords.valid) {
     return res.status(400).json({ error: 'Invalid coordinates' })
   }
+
+  // Respect the local-events opt-out: location exists ONLY to target local-event
+  // push, so for a user who turned it off we store nothing and purge any
+  // previously-stored point (data minimisation / purpose limitation).
+  try {
+    const pref = await queryOne('SELECT local_events FROM notification_preferences WHERE user_id = ?', [user.id])
+    if (pref && Number(pref.local_events) === 0) {
+      await query('DELETE FROM user_locations WHERE user_id = ?', [user.id])
+      return res.status(200).json({ success: true, skipped: 'opted_out' })
+    }
+  } catch { /* fall through and store — fail open on a pref read error */ }
 
   // Coarsen to ~2 decimal places (~1.1km) before persisting.
   const lat = Math.round(coords.lat * 100) / 100

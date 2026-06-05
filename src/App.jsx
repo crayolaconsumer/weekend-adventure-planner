@@ -525,15 +525,18 @@ function App() {
     // nativeGetCurrentPosition falls through to navigator.geolocation.
     nativeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000 })
       .then((position) => {
+        // fromDeviceFix marks a GENUINE device fix — only these are persisted
+        // for "events near you" (the London fallback below must never be).
         setLocation({
           lat: position.coords.latitude,
-          lng: position.coords.longitude
+          lng: position.coords.longitude,
+          fromDeviceFix: true
         })
       })
       .catch((error) => {
         setLocationError(error?.message || 'Geolocation failed')
-        // Default to London as fallback
-        setLocation({ lat: 51.5074, lng: -0.1278 })
+        // Default to London as fallback (display only — not a real fix).
+        setLocation({ lat: 51.5074, lng: -0.1278, isFallback: true })
       })
   }, [showOnboarding, isPartnerPath])
 
@@ -543,7 +546,8 @@ function App() {
       .then((position) => {
         setLocation({
           lat: position.coords.latitude,
-          lng: position.coords.longitude
+          lng: position.coords.longitude,
+          fromDeviceFix: true
         })
         setLocationError(null)
       })

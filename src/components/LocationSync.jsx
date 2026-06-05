@@ -19,6 +19,9 @@ export default function LocationSync({ location }) {
 
   useEffect(() => {
     if (!user || typeof location?.lat !== 'number' || typeof location?.lng !== 'number') return
+    // Only persist a GENUINE device fix — never the app's London fallback, which
+    // would make failed/denied users falsely appear near London events.
+    if (!location.fromDeviceFix) return
     if (sentRef.current) return
 
     try {
@@ -38,7 +41,7 @@ export default function LocationSync({ location }) {
         if (r.ok) { try { localStorage.setItem(LAST_SENT_KEY, String(Date.now())) } catch { /* ignore */ } }
       })
       .catch(() => { /* best-effort */ })
-  }, [user, location?.lat, location?.lng])
+  }, [user, location?.lat, location?.lng, location?.fromDeviceFix])
 
   return null
 }

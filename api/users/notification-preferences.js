@@ -113,6 +113,12 @@ async function updatePreferences(req, res, user) {
     values
   )
 
+  // Opting out of local events purges the stored coarse location too — the
+  // opt-out should erase the data, not just stop sending.
+  if (localEvents === false) {
+    await query('DELETE FROM user_locations WHERE user_id = ?', [user.id]).catch(() => {})
+  }
+
   // Return updated preferences
   return getPreferences(res, user)
 }

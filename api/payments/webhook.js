@@ -15,6 +15,7 @@ import Stripe from 'stripe'
 import { queryOne, insert, transaction } from '../lib/db.js'
 import { sendPaymentFailedEmail } from '../lib/email.js'
 import { withCors } from '../lib/cors.js'
+import { quotePromotion, PROMO_PRICING } from '../lib/promoPricing.js'
 
 // Validate required environment variables at module load
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -214,19 +215,42 @@ async function handlePromotedEventPaid(session, conn) {
     return
   }
 
-  // Record the payment idempotently, but ONLY transition to 'active' if the
-  // event is still awaiting payment. A partner can cancel (status='cancelled')
-  // or an admin can remove an event while its Stripe tab is still open; without
-  // the status guard a late webhook would resurrect it and publish an event
-  // nobody wanted live. A cancelled-but-paid row keeps status='cancelled' and
-  // payment_status='paid' so it surfaces as "refund owed", not live.
+  const [rows] = await conn.query(
+    'SELECT promo_radius_km, promo_starts_on, promo_ends_on, push_boost FROM promoted_events WHERE id = ?',
+    [promotedEventId]
+  )
+  const ev = rows[0]
+  if (!ev) { console.error('promoted_event not found for paid checkout:', promotedEventId); return }
+
+  // Reconcile what was actually paid against the current price (the event could
+  // have been edited cheaper→pricier during pending_payment with the Stripe tab
+  // still open). Recompute server-side:
+  const baseQuote = quotePromotion({
+    radiusKm: ev.promo_radius_km, startOn: ev.promo_starts_on, endOn: ev.promo_ends_on, pushBoost: false
+  })
+  const amountPaid = typeof session.amount_total === 'number' ? session.amount_total : 0
+  const basePence = baseQuote.valid ? baseQuote.pricePence : Infinity
+  const baseCovered = amountPaid >= basePence
+  // Honour the boost only if the payment covered base + boost.
+  const finalBoost = (ev.push_boost && amountPaid >= basePence + PROMO_PRICING.pushBoostPence) ? 1 : 0
+  if (!baseCovered) {
+    console.warn('[webhook] promoted_event underpaid — marking paid but NOT activating (manual review):',
+      promotedEventId, 'paid', amountPaid, 'base', basePence)
+  }
+
+  // Record the payment idempotently. Activate ONLY when (a) the base price was
+  // actually covered AND (b) the event is still awaiting payment — a partner can
+  // cancel, or an admin remove, while the Stripe tab is open; without the status
+  // guard a late webhook would resurrect a cancelled event. A paid-but-not-active
+  // row (cancelled, or underpaid) surfaces as "refund/review owed", not live.
   await conn.query(
     `UPDATE promoted_events
        SET payment_status = 'paid',
            stripe_payment_intent_id = ?,
-           status = CASE WHEN status IN ('pending_payment', 'draft') THEN 'active' ELSE status END
+           push_boost = ?,
+           status = CASE WHEN ? = 1 AND status IN ('pending_payment', 'draft') THEN 'active' ELSE status END
      WHERE id = ? AND payment_status <> 'paid'`,
-    [session.payment_intent || null, promotedEventId]
+    [session.payment_intent || null, finalBoost, baseCovered ? 1 : 0, promotedEventId]
   )
 }
 

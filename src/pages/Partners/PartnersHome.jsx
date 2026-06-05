@@ -15,7 +15,7 @@ import { CompassMark, ReachIcon, MegaphoneIcon, StarIcon } from './icons'
 import './Partners.css'
 
 export default function PartnersHome() {
-  const { user, loading, login, register, logout } = useAuth()
+  const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
 
   const [partner, setPartner] = useState(undefined) // undefined = unknown, null = none
@@ -61,7 +61,7 @@ export default function PartnersHome() {
       <main className="partners-main">
         {loading && <p className="partners-muted">Loading…</p>}
 
-        {!loading && !user && <SignedOut login={login} register={register} />}
+        {!loading && !user && <SignedOut />}
 
         {!loading && user && checking && <p className="partners-muted">Loading your account…</p>}
 
@@ -99,61 +99,21 @@ export default function PartnersHome() {
   )
 }
 
-function SignedOut({ login, register }) {
-  const [mode, setMode] = useState('login') // 'login' | 'register'
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  const submit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setBusy(true)
-    try {
-      if (mode === 'login') {
-        await login(email.trim(), password, true)
-      } else {
-        await register(email.trim(), password, displayName.trim() || undefined)
-      }
-    } catch (err) {
-      setError(err?.message || 'Something went wrong')
-    } finally {
-      setBusy(false)
-    }
-  }
+function SignedOut() {
+  // Reuse the app-wide AuthModal (email + Google + Apple) via its global event,
+  // so the portal supports every sign-in method without duplicating the SDKs.
+  const openAuth = (mode) => window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode } }))
 
   return (
     <section className="partners-card">
-      <div className="partners-tabs">
-        <button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Sign in</button>
-        <button className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Create account</button>
-      </div>
-      <form onSubmit={submit} className="partners-form">
-        {mode === 'register' && (
-          <label>
-            Your name
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} autoComplete="name" />
-          </label>
-        )}
-        <label>
-          Email
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-        </label>
-        <label>
-          Password
-          <input type="password" required minLength={8} value={password}
-            onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-        </label>
-        {error && <p className="partners-error">{error}</p>}
-        <button className="partners-btn primary" disabled={busy} type="submit">
-          {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
-        </button>
-      </form>
-      <p className="partners-muted small">
-        Your ROAM account works here too — sign in with the same details.
+      <h2>Sign in to get started</h2>
+      <p className="partners-muted">
+        Use your ROAM account — email, Google or Apple. New here? Create one in a few seconds.
       </p>
+      <div className="partners-actions">
+        <button className="partners-btn primary" onClick={() => openAuth('login')}>Sign in</button>
+        <button className="partners-btn ghost" onClick={() => openAuth('register')}>Create account</button>
+      </div>
     </section>
   )
 }

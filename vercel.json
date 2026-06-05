@@ -35,6 +35,12 @@
     },
     "api/cron/prewarm-overpass.js": {
       "maxDuration": 120
+    },
+    "api/cron/promoted-event-push.js": {
+      "maxDuration": 300
+    },
+    "api/cron/local-events-digest.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [

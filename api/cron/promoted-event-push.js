@@ -10,7 +10,7 @@
  * cron (local-events-digest.js).
  */
 
-import { query } from '../lib/db.js'
+import { query, update } from '../lib/db.js'
 import { sendPushToUserWithStats } from '../lib/pushNotifications.js'
 import { isFeatureEnabled } from '../lib/flags.js'
 import {
@@ -20,6 +20,7 @@ import { boundingBox, haversineKm, isQuietHoursUk, FREQ_CAP_HOURS } from '../lib
 
 const MAX_EVENTS_PER_RUN = 10
 const MAX_USERS_PER_EVENT = 5000
+const MAX_RECIPIENTS_PER_RUN = 3000 // total per invocation — bounds wall-clock under the function timeout
 const CHUNK_SIZE = 20
 const CHUNK_DELAY_MS = 400
 
@@ -54,25 +55,29 @@ export default async function handler(req, res) {
       [MAX_EVENTS_PER_RUN]
     )
 
+    let processed = 0
     for (const ev of events) {
+      if (processed >= MAX_RECIPIENTS_PER_RUN) break // budget hit — resume next run
+
       const lat = Number(ev.lat)
       const lng = Number(ev.lng)
       const radius = Number(ev.promo_radius_km) || 25
       const box = boundingBox(lat, lng, radius)
 
       const candidates = await query(
-        `SELECT DISTINCT u.id AS user_id, ul.lat AS ulat, ul.lng AS ulng
+        `SELECT u.id AS user_id, ul.lat AS ulat, ul.lng AS ulng
          FROM users u
-         JOIN push_subscriptions ps ON ps.user_id = u.id
          JOIN user_locations ul ON ul.user_id = u.id
          LEFT JOIN notification_preferences np ON np.user_id = u.id
          WHERE u.is_banned = 0
            AND (np.local_events IS NULL OR np.local_events = 1)
+           AND EXISTS (SELECT 1 FROM push_subscriptions ps WHERE ps.user_id = u.id)
            AND ul.lat BETWEEN ? AND ? AND ul.lng BETWEEN ? AND ?
            AND NOT EXISTS (SELECT 1 FROM promoted_event_pushes pep
                            WHERE pep.user_id = u.id AND pep.promoted_event_id = ?)
            AND NOT EXISTS (SELECT 1 FROM promoted_event_pushes pf
                            WHERE pf.user_id = u.id AND pf.sent_at > DATE_SUB(NOW(), INTERVAL ? HOUR))
+         ORDER BY u.id
          LIMIT ?`,
         [box.minLat, box.maxLat, box.minLng, box.maxLng, ev.id, FREQ_CAP_HOURS, MAX_USERS_PER_EVENT]
       )
@@ -82,42 +87,52 @@ export default async function handler(req, res) {
         const d = haversineKm(lat, lng, Number(c.ulat), Number(c.ulng))
         return d != null && d <= radius
       })
-      eligibleCount += recipients.length
 
       const body = pushBody(ev)
+      let fullyProcessed = true
       for (let i = 0; i < recipients.length; i += CHUNK_SIZE) {
+        if (processed >= MAX_RECIPIENTS_PER_RUN) { fullyProcessed = false; break }
         const chunk = recipients.slice(i, i + CHUNK_SIZE)
         const results = await Promise.allSettled(chunk.map(async (r) => {
-          const out = await sendPushToUserWithStats(r.user_id, {
+          // Atomic per-user claim: INSERT IGNORE against UNIQUE(event,user).
+          // affectedRows=1 means WE own this send; 0 means another run (or an
+          // earlier resumed run) already handled it — skip. This both prevents
+          // double-send across overlapping runs AND records the freq-cap/dedup
+          // row regardless of delivery outcome (so a flaky device isn't retried).
+          const claimedRow = await update(
+            `INSERT IGNORE INTO promoted_event_pushes (promoted_event_id, user_id, kind)
+             VALUES (?, ?, 'instant')`,
+            [ev.id, r.user_id]
+          )
+          if (!claimedRow) return { skipped: true }
+          return sendPushToUserWithStats(r.user_id, {
             title: 'New event near you',
             body,
             url: '/events',
             tag: `promoted-event-${ev.id}`,
             interruptionLevel: 'active'
           })
-          if (out.success) {
-            // Record so the freq cap + per-event dedup hold for future runs.
-            await query(
-              `INSERT IGNORE INTO promoted_event_pushes (promoted_event_id, user_id, kind)
-               VALUES (?, ?, 'instant')`,
-              [ev.id, r.user_id]
-            )
-          }
-          return out
         }))
         for (const res2 of results) {
           if (res2.status === 'fulfilled') {
+            if (res2.value.skipped) continue
             mergePlatformBreakdown(perPlatform, res2.value.perPlatform)
             if (res2.value.success) sent++; else failed++
-          } else { failed++ }
+            processed++
+            eligibleCount++
+          } else { failed++; processed++; eligibleCount++ }
         }
         if (i + CHUNK_SIZE < recipients.length) {
           await new Promise(r => setTimeout(r, CHUNK_DELAY_MS))
         }
       }
 
-      // Mark done regardless of per-user outcomes so we never re-blast an event.
-      await query('UPDATE promoted_events SET push_sent_at = NOW() WHERE id = ?', [ev.id])
+      // Mark the event done ONLY when we processed every recipient — so a crash
+      // mid-event (push_sent_at still NULL) is resumed next run; already-claimed
+      // users are skipped by the per-event NOT EXISTS above.
+      if (fullyProcessed) {
+        await update('UPDATE promoted_events SET push_sent_at = NOW() WHERE id = ?', [ev.id])
+      }
     }
 
     await recordCronRun({ jobName: PROMOTED_EVENT_PUSH_JOB, eligibleCount, sentCount: sent, failedCount: failed, perPlatform })

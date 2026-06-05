@@ -13,7 +13,7 @@ import { isFeatureEnabled } from '../lib/flags.js'
 import {
   createPlatformBreakdown, mergePlatformBreakdown, recordCronRun, LOCAL_EVENTS_DIGEST_JOB
 } from '../lib/cronRuns.js'
-import { haversineKm, isQuietHoursUk, DIGEST_RADIUS_KM } from '../lib/promotedEventPush.js'
+import { haversineKm, isQuietHoursUk, DIGEST_RADIUS_KM, FREQ_CAP_HOURS } from '../lib/promotedEventPush.js'
 
 const MAX_USERS_PER_RUN = 2000
 const CHUNK_SIZE = 20
@@ -65,6 +65,9 @@ export default async function handler(req, res) {
          AND (np.local_events IS NULL OR np.local_events = 1)
          AND (ul.last_local_digest_at IS NULL
               OR ul.last_local_digest_at < DATE_SUB(NOW(), INTERVAL ${DIGEST_COOLDOWN_DAYS} DAY))
+         AND NOT EXISTS (SELECT 1 FROM promoted_event_pushes pf
+                         WHERE pf.user_id = u.id
+                           AND pf.sent_at > DATE_SUB(NOW(), INTERVAL ${FREQ_CAP_HOURS} HOUR))
        LIMIT ${MAX_USERS_PER_RUN}`
     )
 
@@ -95,6 +98,13 @@ export default async function handler(req, res) {
         // Cooldown is set whether or not the device accepted — avoids hammering
         // a user every weekly run; they re-enter the pool after the cooldown.
         await query('UPDATE user_locations SET last_local_digest_at = NOW() WHERE user_id = ?', [t.userId])
+        // Record in the SHARED ledger so the instant-push 72h frequency cap also
+        // counts this digest (and vice-versa) — a genuinely global per-user cap.
+        await query(
+          `INSERT IGNORE INTO promoted_event_pushes (promoted_event_id, user_id, kind)
+           VALUES (?, ?, 'digest')`,
+          [t.near[0].id, t.userId]
+        )
         return out
       }))
       for (const r of results) {
