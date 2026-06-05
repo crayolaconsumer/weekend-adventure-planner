@@ -72,13 +72,16 @@ export default function EventCard({ event, variant = 'compact' }) {
   const imageUrl = event.imageUrl || getEventPlaceholderImage(event.id, event.categories)
 
   // Admission model — only first-party (Featured) events carry ticketType.
-  // Lets a door-sale or free event read correctly instead of "Get Tickets".
+  // online + door can combine ('online_door'); 'free' is exclusive. Lets a
+  // door-sale, free or sold-both-ways event read correctly, not "Get Tickets".
   const ticketType = event.isFeatured ? (event.ticketType || 'online') : null
-  const admissionLabel = ticketType === 'door' ? 'Pay on the door'
-    : ticketType === 'free' ? 'Free entry'
-      : null
+  const sellsOnline = ticketType === 'online' || ticketType === 'online_door'
+  const admissionLabel = ticketType === 'online_door' ? 'Online & door'
+    : ticketType === 'door' ? 'Pay on the door'
+      : ticketType === 'free' ? 'Free entry'
+        : null
   const hasLink = !!event.ticketUrl
-  const ctaText = ticketType === 'online' ? 'Get tickets'
+  const ctaText = sellsOnline ? 'Get tickets'
     : ticketType ? 'More info'  // door / free that still has an info link
       : 'Get Tickets'           // aggregator events — unchanged
   // A Featured card only gets a clickable CTA when there's actually a link;
@@ -228,6 +231,9 @@ export default function EventCard({ event, variant = 'compact' }) {
           // Featured event with no link (door / free / link-less) — show a
           // static label, never a button that does nothing.
           <div className="event-card-cta event-card-cta-static">{staticLabel}</div>
+        )}
+        {!event.isSoldOut && ticketType === 'online_door' && hasLink && (
+          <p className="event-card-door-note">or pay on the door</p>
         )}
       </div>
     </motion.article>

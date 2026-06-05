@@ -23,7 +23,8 @@ import { quotePromotion, clampRadiusKm } from '../lib/promoPricing.js'
 const ALLOWED_CATEGORIES = new Set([
   'music', 'comedy', 'theatre', 'sports', 'nightlife', 'food', 'family', 'culture', 'entertainment'
 ])
-const TICKET_TYPES = new Set(['online', 'door', 'free'])
+// online + door can combine ('online_door'); 'free' is exclusive.
+const TICKET_TYPES = new Set(['online', 'door', 'free', 'online_door'])
 
 async function handler(req, res) {
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method)) {

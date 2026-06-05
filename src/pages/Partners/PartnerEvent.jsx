@@ -26,11 +26,26 @@ const PRESET_ICONS = { taster: SparkIcon, standard: StarIcon, bignight: Megaphon
 const BAND_LEVEL = { local: 1, town: 2, city: 3, region: 4 }
 
 // How attendees get in — drives the in-app card's call-to-action.
+// online + door can combine; free is exclusive (nothing to buy either way).
 const TICKET_TYPE_OPTIONS = [
   { key: 'online', label: 'Tickets online', hint: 'Sold via a link' },
   { key: 'door', label: 'Pay on the door', hint: 'Cash/card at venue' },
   { key: 'free', label: 'Free entry', hint: 'No ticket needed' }
 ]
+
+// The stored enum is a single value; the UI lets online + door co-exist.
+function admissionState(tt) {
+  return {
+    online: tt === 'online' || tt === 'online_door',
+    door: tt === 'door' || tt === 'online_door',
+    free: tt === 'free'
+  }
+}
+function encodeAdmission({ online, door }) {
+  if (online && door) return 'online_door'
+  if (door) return 'door'
+  return 'online' // default to online when neither is set
+}
 
 const CATEGORIES = [
   ['music', 'Music'], ['comedy', 'Comedy'], ['theatre', 'Theatre'], ['sports', 'Sports'],
@@ -221,6 +236,16 @@ export default function PartnerEvent() {
 
   const selectBand = (band) => setForm((f) => ({ ...f, promo_radius_km: band.maxKm }))
 
+  // Admission: online + door toggle independently; free is exclusive; never empty.
+  const toggleAdmission = (key) => setForm((f) => {
+    if (key === 'free') return { ...f, ticket_type: 'free' }
+    const cur = admissionState(f.ticket_type)
+    const base = cur.free ? { online: false, door: false } : cur
+    const next = { ...base, [key]: !base[key] }
+    if (!next.online && !next.door) next[key] = true // keep at least one paid option
+    return { ...f, ticket_type: encodeAdmission(next) }
+  })
+
   const save = async () => {
     setError('')
     setBusy(true)
@@ -392,27 +417,33 @@ export default function PartnerEvent() {
               <div className="partners-field">
                 <span className="partners-field-label">Admission</span>
                 <div className="partners-segment">
-                  {TICKET_TYPE_OPTIONS.map((t) => (
-                    <button type="button" key={t.key}
-                      className={`partners-seg ${form.ticket_type === t.key ? 'active' : ''}`}
-                      onClick={() => setForm((f) => ({ ...f, ticket_type: t.key }))}
-                      aria-pressed={form.ticket_type === t.key}>
-                      <span className="partners-seg-label">{t.label}</span>
-                      <span className="partners-seg-hint">{t.hint}</span>
-                    </button>
-                  ))}
+                  {TICKET_TYPE_OPTIONS.map((t) => {
+                    const active = admissionState(form.ticket_type)[t.key]
+                    return (
+                      <button type="button" key={t.key}
+                        className={`partners-seg ${active ? 'active' : ''}`}
+                        onClick={() => toggleAdmission(t.key)}
+                        aria-pressed={active}>
+                        <span className="partners-seg-label">
+                          {t.label}{active && <CheckIcon size={13} />}
+                        </span>
+                        <span className="partners-seg-hint">{t.hint}</span>
+                      </button>
+                    )
+                  })}
                 </div>
+                <p className="partners-hint">Sold both ways? Pick “Tickets online” and “Pay on the door” together.</p>
               </div>
               <div className="partners-row">
                 <label>
-                  {form.ticket_type === 'online' ? 'Ticket link' : 'More info link (optional)'}
+                  {admissionState(form.ticket_type).online ? 'Ticket link' : 'More info link (optional)'}
                   <input type="url" placeholder="https://…" value={form.info_url} onChange={set('info_url')} />
                 </label>
                 <label>Price text
-                  <input placeholder={form.ticket_type === 'free' ? 'Free' : 'e.g. £10'} value={form.price_info} onChange={set('price_info')} maxLength={60} />
+                  <input placeholder={admissionState(form.ticket_type).free ? 'Free' : 'e.g. £10'} value={form.price_info} onChange={set('price_info')} maxLength={60} />
                 </label>
               </div>
-              {form.ticket_type === 'online' && !form.info_url && (
+              {admissionState(form.ticket_type).online && !form.info_url && (
                 <p className="partners-hint is-error">Online events need a ticket link so people can buy.</p>
               )}
               <label>Event image
@@ -531,7 +562,7 @@ export default function PartnerEvent() {
                 </button>
                 {!isNew && (
                   <button className="partners-btn primary"
-                    disabled={busy || !quote || (form.ticket_type === 'online' && !String(form.info_url).trim())}
+                    disabled={busy || !quote || (admissionState(form.ticket_type).online && !String(form.info_url).trim())}
                     onClick={() => setReviewing(true)}>
                     {busy ? '…' : `Pay ${quote ? formatPence(quote.pricePence) : ''} & publish`}
                   </button>

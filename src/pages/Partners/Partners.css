@@ -213,7 +213,8 @@
 }
 .partners-seg:hover { border-color: var(--roam-gold); }
 .partners-seg.active { border-color: var(--roam-forest); background: color-mix(in srgb, var(--roam-forest) 8%, transparent); }
-.partners-seg-label { font-weight: 700; font-size: var(--text-sm); }
+.partners-seg-label { font-weight: 700; font-size: var(--text-sm); display: inline-flex; align-items: center; gap: 5px; }
+.partners-seg-label svg { color: var(--roam-forest); }
 .partners-seg-hint { font-size: 11px; color: var(--color-text-muted); }
 
 /* --- "Notify nearby phones" boost toggle --- */

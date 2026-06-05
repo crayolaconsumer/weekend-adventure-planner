@@ -72,9 +72,9 @@ async function handler(req, res) {
     if (event.status === 'cancelled') {
       return res.status(409).json({ error: 'This event has been cancelled' })
     }
-    // An "online" event with no ticket link would publish a dead "Get tickets"
-    // CTA — block payment until there's a link (or switch to door/free).
-    if (event.ticket_type === 'online' && !event.info_url) {
+    // An online-selling event with no ticket link would publish a dead "Get
+    // tickets" CTA — block payment until there's a link (or switch to door/free).
+    if ((event.ticket_type === 'online' || event.ticket_type === 'online_door') && !event.info_url) {
       return res.status(400).json({ error: 'Add a ticket link before paying, or set admission to “Pay on the door” / “Free entry”.', code: 'TICKET_LINK_REQUIRED' })
     }
 

@@ -212,6 +212,15 @@
   padding: 12px;
 }
 
+/* "or pay on the door" — shown under the Get-tickets CTA when an event is
+   sold both online and at the door, so neither channel is hidden. */
+.event-card-door-note {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin: var(--space-xs) 0 0;
+}
+
 .event-card-full .event-card-body {
   padding: var(--space-md);
 }
