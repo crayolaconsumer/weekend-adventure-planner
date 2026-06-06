@@ -4,9 +4,7 @@
     <string name="title_activity_main">ROAM</string>
     <string name="package_name">com.goroam.app</string>
     <string name="custom_url_scheme">com.goroam.app</string>
-    <!-- Google AdMob app ID. Replace with the real ca-app-pub-…~…
-         value from the AdMob console once the Android app entry has
-         been created there. Until then the value below is Google's
-         official Android test app ID (serves only test ads). -->
-    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+    <!-- Google AdMob app ID for the real "goroam - android" app entry
+         (publisher 9063326286159934, same account as iOS). -->
+    <string name="admob_app_id">ca-app-pub-9063326286159934~1655286036</string>
 </resources>
