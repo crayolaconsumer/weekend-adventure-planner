@@ -2,21 +2,26 @@
  * useRouting Hook
  *
  * Provides travel time calculations with caching for Plan page.
- * Integrates with OpenRouteService via routingService.
+ * Free users: OpenRouteService via routingService (Haversine fallback).
+ * Premium users: Google Maps Directions via /api/maps/directions, with the
+ * free path as fallback. If the server rejects a Google request as
+ * not-premium (403), `premiumDenied` flips to true so the page can show
+ * the upgrade prompt.
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { getRoute, getRoutesBatch } from '../utils/routingService'
+import { useSubscription } from './useSubscription'
 
 // Simple in-memory cache for route calculations
-// Key format: "lat1,lng1-lat2,lng2-mode"
+// Key format: "lat1,lng1-lat2,lng2-mode-provider"
 const routeCache = new Map()
 
-function getCacheKey(from, to, mode) {
+function getCacheKey(from, to, mode, provider) {
   // Round coordinates to 4 decimal places for cache efficiency
   const fromKey = `${from.lat.toFixed(4)},${from.lng.toFixed(4)}`
   const toKey = `${to.lat.toFixed(4)},${to.lng.toFixed(4)}`
-  return `${fromKey}-${toKey}-${mode}`
+  return `${fromKey}-${toKey}-${mode}-${provider}`
 }
 
 /**
@@ -24,7 +29,21 @@ function getCacheKey(from, to, mode) {
  */
 export function useRouting() {
   const [isLoading, setIsLoading] = useState(false)
+  const [premiumDenied, setPremiumDenied] = useState(false)
   const pendingRequests = useRef(new Map())
+  const { hasFeature } = useSubscription()
+
+  const useGoogle = hasFeature('googleDirections')
+  const provider = useGoogle ? 'google' : 'standard'
+  const routeOptions = useMemo(() => ({ useGoogle }), [useGoogle])
+
+  // Flag a server-side premium rejection (stale client state, expired sub)
+  const noteResult = useCallback((result) => {
+    if (result?.premiumDenied) {
+      setPremiumDenied(true)
+    }
+    return result
+  }, [])
 
   /**
    * Get travel time between two points
@@ -33,7 +52,7 @@ export function useRouting() {
   const getTravelTime = useCallback(async (from, to, mode = 'walk') => {
     if (!from || !to) return null
 
-    const cacheKey = getCacheKey(from, to, mode)
+    const cacheKey = getCacheKey(from, to, mode, provider)
 
     // Check cache first
     if (routeCache.has(cacheKey)) {
@@ -49,7 +68,7 @@ export function useRouting() {
     const requestPromise = (async () => {
       try {
         setIsLoading(true)
-        const result = await getRoute(from, to, mode)
+        const result = noteResult(await getRoute(from, to, mode, routeOptions))
 
         // Cache the result
         routeCache.set(cacheKey, result)
@@ -63,7 +82,7 @@ export function useRouting() {
 
     pendingRequests.current.set(cacheKey, requestPromise)
     return requestPromise
-  }, [])
+  }, [routeOptions, provider, noteResult])
 
   /**
    * Get travel times for multiple legs at once
@@ -91,7 +110,7 @@ export function useRouting() {
     const uncachedIndices = []
 
     legs.forEach((leg, index) => {
-      const cacheKey = getCacheKey(leg.from, leg.to, leg.mode)
+      const cacheKey = getCacheKey(leg.from, leg.to, leg.mode, provider)
       if (routeCache.has(cacheKey)) {
         results[index] = routeCache.get(cacheKey)
       } else {
@@ -104,15 +123,15 @@ export function useRouting() {
     if (uncachedLegs.length > 0) {
       setIsLoading(true)
       try {
-        const fetchedResults = await getRoutesBatch(uncachedLegs)
+        const fetchedResults = await getRoutesBatch(uncachedLegs, routeOptions)
 
         // Merge fetched results and cache them
         fetchedResults.forEach((result, i) => {
           const index = uncachedIndices[i]
           const leg = uncachedLegs[i]
-          const cacheKey = getCacheKey(leg.from, leg.to, leg.mode)
+          const cacheKey = getCacheKey(leg.from, leg.to, leg.mode, provider)
 
-          routeCache.set(cacheKey, result)
+          routeCache.set(cacheKey, noteResult(result))
           results[index] = result
         })
       } finally {
@@ -121,7 +140,7 @@ export function useRouting() {
     }
 
     return results
-  }, [])
+  }, [routeOptions, provider, noteResult])
 
   /**
    * Clear the route cache
@@ -142,12 +161,24 @@ export function useRouting() {
     })
   }, [getTravelTimesForItinerary])
 
+  /**
+   * Reset the premium-denied flag (after the upgrade prompt is dismissed)
+   */
+  const clearPremiumDenied = useCallback(() => {
+    setPremiumDenied(false)
+  }, [])
+
   return {
     getTravelTime,
     getTravelTimesForItinerary,
     prefetchRoutes,
     clearCache,
     isLoading,
+    // True when Google directions are used for this user
+    usingGoogleDirections: useGoogle,
+    // True when the server rejected a Google request as not-premium
+    premiumDenied,
+    clearPremiumDenied,
   }
 }
 

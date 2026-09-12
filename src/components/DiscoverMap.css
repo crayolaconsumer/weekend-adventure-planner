@@ -184,6 +184,69 @@
   transform: translateY(-1px);
 }
 
+.map-popup-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.map-popup-actions .map-popup-btn {
+  flex: 1;
+}
+
+/* Secondary popup action (Directions - premium Google route) */
+.map-popup-btn-secondary {
+  background: transparent;
+  color: var(--roam-terracotta);
+  border: 1.5px solid var(--roam-terracotta);
+}
+
+.map-popup-btn-secondary:hover {
+  background: var(--roam-terracotta);
+  color: white;
+}
+
+/* Google Directions route polyline (premium) */
+.discover-map-route {
+  filter: drop-shadow(0 1px 2px rgba(42, 37, 32, 0.25));
+}
+
+/* Route summary in the legend */
+.map-legend-route {
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--roam-stone);
+  color: var(--roam-ink);
+}
+
+.map-legend-route-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--roam-terracotta);
+  box-shadow: 0 0 0 1.5px white;
+  flex-shrink: 0;
+}
+
+.map-legend-route-clear {
+  margin-left: var(--space-xs);
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--roam-parchment);
+  color: var(--roam-ink-muted);
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.map-legend-route-clear:hover {
+  background: var(--roam-stone);
+  color: var(--roam-ink);
+}
+
 /* Map legend */
 .discover-map-legend {
   position: absolute;

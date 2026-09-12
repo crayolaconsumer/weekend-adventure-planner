@@ -65,6 +65,12 @@ const PROMPT_CONFIGS = {
     description: 'Upgrade to ROAM+ and remove every ad — banners, interstitials, and sponsored cards. Pure exploration.',
     cta: 'Go ad-free with ROAM+',
     benefit: 'No ads, no interruptions, no compromises'
+  },
+  directions: {
+    title: 'Google Maps directions are a premium feature',
+    description: 'Get real turn-by-turn travel times and see your route drawn on the map, powered by Google Maps.',
+    cta: 'Unlock Google Directions',
+    benefit: 'Know exactly how to get there'
   }
 }
 

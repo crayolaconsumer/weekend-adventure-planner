@@ -42,13 +42,14 @@ import {
 } from './Plan/icons'
 import { selectDiverseStops } from './Plan/selectDiverseStops'
 import { getAuthToken, parseScheduledTime } from './Plan/utils'
+import UpgradePrompt from '../components/UpgradePrompt'
 import './Plan.css'
 
 export default function Plan({ location }) {
   const toast = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { getTravelTime: fetchTravelTime } = useRouting()
+  const { getTravelTime: fetchTravelTime, premiumDenied, clearPremiumDenied } = useRouting()
   const { places: wishlist } = useSavedPlaces()
   const formatDistance = useFormatDistance()
 
@@ -706,6 +707,15 @@ export default function Plan({ location }) {
           onClose={() => setStopDetail(null)}
         />
       )}
+
+      {/* Upgrade prompt: server rejected Google directions as not-premium
+          (travel times silently fell back to standard routing) */}
+      <UpgradePrompt
+        type="directions"
+        isOpen={premiumDenied}
+        onClose={clearPremiumDenied}
+        onUpgrade={clearPremiumDenied}
+      />
 
       {/* Settings Bottom Sheet */}
       <AnimatePresence>

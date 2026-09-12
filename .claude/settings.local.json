@@ -51,12 +51,13 @@
       "Bash(echo:*)",
       "Bash(mysql:*)",
       "Bash(git check-ignore:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Skill(superpowers:brainstorming)"
     ],
     "defaultMode": "acceptEdits"
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "mysql-roam"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }

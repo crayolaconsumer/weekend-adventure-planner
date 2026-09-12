@@ -24,6 +24,8 @@ import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
+import { getGoogleDirections, DirectionsError } from '../utils/routingService'
+import { decodePolyline } from '../utils/polyline'
 import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
@@ -44,12 +46,16 @@ export default function Discover({ location }) {
   const toast = useToast()
   const { savePlace, places: savedPlaces } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
-  const { isPremium } = useSubscription()
+  const { isPremium, hasFeature } = useSubscription()
   const { recordSwipe } = useSwipedPlaces()
   const { stats, incrementStat, updateStats } = useUserStats()
 
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [upgradePromptType, setUpgradePromptType] = useState('saves')
+  // Premium: Google Directions route drawn on the map
+  // { place, positions: [[lat,lng],...], durationText, summary, loading }
+  const [mapRoute, setMapRoute] = useState(null)
+  const mapRouteRequestRef = useRef(0)
   const [places, setPlaces] = useState([])
   const [basePlaces, setBasePlaces] = useState([])
 
@@ -597,6 +603,61 @@ export default function Discover({ location }) {
     localStorage.setItem(bandStorageKey(travelMode), DEFAULT_BAND)
   }
 
+  // Premium: fetch Google directions from the user's location to a place
+  // and draw the route on the map. Free users see the upgrade prompt.
+  const handleRequestDirections = useCallback(async (place) => {
+    if (!hasFeature('googleDirections')) {
+      setUpgradePromptType('directions')
+      setShowUpgradePrompt(true)
+      return
+    }
+
+    if (!effectiveLocation || !place?.lat || !place?.lng) {
+      toast.error('We need your location to show directions')
+      return
+    }
+
+    // Map Discover travel modes to routing modes (extended-range modes drive)
+    const routingMode = travelMode === 'walking' ? 'walk'
+      : travelMode === 'transit' ? 'transit'
+      : 'drive'
+
+    const requestId = ++mapRouteRequestRef.current
+    setMapRoute({ place, positions: [], loading: true })
+
+    try {
+      const result = await getGoogleDirections(
+        { lat: effectiveLocation.lat, lng: effectiveLocation.lng },
+        { lat: place.lat, lng: place.lng },
+        routingMode
+      )
+
+      // Ignore stale responses if the user asked for another route meanwhile
+      if (requestId !== mapRouteRequestRef.current) return
+
+      setMapRoute({
+        place,
+        positions: decodePolyline(result.polyline),
+        durationText: result.durationText || `${result.duration} min`,
+        summary: result.summary,
+        loading: false
+      })
+    } catch (err) {
+      if (requestId !== mapRouteRequestRef.current) return
+      setMapRoute(null)
+
+      if (err instanceof DirectionsError && err.status === 403) {
+        // Server says not premium (expired subscription / stale client state)
+        setUpgradePromptType('directions')
+        setShowUpgradePrompt(true)
+      } else if (err instanceof DirectionsError && err.status === 401) {
+        window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'login' } }))
+      } else {
+        toast.error(err.message || 'Could not load directions')
+      }
+    }
+  }, [hasFeature, effectiveLocation, travelMode, toast])
+
   // Handle swipe actions
   const handleSwipe = async (action, place) => {
     if (action === 'like') {
@@ -906,6 +967,9 @@ export default function Discover({ location }) {
               userLocation={effectiveLocation}
               selectedPlace={selectedPlace}
               onSelectPlace={setSelectedPlace}
+              onRequestDirections={handleRequestDirections}
+              route={mapRoute}
+              onClearRoute={() => setMapRoute(null)}
             />
           </Suspense>
         )}

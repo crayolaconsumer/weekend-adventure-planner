@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { motion } from 'framer-motion'
 import { GOOD_CATEGORIES } from '../utils/categories'
@@ -104,8 +104,20 @@ function MapController({ center, onBoundsChange, onReady }) {
   return null
 }
 
+// Fit the map to a freshly loaded route (premium Google directions)
+function RouteController({ positions }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!positions || positions.length < 2) return
+    map.fitBounds(positions, { padding: [48, 48], maxZoom: 16 })
+  }, [map, positions])
+
+  return null
+}
+
 // Place popup content
-function PlacePopup({ place, onSelect, formatDistance }) {
+function PlacePopup({ place, onSelect, onDirections, formatDistance }) {
   const category = place.category || GOOD_CATEGORIES[place.categoryKey]
 
   return (
@@ -127,20 +139,47 @@ function PlacePopup({ place, onSelect, formatDistance }) {
             {formatDistance(place.distance)}
           </span>
         )}
-        <button className="map-popup-btn" onClick={() => onSelect(place)}>
-          View Details
-        </button>
+        <div className="map-popup-actions">
+          <button className="map-popup-btn" onClick={() => onSelect(place)}>
+            View Details
+          </button>
+          {onDirections && (
+            <button
+              className="map-popup-btn map-popup-btn-secondary"
+              onClick={() => onDirections(place)}
+              aria-label={`Show directions to ${place.name}`}
+            >
+              Directions
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
+/**
+ * @param {Object} props
+ * @param {Array} props.places - Places to render as markers
+ * @param {Object} [props.userLocation] - { lat, lng }
+ * @param {Object} [props.selectedPlace] - Currently selected place (opens its popup)
+ * @param {Function} [props.onSelectPlace] - Called when a marker/popup is selected
+ * @param {Function} [props.onBoundsChange] - Called when the viewport changes
+ * @param {Function} [props.onRequestDirections] - Called with a place when the user asks
+ *   for directions (premium: fetches Google route; free: shows upgrade prompt)
+ * @param {Object} [props.route] - Google route to draw (premium only):
+ *   { positions: [[lat,lng],...], place, durationText, summary, loading }
+ * @param {Function} [props.onClearRoute] - Removes the drawn route
+ */
 export default function DiscoverMap({
   places,
   userLocation,
   selectedPlace,
   onSelectPlace,
-  onBoundsChange
+  onBoundsChange,
+  onRequestDirections,
+  route,
+  onClearRoute
 }) {
   const mapRef = useRef(null)
   const markersRef = useRef({})
@@ -244,6 +283,37 @@ export default function DiscoverMap({
           />
         )}
 
+        {/* Premium: Google Directions route polyline */}
+        {route?.positions?.length > 1 && (
+          <>
+            {/* Casing (outline) under the main line for contrast on light tiles */}
+            <Polyline
+              positions={route.positions}
+              pathOptions={{
+                color: '#ffffff',
+                weight: 8,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round',
+                interactive: false
+              }}
+            />
+            <Polyline
+              positions={route.positions}
+              className="discover-map-route"
+              pathOptions={{
+                color: '#c45c3e', // --roam-terracotta
+                weight: 5,
+                opacity: 0.95,
+                lineCap: 'round',
+                lineJoin: 'round',
+                interactive: false
+              }}
+            />
+            <RouteController positions={route.positions} />
+          </>
+        )}
+
         {/* Place markers */}
         {places.map((place) => {
           const category = place.category || GOOD_CATEGORIES[place.categoryKey]
@@ -258,7 +328,12 @@ export default function DiscoverMap({
               }}
             >
               <Popup className="discover-map-popup">
-                <PlacePopup place={place} onSelect={onSelectPlace} formatDistance={formatDistance} />
+                <PlacePopup
+                  place={place}
+                  onSelect={onSelectPlace}
+                  onDirections={onRequestDirections}
+                  formatDistance={formatDistance}
+                />
               </Popup>
             </Marker>
           )
@@ -270,6 +345,30 @@ export default function DiscoverMap({
         <span className="map-legend-item">
           <span className="map-legend-count">{places.length}</span> places
         </span>
+        {route && (
+          <span className="map-legend-item map-legend-route" aria-live="polite">
+            <span className="map-legend-route-swatch" aria-hidden="true" />
+            {route.loading ? (
+              <span>Finding route…</span>
+            ) : (
+              <span>
+                <span className="map-legend-count">{route.durationText}</span>
+                {route.summary ? ` · ${route.summary}` : ''}
+                {route.place?.name ? ` to ${route.place.name}` : ''}
+              </span>
+            )}
+            {onClearRoute && (
+              <button
+                type="button"
+                className="map-legend-route-clear"
+                onClick={onClearRoute}
+                aria-label="Clear route"
+              >
+                ×
+              </button>
+            )}
+          </span>
+        )}
       </div>
     </motion.div>
   )
