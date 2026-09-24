@@ -18,6 +18,7 @@ const Pricing = lazy(() => import('./pages/Pricing'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Support = lazy(() => import('./pages/Support'))
+const GetRoam = lazy(() => import('./pages/GetRoam'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminReports = lazy(() => import('./pages/AdminReports'))
 const AdminCampaigns = lazy(() => import('./pages/AdminCampaigns'))
@@ -411,16 +412,18 @@ function ProfileRedirect({ onOpenAuth }) {
 }
 
 function App() {
-  // The web-only partner portal is a standalone B2B surface — it must bypass
-  // the consumer onboarding overlay and geolocation prompt. App sits above
-  // BrowserRouter, so we read the entry path directly (partners land here via
-  // a full page load from a marketing link, so this is reliable at mount).
-  const isPartnerPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/partners')
+  // The web-only partner portal and the /get-roam download page are standalone
+  // surfaces — they must bypass the consumer onboarding overlay and geolocation
+  // prompt. App sits above BrowserRouter, so we read the entry path directly
+  // (visitors land here via a full page load from a marketing/press link, so
+  // this is reliable at mount).
+  const isStandalonePath = typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/partners') || window.location.pathname === '/get-roam')
 
   const [location, setLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !localStorage.getItem('roam_onboarded') && !isPartnerPath
+    return !localStorage.getItem('roam_onboarded') && !isStandalonePath
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState('login')
@@ -514,7 +517,7 @@ function App() {
     // Don't request location while onboarding is showing
     if (showOnboarding) return
     // The partner portal never uses device location — don't prompt for it.
-    if (isPartnerPath) return
+    if (isStandalonePath) return
 
     // Route via the native plugin on Capacitor — Android REQUIRES the
     // plugin to trigger the runtime permission dialog (the web
@@ -538,7 +541,7 @@ function App() {
         // Default to London as fallback (display only — not a real fix).
         setLocation({ lat: 51.5074, lng: -0.1278, isFallback: true })
       })
-  }, [showOnboarding, isPartnerPath])
+  }, [showOnboarding, isStandalonePath])
 
   // Retry location permission
   const retryLocation = () => {
@@ -568,7 +571,7 @@ function App() {
             <div className="app">
               {/* Onboarding for first-time users */}
               <AnimatePresence>
-                {showOnboarding && !isPartnerPath && (
+                {showOnboarding && !isStandalonePath && (
                   <Onboarding onComplete={() => setShowOnboarding(false)} />
                 )}
               </AnimatePresence>
@@ -601,7 +604,7 @@ function App() {
 
               {/* Persist coarse location (signed-in only) for "events near you"
                   push targeting. Renders nothing; skipped on the partner portal. */}
-              {!showOnboarding && !isPartnerPath && <LocationSync location={location} />}
+              {!showOnboarding && !isStandalonePath && <LocationSync location={location} />}
 
               {/* Watches useUserBadges across the whole app — toasts
                   any newly-awarded badge regardless of which page the
@@ -652,6 +655,8 @@ function App() {
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/support" element={<Support />} />
+                      {/* Web-only store-links page for partner/press links; the native app has no use for it. */}
+                      <Route path="/get-roam" element={isNative() ? <Navigate to="/" replace /> : <GetRoam />} />
                       <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                       <Route path="/admin/reports" element={<AdminRoute><AdminReports /></AdminRoute>} />
                       <Route path="/admin/campaigns" element={<AdminRoute><AdminCampaigns /></AdminRoute>} />
@@ -695,6 +700,9 @@ function ChromeNav() {
   if (pathname.startsWith('/admin')) return null
   // Partner portal is a standalone web surface with its own chrome.
   if (pathname.startsWith('/partners')) return null
+  // /get-roam skips onboarding + location at mount, so in-app nav from it
+  // would land on Discover with no location. Its links do full page loads.
+  if (pathname === '/get-roam') return null
   return (
     <nav className="nav-bar">
       <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
