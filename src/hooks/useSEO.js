@@ -60,9 +60,9 @@ export function useSEO({
       ogImage: getOriginalMeta('og:image', true),
       ogUrl: getOriginalMeta('og:url', true),
       ogType: getOriginalMeta('og:type', true),
-      twitterTitle: getOriginalMeta('twitter:title', true),
-      twitterDescription: getOriginalMeta('twitter:description', true),
-      twitterImage: getOriginalMeta('twitter:image', true)
+      twitterTitle: getOriginalMeta('twitter:title'),
+      twitterDescription: getOriginalMeta('twitter:description'),
+      twitterImage: getOriginalMeta('twitter:image')
     }
 
     // Set new values
@@ -77,12 +77,12 @@ export function useSEO({
     setMetaTag('og:description', fullDescription, true)
     setMetaTag('og:type', type, true)
     setMetaTag('og:url', fullUrl, true)
-    setMetaTag('twitter:title', fullTitle, true)
-    setMetaTag('twitter:description', fullDescription, true)
+    setMetaTag('twitter:title', fullTitle)
+    setMetaTag('twitter:description', fullDescription)
 
     if (image) {
       setMetaTag('og:image', image, true)
-      setMetaTag('twitter:image', image, true)
+      setMetaTag('twitter:image', image)
     }
 
     // Cleanup - restore original values
@@ -93,14 +93,14 @@ export function useSEO({
       setMetaTag('og:description', originals.ogDescription || DEFAULT_DESCRIPTION, true)
       setMetaTag('og:type', originals.ogType || 'website', true)
       setMetaTag('og:url', originals.ogUrl || 'https://www.go-roam.uk/', true)
-      setMetaTag('twitter:title', originals.twitterTitle || DEFAULT_TITLE, true)
-      setMetaTag('twitter:description', originals.twitterDescription || DEFAULT_DESCRIPTION, true)
+      setMetaTag('twitter:title', originals.twitterTitle || DEFAULT_TITLE)
+      setMetaTag('twitter:description', originals.twitterDescription || DEFAULT_DESCRIPTION)
 
       // Only reset image if we set one
       if (image) {
         if (originals.ogImage) {
           setMetaTag('og:image', originals.ogImage, true)
-          setMetaTag('twitter:image', originals.twitterImage, true)
+          setMetaTag('twitter:image', originals.twitterImage)
         }
       }
     }

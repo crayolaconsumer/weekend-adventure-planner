@@ -1,0 +1,46 @@
+.get-roam {
+  text-align: center;
+}
+
+.get-roam-tagline {
+  color: var(--roam-terracotta, #c45c3e);
+  font-style: italic;
+  margin: 0 0 16px;
+}
+
+.get-roam-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+  margin: 28px auto;
+}
+
+.get-roam-button {
+  display: block;
+  padding: 14px 20px;
+  border-radius: var(--radius-lg, 14px);
+  /* Literal brand forest: --roam-forest lightens in dark mode, which would
+     leave white text unreadable. */
+  background: #1a3a2f;
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.get-roam-button:hover {
+  background: #2d5246;
+}
+
+.get-roam-button--secondary {
+  background: transparent;
+  color: var(--roam-forest, #1a3a2f);
+  border: 2px solid var(--roam-forest, #1a3a2f);
+}
+
+.get-roam-button--secondary:hover {
+  background: transparent;
+  border-color: var(--roam-forest-light, #2d5246);
+}
