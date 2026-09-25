@@ -8,9 +8,13 @@
  */
 
 import { query } from './lib/db.js'
+import { TOWNS } from '../shared/towns.mjs'
 
 const SITE = 'https://www.go-roam.uk'
-const STATIC_PATHS = ['/', '/events', '/pricing', '/partners', '/get-roam', '/support', '/privacy', '/terms']
+const STATIC_PATHS = [
+  '/', '/events', '/pricing', '/partners', '/get-roam', '/support', '/privacy', '/terms',
+  ...TOWNS.map(t => `/town/${t.slug}`)
+]
 const MAX_PLACES = 5000
 
 export default async function handler(req, res) {
