@@ -42,7 +42,7 @@ async function fetchTown(town) {
       if (!res.ok) throw new Error(`proxy ${res.status}`)
       const json = await res.json()
       const seen = new Set()
-      const places = []
+      const all = []
       for (const el of json.elements || []) {
         const name = el.tags && el.tags.name
         if (!name || seen.has(name.toLowerCase())) continue
@@ -51,9 +51,14 @@ async function fetchTown(town) {
         const lng = el.lon ?? (el.center && el.center.lon)
         if (!lat || !lng) continue
         const kind = el.tags.amenity || el.tags.tourism || el.tags.leisure || el.tags.natural
-        places.push({ id: el.id, name, kind, lat, lng })
-        if (places.length >= PER_TOWN) break
+        all.push({ id: el.id, name, kind, lat, lng })
       }
+      // ponytail: Overpass returns elements in ID order, so a plain slice
+      // puts Starbucks ahead of the Minster. Landmark-ish kinds rank first;
+      // ties keep ID order. If the mix changes, tune the set.
+      const LANDMARKS = new Set(['attraction', 'museum', 'gallery', 'zoo', 'theme_park', 'historic_building', 'viewpoint', 'park', 'garden', 'picnic_site', 'wood', 'water'])
+      all.sort((a, b) => (LANDMARKS.has(a.kind) ? 0 : 1) - (LANDMARKS.has(b.kind) ? 0 : 1))
+      const places = all.slice(0, PER_TOWN)
       if (places.length === 0) throw new Error('no places')
       return places
     } catch (err) {
