@@ -25,11 +25,11 @@ async function fetchTown(town) {
   const query = `[bbox:${bbox}][out:json][timeout:25];` +
     `(
   nwr["amenity"~"^(cafe|restaurant|bar|fast_food|pub)$"]["name"];
-  nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|historic_building)$"]["name"];
+  nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|historic_building|artwork|memorial)$"]["name"];
   nwr["leisure"~"^(picnic_site|park|garden|playground)$"]["name"];
   nwr["natural"~"^(wood|water)$"]["name"];
   );
-  out center ${PER_TOWN + 16};`
+  out center 250;`
   let lastErr
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -56,7 +56,7 @@ async function fetchTown(town) {
       // ponytail: Overpass returns elements in ID order, so a plain slice
       // puts Starbucks ahead of the Minster. Landmark-ish kinds rank first;
       // ties keep ID order. If the mix changes, tune the set.
-      const LANDMARKS = new Set(['attraction', 'museum', 'gallery', 'zoo', 'theme_park', 'historic_building', 'viewpoint', 'park', 'garden', 'picnic_site', 'wood', 'water'])
+      const LANDMARKS = new Set(['attraction', 'museum', 'gallery', 'zoo', 'theme_park', 'historic_building', 'artwork', 'memorial', 'viewpoint', 'park', 'garden', 'picnic_site', 'wood', 'water'])
       all.sort((a, b) => (LANDMARKS.has(a.kind) ? 0 : 1) - (LANDMARKS.has(b.kind) ? 0 : 1))
       const places = all.slice(0, PER_TOWN)
       if (places.length === 0) throw new Error('no places')
