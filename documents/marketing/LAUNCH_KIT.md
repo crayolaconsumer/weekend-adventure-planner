@@ -1,6 +1,6 @@
 # ROAM - launch kit (copy ready to paste)
 
-Screenshots in `assets/` (captured from the live site).
+App screenshots: take 3-4 on your phone (home map, events feed, a place page) - phone shots beat website shots for Product Hunt and the stores.
 
 ## 1. Product Hunt
 Tagline: ROAM - stop scrolling, start roaming. The free app for finding local places and events worth getting out for.
