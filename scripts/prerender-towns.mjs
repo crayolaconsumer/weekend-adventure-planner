@@ -10,8 +10,6 @@ import { writeFileSync, mkdirSync } from 'node:fs'
 const SITE = 'https://www.go-roam.uk'
 const PER_TOWN = 24
 const sleep = ms => new Promise(r => setTimeout(r, ms))
-
-// slug, name, centre lat/lng, one honest sentence
 const TOWNS = [
   { slug: 'birmingham', name: 'Birmingham', lat: 52.4862, lng: -1.8904, blurb: 'Parks, food markets and live music across one of England\'s biggest cities.' },
   { slug: 'leeds', name: 'Leeds', lat: 53.8008, lng: -1.5491, blurb: 'Riverside parks, the Headrow and a strong independent food and music scene.' },
@@ -21,45 +19,43 @@ const TOWNS = [
   { slug: 'nottingham', name: 'Nottingham', lat: 52.9548, lng: -1.1581, blurb: 'Castle, parks and riverside walks close to the centre.' },
   { slug: 'leicester', name: 'Leicester', lat: 52.6369, lng: -1.1398, blurb: 'Jubilee Gardens, the waterfront and a lively food scene.' },
   { slug: 'liverpool', name: 'Liverpool', lat: 53.4084, lng: -2.9951, blurb: 'Waterfront, museums and parks on the edge of the Mersey.' },
-  { slug: 'newcastle', name: 'Newcastle', lat: 54.9783, lng: -1.6175, blurb: 'Quayside, Quayside parks and the Tyne close to the centre.' },
+  { slug: 'newcastle', name: 'Newcastle', lat: 54.9783, lng: -1.6175, blurb: 'Quayside parks and the Tyne close to the centre.' },
   { slug: 'york', name: 'York', lat: 53.9578, lng: -1.0813, blurb: 'The Minster, the city walls and a compact historic centre.' },
   { slug: 'oxford', name: 'Oxford', lat: 51.752, lng: -1.2577, blurb: 'Rivers, parks and the oldest university city in England.' },
   { slug: 'cambridge', name: 'Cambridge', lat: 52.2053, lng: 0.1218, blurb: 'River Cam walks, gardens and college squares.' },
-  { slug: 'bath', name: 'Bath', lat: 51.3811, lng: -2.3629, blurb: 'Roman baths, parks and a Georgian streets that invite a slow day.' },
+  { slug: 'bath', name: 'Bath', lat: 51.3811, lng: -2.3629, blurb: 'Roman baths, parks and Georgian streets that invite a slow day.' },
   { slug: 'brighton', name: 'Brighton', lat: 50.8214, lng: -0.1436, blurb: 'Seafront, gardens and a beach that pulls the whole city out.' },
   { slug: 'sheffield', name: 'Sheffield', lat: 53.3811, lng: -1.4701, blurb: 'Domes, parkland and valley parks ringing the city.' },
   { slug: 'derby', name: 'Derby', lat: 52.9226, lng: -1.4779, blurb: 'River Derwent walks and a compact centre by the rail station.' }
 ]
 
-const QL = `
-[out:json][timeout:25];
-(
-  nwr["amenity"~"^(cafe|restaurant|bar|fast_food|pub)$"]["name"];
-  nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|historic_building)$"]["name"];
-  nwr["leisure"~"^(picnic_site|park|garden|playground)$"]["name"];
-  nwr["natural"~"^(wood|water)$"]["name"];
-);
-out center ${PER_TOWN + 16};
-`
-
-const OVERPASS_SERVERS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.private.place/api/interpreter'
-]
+// Route through the production Overpass proxy (api/places/overpass/nearby):
+// it carries the OSM-policy User-Agent, the curated mirror list with
+// failover, and the KV cache. Direct Overpass calls from build IPs get
+// 406/429/504 (observed 2026-09-25); the proxy is the app's own working path.
+const PROXY = 'https://www.go-roam.uk/api/places/overpass/nearby'
 
 async function fetchTown(town) {
   const d = 0.03 // ~3.3km vertical, scaled for longitude
   const bbox = `${town.lng - d * 1.3},${town.lat - d},${town.lng + d * 1.3},${town.lat + d}`
-  const url = base => `${base}?` + new URLSearchParams({ data: QL, bbox })
+  const query = `[bbox:${bbox}][out:json][timeout:25];` +
+    `(
+  nwr["amenity"~"^(cafe|restaurant|bar|fast_food|pub)$"]["name"];
+  nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|historic_building)$"]["name"];
+  nwr["leisure"~"^(picnic_site|park|garden|playground)$"]["name"];
+  nwr["natural"~"^(wood|water)$"]["name"];
+  );
+  out center ${PER_TOWN + 16};`
   let lastErr
-  for (let attempt = 0; attempt < OVERPASS_SERVERS.length + 1; attempt++) {
-    const base = OVERPASS_SERVERS[attempt % OVERPASS_SERVERS.length]
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(url(base), {
-        headers: { 'User-Agent': 'ROAM-build-script' },
-        signal: AbortSignal.timeout(12000)
+      const res = await fetch(PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+        signal: AbortSignal.timeout(55000)
       })
-      if (!res.ok) throw new Error(`overpass ${res.status}`)
+      if (!res.ok) throw new Error(`proxy ${res.status}`)
       const json = await res.json()
       const seen = new Set()
       const places = []
@@ -78,7 +74,7 @@ async function fetchTown(town) {
       return places
     } catch (err) {
       lastErr = err
-      await sleep(3000) // back off before retrying
+      await sleep(5000)
     }
   }
   throw lastErr
