@@ -2,6 +2,8 @@
 // centre lat/lng, one honest sentence. Imported by scripts/prerender-towns.mjs
 // (build) and api/sitemap.js (runtime).
 const TOWNS = [
+  { slug: 'hatfield', name: 'Hatfield', lat: 51.7834, lng: -1.5022, blurb: 'Rushy Common, Foxburrow Wood and a working farm museum in Hertfordshire.' },
+  { slug: 'houghton-regis', name: 'Houghton Regis', lat: 52.0864, lng: -0.4126, blurb: 'The John Bunyan museum and statue, plus quiet countryside on the edge of Bedfordshire.' },
   { slug: 'birmingham', name: 'Birmingham', lat: 52.4862, lng: -1.8904, blurb: 'Parks, food markets and live music across one of England\'s biggest cities.' },
   { slug: 'leeds', name: 'Leeds', lat: 53.8008, lng: -1.5491, blurb: 'Riverside parks, the Headrow and a strong independent food and music scene.' },
   { slug: 'bristol', name: 'Bristol', lat: 51.4543, lng: -2.5973, blurb: 'Harbourside, street art and independent cafés in a city that leans out.' },
