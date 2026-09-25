@@ -52,6 +52,7 @@
     { "source": "/support", "destination": "/support/index.html" },
     { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/town/:slug", "destination": "/town/:slug/index.html" },
     { "source": "/((?!api/|assets/|icons/|\\.well-known/|manifest\\.json|sw\\.js|robots\\.txt|ads\\.txt|app-ads\\.txt|sitemap\\.xml).*)", "destination": "/" }
   ],
   "headers": [
