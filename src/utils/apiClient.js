@@ -25,17 +25,17 @@ import { nearestSeed } from './seedFloor'
 // path runs in the browser/WebView, so every endpoint here MUST return
 // `Access-Control-Allow-Origin` or the browser blocks the response.
 // Verified 2026-06 (live POST with Origin header):
-//   - overpass.osm.ch + overpass.openstreetmap.fr both send ACAO:* and
-//     answered in <0.6s — listed first.
+//   - overpass.openstreetmap.fr sends ACAO:* — listed first.
 //   - overpass-api.de is canonical but does NOT send ACAO on POST, so
 //     it's CORS-blocked on web (still works on native via the fetch
 //     interceptor). Kept last as a degraded fallback only.
+//   - REMOVED overpass.osm.ch (2026-09): it only holds SWISS data, so it
+//     answered every UK query in ~0.2s with 200 + zero elements. Being the
+//     fastest "success" it ranked first and emptied Discover.
 //   - REMOVED maps.mail.ru (VK, suspended 2026-03-16 → hard 403) and
 //     overpass.kumi.systems (rebranded to Private.coffee, which also
-//     omits ACAO). Those + private.coffee live in the SERVER proxy list
-//     (api/places/overpass/nearby.js) where CORS does not apply.
+//     omits ACAO).
 const OVERPASS_ENDPOINTS = [
-  'https://overpass.osm.ch/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass-api.de/api/interpreter'
 ]
@@ -169,8 +169,10 @@ async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
         signal
       })
 
-      if (response.ok) {
-        const data = await response.json()
+      const data = response.ok ? await response.json() : null
+      // A 200 with zero elements is a failure (e.g. overpass-api.de's
+      // "Query timed out" remark) — try the next mirror, same as the proxy.
+      if (data && Array.isArray(data.elements) && data.elements.length > 0) {
         const duration = Date.now() - startTime
 
         // Record endpoint performance for ranking
@@ -190,7 +192,7 @@ async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
         return data
       }
 
-      // Non-OK response
+      // Non-OK or empty response
       const duration = Date.now() - startTime
       recordEndpoint(endpoint, false, duration)
       recordApiCall({
@@ -198,7 +200,7 @@ async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
         endpoint,
         duration,
         status: 'error',
-        error: `HTTP ${response.status}`,
+        error: data ? 'empty' : `HTTP ${response.status}`,
         querySize,
         clauseCount
       })

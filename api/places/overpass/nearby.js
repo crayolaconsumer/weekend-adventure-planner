@@ -54,20 +54,18 @@ const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
 // the next mirror (see the fetch loop) — a degraded Overpass instance
 // returns empty 200s instead of erroring.
 //
-// Endpoint set reviewed 2026-06 (live-tested while Discover was empty):
+// Endpoint set reviewed 2026-09 (live-tested while Discover was empty):
 //  - overpass.openstreetmap.fr — healthy + returns data + CORS; first.
-//  - overpass.osm.ch — fast when healthy, but was returning 200 + ZERO
-//    elements (degraded) during the incident; kept, but empty-failover
-//    + health tracking now route around it when it does this.
+//    A 30km Driving query over Birmingham takes ~18s here.
 //  - overpass-api.de — canonical FOSSGIS; flaky under load (504/406).
+//  - REMOVED overpass.osm.ch — it only holds SWISS data (Zurich bbox:
+//    193 cafes; Birmingham/Houghton Regis: 0). Its instant empty 200s
+//    for every UK query were misread as a "degraded" mirror.
 //  - REMOVED overpass.private.coffee (timed out >300s in testing) and
 //    earlier maps.mail.ru (suspended 2026-03-16, 403).
-// Keep this list at 3 entries: 3 × PER_ENDPOINT_TIMEOUT_MS (18s) = 54s,
-// inside the 60s maxDuration. Empty 200s return fast, so failover adds
-// little latency.
+// 2 × PER_ENDPOINT_TIMEOUT_MS (28s) = 56s, inside the 60s maxDuration.
 const OVERPASS_ENDPOINTS = [
   'https://overpass.openstreetmap.fr/api/interpreter',
-  'https://overpass.osm.ch/api/interpreter',
   'https://overpass-api.de/api/interpreter'
 ]
 
@@ -288,7 +286,7 @@ export default async function handler(req, res) {
   }
 
   // Try endpoints in priority order with a short per-endpoint timeout.
-  // 18s × 3 endpoints = 54s, fits inside the 60s function budget.
+  // 28s × 2 endpoints = 56s, fits inside the 60s function budget.
   // Previously each endpoint had a 55s timeout, so if the first picked
   // endpoint was slow we'd burn the entire budget on it and never get
   // to try the others — Vercel killed the function at 60s with 504.
@@ -315,7 +313,7 @@ export default async function handler(req, res) {
 
   let lastError = null
   let emptyResponse = null
-  const PER_ENDPOINT_TIMEOUT_MS = 18000
+  const PER_ENDPOINT_TIMEOUT_MS = 28000
 
   for (const endpoint of endpointsByPriority()) {
     try {
@@ -345,9 +343,10 @@ export default async function handler(req, res) {
 
       const data = await response.json()
 
-      // A 200 with zero elements is Overpass's degraded-instance failure
-      // mode (osm.ch did exactly this on 2026-06) — NOT a real "no places
-      // here", since a healthy mirror returns the data. Treat empty as a
+      // A 200 with zero elements is a failure mode (overpass-api.de returns
+      // 200 + 0 elements + a "Query timed out" remark when it runs out of
+      // time) — NOT a real "no places here", since a healthy mirror
+      // returns the data. Treat empty as a
       // SOFT failure: deprioritise this endpoint, remember the empty body
       // as a last resort, and try the next mirror. Crucially we NEVER
       // cache an empty result — caching it previously poisoned the tile
