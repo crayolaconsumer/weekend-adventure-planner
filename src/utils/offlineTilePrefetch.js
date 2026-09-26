@@ -6,7 +6,8 @@
  * SW's tile routing serves them.
  */
 
-const TILE_URL_TEMPLATE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+import { TILE_LIGHT } from './mapTiles'
+
 const SUBDOMAINS = ['a', 'b', 'c', 'd']
 const MAP_TILE_CACHE = 'roam-map-tiles-v1'
 
@@ -31,7 +32,7 @@ function generateTileUrls(bounds, minZoom, maxZoom) {
     for (let x = topLeft.x; x < topLeft.x + xRange; x++) {
       for (let y = topLeft.y; y < topLeft.y + yRange; y++) {
         const subdomain = SUBDOMAINS[(x + y) % SUBDOMAINS.length]
-        const url = TILE_URL_TEMPLATE
+        const url = TILE_LIGHT
           .replace('{s}', subdomain)
           .replace('{z}', zoom)
           .replace('{x}', x)

@@ -27,10 +27,8 @@ import 'leaflet/dist/leaflet.css'
 import { useTheme } from '../../contexts/ThemeContext'
 import { tap as hapticTap } from '../../utils/haptics'
 import './MiniMapRibbon.css'
+import { tileUrlFor, TILE_ATTRIBUTION } from '../../utils/mapTiles'
 
-const TILE_URL_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-const TILE_URL_DARK = 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png'
-const ATTRIBUTION = '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 const FOREST = '#1a3a2f'
 const GOLD = '#d4a855'
@@ -87,7 +85,7 @@ function FlyToActive({ points, activeIndex }) {
 
 export default function MiniMapRibbon({ stops = [], activeIndex = -1, onPinTap, expanded = true, onToggle }) {
   const { resolved: theme } = useTheme()
-  const tileUrl = theme === 'dark' ? TILE_URL_DARK : TILE_URL_LIGHT
+  const tileUrl = tileUrlFor(theme)
 
   const points = useMemo(
     () => (stops || [])
@@ -127,7 +125,7 @@ export default function MiniMapRibbon({ stops = [], activeIndex = -1, onPinTap, 
             zoomControl={false}
             attributionControl={true}
           >
-            <TileLayer url={tileUrl} attribution={ATTRIBUTION} detectRetina key={tileUrl} />
+            <TileLayer url={tileUrl} attribution={TILE_ATTRIBUTION} detectRetina key={tileUrl} />
             <FitToRoute points={points} />
             <FlyToActive points={points} activeIndex={activeIndex} />
             {points.length > 1 && (
