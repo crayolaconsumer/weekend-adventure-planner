@@ -15,7 +15,7 @@ const TOWNS = [
   { slug: 'nottingham', name: 'Nottingham', blurb: 'Castle, parks and riverside walks close to the centre.' },
   { slug: 'leicester', name: 'Leicester', blurb: 'Jubilee Gardens, the waterfront and a lively food scene.' },
   { slug: 'liverpool', name: 'Liverpool', blurb: 'Waterfront, museums and parks on the edge of the Mersey.' },
-  { slug: 'newcastle', name: 'Newcastle', blurb: 'Quayside parks and the Tyne close to the centre.' },
+  { slug: 'newcastle-upon-tyne', name: 'Newcastle upon Tyne', blurb: 'Quayside parks and the Tyne close to the centre.' },
   { slug: 'york', name: 'York', blurb: 'The Minster, the city walls and a compact historic centre.' },
   { slug: 'oxford', name: 'Oxford', blurb: 'Rivers, parks and the oldest university city in England.' },
   { slug: 'cambridge', name: 'Cambridge', blurb: 'River Cam walks, gardens and college squares.' },

@@ -29,6 +29,11 @@ describe('sitemap', () => {
     expect(body.startsWith('<?xml')).toBe(true)
   })
 
+  it('every featured town is a verified canonical slug (regression: /town/newcastle duplicated newcastle-upon-tyne)', async () => {
+    const { TOWNS } = await import('../../../shared/towns.mjs')
+    expect(TOWNS.map(t => t.slug).filter(slug => !UK_TOWN_SLUGS.includes(slug))).toEqual([])
+  })
+
   it('stays well under the 50,000-URL sitemap limit', () => {
     expect(UK_TOWN_SLUGS.length).toBeLessThan(45000)
   })
