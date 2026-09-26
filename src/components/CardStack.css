@@ -45,6 +45,14 @@
   .card-stack-wrapper { max-height: calc(100dvh - 380px); }
 }
 
+/* Native AdMob banner up (adMob.ts sets the class and height): it floats
+   over the WebView above the nav, so the deck gives it that much room and
+   the card's Skip / Go / Save buttons stay clear of it. Native only; the
+   web AdBanner takes normal flow space. */
+.has-native-banner .card-stack {
+  padding-bottom: calc(var(--space-xs) + var(--native-banner-height, 60px));
+}
+
 .card-stack-item {
   position: absolute;
   inset: 0;

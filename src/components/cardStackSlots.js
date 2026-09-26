@@ -100,3 +100,8 @@ export function slotsToRemove(cards, currentIndex, statuses, pendingTopOk = fals
   }
   return out
 }
+
+/** next only adds places after prev's (load-more), same ids in the same order */
+export function isAppend(prev, next) {
+  return next.length >= prev.length && prev.every((p, i) => next[i]?.id === p.id)
+}

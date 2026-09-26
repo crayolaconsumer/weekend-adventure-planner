@@ -29,6 +29,8 @@
   aspect-ratio: 3/4;
   max-height: 100%;
   border-radius: var(--radius-xl);
+  /* Lets the action row size itself to the card, not the viewport */
+  container-type: inline-size;
   overflow: hidden;
   background: var(--roam-forest);
   touch-action: none;
@@ -524,6 +526,8 @@
 }
 
 .swipe-card-btn {
+  /* Never squash into ovals: narrow cards step down in size below instead */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -697,4 +701,24 @@
 .card-stack-item-3 {
   transform: scale(0.91) translateY(24px);
   filter: brightness(0.85);
+}
+
+/* Narrow cards (short phones, and the room a native banner takes): the
+   56/72/56 row plus gaps no longer fits, so keep circles, just smaller */
+@container (max-width: 260px) {
+  .swipe-card-actions {
+    gap: var(--space-sm);
+    padding: 0 var(--space-md);
+  }
+
+  .swipe-card-btn.nope,
+  .swipe-card-btn.like {
+    width: 48px;
+    height: 48px;
+  }
+
+  .swipe-card-btn.go {
+    width: 60px;
+    height: 60px;
+  }
 }

@@ -28,6 +28,15 @@ import {
  *   - When the user upgrades to premium mid-session, immediately hides
  *     the banner and resets all counters.
  */
+/**
+ * Banner only while there is content on screen: a location (real or the
+ * chosen default), places loaded, not loading, no error. AdMob disallows
+ * ads on screens without content (onboarding, prompts, loading, errors).
+ */
+export function shouldShowBanner({ location, count, loading, error }) {
+  return Boolean(location) && count > 0 && !loading && !error
+}
+
 export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {}) {
   const { user, loading: authLoading } = useAuth()
   // noAds, not isPremium: also covers a signed-in user whose tier is
@@ -84,7 +93,8 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
     const show = () => {
       if (isAdCardActive()) return
       showBanner(targeting)
-        .then(() => { if (isAdCardActive()) hideBanner().catch(() => {}) })
+        // Landed after the screen left or an ad card came up: take it down
+        .then(() => { if (cancelled || isAdCardActive()) hideBanner().catch(() => {}) })
         .catch(err => {
           if (!cancelled) console.warn('[useAdMob] showBanner failed', err)
         })

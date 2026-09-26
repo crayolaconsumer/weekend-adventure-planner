@@ -21,7 +21,10 @@ const XIcon = () => (
 // the rounded corners (radius 24).
 const CORNER_INSET = 28
 // Web: an ad requested on top that has not filled by then collapses
-const WEB_FILL_TIMEOUT_MS = 1200
+const WEB_FILL_TIMEOUT_MS = 2500
+// After a timeout collapse, keep listening this long for a late fill so
+// ad_card_unfilled can say how late it was (tuning data)
+const LATE_FILL_WINDOW_MS = 10000
 // Label AdSense allows on web ('Advertisements' or 'Sponsored links')
 const WEB_LABEL = 'Sponsored links'
 const GRID = 5
@@ -72,7 +75,7 @@ const Skeleton = ({ advertiser = true, label = 'Sponsored' }) => (
  *
  * Web: an AdSense in-feed unit inside the frame, requested only once the
  * card is on top (never loaded hidden behind another card). The branded
- * skeleton shows while it fills; no fill within 1200ms reports 'unfilled'
+ * skeleton shows while it fills; no fill within 2500ms reports 'unfilled'
  * and the stack collapses it. The frame drags (either direction skips)
  * and has a Skip button; the ad iframe itself is left alone so a drag can
  * never click the ad.
@@ -150,13 +153,29 @@ export default function AdCard({ slot, native = false, isTop = false, onSwipe, o
       pushAdSlot()
     }
     let done = false
+    let timedOut = false
+    let lateTimer = 0
     const requestedAt = performance.now()
     const waited = () => Math.round(performance.now() - requestedAt)
+    const observer = new MutationObserver(() => report())
+    // Timed-out path: this card reports ad_card_unfilled itself, once,
+    // with lateFillMs if AdSense fills the (collapsed) unit within the window
+    const finishLate = (extra) => {
+      clearTimeout(lateTimer)
+      observer.disconnect()
+      track('ad_card_unfilled', { platform, waitedMs: WEB_FILL_TIMEOUT_MS, ...extra })
+    }
     const report = () => {
       const status = ins.getAttribute('data-ad-status')
-      if (done || (status !== 'filled' && status !== 'unfilled')) return
+      if (status !== 'filled' && status !== 'unfilled') return
+      if (timedOut) {
+        finishLate(status === 'filled' ? { lateFillMs: waited() } : {})
+        return
+      }
+      if (done) return
       done = true
       clearTimeout(timer)
+      observer.disconnect()
       if (status === 'filled') {
         fillMsRef.current = waited()
         setFilled(true)
@@ -167,17 +186,19 @@ export default function AdCard({ slot, native = false, isTop = false, onSwipe, o
     }
     const timer = setTimeout(() => {
       if (done) return
-      done = true
-      onStatus?.(slot, 'unfilled', { waitedMs: waited() })
+      done = timedOut = true
+      lateTimer = setTimeout(() => finishLate({}), LATE_FILL_WINDOW_MS)
+      onStatus?.(slot, 'unfilled', { waitedMs: waited(), reportedByCard: true })
     }, WEB_FILL_TIMEOUT_MS)
-    const observer = new MutationObserver(report)
     observer.observe(ins, { attributes: true, attributeFilter: ['data-ad-status'] })
     report()
     return () => {
       clearTimeout(timer)
-      observer.disconnect()
+      // A timed-out unit keeps its observer (it outlives the card) until
+      // the late window closes; anything else stops listening now
+      if (!timedOut) observer.disconnect()
     }
-  }, [native, isTop, slot, onStatus])
+  }, [native, isTop, slot, onStatus, platform])
 
   // Native: advance when the plugin says the card was swiped away.
   useEffect(() => {

@@ -9,7 +9,7 @@ import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
 import AdBanner from '../components/AdBanner'
-import { useAdMob } from '../hooks/useAdMob'
+import { useAdMob, shouldShowBanner } from '../hooks/useAdMob'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
 import { useCurrentTown } from '../hooks/useCurrentTown'
@@ -80,14 +80,6 @@ export default function Discover({ location }) {
     return saved ? JSON.parse(saved) : []
   })
 
-  // AdMob lifecycle for free users on native: shows a banner while
-  // Discover is mounted and fires an interstitial every N swipes.
-  // Targeting is derived from the active category filters (banner) plus
-  // the current place (each swipe). No-op on web (AdBanner handles
-  // AdSense separately) and no-op for ROAM+ subscribers.
-  // No banner until there's content: onboarding and the location prompt have
-  // no location yet, and AdMob disallows ads on screens without content
-  const { trackSwipe } = useAdMob({ bannerOnScreen: Boolean(location), selectedCategories })
   const [showFilterModal, setShowFilterModal] = useState(false)
   const [showJustGo, setShowJustGo] = useState(false)
   const [viewMode, setViewMode] = useState('swipe') // 'swipe' | 'map' | 'list'
@@ -179,6 +171,18 @@ export default function Discover({ location }) {
 
   // Effective location: use prop, fallback, or null
   const effectiveLocation = location || fallbackLocation
+
+  // AdMob lifecycle for free users on native: shows a banner while
+  // Discover is mounted and fires an interstitial every N swipes.
+  // Targeting is derived from the active category filters (banner) plus
+  // the current place (each swipe). No-op on web (AdBanner handles
+  // AdSense separately) and no-op for ROAM+ subscribers.
+  // No banner until places are showing: onboarding, the location prompt,
+  // loading and error screens have no content, and AdMob disallows ads there
+  const bannerOnScreen = shouldShowBanner({
+    location: effectiveLocation, count: places.length, loading, error: loadError,
+  })
+  const { trackSwipe } = useAdMob({ bannerOnScreen, selectedCategories })
   // Real position only: a chosen default location isn't "your town"
   const currentTown = useCurrentTown(location)
 

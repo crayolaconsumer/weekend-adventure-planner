@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
 import AdCard from './AdCard'
-import { adCardsEnabled, mergeCards, slotsToRemove } from './cardStackSlots'
+import { adCardsEnabled, mergeCards, slotsToRemove, isAppend } from './cardStackSlots'
 import EmptyStateIllustration from './icons/EmptyStateIllustration'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { enrichPlace } from '../utils/apiClient'
@@ -119,13 +119,14 @@ export default function CardStack({
   // Ad slots the user has passed when ads switched off: kept so the
   // passed cards never shift
   const [keptAdSlots, setKeptAdSlots] = useState(() => new Set())
-  // Deck number: bumps whenever places change (new search, refresh, more
-  // loaded) so ad slot ids never repeat across decks
+  // Deck number: bumps when places change to a different list (new search,
+  // filters) so ad slot ids never repeat across decks. Load-more only
+  // appends: same deck, so the position and loaded ads are kept.
   const [deckPlaces, setDeckPlaces] = useState(places)
   const [deckId, setDeckId] = useState(0)
   if (places !== deckPlaces) {
     setDeckPlaces(places)
-    setDeckId(d => d + 1)
+    if (!isAppend(deckPlaces, places)) setDeckId(d => d + 1)
   }
   if (adsEnabled && adsFromIndex === null) setAdsFromIndex(currentIndex === 0 ? 0 : currentIndex + 1)
 
@@ -169,7 +170,8 @@ export default function CardStack({
   const loadedAdSlotsRef = useRef(new Set())
   const adExpiryTimersRef = useRef([])
 
-  // Reset index when places change - legitimate pattern for syncing state to props
+  // Reset index when the deck changes (not on load-more appends) - legitimate
+  // pattern for syncing state to props
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setCurrentIndex(0)
@@ -181,7 +183,7 @@ export default function CardStack({
     // New deck: release every native ad held for the old one
     loadedAdSlotsRef.current.forEach(slot => destroyNativeAd(slot).catch(() => {}))
     loadedAdSlotsRef.current.clear()
-  }, [places])
+  }, [deckId])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Collapse ad slots with no fill, and an ad that reaches the top before
@@ -195,7 +197,9 @@ export default function CardStack({
   // meta.waitedMs: how long the request waited before giving up (tuning)
   const setAdStatus = useCallback((slot, status, meta) => {
     setAdStatuses(prev => (prev[slot] === status ? prev : { ...prev, [slot]: status }))
-    if (status === 'unfilled') track('ad_card_unfilled', { platform: getPlatform(), ...meta })
+    // reportedByCard: AdCard tracks a timed-out web fill itself (it waits
+    // to see whether a late fill arrives)
+    if (status === 'unfilled' && !meta?.reportedByCard) track('ad_card_unfilled', { platform: getPlatform(), ...meta })
   }, [])
 
   // Web: load the AdSense script (script only, no ad unit) once an ad slot
@@ -226,7 +230,14 @@ export default function CardStack({
 
   // Native: load ads for slots within 3 cards of the top. Web ads load
   // when AdCard mounts in the visible stack and report via onStatus.
+  const loadDeckRef = useRef(deckId)
   useEffect(() => {
+    // In the commit where the deck changes, currentIndex still points into
+    // the old deck (the reset lands next render): wait for that render
+    if (loadDeckRef.current !== deckId) {
+      loadDeckRef.current = deckId
+      return
+    }
     if (!native || noAds) return
     for (let i = currentIndex; i <= Math.min(currentIndex + 3, mergedPlaces.length - 1); i++) {
       const { isAd, slot } = mergedPlaces[i]
@@ -251,13 +262,16 @@ export default function CardStack({
             if (requestedAdSlotsRef.current === deck) setAdStatus(slot, 'expired')
           }, NATIVE_AD_TTL_MS))
         },
-        () => {
+        (err) => {
           if (requestedAdSlotsRef.current !== deck) return
-          setAdStatus(slot, 'unfilled', { waitedMs: Date.now() - startedAt })
+          // Refused before any request (no consent, ad-free): collapse the
+          // slot without reporting a no-fill
+          if (err?.refused) setAdStatuses(prev => ({ ...prev, [slot]: 'unfilled' }))
+          else setAdStatus(slot, 'unfilled', { waitedMs: Date.now() - startedAt })
         }
       )
     }
-  }, [native, noAds, currentIndex, mergedPlaces, setAdStatus])
+  }, [native, noAds, currentIndex, mergedPlaces, setAdStatus, deckId])
 
   // Collapsed slots will never show: release their native ads now
   useEffect(() => {

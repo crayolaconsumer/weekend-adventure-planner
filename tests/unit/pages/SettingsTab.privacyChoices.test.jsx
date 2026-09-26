@@ -20,7 +20,6 @@ vi.mock('../../../src/components/PrivacySettings', () => ({ default: () => null 
 vi.mock('../../../src/pages/UnifiedProfile/NotificationsSection', () => ({ default: () => null }))
 
 const { default: SettingsTab } = await import('../../../src/pages/UnifiedProfile/SettingsTab')
-const { resetPrivacyChoicesCache } = await import('../../../src/hooks/usePrivacyChoices')
 
 const renderTab = () => render(
   <MemoryRouter><SettingsTab user={{ username: 'sam', displayName: 'Sam' }} onLogout={() => {}} /></MemoryRouter>
@@ -29,7 +28,6 @@ const renderTab = () => render(
 describe('SettingsTab privacy choices', () => {
   beforeEach(() => {
     Object.assign(env, { native: true, required: true })
-    resetPrivacyChoicesCache()
     showPrivacyOptions.mockReset().mockResolvedValue()
   })
 

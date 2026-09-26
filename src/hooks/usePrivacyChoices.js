@@ -3,9 +3,6 @@ import { isNative } from '../utils/nativeBridge'
 import { isPrivacyOptionsRequired, showPrivacyOptions } from '../utils/adMob'
 import { useSubscription } from './useSubscription'
 
-// One consent lookup per session, however often a screen with the link opens
-let nativeRequired = null
-
 // Web: AdSense's Privacy & messaging (Funding Choices) GDPR message is
 // served by the adsbygoogle script and exposes window.googlefc. Its
 // revocation message lets the user change consent. Queued per Google's
@@ -30,18 +27,14 @@ export function usePrivacyChoices() {
 
   useEffect(() => {
     if (!native || noAds) return
+    // Cheap: reads the consent result adMob.ts stores (one UMP lookup per
+    // session there), so a later success is picked up on the next mount
     let live = true
-    nativeRequired = nativeRequired || isPrivacyOptionsRequired().catch(() => false)
-    nativeRequired.then(r => { if (live) setNativeState(r) })
+    isPrivacyOptionsRequired().catch(() => false).then(r => { if (live) setNativeState(r) })
     return () => { live = false }
   }, [native, noAds])
 
   if (noAds) return { required: false, open: () => {} }
   if (native) return { required: nativeState, open: () => showPrivacyOptions().catch(() => {}) }
   return { required: typeof window !== 'undefined' && Boolean(window.googlefc), open: openWebChoices }
-}
-
-// Tests only: forget the cached lookup
-export function resetPrivacyChoicesCache() {
-  nativeRequired = null
 }

@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const consent = { info: {} }
+const listeners = {}
 const AdMob = {
   initialize: vi.fn(() => Promise.resolve()),
   trackingAuthorizationStatus: vi.fn(() => Promise.resolve({ status: 'notDetermined' })),
   requestTrackingAuthorization: vi.fn(() => Promise.resolve()),
   hideBanner: vi.fn(() => Promise.resolve()),
+  removeBanner: vi.fn(() => Promise.resolve()),
+  addListener: vi.fn((name, cb) => { listeners[name] = cb; return Promise.resolve({ remove: () => {} }) }),
   requestConsentInfo: vi.fn(() => Promise.resolve(consent.info)),
   showConsentForm: vi.fn(() => Promise.resolve(consent.afterForm)),
   showPrivacyOptionsForm: vi.fn(() => Promise.resolve()),
@@ -18,6 +21,7 @@ vi.mock('@capacitor-community/admob', () => ({
   MaxAdContentRating: { ParentalGuidance: 'PG' },
   BannerAdPosition: { BOTTOM_CENTER: 'BOTTOM_CENTER' },
   BannerAdSize: { ADAPTIVE_BANNER: 'ADAPTIVE_BANNER' },
+  BannerAdPluginEvents: { SizeChanged: 'bannerAdSizeChanged', Loaded: 'bannerAdLoaded', FailedToLoad: 'bannerAdFailedToLoad' },
 }))
 vi.mock('../../../src/utils/nativeBridge', () => ({ isNative: () => true, getPlatform: () => 'ios' }))
 
@@ -75,7 +79,7 @@ describe('adMob consent gate (UMP canRequestAds)', () => {
     await m.showPrivacyOptions()
     window.removeEventListener(m.ADS_REVOKED_EVENT, revoked)
     expect(await m.ensureAdConsent()).toBe(false)
-    expect(AdMob.hideBanner).toHaveBeenCalled()
+    expect(AdMob.removeBanner).toHaveBeenCalled()
     expect(revoked).toHaveBeenCalledTimes(1)
   })
 
@@ -118,6 +122,89 @@ describe('adMob consent gate (UMP canRequestAds)', () => {
     const ump = AdMob.requestConsentInfo.mock.invocationCallOrder[0]
     const att = AdMob.requestTrackingAuthorization.mock.invocationCallOrder[0]
     expect(ump).toBeLessThan(att)
+  })
+})
+
+describe('init and consent edge cases', () => {
+  beforeEach(() => Object.values(AdMob).forEach(f => f.mockClear()))
+
+  it('never requests an ad when AdMob.initialize failed', async () => {
+    const m = await fresh({ status: 'NOT_REQUIRED', canRequestAds: true })
+    AdMob.initialize.mockImplementationOnce(() => Promise.reject(new Error('init failed')))
+    expect(await m.ensureAdConsent()).toBe(false)
+    await m.showBanner()
+    expect(AdMob.showBanner).not.toHaveBeenCalled()
+  })
+
+  it('waits for a consent check already in flight instead of answering false', async () => {
+    const m = await fresh({ status: 'OBTAINED', canRequestAds: true })
+    await m.initAdMobIfNeeded({ isPremium: false })
+    let release
+    // a retry-worthy failure, then a slow successful check
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      AdMob.requestConsentInfo.mockImplementationOnce(() => Promise.reject(new Error('offline')))
+      await m.showPrivacyOptions() // leaves consent unknown
+      vi.setSystemTime(Date.now() + 61_000)
+      AdMob.requestConsentInfo.mockImplementationOnce(() => new Promise(r => { release = r }))
+      const first = m.ensureAdConsent() // starts the retry
+      await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+      const second = m.ensureAdConsent() // must wait for it, not answer false
+      release({ status: 'OBTAINED', canRequestAds: true })
+      expect(await first).toBe(true)
+      expect(await second).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('banner teardown and reserved space', () => {
+  beforeEach(() => {
+    Object.values(AdMob).forEach(f => f.mockClear())
+    document.body.classList.remove('has-native-banner')
+    document.documentElement.style.removeProperty('--native-banner-height')
+  })
+
+  it('hide removes the banner (Android hide left it GONE for good); the next show builds a new one', async () => {
+    const m = await fresh({ status: 'OBTAINED', canRequestAds: true })
+    await m.showBanner()
+    await m.hideBanner()
+    expect(AdMob.removeBanner).toHaveBeenCalledTimes(1)
+    expect(AdMob.hideBanner).not.toHaveBeenCalled()
+    await m.showBanner()
+    expect(AdMob.showBanner).toHaveBeenCalledTimes(2)
+  })
+
+  it('reserves the banner height only once an ad loads, and releases it after', async () => {
+    const m = await fresh({ status: 'OBTAINED', canRequestAds: true })
+    await m.showBanner()
+    // requested but not loaded: no gap under the deck yet
+    expect(document.body.classList.contains('has-native-banner')).toBe(false)
+    listeners.bannerAdLoaded()
+    expect(document.body.classList.contains('has-native-banner')).toBe(true)
+    expect(document.documentElement.style.getPropertyValue('--native-banner-height')).toBe('60px')
+    listeners.bannerAdSizeChanged({ width: 320, height: 50 })
+    expect(document.documentElement.style.getPropertyValue('--native-banner-height')).toBe('50px')
+    listeners.bannerAdSizeChanged({ width: 0, height: 0 })
+    expect(document.documentElement.style.getPropertyValue('--native-banner-height')).toBe('50px')
+    await m.hideBanner()
+    expect(document.body.classList.contains('has-native-banner')).toBe(false)
+    expect(document.documentElement.style.getPropertyValue('--native-banner-height')).toBe('')
+  })
+
+  it('gives the space back when the banner fails to fill (regression: empty 96px gap)', async () => {
+    const m = await fresh({ status: 'OBTAINED', canRequestAds: true })
+    await m.showBanner()
+    listeners.bannerAdLoaded()
+    listeners.bannerAdFailedToLoad({ code: 3 })
+    expect(document.body.classList.contains('has-native-banner')).toBe(false)
+  })
+
+  it('no space reserved when the banner was never shown (no consent)', async () => {
+    const m = await fresh({ status: 'REQUIRED', canRequestAds: false })
+    await m.showBanner()
+    expect(document.body.classList.contains('has-native-banner')).toBe(false)
   })
 })
 

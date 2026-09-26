@@ -12,14 +12,12 @@ vi.mock('../../../src/hooks/useSubscription', () => ({ useSubscription: () => ({
 vi.mock('../../../src/contexts/DistanceContext', () => ({ useFormatDistance: () => (m) => `${m} m` }))
 
 const { FilterModal } = await import('../../../src/components/FilterModal')
-const { resetPrivacyChoicesCache } = await import('../../../src/hooks/usePrivacyChoices')
 
 // Signed-out users see ads but can't reach profile settings, so the filter
 // sheet (open to everyone) carries the Google UMP consent entry point too
 describe('FilterModal privacy choices', () => {
   beforeEach(() => {
     Object.assign(env, { native: true, required: true })
-    resetPrivacyChoicesCache()
     showPrivacyOptions.mockReset().mockResolvedValue()
   })
 

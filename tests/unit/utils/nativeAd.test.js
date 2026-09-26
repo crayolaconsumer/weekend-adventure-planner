@@ -27,7 +27,7 @@ describe('loadNativeAd', () => {
 
   it('never requests when UMP consent does not allow ads', async () => {
     consent.canRequestAds = false
-    await expect(loadNativeAd('ad-9', { isPremium: false })).rejects.toThrow()
+    await expect(loadNativeAd('ad-9', { isPremium: false })).rejects.toMatchObject({ refused: true })
     expect(initAdMobIfNeeded).toHaveBeenCalled()
     expect(plugin.load).not.toHaveBeenCalled()
   })

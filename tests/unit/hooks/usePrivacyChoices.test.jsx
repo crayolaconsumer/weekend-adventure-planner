@@ -11,12 +11,11 @@ vi.mock('../../../src/utils/adMob', () => ({
 vi.mock('../../../src/utils/nativeBridge', () => ({ isNative: () => env.native }))
 vi.mock('../../../src/hooks/useSubscription', () => ({ useSubscription: () => ({ noAds: env.noAds }) }))
 
-const { usePrivacyChoices, resetPrivacyChoicesCache } = await import('../../../src/hooks/usePrivacyChoices')
+const { usePrivacyChoices } = await import('../../../src/hooks/usePrivacyChoices')
 
 describe('usePrivacyChoices', () => {
   beforeEach(() => {
     Object.assign(env, { native: true, noAds: false, required: true })
-    resetPrivacyChoicesCache()
     isPrivacyOptionsRequired.mockReset().mockImplementation(() => Promise.resolve(env.required))
     showPrivacyOptions.mockReset().mockResolvedValue()
   })
@@ -29,13 +28,15 @@ describe('usePrivacyChoices', () => {
     expect(showPrivacyOptions).toHaveBeenCalledTimes(1)
   })
 
-  it('native: looks consent up once per session, not on every mount', async () => {
+  it('native: re-reads on mount, so an earlier false (consent unknown) is not stuck', async () => {
+    env.required = false
     const a = renderHook(() => usePrivacyChoices())
-    await waitFor(() => expect(a.result.current.required).toBe(true))
+    await act(async () => {})
+    expect(a.result.current.required).toBe(false)
     a.unmount()
+    env.required = true
     const b = renderHook(() => usePrivacyChoices())
     await waitFor(() => expect(b.result.current.required).toBe(true))
-    expect(isPrivacyOptionsRequired).toHaveBeenCalledTimes(1)
   })
 
   it('ad-free users: never asked, no consent lookup', async () => {

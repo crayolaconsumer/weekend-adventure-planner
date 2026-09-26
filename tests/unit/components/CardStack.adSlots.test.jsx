@@ -41,6 +41,7 @@ vi.mock('../../../src/components/AdCard', async () => {
           <button onClick={() => onSwipe?.('like')}>ad right</button>
           <button onClick={() => onSwipe?.('go')}>ad go</button>
           <button onClick={() => onSwipe?.('nope', { unfilled: true })}>ad skip unfilled</button>
+          <button onClick={() => onStatus(slot, 'unfilled', { waitedMs: 2500, reportedByCard: true })}>ad timeout</button>
         </div>
       ) : null
     },
@@ -192,16 +193,73 @@ describe('CardStack ad slots', () => {
     const { rerender } = renderStack()
     skipRegularCards(5)
     expect(loadNativeAd).toHaveBeenCalledWith('ad-1', { isPremium: false })
-    rerender({ places: makePlaces(9) })
+    rerender({ places: makePlaces(9, 'q') })
     await act(async () => { pending[0].reject(new Error('no fill')) })
     expect(track).not.toHaveBeenCalledWith('ad_card_unfilled', expect.anything())
     // the new deck's first ad has its own id and loads and shows normally
+    for (let i = 0; i < 5; i++) {
+      fireEvent.click(screen.getByRole('button', { name: `skip q${i}` }))
+      advance()
+    }
     const fresh = loadNativeAd.mock.calls.map(c => c[0]).filter(id => id !== 'ad-1')
     expect(fresh).toEqual(['ad-1.1'])
-    skipRegularCards(5)
     await act(async () => { pending[1].resolve({}) })
-    skipRegularCards(3, 5)
+    for (let i = 5; i < 8; i++) {
+      fireEvent.click(screen.getByRole('button', { name: `skip q${i}` }))
+      advance()
+    }
     expect(screen.getByText('ad ad-1.1')).toBeInTheDocument()
+  })
+
+  it('native: load-more (append) keeps the position, the deck and ad-1\'s loaded ad', async () => {
+    state.native = true
+    state.webFill = null
+    const { rerender } = renderStack()
+    skipRegularCards(5)
+    await flush()
+    expect(loadNativeAd).toHaveBeenCalledTimes(1)
+    rerender({ places: [...places, ...makePlaces(12).slice(9)] })
+    await flush()
+    expect(destroyNativeAd).not.toHaveBeenCalled()
+    expect(loadNativeAd).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('card p5')).toBeInTheDocument()
+    skipRegularCards(3, 5)
+    expect(screen.getByText('ad ad-1')).toBeInTheDocument()
+  })
+
+  it('native: no ad request from the stale index in the commit where the deck changes', async () => {
+    state.native = true
+    state.webFill = null
+    const { rerender } = renderStack()
+    skipRegularCards(5)
+    await flush()
+    loadNativeAd.mockClear()
+    // new deck: slot ad-1.1 sits at index 8; the old index (5) would reach it
+    rerender({ places: makePlaces(9, 'q') })
+    await flush()
+    expect(loadNativeAd).not.toHaveBeenCalled()
+    expect(screen.getByText('card q0')).toBeInTheDocument()
+  })
+
+  it('native: a load refused for consent collapses the slot without reporting a no-fill', async () => {
+    state.native = true
+    state.webFill = null
+    loadNativeAd.mockImplementation(() => Promise.reject(Object.assign(new Error('no consent'), { refused: true })))
+    renderStack()
+    skipRegularCards(5)
+    await flush()
+    expect(track).not.toHaveBeenCalledWith('ad_card_unfilled', expect.anything())
+    skipRegularCards(3, 5)
+    expect(screen.getByText('card p8')).toBeInTheDocument()
+  })
+
+  it('web: a timed-out fill collapses but is left for AdCard to report (no double count)', () => {
+    state.webFill = null
+    renderStack()
+    skipRegularCards(8)
+    fireEvent.click(screen.getByRole('button', { name: 'ad timeout' }))
+    expect(screen.getByText('card p8')).toBeInTheDocument()
+    expect(track).not.toHaveBeenCalledWith('ad_card_unfilled', expect.anything())
   })
 
   it('native: an old-deck ad that loads late is released, not shown', async () => {
@@ -211,7 +269,7 @@ describe('CardStack ad slots', () => {
     loadNativeAd.mockImplementation(() => new Promise(resolve => pending.push(resolve)))
     const { rerender } = renderStack()
     skipRegularCards(5)
-    rerender({ places: makePlaces(9) })
+    rerender({ places: makePlaces(9, 'q') })
     destroyNativeAd.mockClear()
     await act(async () => { pending[0]({}) })
     expect(destroyNativeAd).toHaveBeenCalledWith('ad-1')

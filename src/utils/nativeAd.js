@@ -47,11 +47,19 @@ function wireAnalytics() {
  * Resolves once an ad is held for `slot`; rejects on no fill or error.
  * isPremium must be the caller's noAds gate: ad-free users never request.
  */
+// A load refused before any request (ad-free user, no consent) is not a
+// no-fill: err.refused lets the deck collapse the slot without reporting it
+function refused(message) {
+  const err = new Error(message)
+  err.refused = true
+  return err
+}
+
 export async function loadNativeAd(slot, { isPremium }) {
-  if (isPremium) throw new Error('ad-free user')
+  if (isPremium) throw refused('ad-free user')
   // Init + UMP consent + ATT always run before the first request; no
   // consent (or consent still unknown after a retry) means no request
-  if (!(await ensureAdConsent())) throw new Error('consent does not allow ads')
+  if (!(await ensureAdConsent())) throw refused('consent does not allow ads')
   wireAnalytics()
   return RoamNativeAd.load({ slot, adUnitId: adUnitId() })
 }

@@ -81,15 +81,33 @@ describe('AdCard (web)', () => {
     expect(onStatus).not.toHaveBeenCalledWith('ad-2', 'filled')
   })
 
-  it('reports unfilled (with how long it waited) when nothing fills within 1200ms', () => {
+  it('collapses after 2500ms without a fill; tracks unfilled itself once the late window closes', () => {
     vi.useFakeTimers()
     const onStatus = vi.fn()
-    render(<AdCard slot="ad-3" isTop onStatus={onStatus} />)
-    act(() => { vi.advanceTimersByTime(1150) })
+    const { unmount } = render(<AdCard slot="ad-3" isTop onStatus={onStatus} />)
+    act(() => { vi.advanceTimersByTime(2450) })
     expect(onStatus).not.toHaveBeenCalled()
     act(() => { vi.advanceTimersByTime(100) })
-    expect(onStatus).toHaveBeenCalledWith('ad-3', 'unfilled', { waitedMs: expect.any(Number) })
-    expect(onStatus.mock.calls[0][2].waitedMs).toBeGreaterThanOrEqual(1200)
+    expect(onStatus).toHaveBeenCalledWith('ad-3', 'unfilled', { waitedMs: expect.any(Number), reportedByCard: true })
+    expect(onStatus.mock.calls[0][2].waitedMs).toBeGreaterThanOrEqual(2500)
+    unmount()
+    expect(track).not.toHaveBeenCalledWith('ad_card_unfilled', expect.anything())
+    act(() => { vi.advanceTimersByTime(10000) })
+    expect(track).toHaveBeenCalledTimes(1)
+    expect(track).toHaveBeenCalledWith('ad_card_unfilled', { platform: 'web', waitedMs: 2500 })
+  })
+
+  it('a fill that lands after the collapse (card gone) is recorded as lateFillMs, never pushed again', async () => {
+    vi.useFakeTimers()
+    const { container, unmount } = render(<AdCard slot="ad-3b" isTop onStatus={() => {}} />)
+    const ins = container.querySelector('ins')
+    act(() => { vi.advanceTimersByTime(2600) })
+    unmount()
+    await act(async () => { ins.setAttribute('data-ad-status', 'filled') })
+    expect(track).toHaveBeenCalledWith('ad_card_unfilled', { platform: 'web', waitedMs: 2500, lateFillMs: expect.any(Number) })
+    act(() => { vi.advanceTimersByTime(20000) })
+    expect(track.mock.calls.filter(c => c[0] === 'ad_card_unfilled')).toHaveLength(1)
+    expect(pushAdSlot).toHaveBeenCalledTimes(1)
   })
 
   it('Skip advances as a skip, once', async () => {

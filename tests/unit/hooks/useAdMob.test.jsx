@@ -17,7 +17,7 @@ vi.mock('../../../src/utils/nativeBridge', () => ({ isNative: () => true, getPla
 vi.mock('../../../src/contexts/AuthContext', () => ({ useAuth: () => ({ user: null, loading: env.authLoading }) }))
 vi.mock('../../../src/hooks/useSubscription', () => ({ useSubscription: () => ({ isPremium: false, noAds: env.noAds }) }))
 
-const { useAdMob } = await import('../../../src/hooks/useAdMob')
+const { useAdMob, shouldShowBanner } = await import('../../../src/hooks/useAdMob')
 const { setAdCardActive } = await import('../../../src/utils/nativeAd')
 
 describe('useAdMob', () => {
@@ -65,5 +65,36 @@ describe('useAdMob', () => {
     result.current.trackSwipe('nope', null)
     expect(showBanner).not.toHaveBeenCalled()
     expect(maybeShowInterstitial).not.toHaveBeenCalled()
+  })
+
+  it('a banner that lands after the screen left is taken straight down', async () => {
+    let land
+    showBanner.mockImplementationOnce(() => new Promise(r => { land = r }))
+    const { unmount } = renderHook(() => useAdMob({ bannerOnScreen: true }))
+    unmount()
+    hideBanner.mockClear()
+    await act(async () => { land() })
+    expect(hideBanner).toHaveBeenCalled()
+  })
+
+  it('a banner that lands while an ad card is up is taken straight down', async () => {
+    let land
+    showBanner.mockImplementationOnce(() => new Promise(r => { land = r }))
+    renderHook(() => useAdMob({ bannerOnScreen: true }))
+    setAdCardActive(true)
+    hideBanner.mockClear()
+    await act(async () => { land() })
+    expect(hideBanner).toHaveBeenCalled()
+  })
+})
+
+describe('shouldShowBanner (Discover gate)', () => {
+  const on = { location: { lat: 1, lng: 2 }, count: 5, loading: false, error: null }
+  it('only with a location (real or default), places showing, not loading, no error', () => {
+    expect(shouldShowBanner(on)).toBe(true)
+    expect(shouldShowBanner({ ...on, location: null })).toBe(false)
+    expect(shouldShowBanner({ ...on, count: 0 })).toBe(false)
+    expect(shouldShowBanner({ ...on, loading: true })).toBe(false)
+    expect(shouldShowBanner({ ...on, error: new Error('x') })).toBe(false)
   })
 })

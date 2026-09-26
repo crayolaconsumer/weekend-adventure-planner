@@ -104,6 +104,8 @@ let consentPrivacyRequired = false
 let consentKnown = false
 let consentAttemptAt = 0
 let consentPromise: Promise<void> | null = null
+// AdMob.initialize() succeeded: never request an ad without it
+let sdkReady = false
 const CONSENT_RETRY_MS = 60_000
 // Fired when the user withdraws consent in the privacy options form:
 // CardStack releases its native ads, the banner is hidden here
@@ -172,6 +174,7 @@ export function initAdMobIfNeeded(opts: {
       if (import.meta.env.DEV) console.warn('[AdMob] initialize failed', err)
       return
     }
+    sdkReady = true
 
     // UMP first, then ATT (Google's recommended order).
     await runConsent()
@@ -233,6 +236,9 @@ function runConsent(): Promise<void> {
  */
 export async function ensureAdConsent(): Promise<boolean> {
   await initAdMobIfNeeded({ isPremium: false })
+  if (!sdkReady) return false
+  // A check already running (e.g. the consent form is open): wait for it
+  if (consentPromise) await consentPromise
   if (!consentKnown && Date.now() - consentAttemptAt >= CONSENT_RETRY_MS) await runConsent()
   return consentCanRequestAds
 }
@@ -263,27 +269,33 @@ export async function showBanner(targeting?: AdTargeting) {
   const adMod = await getAdMobModule()
   if (!adMod) return
   const { AdMob, BannerAdPosition, BannerAdSize } = adMod
+  watchBannerSize(adMod)
 
   try {
     await AdMob.showBanner({
       adId: ids.banner,
       adSize: BannerAdSize.ADAPTIVE_BANNER,
       position: BannerAdPosition.BOTTOM_CENTER,
-      // Lift the banner above ROAM's own bottom nav (~64px). Android
-      // stacks the system gesture/nav bar below ours, so the plugin's
-      // BOTTOM_CENTER anchor needs more clearance there or the banner
-      // overlaps the tab bar (reported in the wild). iOS was fine at 64.
-      margin: getPlatform() === 'android' ? 100 : 64,
+      margin: bannerMargin(),
       isTesting: isUsingTestIds(),
       ...(targeting?.keywords?.length ? { keywords: targeting.keywords } : {}),
       ...(targeting?.contentUrl ? { contentUrl: targeting.contentUrl } : {}),
     })
     bannerVisible = true
+    // Space is reserved on bannerAdLoaded, not here: a no-fill would leave
+    // an empty gap under the deck
   } catch (err) {
     if (import.meta.env.DEV) console.warn('[AdMob] showBanner failed', err)
   }
 }
 
+/**
+ * Take the banner fully down (removeBanner, not hideBanner). The plugin's
+ * Android hideBanner only sets the view GONE, and a later showBanner
+ * reuses that view without making it visible again, so the banner never
+ * came back for the rest of the session. Removing it makes every
+ * showBanner build a fresh view on both platforms.
+ */
 export async function hideBanner() {
   if (!isNative()) return
   if (!bannerVisible) return
@@ -292,11 +304,62 @@ export async function hideBanner() {
   if (!adMod) return
 
   try {
-    await adMod.AdMob.hideBanner()
+    await adMod.AdMob.removeBanner()
     bannerVisible = false
+    reserveBannerSpace(false)
   } catch (err) {
-    if (import.meta.env.DEV) console.warn('[AdMob] hideBanner failed', err)
+    if (import.meta.env.DEV) console.warn('[AdMob] removeBanner failed', err)
   }
+}
+
+// Banner space: the native banner floats over the WebView, so while it is
+// up the page reserves room for it (body.has-native-banner and
+// --native-banner-height, used by the swipe deck) and nothing sits under it.
+const BANNER_FALLBACK_HEIGHT = 60
+const NAV_HEIGHT = 64
+let bannerHeight = BANNER_FALLBACK_HEIGHT
+let bannerSizeWatched = false
+
+// Height of ROAM's bottom nav as laid out now, in CSS px
+function navHeight() {
+  const nav = typeof document !== 'undefined' ? document.querySelector('.nav-bar') : null
+  if (!nav || typeof window === 'undefined') return null
+  return Math.round(window.innerHeight - nav.getBoundingClientRect().top)
+}
+
+export function bannerMargin() {
+  // Sit the banner directly on ROAM's bottom nav. On Android the plugin's
+  // margin counts from the WebView's bottom (MainActivity pads the system
+  // bars), so the nav's measured height lands it exactly; the old fixed 100
+  // left a 40px dead gap on a Pixel 3a. iOS was verified at 64.
+  if (getPlatform() === 'android') return navHeight() ?? 100
+  return NAV_HEIGHT
+}
+
+export function reserveBannerSpace(on: boolean) {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle('has-native-banner', on)
+  // Banner height, plus any gap the margin leaves above our nav
+  const space = bannerHeight + Math.max(0, bannerMargin() - (navHeight() ?? NAV_HEIGHT))
+  if (on) document.documentElement.style.setProperty('--native-banner-height', `${space}px`)
+  else document.documentElement.style.removeProperty('--native-banner-height')
+}
+
+function watchBannerSize(adMod: NonNullable<Awaited<ReturnType<typeof getAdMobModule>>>) {
+  if (bannerSizeWatched) return
+  bannerSizeWatched = true
+  const { AdMob, BannerAdPluginEvents } = adMod
+  // Height in dp / pt, i.e. CSS px. 0 is sent when the banner goes away.
+  AdMob.addListener(BannerAdPluginEvents.SizeChanged, (size) => {
+    if (!size?.height) return
+    bannerHeight = size.height
+    if (bannerVisible && document.body.classList.contains('has-native-banner')) reserveBannerSpace(true)
+  }).catch(() => {})
+  // Only make room once an ad is actually there; give it back on no-fill
+  AdMob.addListener(BannerAdPluginEvents.Loaded, () => {
+    if (bannerVisible) reserveBannerSpace(true)
+  }).catch(() => {})
+  AdMob.addListener(BannerAdPluginEvents.FailedToLoad, () => reserveBannerSpace(false)).catch(() => {})
 }
 
 /**
@@ -391,8 +454,9 @@ export async function maybeShowInterstitial({ isPremium, targeting, afterAdCard 
  */
 export async function isPrivacyOptionsRequired(): Promise<boolean> {
   if (!isNative()) return false
-  // Read from init's consent check (it runs once per session anyway)
-  await initAdMobIfNeeded({ isPremium: false })
+  // Reads the stored consent result (retrying a failed check like any ad
+  // request would), so callers can ask on every mount
+  await ensureAdConsent()
   return consentPrivacyRequired
 }
 
