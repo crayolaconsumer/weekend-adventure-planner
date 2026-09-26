@@ -95,25 +95,29 @@ function page(town, places) {
   <meta name="twitter:url" content="${url}" />
   <meta name="twitter:title" content="${t}" />
   <meta name="twitter:description" content="${d}" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500&family=Outfit:wght@400;600&display=swap" />
   <style>
+    /* Colours are the app's dark-theme tokens (src/index.css [data-theme="dark"]) */
     :root { color-scheme: dark; }
-    body { margin: 0; background: #0d1117; color: #e6edf3; font: 16px/1.55 system-ui, sans-serif; }
-    header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #21262d; }
-    header a { color: #e6edf3; text-decoration: none; font-weight: 600; }
+    body { margin: 0; background: #0d1b16; color: #f4ecdc; font: 16px/1.55 'Outfit', system-ui, sans-serif; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid #1f3a30; }
+    header a { color: #8fbfa3; text-decoration: none; font-weight: 600; }
+    header a.brand { font-family: 'Newsreader', Georgia, serif; font-size: 1.4rem; font-weight: 500; letter-spacing: 0.08em; color: #f4ecdc; }
     main { max-width: 640px; margin: 0 auto; padding: 24px 20px 48px; }
-    h1 { font-size: 1.6rem; margin: 0 0 8px; }
-    p.lead { margin: 0 0 20px; color: #9aa4b2; }
-    ul { list-style: none; padding: 0; margin: 0 0 24px; }
-    li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #21262d; border-radius: 10px; margin-bottom: 8px; }
-    li a { color: #e6edf3; text-decoration: none; font-weight: 600; }
-    li span { color: #9aa4b2; font-size: 0.85rem; }
-    .cta { display: inline-block; background: #e8590c; color: #fff; font-weight: 700; text-decoration: none; padding: 12px 20px; border-radius: 12px; }
-    footer { text-align: center; color: #9aa4b2; padding: 24px; font-size: 0.85rem; }
+    h1 { font-family: 'Newsreader', Georgia, serif; font-weight: 500; font-size: 2.25rem; margin: 0 0 8px; }
+    p.lead { margin: 0 0 24px; color: #d0c5b0; }
+    ul { list-style: none; padding: 0; margin: 0 0 28px; }
+    li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; background: #faf8f5; border-radius: 16px; margin-bottom: 8px; }
+    li a { color: #2a2520; text-decoration: none; font-weight: 600; }
+    li span { background: #a8c4ae; color: #1a3a2f; font-size: 0.75rem; padding: 2px 10px; border-radius: 9999px; text-transform: capitalize; white-space: nowrap; }
+    .cta { display: inline-block; background: #e07a5f; color: #fff; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 9999px; }
+    footer { text-align: center; color: #8a8275; padding: 24px; font-size: 0.85rem; }
+    footer a { color: #8fbfa3; }
   </style>
 </head>
 <body>
   <header>
-    <a href="/">ROAM</a>
+    <a class="brand" href="/">ROAM</a>
     <a href="/get-roam">Get the app</a>
   </header>
   <main>
