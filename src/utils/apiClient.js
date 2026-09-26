@@ -19,6 +19,7 @@ import { selectBestImage } from './imageScoring'
 import { recordApiCall } from './apiTelemetry'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 import { nearestSeed } from './seedFloor'
+import { pickPlaceElement } from '../../shared/osmPick.mjs'
 
 // Public Overpass instances for the CLIENT-DIRECT fallback — used only
 // when the server proxy (/api/places/overpass/nearby) times out. This
@@ -1110,7 +1111,9 @@ export async function fetchPlaceById(placeId) {
     `
 
     const data = await fetchFromOverpass(query)
-    const places = parseOverpassResponse(data)
+    // A bare number can be a node AND a way (separate id spaces): pick the real place
+    const picked = pickPlaceElement(data.elements)
+    const places = parseOverpassResponse({ elements: picked ? [picked] : [] })
 
     if (places.length > 0) {
       return { ...places[0], source: 'osm' }

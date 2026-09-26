@@ -14,6 +14,7 @@ export const config = {
 import { waitUntil } from '@vercel/functions'
 import { recordCronRun } from '../lib/cronRuns.js'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
+import { appOrigin } from '../lib/origin.js'
 
 const JOB_NAME = 'overpass-prewarm'
 // 4s between chained warm calls (was 1s). Warming 48 cities × 5 radii = 240
@@ -120,11 +121,6 @@ function isAuthorized(req) {
   return false
 }
 
-function getOrigin(req) {
-  const proto = req.headers['x-forwarded-proto'] || 'https'
-  const host = req.headers['x-forwarded-host'] || req.headers.host
-  return `${proto}://${host}`
-}
 
 function getIntParam(value, fallback = 0) {
   const parsed = parseInt(Array.isArray(value) ? value[0] : value, 10)
@@ -254,7 +250,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, runId, total: TARGETS.length, sent, failed })
   }
 
-  const origin = getOrigin(req)
+  const origin = appOrigin(req)
   waitUntil(
     processOne(req, origin, index, sent, failed, runId).catch(err => {
       console.error(`[cron] ${JOB_NAME} step crashed:`, err?.message || err)

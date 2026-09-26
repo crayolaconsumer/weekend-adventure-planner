@@ -49,7 +49,7 @@ async function handler(req, res) {
   }
 
   // Get and validate query parameters
-  const { lat, lng, radius = '30', page = '0' } = req.query
+  const { lat, lng, radius = '30', page = '0', from, to } = req.query
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'Missing required parameters: lat, lng' })
@@ -82,11 +82,14 @@ async function handler(req, res) {
     // Convert km to miles for Ticketmaster
     const radiusMiles = Math.round(radiusKm * 0.621371)
 
-    // Build date range (now to 4 weeks out)
+    // Date range: now to 4 weeks out, or an explicit from/to (YYYY-MM-DD, used
+    // by town pages for "this weekend" so busy cities aren't cut off at 50 results)
+    const day = /^\d{4}-\d{2}-\d{2}$/
     const now = new Date()
     const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000)
-    const startDateTime = now.toISOString().slice(0, 19) + 'Z'
-    const endDateTime = endDate.toISOString().slice(0, 19) + 'Z'
+    // An hour early: UK midnight is 23:00Z during BST (callers filter by local date)
+    const startDateTime = day.test(from || '') ? new Date(Date.parse(`${from}T00:00:00Z`) - 3600000).toISOString().slice(0, 19) + 'Z' : now.toISOString().slice(0, 19) + 'Z'
+    const endDateTime = day.test(to || '') ? `${to}T23:59:59Z` : endDate.toISOString().slice(0, 19) + 'Z'
 
     const params = new URLSearchParams({
       apikey: apiKey,
@@ -109,6 +112,7 @@ async function handler(req, res) {
     const response = await fetch(
       `https://app.ticketmaster.com/discovery/v2/events.json?${params}`,
       {
+        signal: AbortSignal.timeout(8000),
         headers: {
           'Accept': 'application/json',
           'Accept-Language': 'en-GB,en;q=0.9',

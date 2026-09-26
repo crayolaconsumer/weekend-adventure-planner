@@ -14,7 +14,9 @@
 import { Redis } from '@upstash/redis'
 import { cacheGet, cacheSet, isCacheEnabled } from './kvCache.js'
 import { TOWNS } from '../../shared/towns.mjs'
+import { UK_TOWNS } from '../../shared/ukTowns.mjs'
 import { CATEGORY_SVGS } from './brandSvgs.js'
+import { eventWhen } from './townEvents.js'
 import { haversineKm } from './promotedEventPush.js'
 import { APP_STORE_ID, APP_STORE_URL, PLAY_STORE_URL } from '../../shared/appLinks.mjs'
 
@@ -111,7 +113,7 @@ async function nominatim(path, fetchImpl, gate = nominatimGate) {
   return res.json()
 }
 
-async function cached(key, ttlFor, compute) {
+export async function cached(key, ttlFor, compute) {
   if (isCacheEnabled()) {
     const hit = await cacheGet(key)
     if (hit) return hit.value
@@ -143,6 +145,8 @@ export function townFromResult(slug, r) {
   }
 }
 
+const UK_TOWN_BY_SLUG = new Map(UK_TOWNS.map(t => [t.slug, t]))
+
 // Curated name/blurb for featured towns, applied on read so editing the
 // featured list takes effect immediately (it used to be baked into the cache)
 function withFeatured(town) {
@@ -159,12 +163,16 @@ async function searchSettlement(text, fetchImpl, gate) {
 }
 
 /** Resolve a slug to a town, or null if nothing matches. Errors throw (so they aren't cached). */
-export async function resolveTown(slug, { fetchImpl = fetch, gate } = {}) {
-  // v2: v1 entries have featured names baked in
-  return withFeatured(await cached(`town:geo:v2:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
+export async function resolveTown(slug, { fetchImpl = fetch, gate, raw = false } = {}) {
+  // Sitemap towns ship with their geocoded record: crawlers never wait on Nominatim.
+  // raw: geocoder only, no shipped table or featured text (the generator verifies with it)
+  const known = !raw && UK_TOWN_BY_SLUG.get(slug)
+  if (known) return withFeatured({ ...known, blurb: null })
+  const town = await cached(`town:geo:v2:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
     const r = await searchSettlement(slug.replace(/-/g, ' '), fetchImpl, gate)
     return r ? townFromResult(slug, r) : null
-  }))
+  })
+  return raw ? town : withFeatured(town)
 }
 
 /**
@@ -329,7 +337,7 @@ const jsonLd = obj => JSON.stringify(obj).replace(/</g, '\\u003c')
 
 const KIND_LABEL = { fast_food: 'takeaway', historic_building: 'historic', theme_park: 'theme park', picnic_site: 'picnic spot', water: 'lake', wood: 'woodland', place_of_worship: 'landmark', manor: 'historic house', archaeological_site: 'archaeology', nature_reserve: 'nature reserve' }
 // Sentence case like the app's tags: "Historic house", not "Historic House"
-const kindLabel = k => {
+export const kindLabel = k => {
   const t = KIND_LABEL[k] || String(k || '').replace(/_/g, ' ')
   return t && t[0].toUpperCase() + t.slice(1)
 }
@@ -343,6 +351,9 @@ const KIND_ICON = {
   cafe: 'food', restaurant: 'food', pub: 'food', bar: 'food', fast_food: 'food'
 }
 const GROUP_ICON = { sights: 'culture', outdoors: 'nature', food: 'food' }
+const OUTDOOR_KINDS = new Set(GROUPS.find(g => g.key === 'outdoors').kinds)
+/** CategoryIcon name for an OSM kind (share preview cards), or null if none fits */
+export const iconForKind = kind => KIND_ICON[kind] || (OUTDOOR_KINDS.has(kind) ? 'nature' : null)
 const PIN_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>'
 
 // Placeholder tile now; photoScript swaps in a photo if the resolver finds one.
@@ -395,6 +406,8 @@ const STYLE = `
   ul.places { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
   ul.places a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--roam-parchment); border-radius: 16px; color: var(--roam-ink); text-decoration: none; box-shadow: var(--shadow-sm); }
   ul.places a:hover { box-shadow: var(--shadow-md); }
+  /* Event date tile: weekday over day and month, in the forest used for primary actions */
+  .when { display: grid; place-items: center; width: 56px; height: 56px; flex: 0 0 56px; border-radius: 8px; background: #1a3a2f; color: #fdfcf8; font-size: 0.75rem; font-weight: 600; text-align: center; line-height: 1.2; padding: 4px; }
   /* Photo thumb with PlaceImage's branded placeholder underneath (src/components/PlaceImage.css) */
   .thumb { position: relative; display: grid; place-items: center; width: 56px; height: 56px; flex: 0 0 56px; border-radius: 8px; overflow: hidden;
     background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--roam-gold) 18%, transparent) 0%, transparent 55%),
@@ -403,6 +416,7 @@ const STYLE = `
   .thumb svg { width: 28px; height: 28px; }
   .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .name { flex: 1; min-width: 0; font-family: 'Newsreader', Georgia, serif; font-size: 1.125rem; font-weight: 500; overflow-wrap: anywhere; }
+  .name small { display: block; font-family: 'Outfit', system-ui, sans-serif; font-size: 0.8125rem; color: var(--roam-ink-muted); font-weight: 400; }
   .tag { padding: 2px 8px; border-radius: 9999px; background: color-mix(in srgb, var(--roam-sage) 22%, transparent); color: var(--roam-forest); font-size: 0.75rem; white-space: nowrap; }
   .more { color: var(--roam-ink-muted); font-size: 0.875rem; margin: 8px 0 0; }
   .get { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; margin: 40px 0 8px; padding: 20px; border-radius: 24px; background: #1a3a2f; color: #fdfcf8; }
@@ -522,13 +536,13 @@ ${TOWNS.filter(t => t.slug !== excludeSlug).map(t => `      <li><a class="chip" 
     </ul>`
 }
 
-export function renderTownPage(town, grouped) {
+export function renderTownPage(town, grouped, events = []) {
   const url = `${SITE}/town/${town.slug}`
   const description = describeTown(town, grouped)
   const where = [town.region && town.region !== town.name ? town.region : null, town.country].filter(Boolean).join(', ')
-  const jump = grouped.groups.length > 1
+  const jump = grouped.groups.length + (events.length ? 1 : 0) > 1
     ? `    <ul class="jump">
-${grouped.groups.map(g => `      <li><a class="chip" href="#${g.key}">${CATEGORY_SVGS[GROUP_ICON[g.key]]}${escapeHtml(g.title)}</a></li>`).join('\n')}
+${grouped.groups.map(g => `      <li><a class="chip" href="#${g.key}">${CATEGORY_SVGS[GROUP_ICON[g.key]]}${escapeHtml(g.title)}</a></li>`).join('\n')}${events.length ? `\n      <li><a class="chip" href="#weekend">${CATEGORY_SVGS.entertainment}This weekend</a></li>` : ''}
     </ul>\n`
     : ''
   const sections = grouped.groups.map(g => `    <h2 id="${g.key}">${CATEGORY_SVGS[GROUP_ICON[g.key]]}${escapeHtml(g.title)}</h2>
@@ -553,7 +567,14 @@ ${g.places.map(p => `      <li><a href="/place/${encodeURIComponent(p.id)}">${th
         itemListElement: grouped.groups.flatMap(g => g.places).map((p, i) => ({
           '@type': 'ListItem', position: i + 1, name: p.name, url: `${SITE}/place/${encodeURIComponent(p.id)}`
         }))
-      }
+      },
+      ...events.map(e => ({
+        '@type': 'Event',
+        name: e.name,
+        startDate: e.time ? `${e.date}T${e.time}` : e.date,
+        url: e.url,
+        location: { '@type': 'Place', name: e.venue || town.name, address: [town.name, town.region, town.country].filter(Boolean).join(', ') }
+      }))
     ]
   }
 
@@ -561,7 +582,12 @@ ${g.places.map(p => `      <li><a href="/place/${encodeURIComponent(p.id)}">${th
     ${where ? `<p class="where">${escapeHtml(where)}</p>` : ''}
     <p class="lead">${escapeHtml(description)}</p>
 ${jump}${sections || '    <p class="lead">Places didn\'t load this time. Refresh in a minute, or open ROAM to explore what\'s around.</p>'}
-${getAppBlock(town.slug, town.name)}
+${events.length ? `    <h2 id="weekend">${CATEGORY_SVGS.entertainment}This weekend in ${escapeHtml(town.name)}</h2>
+    <ul class="places">
+${events.map(e => `      <li><a href="${escapeHtml(e.url)}" target="_blank" rel="noopener"><span class="when">${escapeHtml(eventWhen(e).split(',')[0])}</span><span class="name">${escapeHtml(e.name)}${e.venue ? `<small>${escapeHtml(e.venue)}</small>` : ''}</span><span class="tag">${escapeHtml(eventWhen(e).split(', ')[1] || 'All day')}</span></a></li>`).join('\n')}
+    </ul>
+    <p class="more">Tickets and times from Ticketmaster.</p>
+` : ''}${getAppBlock(town.slug, town.name)}
     <h2>Explore another town</h2>
 ${searchForm()}
     <h2>Popular towns</h2>

@@ -36,6 +36,10 @@
     "api/town.js": {
       "maxDuration": 60
     },
+    "api/share-meta.js": {
+      "maxDuration": 15,
+      "includeFiles": "dist/index.html"
+    },
     "api/cron/prewarm-overpass.js": {
       "maxDuration": 120
     },
@@ -56,6 +60,9 @@
     { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
     { "source": "/town", "destination": "/api/town" },
+    { "source": "/place/:id", "destination": "/api/share-meta?kind=place&id=:id" },
+    { "source": "/plan/share/:code", "destination": "/api/share-meta?kind=plan&code=:code" },
+    { "source": "/user/:username", "destination": "/api/share-meta?kind=user&username=:username" },
     { "source": "/town/:slug", "destination": "/api/town?slug=:slug" },
     { "source": "/((?!api/|assets/|icons/|\\.well-known/|manifest\\.json|sw\\.js|robots\\.txt|ads\\.txt|app-ads\\.txt|sitemap\\.xml).*)", "destination": "/" }
   ],

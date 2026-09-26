@@ -20,25 +20,27 @@
  * @param {string} [options.html] - HTML body
  * @returns {Promise<{sent: boolean, provider: string}>}
  */
+// Display names are user-chosen and go into email HTML
+const escapeHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 export async function sendEmail({ to, subject, text, html }) {
   // Check if Resend is configured
   if (process.env.RESEND_API_KEY) {
+    // Resend's HTTP API directly: the 'resend' SDK was never installed, so
+    // every email since launch failed on the import
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
-
-      await resend.emails.send({
-        from: 'ROAM <noreply@go-roam.uk>',
-        to,
-        subject,
-        text,
-        html
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'ROAM <noreply@go-roam.uk>', to, subject, text, html }),
+        signal: AbortSignal.timeout(10000)
       })
-
+      if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`)
       return { sent: true, provider: 'resend' }
     } catch (err) {
-      console.error('Email send error:', err)
-      // Fall through to console logging
+      console.error('Email send error:', err.message)
+      // Report the failure honestly (this used to fall through to "sent")
+      return { sent: false, provider: 'resend', error: err.message }
     }
   }
 
@@ -46,7 +48,7 @@ export async function sendEmail({ to, subject, text, html }) {
   // In development, uncomment the logs below to debug email content
   // console.log('EMAIL (no provider configured)', { to, subject })
 
-  return { sent: true, provider: 'console' }
+  return { sent: false, provider: 'none' }
 }
 
 /**
@@ -76,7 +78,7 @@ If you have any questions, just reply to this email.
 
 - The ROAM Team`,
     html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto;">
-  <p>${greeting},</p>
+  <p>${escapeHtml(greeting)},</p>
   <p>We weren't able to process your payment for ROAM Premium.</p>
   <p><a href="https://go-roam.uk/profile" style="display: inline-block; padding: 12px 24px; background: #1a3a2f; color: white; text-decoration: none; border-radius: 8px; font-weight: 500;">Update Payment Method</a></p>
   <p style="color: #666; font-size: 14px;"><strong>What happens next:</strong></p>
@@ -114,7 +116,7 @@ Get started:
 Happy exploring!
 - The ROAM Team`,
     html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto;">
-  <h2 style="color: #1a3a2f;">${greeting}!</h2>
+  <h2 style="color: #1a3a2f;">${escapeHtml(greeting)}!</h2>
   <p>Thanks for joining ROAM - your new adventure companion!</p>
   <p><strong>Get started:</strong></p>
   <ol>

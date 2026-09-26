@@ -865,7 +865,7 @@ export async function getPlannedVisitsForToday() {
      FROM saved_places sp
      LEFT JOIN visited_places vp
        ON vp.user_id = sp.user_id AND vp.place_id = sp.place_id
-     WHERE DATE(sp.planned_date) = CURDATE()
+     WHERE sp.planned_date >= CURDATE() AND sp.planned_date < CURDATE() + INTERVAL 1 DAY
        AND (sp.visited = 0 OR sp.visited IS NULL)
        AND vp.id IS NULL`,
     []

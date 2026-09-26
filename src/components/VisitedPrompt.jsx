@@ -14,6 +14,7 @@ import PhotoUpload from './PhotoUpload'
 import { tap as hapticTap, success as hapticSuccess, warn as hapticWarn } from '../utils/haptics'
 import SharePlaceButton from './SharePlaceButton'
 import { isShareablePlaceId } from '../utils/shareCard'
+import { afterLovedVisit } from '../utils/reviewPrompt'
 import './VisitedPrompt.css'
 
 // Pre-generated confetti particles. The container is full-viewport, so each
@@ -219,10 +220,14 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     // screen waits for "Done"; otherwise auto-close as before.
     onConfirm?.(place, recommended)
     if (!offerShare) {
-      setTimeout(() => {
-        onDismiss?.()
-      }, 2500)
+      setTimeout(recommended === true ? closeLoved : () => onDismiss?.(), 2500)
     }
+  }
+
+  // A visit they loved is the moment a store rating comes from a happy user
+  const closeLoved = () => {
+    afterLovedVisit()
+    onDismiss?.()
   }
 
   const handleSkipRating = () => {
@@ -629,7 +634,7 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                     <p className="visited-subtitle">Know someone who'd love {place.name} too?</p>
                     <div className="visited-actions">
                       <SharePlaceButton place={place} source="visited" className="visited-btn primary" />
-                      <button className="visited-btn secondary" onClick={onDismiss}>Done</button>
+                      <button className="visited-btn secondary" onClick={closeLoved}>Done</button>
                     </div>
                   </>
                 ) : (

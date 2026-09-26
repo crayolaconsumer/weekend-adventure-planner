@@ -18,6 +18,10 @@ export const config = { runtime: 'nodejs' }
 import { recordCronRun } from '../lib/cronRuns.js'
 import { sendEmail } from '../lib/email.js'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
+import { appOrigin } from '../lib/origin.js'
+import { cacheGet, cacheSet } from '../lib/kvCache.js'
+
+const ALERT_THROTTLE_KEY = 'alert:discover-probe'
 
 const JOB_NAME = 'discover-probe'
 const ALERT_EMAIL = process.env.MODERATION_ALERT_EMAIL || 'fittonj@gmail.com'
@@ -40,11 +44,6 @@ function isAuthorized(req) {
   return false
 }
 
-function getOrigin(req) {
-  const proto = req.headers['x-forwarded-proto'] || 'https'
-  const host = req.headers['x-forwarded-host'] || req.headers.host
-  return `${proto}://${host}`
-}
 
 async function probeCity(origin, city) {
   const { query } = buildDiscoverOverpassQuery(city.lat, city.lng, PROBE_RADIUS, null)
@@ -75,7 +74,7 @@ export default async function handler(req, res) {
 
   // Probe all cities in parallel so total time ~= the slowest single call,
   // staying well inside the function budget.
-  const results = await Promise.all(PROBE_CITIES.map(c => probeCity(getOrigin(req), c)))
+  const results = await Promise.all(PROBE_CITIES.map(c => probeCity(appOrigin(req), c)))
   const failures = results.filter(r => !r.ok)
   const healthy = results.length - failures.length
 
@@ -83,12 +82,15 @@ export default async function handler(req, res) {
   // usually a transient Overpass wobble that self-heals, and paging on every
   // one is noise (especially during a launch). Every run is still recorded in
   // cron_runs below, so the full health history is preserved either way.
-  if (failures.length >= 2) {
+  // At most one email per 6h: this runs every 30 min, and an outage would
+  // otherwise send 12 a day (the alerts had never actually been delivered)
+  const recentlyAlerted = failures.length >= 2 && await cacheGet(ALERT_THROTTLE_KEY).catch(() => null)
+  if (failures.length >= 2 && !recentlyAlerted) {
     const detail = results
       .map(r => `${r.ok ? 'OK  ' : 'FAIL'} ${r.city}: ${r.ok ? `${r.count} places` : r.reason}`)
       .join('\n')
     try {
-      await sendEmail({
+      const { sent } = await sendEmail({
         to: ALERT_EMAIL,
         subject: `[ROAM ALERT] Discover empty/failing in ${failures.length}/${results.length} probe cities`,
         text:
@@ -96,6 +98,8 @@ export default async function handler(req, res) {
           `This usually means degraded Overpass mirrors (200 + zero elements), a poisoned cache, or an outage. ` +
           `Check /api/places/overpass/nearby and the upstream mirror health. Discover may be empty for users in the FAIL cities.`,
       })
+      // Throttle only after a real send, so a failed send doesn't mute the next alert
+      if (sent) await cacheSet(ALERT_THROTTLE_KEY, { at: Date.now() }, 6 * 60 * 60).catch(() => {})
     } catch (err) {
       console.error('[discover-probe] alert email failed:', err?.message || err)
     }

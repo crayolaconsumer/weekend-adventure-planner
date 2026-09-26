@@ -46,12 +46,14 @@ export default async function handler(req, res) {
       })
     }
 
-    // Send notifications
-    const results = await Promise.allSettled(
-      plannedVisits.map(visit =>
+    // Send in chunks of 20: each send runs 2 DB queries, and firing them all at
+    // once overflows the pool queue (8 connections + 30 queued) at ~40 visits
+    const results = []
+    for (let i = 0; i < plannedVisits.length; i += 20) {
+      results.push(...await Promise.allSettled(plannedVisits.slice(i, i + 20).map(visit =>
         notifyPlannedVisit(visit.userId, visit.placeName, visit.placeId)
-      )
-    )
+      )))
+    }
 
     sent = results.filter(r => r.status === 'fulfilled' && r.value === true).length
     failed = results.filter(r => r.status === 'rejected' || r.value === false).length

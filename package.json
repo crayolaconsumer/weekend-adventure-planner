@@ -20,6 +20,7 @@
     "@ai-sdk/gateway": "^3.0.112",
     "@capacitor-community/admob": "^8.0.0",
     "@capacitor-community/apple-sign-in": "^7.1.0",
+    "@capacitor-community/in-app-review": "^8.0.0",
     "@capacitor/android": "^8.3.3",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",

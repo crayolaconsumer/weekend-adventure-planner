@@ -421,6 +421,22 @@ describe('renderTownPage', () => {
     expect(page).toContain("fetch('/api/places/image-resolve?'+t.dataset.img)")
   })
 
+  it('shows this weekend\'s events with ticket links and Event structured data', () => {
+    const events = [{ name: 'Jazz <Night>', date: '2026-10-03', time: '20:00', venue: 'Alban Arena', url: 'https://www.ticketmaster.co.uk/e/1' }]
+    const page = renderTownPage(town, grouped, events)
+    expect(page).toContain('<h2 id="weekend">')
+    expect(page).toContain('This weekend in Paris')
+    expect(page).toContain('href="#weekend"')
+    expect(page).toContain('href="https://www.ticketmaster.co.uk/e/1" target="_blank" rel="noopener"')
+    expect(page).toContain('Jazz &lt;Night&gt;')
+    const ld = JSON.parse(page.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)[1])
+    expect(ld['@graph'].find(n => n['@type'] === 'Event')).toMatchObject({ name: 'Jazz <Night>', startDate: '2026-10-03T20:00' })
+  })
+
+  it('no events section when there are none', () => {
+    expect(renderTownPage(town, grouped)).not.toContain('id="weekend"')
+  })
+
   it('credits OpenStreetMap (ODbL requirement)', () => {
     expect(html).toContain('OpenStreetMap contributors')
   })

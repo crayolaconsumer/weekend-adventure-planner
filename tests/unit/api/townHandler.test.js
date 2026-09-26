@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHandler, callOverpassProxy, parseNear } from '../../../api/town.js'
+import { weekendWindow } from '../../../api/lib/townEvents.js'
 
 // Tests don't wait for the real 1 req/s Nominatim gate (covered in towns.test.js)
 const gate = async () => {}
+// Ticketmaster stand-in: no events unless a test says otherwise
+const noEvents = async (req, res) => res.status(200).json({})
 
 const HATFIELD = { name: 'Hatfield', lat: '51.7635', lon: '-0.2259', address: { town: 'Hatfield', county: 'Hertfordshire', country: 'United Kingdom', country_code: 'gb' } }
 const PLACES = { elements: [
@@ -48,7 +51,7 @@ describe('api/town — web pages', () => {
   beforeEach(() => {
     fetchImpl = nominatim()
     px = proxy()
-    handler = createHandler({ proxy: px, fetchImpl, gate })
+    handler = createHandler({ proxy: px, fetchImpl, gate, ticketmaster: noEvents })
   })
 
   it('renders any town live, with places from the proxy', async () => {
@@ -63,6 +66,36 @@ describe('api/town — web pages', () => {
     // proxy got a real bbox around the geocoded (not hardcoded) position
     const query = px.mock.calls[0][0].body.query
     expect(query).toContain('[bbox:51.7335,-0.2649,51.7935,-0.1869]')
+  })
+
+  it('sitemap towns come from the shipped table: no geocoder call at all (regression: crawls 503ed on the gate)', async () => {
+    const f = vi.fn()
+    const h = createHandler({ proxy: proxy(), fetchImpl: f, gate, ticketmaster: noEvents })
+    const res = await run(h, { slug: 'belfast' })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('<h1>Belfast</h1>')
+    expect(f).not.toHaveBeenCalled()
+  })
+
+  it('lists this weekend\'s events end to end, from the Ticketmaster proxy\'s real response shape (regression)', async () => {
+    const { from } = weekendWindow(new Date())
+    const ticketmaster = vi.fn(async (req, res) => res.status(200).json({
+      events: [{ name: 'Folk Night', url: 'https://www.ticketmaster.co.uk/e/9', dates: { start: { localDate: from, localTime: '19:30:00' } }, _embedded: { venues: [{ name: 'The Horn' }] } }],
+      pagination: null, _links: null
+    }))
+    const h = createHandler({ proxy: px, fetchImpl, gate, ticketmaster })
+    const res = await run(h, { slug: 'hatfield' })
+    expect(res.body).toContain('This weekend in Hatfield')
+    expect(res.body).toContain('Folk Night<small>The Horn</small>')
+    expect(res.headers['cache-control']).toBe('public, s-maxage=10800, stale-while-revalidate=3600')
+  })
+
+  it('a Ticketmaster failure retries events in 3h, not a day, and never re-renders places every 10 min (regression)', async () => {
+    const down = vi.fn(async (req, res) => res.status(500).json({ error: 'x' }))
+    const h = createHandler({ proxy: px, fetchImpl, gate, ticketmaster: down })
+    const res = await run(h, { slug: 'hatfield' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['cache-control']).toBe('public, s-maxage=10800, stale-while-revalidate=3600')
   })
 
   it('passes the visitor IP to the proxy so its per-IP rate limit still applies', async () => {
@@ -109,7 +142,8 @@ describe('api/town — web pages', () => {
 
   it('503s (uncached, noindex, says so) when the geocoder is down', async () => {
     handler = createHandler({ proxy: px, fetchImpl: nominatim({ down: true }), gate })
-    const res = await run(handler, { slug: 'hatfield' })
+    // a town outside the shipped UK table, so it needs the geocoder
+    const res = await run(handler, { slug: 'lyon' })
     expect(res.statusCode).toBe(503)
     expect(res.headers['cache-control']).toBe('no-store')
     expect(res.body).toContain('Town search is busy')
@@ -136,9 +170,10 @@ describe('api/town — web pages', () => {
 
   it('falls back to the requested URL if the canonical check fails, instead of 503', async () => {
     let calls = 0
-    const f = vi.fn(async () => (++calls === 1 ? jsonResponse([{ name: 'St Albans', lat: '51.75', lon: '-0.34', address: {} }]) : { ok: false, status: 503 }))
+    // towns outside the shipped UK table, so both lookups go to the geocoder
+    const f = vi.fn(async () => (++calls === 1 ? jsonResponse([{ name: 'Saint-Tropez', lat: '43.27', lon: '6.64', address: {} }]) : { ok: false, status: 503 }))
     const h = createHandler({ proxy: proxy(), fetchImpl: f, gate })
-    const res = await run(h, { slug: 'saint-albans' })
+    const res = await run(h, { slug: 'st-tropez-var' })
     expect(res.statusCode).toBe(200)
   })
 

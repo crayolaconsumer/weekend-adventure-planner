@@ -17,6 +17,8 @@
  */
 
 import overpassProxy from './places/overpass/nearby.js'
+import ticketmasterProxy from './events/ticketmaster.js'
+import { weekendEvents } from './lib/townEvents.js'
 import { applyRateLimit, getRateLimitKey } from './lib/rateLimit.js'
 import {
   slugify, isValidSlug, resolveTown, resolveNear, slugForQuery, townOverpassQuery, groupPlaces,
@@ -35,6 +37,7 @@ const NEAR_RATE_LIMIT = { windowMs: 5 * 60 * 1000, max: 10, blockDurationMs: 10 
 // A day at the CDN: places change slowly, and ~1,650 sitemap towns being crawled
 // must not turn into ~1,650 Overpass queries an hour
 const LONG_CACHE = 'public, s-maxage=86400, stale-while-revalidate=604800'
+const EVENTS_CACHE = 'public, s-maxage=10800, stale-while-revalidate=3600'
 // Under the service worker's 30s navigation timeout (public/sw.js), so a
 // returning visitor gets this page rather than the SPA fallback. One slow
 // Overpass mirror (28s) can't fit; the page then renders without places,
@@ -133,7 +136,7 @@ export function parseNear(value) {
   return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null
 }
 
-export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate } = {}) {
+export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, ticketmaster = ticketmasterProxy } = {}) {
   const geo = { fetchImpl, gate }
   return async function handler(req, res) {
     const deadline = Date.now() + BUDGET_MS
@@ -211,16 +214,25 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate }
       // One hop to the final URL ("Saint-Albans" → st-albans), never a chain
       if (canonical !== rawSlug) return redirect(res, 301, `/town/${canonical}`)
 
-      const { grouped, ok } = await fetchGroupedPlaces(town, getRateLimitKey(req), proxy, deadline)
+      const ip = getRateLimitKey(req)
+      // Events are extra: fetched alongside places, never allowed to hold the page up
+      const [{ grouped, ok }, events] = await Promise.all([
+        fetchGroupedPlaces(town, ip, proxy, deadline),
+        weekendEvents(town, ip, ticketmaster)
+      ])
       console.log(`[town] render ${slug} places=${grouped.total}${ok ? '' : ' (upstream failed)'}`)
       // A failed fetch reflects this moment (or this visitor's rate limit), never share it
       if (!ok) {
         // Upstream failed: a 503 tells crawlers "retry later" (a 200 page with
         // no places would get noindexed); people still see the page and a way on
         res.setHeader('Retry-After', '300')
-        return sendHtml(res, 503, renderTownPage(town, grouped), 'no-store')
+        return sendHtml(res, 503, renderTownPage(town, grouped, events || []), 'no-store')
       }
-      return sendHtml(res, 200, renderTownPage(town, grouped), grouped.total > 0 ? LONG_CACHE : 'public, s-maxage=600')
+      // Listed events go out of date, so those pages refresh within hours
+      // Events missing because Ticketmaster failed must not be cached as "none" for a day
+      // Events are optional: Ticketmaster failing only means retrying them in 3h
+      const cache = grouped.total === 0 ? 'public, s-maxage=600' : events === null || events.length ? EVENTS_CACHE : LONG_CACHE
+      return sendHtml(res, 200, renderTownPage(town, grouped, events || []), cache)
     } catch (err) {
       // Geocoder down, busy or timed out: say so, don't cache it
       console.error(`[town] ${near ? 'near' : rawSlug}: ${err.message}`)

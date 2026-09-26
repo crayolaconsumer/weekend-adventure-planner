@@ -7,6 +7,7 @@
  * Keep ROUTES in sync with the matching rewrites in vercel.json.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { applyPageMeta } from '../shared/pageMeta.mjs'
 
 const SITE = 'https://www.go-roam.uk'
 
@@ -41,30 +42,10 @@ const ROUTES = {
   }
 }
 
-const escape = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
-
-function setAttr(html, selector, value) {
-  // selector like 'name="description"' or 'property="og:title"'; content may be on the next line
-  const re = new RegExp(`(<meta ${selector}\\s+content=")[^"]*(")`)
-  if (!re.test(html)) throw new Error(`prerender-meta: <meta ${selector}> not found in index.html`)
-  return html.replace(re, `$1${value}$2`)
-}
-
 const template = readFileSync('dist/index.html', 'utf8')
 
 for (const [path, { title, description }] of Object.entries(ROUTES)) {
-  const t = escape(title)
-  const d = escape(description)
-  const url = `${SITE}${path}`
-  let html = template.replace(/<title>[^<]*<\/title>/, `<title>${t}</title>\n  <link rel="canonical" href="${url}" />`)
-  html = setAttr(html, 'name="title"', t)
-  html = setAttr(html, 'name="description"', d)
-  html = setAttr(html, 'property="og:url"', url)
-  html = setAttr(html, 'property="og:title"', t)
-  html = setAttr(html, 'property="og:description"', d)
-  html = setAttr(html, 'name="twitter:url"', url)
-  html = setAttr(html, 'name="twitter:title"', t)
-  html = setAttr(html, 'name="twitter:description"', d)
+  const html = applyPageMeta(template, { title, description, url: `${SITE}${path}` })
 
   mkdirSync(`dist${path}`, { recursive: true })
   writeFileSync(`dist${path}/index.html`, html)

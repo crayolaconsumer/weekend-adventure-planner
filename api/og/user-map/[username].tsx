@@ -22,6 +22,7 @@ import { queryOne, query } from '../../lib/db.js'
 import { formatDisplayName } from '../../lib/displayName.js'
 import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 import { withCors } from '../../lib/cors.js'
+import { forwardImageResponse } from '../../lib/ogCard.js'
 
 const TEASER_CELL_DEGREES = 0.5
 
@@ -194,17 +195,6 @@ async function handler(req, res) {
     const img = new ImageResponse(genericCard, { width: 1200, height: 630 })
     return forwardImageResponse(img, res, 60)
   }
-}
-
-// Helper: pipe an ImageResponse (Web Response) into Node's res object.
-async function forwardImageResponse(imageResponse, res, sMaxAge) {
-  const buffer = Buffer.from(await imageResponse.arrayBuffer())
-  res.setHeader('Content-Type', 'image/png')
-  // Long edge cache + stale-while-revalidate. The image only changes
-  // when the user adds/removes places; one render per hour at the
-  // edge is plenty.
-  res.setHeader('Cache-Control', `public, s-maxage=${sMaxAge}, stale-while-revalidate=86400`)
-  return res.status(200).send(buffer)
 }
 
 export default withCors(handler)
