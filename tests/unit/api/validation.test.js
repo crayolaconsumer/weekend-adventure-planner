@@ -210,6 +210,10 @@ describe('validateId', () => {
 describe('validatePlaceId', () => {
   it('accepts OSM-style IDs', () => {
     expect(validatePlaceId('node/12345').valid).toBe(true)
+    // typed ids from the town pages (regression: rating a place opened from a town page 400'd)
+    expect(validatePlaceId('w815929296').valid).toBe(true)
+    expect(validatePlaceId('r3564020').valid).toBe(true)
+    expect(validatePlaceId('x123').valid).toBe(false)
     expect(validatePlaceId('way/67890').valid).toBe(true)
     expect(validatePlaceId('relation/111').valid).toBe(true)
   })

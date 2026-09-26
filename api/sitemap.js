@@ -3,7 +3,7 @@
  *
  * Public indexable routes plus every /place/:id page users have saved or
  * visited. Only IDs the Place page can actually load are listed: numeric
- * OSM IDs and otm_ OpenTripMap IDs (wiki_ IDs can't be fetched by ID).
+ * OSM IDs (bare or typed n/w/r) and otm_ OpenTripMap IDs (wiki_ IDs can't be fetched by ID).
  * If the DB is unavailable the static routes are still served.
  */
 
@@ -12,7 +12,7 @@ import { TOWNS } from '../shared/towns.mjs'
 
 const SITE = 'https://www.go-roam.uk'
 const STATIC_PATHS = [
-  '/', '/events', '/pricing', '/partners', '/get-roam', '/support', '/privacy', '/terms',
+  '/', '/events', '/pricing', '/partners', '/get-roam', '/support', '/privacy', '/terms', '/town',
   ...TOWNS.map(t => `/town/${t.slug}`)
 ]
 const MAX_PLACES = 5000
@@ -27,7 +27,7 @@ export default async function handler(req, res) {
          UNION ALL
          SELECT place_id, visited_at FROM visited_places
        ) p
-       WHERE place_id REGEXP '^([0-9]+|otm_[A-Za-z0-9]+)$'
+       WHERE place_id REGEXP '^([0-9]+|[nwr][0-9]+|otm_[A-Za-z0-9]+)$'
        GROUP BY place_id
        ORDER BY COUNT(*) DESC, lastmod DESC
        LIMIT ?`,

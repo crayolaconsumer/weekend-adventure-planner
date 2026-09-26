@@ -1,4 +1,6 @@
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
+import { PinIcon } from '../townIcons'
 import StreakIndicator from '../../components/StreakIndicator'
 import FilterIcon from '../../components/icons/FilterIcon'
 import { SettingsIcon } from './icons'
@@ -24,6 +26,7 @@ export default function DiscoverHeader({
   travelModeLabel,
   onOpenFilters,
   onTriggerJustGo,
+  town,
 }) {
   const justGoDisabled = !hasLocation || placesCount === 0
   const tooltipText = !hasLocation
@@ -152,6 +155,13 @@ export default function DiscoverHeader({
           <FilterIcon name={travelMode} size={18} />
           <span>{travelModeLabel}</span>
         </div>
+        {/* Town guide for wherever the user is, named once we know it
+            ("Explore Hatfield"); the hub until then. Town pages are shareable
+            and land on the public web page with the app-store buttons. */}
+        <Link className="discover-mode discover-town" to={town ? `/town/${town.slug}` : '/town'} onClick={() => hapticTap('light')}>
+          <PinIcon size={16} />
+          <span>{town ? `Explore ${town.name}` : 'Explore towns'}</span>
+        </Link>
       </div>
     </header>
   )

@@ -1,7 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render as rtlRender, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import DiscoverHeader from '../../../src/pages/Discover/DiscoverHeader'
+
+// DiscoverHeader links to /town/near-me, so it needs a router like in the app
+const render = ui => rtlRender(ui, { wrapper: MemoryRouter })
 
 const baseProps = {
   streak: 0,
@@ -17,6 +21,16 @@ const baseProps = {
 }
 
 describe('Discover/DiscoverHeader', () => {
+  it('names the user\'s town and links straight to it', () => {
+    render(<DiscoverHeader {...baseProps} town={{ slug: 'hatfield', name: 'Hatfield' }} />)
+    expect(screen.getByRole('link', { name: 'Explore Hatfield' })).toHaveAttribute('href', '/town/hatfield')
+  })
+
+  it('falls back to the towns hub until the town is known', () => {
+    render(<DiscoverHeader {...baseProps} />)
+    expect(screen.getByRole('link', { name: 'Explore towns' })).toHaveAttribute('href', '/town')
+  })
+
   it('renders the ROAM wordmark + tagline', () => {
     render(<DiscoverHeader {...baseProps} />)
     expect(screen.getByRole('heading', { level: 1, name: 'ROAM' })).toBeInTheDocument()
@@ -80,7 +94,7 @@ describe('Discover/DiscoverHeader', () => {
     const onOpenFilters = vi.fn()
     const user = userEvent.setup()
     render(<DiscoverHeader {...baseProps} onOpenFilters={onOpenFilters} />)
-    await user.click(screen.getByRole('button', { name: /Open filters/i }))
+    await user.click(screen.getByRole('button', { name: /^Open filters$/i }))
     expect(onOpenFilters).toHaveBeenCalledTimes(1)
   })
 

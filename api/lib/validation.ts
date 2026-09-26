@@ -201,11 +201,13 @@ export function validatePlaceId(placeId: unknown): PlaceIdResult {
   //   - OSM-style: node/12345, way/67890, relation/111
   //   - Plain numeric: 12345
   //   - Wikipedia: wiki_12345678
+  //   - Typed OSM (town pages): w67890, r111, n12345
   const osmPattern = /^(node|way|relation)\/\d+$/
+  const typedPattern = /^[nwr]\d+$/
   const numericPattern = /^\d+$/
   const wikiPattern = /^wiki_\d+$/
 
-  if (!osmPattern.test(placeId) && !numericPattern.test(placeId) && !wikiPattern.test(placeId)) {
+  if (!osmPattern.test(placeId) && !typedPattern.test(placeId) && !numericPattern.test(placeId) && !wikiPattern.test(placeId)) {
     return { valid: false, message: 'Invalid place ID format' }
   }
 

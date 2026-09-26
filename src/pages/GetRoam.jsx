@@ -5,11 +5,9 @@
  * web app. Web-only (App.jsx redirects to / on native). Links are plain <a>
  * so "Open the web app" does a full page load and gets normal onboarding.
  */
+import { APP_STORE_URL, PLAY_STORE_URL } from '../../shared/appLinks.mjs'
 import './Legal.css'
 import './GetRoam.css'
-
-const APP_STORE_URL = 'https://apps.apple.com/gb/app/go-roam/id6768306617'
-const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.goroam.app'
 
 export default function GetRoam() {
   return (

@@ -12,6 +12,7 @@ import AdBanner from '../components/AdBanner'
 import { useAdMob } from '../hooks/useAdMob'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
+import { useCurrentTown } from '../hooks/useCurrentTown'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
@@ -176,6 +177,8 @@ export default function Discover({ location }) {
 
   // Effective location: use prop, fallback, or null
   const effectiveLocation = location || fallbackLocation
+  // Real position only: a chosen default location isn't "your town"
+  const currentTown = useCurrentTown(location)
 
   // Handler to use default location when geolocation fails/times out
   const handleUseDefaultLocation = () => {
@@ -810,6 +813,7 @@ export default function Discover({ location }) {
         travelModeLabel={currentMode.label}
         onOpenFilters={() => setShowFilterModal(true)}
         onTriggerJustGo={() => setShowJustGo(true)}
+        town={currentTown}
       />
 
       {/* Active filters indicator (desktop only, mobile shows in trigger) */}

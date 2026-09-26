@@ -9,5 +9,7 @@ Disallow:
 # Allow Googlebot / general crawling for the rest of the site.
 User-agent: *
 Allow: /
+# Redirects each crawler to wherever its IP geolocates; nothing to index
+Disallow: /town/near-me
 
 Sitemap: https://www.go-roam.uk/sitemap.xml

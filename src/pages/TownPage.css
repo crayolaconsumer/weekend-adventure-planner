@@ -7,21 +7,29 @@
 }
 
 .town-back {
-  background: none;
+  /* Same round button as .collections-back-btn */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   border: none;
-  padding: 0;
+  background: rgba(26, 58, 47, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--roam-forest);
   margin-bottom: var(--space-md);
-  color: var(--roam-forest-light);
-  font: 500 var(--text-sm) var(--font-body);
   cursor: pointer;
 }
 
+/* Same as the global .page-title (Saved, Social) */
 .town-title {
   font-family: var(--font-display);
-  font-size: var(--text-3xl);
+  font-size: var(--text-2xl);
   font-weight: 500;
+  line-height: 1.2;
   color: var(--roam-ink);
-  margin: 0 0 var(--space-sm);
+  margin: 0 0 var(--space-xs);
+  overflow-wrap: anywhere;
 }
 
 .town-lead {
@@ -60,6 +68,8 @@
   height: 56px;
   border-radius: var(--radius-md);
   overflow: hidden;
+  /* Shown while the photo loads, instead of a blank slot */
+  background: var(--roam-parchment);
 }
 
 .town-card-thumb img {
@@ -70,7 +80,10 @@
 
 .town-card-name {
   flex: 1;
-  font-weight: 600;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
 }
 
 .town-card-tag {
@@ -79,6 +92,192 @@
   background: color-mix(in srgb, var(--roam-sage) 22%, transparent);
   color: var(--roam-forest);
   font-size: var(--text-xs);
-  text-transform: capitalize;
   white-space: nowrap;
+}
+
+.town-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.town-top .town-back {
+  margin-bottom: 0;
+}
+
+.town-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 9999px;
+  padding: 8px 14px;
+  color: var(--roam-forest-light);
+  font: 500 var(--text-sm) var(--font-body);
+  cursor: pointer;
+}
+
+.town-where {
+  color: var(--roam-ink-muted);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-sm);
+}
+
+.town-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+}
+
+.town-chips .chip {
+  text-decoration: none;
+  /* White on the town screens, like the Events date chips */
+  background: var(--color-surface-elevated);
+}
+
+/* The rule above outranks the global .chip.selected, so restate it */
+.town-chips .chip.selected {
+  background: var(--roam-forest);
+  border-color: var(--roam-forest);
+  color: #fdfcf8;
+}
+
+[data-theme="dark"] .town-chips .chip.selected {
+  color: #0d1b16;
+}
+
+[data-theme="dark"] .town-card-tag {
+  color: var(--roam-ink-light);
+}
+
+/* Category filters stay on one row and scroll, like the Events date chips */
+.town-filters {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-left: calc(-1 * var(--space-md));
+  margin-right: calc(-1 * var(--space-md));
+  padding: 0 var(--space-md);
+}
+
+.town-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.town-filters .chip {
+  flex: 0 0 auto;
+  /* global .chip sets no font, and <button> won't inherit Outfit on its own */
+  font-family: inherit;
+}
+
+.town-section {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--roam-ink);
+  margin: var(--space-xl) 0 var(--space-sm);
+}
+
+.town-search {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.town-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px var(--space-md);
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--roam-parchment);
+  background: var(--color-surface-elevated);
+  color: var(--roam-ink);
+  font: inherit;
+}
+
+.town-search button {
+  padding: 12px var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-full);
+  /* Literal forest: the token lightens in dark mode (see GetRoam.css) */
+  background: #1a3a2f;
+  color: #fdfcf8;
+  font: 600 var(--text-base) var(--font-body);
+  cursor: pointer;
+}
+
+.town-search button:disabled {
+  opacity: 0.7;
+}
+
+.town-search-note {
+  margin: var(--space-sm) 0 0;
+  color: var(--roam-ink-light);
+  font-size: var(--text-sm);
+}
+
+.town-near {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  color: var(--roam-ink);
+  text-decoration: none;
+}
+
+.town-near-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.town-near strong {
+  font-weight: 600;
+}
+
+.town-near-chevron {
+  color: var(--roam-ink-muted);
+  flex: 0 0 auto;
+}
+
+.town-near span span {
+  color: var(--roam-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.town-near-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: var(--radius-full);
+  background: #1a3a2f;
+  color: var(--roam-gold);
+}
+
+.town-more {
+  margin-top: var(--space-xl);
+}
+
+/* The literal forest fills vanish on the dark background; use the lighter dark-theme forest */
+[data-theme="dark"] .town-back {
+  background: color-mix(in srgb, var(--roam-sage) 18%, transparent);
+}
+
+[data-theme="dark"] .town-search button {
+  background: var(--roam-forest);
+  color: #0d1b16;
+}
+
+/* Keep the gold pin (brand highlight) on a disc dark mode can still see */
+[data-theme="dark"] .town-near-icon {
+  background: var(--roam-parchment-dark);
 }

@@ -1080,6 +1080,21 @@ export async function fetchPlaceById(placeId) {
     }
   }
 
+  // Typed OSM ID (n123 / w123 / r123), used by the town pages: a bare number
+  // is ambiguous because nodes, ways and relations share the number space
+  const typed = typeof placeId === 'string' && /^([nwr])(\d+)$/.exec(placeId)
+  if (typed) {
+    const type = { n: 'node', w: 'way', r: 'relation' }[typed[1]]
+    try {
+      const data = await fetchFromOverpass(`[out:json][timeout:10];${type}(${typed[2]});out body center;`)
+      const places = parseOverpassResponse(data)
+      if (places.length > 0) return { ...places[0], id: placeId, source: 'osm' }
+    } catch (error) {
+      console.warn('Failed to fetch place by ID:', error)
+    }
+    return null
+  }
+
   // Standard OSM ID - fetch via Overpass
   const numericId = parseInt(placeId, 10)
   if (isNaN(numericId)) return null

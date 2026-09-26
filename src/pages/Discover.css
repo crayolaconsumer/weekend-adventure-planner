@@ -643,3 +643,9 @@
     max-width: 500px;
   }
 }
+
+.discover-town {
+  text-decoration: none;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-secondary);
+}

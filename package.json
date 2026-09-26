@@ -8,7 +8,7 @@
     "dev": "vite",
     "dev:api": "vercel dev --listen 3001",
     "dev:full": "concurrently \"npm run dev\" \"npm run dev:api\"",
-    "build": "vite build && node scripts/prerender-meta.mjs && node scripts/prerender-towns.mjs",
+    "build": "vite build && node scripts/prerender-meta.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

@@ -33,6 +33,9 @@
     "api/places/overpass/nearby.js": {
       "maxDuration": 60
     },
+    "api/town.js": {
+      "maxDuration": 60
+    },
     "api/cron/prewarm-overpass.js": {
       "maxDuration": 120
     },
@@ -52,7 +55,8 @@
     { "source": "/support", "destination": "/support/index.html" },
     { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
-    { "source": "/town/:slug", "destination": "/town/:slug/index.html" },
+    { "source": "/town", "destination": "/api/town" },
+    { "source": "/town/:slug", "destination": "/api/town?slug=:slug" },
     { "source": "/((?!api/|assets/|icons/|\\.well-known/|manifest\\.json|sw\\.js|robots\\.txt|ads\\.txt|app-ads\\.txt|sitemap\\.xml).*)", "destination": "/" }
   ],
   "headers": [
