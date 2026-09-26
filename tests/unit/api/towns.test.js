@@ -100,11 +100,13 @@ describe('townFromResult', () => {
     // Witney, where the old hardcoded coordinates pointed, is ~70km away
     expect(distanceKm(t, { lat: 51.7834, lng: -1.5022 })).toBeGreaterThan(80)
   })
-  it('featured towns keep their curated name and blurb', () => {
-    const t = townFromResult('houghton-regis', HOUGHTON)
+  it('featured towns keep their curated name and blurb (applied on read, not cached)', async () => {
+    const t = await resolveTown('houghton-regis', { fetchImpl: async () => jsonResponse([HOUGHTON]), gate })
     expect(t.name).toBe('Houghton Regis')
     expect(t.blurb).toMatch(/Houghton Hall Park/)
     expect(t.region).toBe('Central Bedfordshire')
+    // the raw record (what gets cached) carries no curated text
+    expect(townFromResult('houghton-regis', HOUGHTON).blurb).toBe(null)
   })
   it('other towns have no blurb (one is generated from real counts)', () => {
     const t = townFromResult('paris', PARIS)
@@ -364,8 +366,9 @@ describe('describeTown', () => {
   it('never claims places it did not find', () => {
     expect(describeTown(paris, { groups: [], total: 0 })).toBe('Places to explore in Paris, Ile-de-France, from ROAM.')
   })
-  it('prefers the curated blurb for featured towns', () => {
-    expect(describeTown(townFromResult('hatfield', HATFIELD), { groups: [], total: 0 })).toMatch(/Hatfield House/)
+  it('prefers the curated blurb for featured towns', async () => {
+    const hatfield = await resolveTown('hatfield', { fetchImpl: async () => jsonResponse([HATFIELD]), gate })
+    expect(describeTown(hatfield, { groups: [], total: 0 })).toMatch(/Hatfield House/)
   })
 })
 

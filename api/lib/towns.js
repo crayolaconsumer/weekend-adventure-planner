@@ -131,17 +131,23 @@ export function townFromResult(slug, r) {
   const lng = parseFloat(r?.lon)
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || NOT_A_TOWN.has(r.addresstype)) return null
   const a = r.address || {}
-  const featured = TOWNS.find(t => t.slug === slug)
   return {
     slug,
-    name: featured ? featured.name : pickDisplayName(slug, r.name),
+    name: pickDisplayName(slug, r.name),
     region: a.county || a.state || null,
     country: a.country || null,
     countryCode: a.country_code || null,
     lat: Math.round(lat * 1e5) / 1e5,
     lng: Math.round(lng * 1e5) / 1e5,
-    blurb: featured ? featured.blurb : null
+    blurb: null
   }
+}
+
+// Curated name/blurb for featured towns, applied on read so editing the
+// featured list takes effect immediately (it used to be baked into the cache)
+function withFeatured(town) {
+  const featured = town && TOWNS.find(t => t.slug === town.slug)
+  return featured ? { ...town, name: featured.name, blurb: featured.blurb } : town
 }
 
 async function searchSettlement(text, fetchImpl, gate) {
@@ -154,10 +160,11 @@ async function searchSettlement(text, fetchImpl, gate) {
 
 /** Resolve a slug to a town, or null if nothing matches. Errors throw (so they aren't cached). */
 export async function resolveTown(slug, { fetchImpl = fetch, gate } = {}) {
-  return cached(`town:geo:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
+  // v2: v1 entries have featured names baked in
+  return withFeatured(await cached(`town:geo:v2:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
     const r = await searchSettlement(slug.replace(/-/g, ' '), fetchImpl, gate)
     return r ? townFromResult(slug, r) : null
-  })
+  }))
 }
 
 /**
@@ -181,8 +188,8 @@ export async function slugForQuery(text, { fetchImpl = fetch, gate } = {}) {
  */
 export async function resolveNear(lat, lng, { fetchImpl = fetch, gate } = {}) {
   // ~1km grid so neighbours share one cache entry and we never store exact positions
-  const key = `town:near:${lat.toFixed(2)},${lng.toFixed(2)}`
-  return cached(key, v => v ? GEO_TTL : MISS_TTL, async () => {
+  const key = `town:near:v2:${lat.toFixed(2)},${lng.toFixed(2)}`
+  return withFeatured(await cached(key, v => v ? GEO_TTL : MISS_TTL, async () => {
     const r = await nominatim(
       `/reverse?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&format=jsonv2&zoom=14&addressdetails=1&accept-language=en`,
       fetchImpl, gate
@@ -199,7 +206,7 @@ export async function resolveNear(lat, lng, { fetchImpl = fetch, gate } = {}) {
       if (town && distanceKm(here, town) <= NEAR_MATCH_KM) return town
     }
     return null
-  })
+  }))
 }
 
 // ─── Places ──────────────────────────────────────────────────────
