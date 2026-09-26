@@ -1,0 +1,84 @@
+/* Town Page Styles */
+
+.town-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-md) var(--space-3xl);
+}
+
+.town-back {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-bottom: var(--space-md);
+  color: var(--roam-forest-light);
+  font: 500 var(--text-sm) var(--font-body);
+  cursor: pointer;
+}
+
+.town-title {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  color: var(--roam-ink);
+  margin: 0 0 var(--space-sm);
+}
+
+.town-lead {
+  color: var(--roam-ink-light);
+  margin: 0 0 var(--space-lg);
+  line-height: 1.55;
+}
+
+.town-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.town-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--roam-ink);
+  text-align: left;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.town-card-thumb {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.town-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.town-card-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.town-card-tag {
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--roam-sage) 22%, transparent);
+  color: var(--roam-forest);
+  font-size: var(--text-xs);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
