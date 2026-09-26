@@ -18,6 +18,7 @@ import CategoryIcon from './icons/CategoryIcon'
 import FilterIcon from './icons/FilterIcon'
 import DistanceBandSlider from './discover/DistanceBandSlider'
 import { useFormatDistance } from '../contexts/DistanceContext'
+import { usePrivacyChoices } from '../hooks/usePrivacyChoices'
 import './FilterModal.css'
 
 // Backdrop animation
@@ -105,6 +106,8 @@ export function FilterModal({
   const dragControls = useDragControls()
   const formatDistance = useFormatDistance()
   const [isExpanded, setIsExpanded] = useState(false)
+  // Signed-out users can't reach profile settings, so ad consent lives here too
+  const privacyChoices = usePrivacyChoices()
 
   // Reset expanded state when modal opens - intentional state sync
   useEffect(() => {
@@ -502,6 +505,16 @@ export function FilterModal({
               </svg>
               Scroll for more
             </span>
+
+            {privacyChoices.required && (
+              <button
+                type="button"
+                className="filter-modal-privacy"
+                onClick={privacyChoices.open}
+              >
+                Privacy choices
+              </button>
+            )}
 
             {/* Footer */}
             <div className="filter-modal-footer">

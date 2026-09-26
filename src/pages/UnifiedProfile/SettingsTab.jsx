@@ -6,6 +6,7 @@ import { useDistance } from '../../contexts/DistanceContext'
 import { useSubscription } from '../../hooks/useSubscription'
 import { isNative, getPlatform } from '../../utils/nativeBridge'
 import { openExternalLink } from '../../utils/navigation'
+import { usePrivacyChoices } from '../../hooks/usePrivacyChoices'
 import PremiumBadge from '../../components/PremiumBadge'
 import OfflinePackCard from '../../components/OfflinePackCard'
 import PrivacySettings from '../../components/PrivacySettings'
@@ -32,6 +33,8 @@ export default function SettingsTab({ user, onLogout }) {
   const { distanceUnit, setDistanceUnit, formatDistance } = useDistance()
   const { preference: themePref, setPreference: setThemePref } = useTheme()
   const navigate = useNavigate()
+
+  const privacyChoices = usePrivacyChoices()
 
   // Delete-account confirm flow — App Store Review 5.1.1(v)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -587,6 +590,15 @@ export default function SettingsTab({ user, onLogout }) {
         <Link to="/privacy" className="unified-profile-settings-link-row">
           Privacy Policy
         </Link>
+        {privacyChoices.required && (
+          <button
+            type="button"
+            className="unified-profile-settings-link-row"
+            onClick={privacyChoices.open}
+          >
+            Privacy choices
+          </button>
+        )}
         <Link to="/terms" className="unified-profile-settings-link-row">
           Terms of Use
         </Link>

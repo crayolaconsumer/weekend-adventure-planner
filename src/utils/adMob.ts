@@ -23,6 +23,8 @@
  *   VITE_ADMOB_IOS_INTERSTITIAL_ID
  *   VITE_ADMOB_ANDROID_BANNER_ID
  *   VITE_ADMOB_ANDROID_INTERSTITIAL_ID
+ *   VITE_ADMOB_IOS_NATIVE_ID       (native ad card, see nativeAd.js)
+ *   VITE_ADMOB_ANDROID_NATIVE_ID   (native ad card, see nativeAd.js)
  *
  * Until those env vars are set with real IDs, we use Google's official
  * test IDs (safe to ship, always return test ads, no revenue impact on
@@ -94,6 +96,18 @@ export interface AdTargeting {
 }
 
 let initPromise: Promise<void> | null = null
+// UMP result: may we request ads at all, and must we offer the privacy
+// options entry point. Unknown (consent call failed) = no ads until a
+// retry succeeds (ensureAdConsent, at most once per CONSENT_RETRY_MS).
+let consentCanRequestAds = false
+let consentPrivacyRequired = false
+let consentKnown = false
+let consentAttemptAt = 0
+let consentPromise: Promise<void> | null = null
+const CONSENT_RETRY_MS = 60_000
+// Fired when the user withdraws consent in the privacy options form:
+// CardStack releases its native ads, the banner is hidden here
+export const ADS_REVOKED_EVENT = 'roam-ads-revoked'
 let bannerVisible = false
 let interstitialPreparing = false
 let interstitialReady = false
@@ -159,6 +173,9 @@ export function initAdMobIfNeeded(opts: {
       return
     }
 
+    // UMP first, then ATT (Google's recommended order).
+    await runConsent()
+
     // iOS ATT — request tracking authorization. On Android this is a no-op.
     try {
       const status = await AdMob.trackingAuthorizationStatus()
@@ -176,29 +193,56 @@ export function initAdMobIfNeeded(opts: {
     } catch (err) {
       if (import.meta.env.DEV) console.warn('[AdMob] ATT check failed', err)
     }
-
-    // UMP — UK/EU consent. SDK decides whether a form is needed based on
-    // the user's region. We always request consent info; SDK is a no-op
-    // outside the EEA/UK.
-    try {
-      const consent = await AdMob.requestConsentInfo()
-      if (
-        consent &&
-        typeof consent === 'object' &&
-        'isConsentFormAvailable' in consent &&
-        (consent as { isConsentFormAvailable: boolean }).isConsentFormAvailable &&
-        'status' in consent &&
-        (consent as { status: string }).status === 'REQUIRED'
-      ) {
-        await AdMob.showConsentForm()
-      }
-    } catch (err) {
-      if (import.meta.env.DEV) console.warn('[AdMob] consent flow failed', err)
-    }
   })()
 
   return initPromise
 }
+
+/**
+ * UMP — UK/EU consent. SDK decides whether a form is needed based on the
+ * user's region; outside the EEA/UK it is a no-op that allows ads. A
+ * failure (offline, form failed to load) leaves consent unknown so a later
+ * ad request retries instead of staying ad-free all session.
+ */
+function runConsent(): Promise<void> {
+  if (consentPromise) return consentPromise
+  consentAttemptAt = Date.now()
+  consentPromise = (async () => {
+    const adMod = await getAdMobModule()
+    if (!adMod) return
+    const { AdMob } = adMod
+    try {
+      let consent = await AdMob.requestConsentInfo()
+      if (consent?.isConsentFormAvailable && String(consent.status) === 'REQUIRED') {
+        consent = await AdMob.showConsentForm()
+      }
+      readConsent(consent)
+      consentKnown = true
+    } catch (err) {
+      consentKnown = false
+      consentCanRequestAds = false
+      if (import.meta.env.DEV) console.warn('[AdMob] consent flow failed', err)
+    }
+  })().finally(() => { consentPromise = null })
+  return consentPromise
+}
+
+/**
+ * Gate for every ad request: waits for init, retries a failed consent
+ * check (at most once a minute), and says whether ads may be requested.
+ */
+export async function ensureAdConsent(): Promise<boolean> {
+  await initAdMobIfNeeded({ isPremium: false })
+  if (!consentKnown && Date.now() - consentAttemptAt >= CONSENT_RETRY_MS) await runConsent()
+  return consentCanRequestAds
+}
+
+function readConsent(consent: { canRequestAds?: boolean; privacyOptionsRequirementStatus?: unknown } | undefined) {
+  consentCanRequestAds = consent?.canRequestAds === true
+  // String enum 'REQUIRED' | 'NOT_REQUIRED' | 'UNKNOWN' (not exported)
+  consentPrivacyRequired = String(consent?.privacyOptionsRequirementStatus) === 'REQUIRED'
+}
+
 
 /**
  * Show the AdMob banner overlay at the bottom of the screen. Idempotent.
@@ -211,7 +255,7 @@ export function initAdMobIfNeeded(opts: {
  */
 export async function showBanner(targeting?: AdTargeting) {
   if (!isNative()) return
-  await initAdMobIfNeeded({ isPremium: false })
+  if (!(await ensureAdConsent())) return
   if (bannerVisible) return
   const ids = unitIds()
   if (!ids) return
@@ -263,7 +307,7 @@ async function prepareInterstitial() {
   if (!isNative()) return
   // Same init-gate as showBanner — never request an ad before
   // AdMob.initialize() + ATT/UMP have run.
-  await initAdMobIfNeeded({ isPremium: false })
+  if (!(await ensureAdConsent())) return
   if (interstitialPreparing || interstitialReady) return
   const ids = unitIds()
   if (!ids) return
@@ -292,7 +336,13 @@ async function prepareInterstitial() {
  * we've crossed BOTH the per-swipe and time-based thresholds, shows the
  * interstitial. Cheap to call on every swipe.
  */
-export async function maybeShowInterstitial({ isPremium, targeting }: { isPremium: boolean; targeting?: AdTargeting }) {
+export async function maybeShowInterstitial({ isPremium, targeting, afterAdCard = false }: {
+  isPremium: boolean
+  targeting?: AdTargeting
+  // The swipe was on an ad card: never run an interstitial straight after
+  // one; it waits for the next swipe (the count stays over the threshold)
+  afterAdCard?: boolean
+}) {
   if (isPremium) return
   if (!isNative()) return
 
@@ -306,6 +356,8 @@ export async function maybeShowInterstitial({ isPremium, targeting }: { isPremiu
     }
     return
   }
+
+  if (afterAdCard) return
 
   const now = Date.now()
   if (now - lastInterstitialAt < MIN_INTERSTITIAL_INTERVAL_MS) return
@@ -328,6 +380,42 @@ export async function maybeShowInterstitial({ isPremium, targeting }: { isPremiu
     prepareInterstitial().catch(() => {})
   } catch (err) {
     if (import.meta.env.DEV) console.warn('[AdMob] showInterstitial failed', err)
+  }
+}
+
+/**
+ * UMP privacy options: Google requires a way to change consent once given.
+ * True when the SDK says this user must be offered it (UK/EEA etc.).
+ * privacyOptionsRequirementStatus is the string enum 'REQUIRED' |
+ * 'NOT_REQUIRED' | 'UNKNOWN' (the enum itself is not exported).
+ */
+export async function isPrivacyOptionsRequired(): Promise<boolean> {
+  if (!isNative()) return false
+  // Read from init's consent check (it runs once per session anyway)
+  await initAdMobIfNeeded({ isPremium: false })
+  return consentPrivacyRequired
+}
+
+export async function showPrivacyOptions() {
+  const adMod = await getAdMobModule()
+  if (!adMod) return
+  await adMod.AdMob.showPrivacyOptionsForm()
+  // The user may have withdrawn consent: re-read what we may request
+  const before = consentCanRequestAds
+  try {
+    readConsent(await adMod.AdMob.requestConsentInfo())
+    consentKnown = true
+  } catch {
+    consentKnown = false
+    consentCanRequestAds = false
+    consentAttemptAt = Date.now()
+  }
+  if (before && !consentCanRequestAds) {
+    // Nothing already loaded may show now: drop the banner and the
+    // interstitial, and tell the deck to release its native ads
+    interstitialReady = false
+    await hideBanner()
+    window.dispatchEvent(new CustomEvent(ADS_REVOKED_EVENT))
   }
 }
 

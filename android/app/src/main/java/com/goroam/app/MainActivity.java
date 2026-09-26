@@ -51,6 +51,7 @@ public class MainActivity extends BridgeActivity
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(RoamThemePlugin.class);
+        registerPlugin(RoamNativeAdPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Android 15 (API 35) onwards enforces edge-to-edge for any app

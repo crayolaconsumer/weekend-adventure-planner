@@ -9,6 +9,7 @@ import { identifyUser, clearUser } from '../utils/errorReporting'
 import { identify as analyticsIdentify, resetAnalytics, track } from '../utils/analytics'
 import { identifyUserToRC, logoutFromRC } from '../utils/revenueCat'
 import { bestEffortUnsubscribePushNotifications } from '../hooks/usePushNotifications'
+import { rememberPremium, forgetPremium } from '../utils/adEligibility'
 
 const TOKEN_STORAGE_KEY = 'roam_auth_token'
 const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
@@ -163,6 +164,8 @@ export function AuthProvider({ children }) {
   // No-ops when env vars aren't set.
   useEffect(() => {
     if (user) {
+      // Remember the tier so ads stay off if a later auth check fails.
+      rememberPremium(user)
       identifyUser({ id: user.id, username: user.username, email: user.email })
       analyticsIdentify(user.id, {
         username: user.username,
@@ -370,6 +373,7 @@ export function AuthProvider({ children }) {
         return { success: false, error: data.error, code: data.code }
       }
       clearStoredToken()
+      forgetPremium()
       setUser(null)
       return { success: true }
     } catch (err) {
@@ -393,6 +397,7 @@ export function AuthProvider({ children }) {
       console.error('Logout error:', err)
     } finally {
       clearStoredToken()
+      forgetPremium()
       setUser(null)
     }
   }, [clearStoredToken])

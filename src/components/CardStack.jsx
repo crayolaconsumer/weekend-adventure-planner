@@ -3,18 +3,26 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import SwipeCard from './SwipeCard'
 import SponsoredCard from './SponsoredCard'
+import AdCard from './AdCard'
+import { adCardsEnabled, mergeCards, slotsToRemove } from './cardStackSlots'
 import EmptyStateIllustration from './icons/EmptyStateIllustration'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { enrichPlace } from '../utils/apiClient'
 import { resolvePlaceImageWithMeta } from '../utils/placeImage'
 import { useTopContributions } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
+import { useAuth } from '../contexts/AuthContext'
+import { isNative, getPlatform } from '../utils/nativeBridge'
+import { loadNativeAd, destroyNativeAd } from '../utils/nativeAd'
+import { ADS_REVOKED_EVENT } from '../utils/adMob'
+import { injectAdSenseScript } from '../utils/adSense'
+import { track } from '../utils/analytics'
 import { openDirections } from '../utils/navigation'
 import { getCircuitStatus } from '../utils/apiProtection'
 import './CardStack.css'
 
-// Interval for inserting sponsored cards (every N regular cards)
-const SPONSORED_INTERVAL = 8
+// Native ads are valid for an hour; collapse unshown ones a little before
+const NATIVE_AD_TTL_MS = 55 * 60 * 1000
 
 // Rotating loading messages for variety
 const LOADING_MESSAGES = [
@@ -93,7 +101,33 @@ export default function CardStack({
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
   const [sponsoredCount, setSponsoredCount] = useState(0)
   const [enrichedImages, setEnrichedImages] = useState({}) // Track fetched images by place ID
-  const { isPremium } = useSubscription()
+  const { isPremium, noAds } = useSubscription()
+  const { loading: authLoading } = useAuth()
+  const native = isNative()
+  // Auth reloads on every app foreground; only the first load gates ads,
+  // or each resume would drop every ad slot and shift the deck
+  const [authResolved, setAuthResolved] = useState(!authLoading)
+  if (!authLoading && !authResolved) setAuthResolved(true)
+  const adsEnabled = adCardsEnabled({ isPremium: noAds, authLoading: !authResolved })
+  // Ad slot fill status by slot id: 'loading' | 'filled' | 'unfilled'
+  const [adStatuses, setAdStatuses] = useState({})
+  // Ad slots collapsed for no fill; mergeCards leaves them out
+  const [removedAdSlots, setRemovedAdSlots] = useState(() => new Set())
+  // Where ads may start: if they switch on mid-deck (auth resolving late),
+  // only cards ahead of the user get ad slots, so passed cards never shift
+  const [adsFromIndex, setAdsFromIndex] = useState(null)
+  // Ad slots the user has passed when ads switched off: kept so the
+  // passed cards never shift
+  const [keptAdSlots, setKeptAdSlots] = useState(() => new Set())
+  // Deck number: bumps whenever places change (new search, refresh, more
+  // loaded) so ad slot ids never repeat across decks
+  const [deckPlaces, setDeckPlaces] = useState(places)
+  const [deckId, setDeckId] = useState(0)
+  if (places !== deckPlaces) {
+    setDeckPlaces(places)
+    setDeckId(d => d + 1)
+  }
+  if (adsEnabled && adsFromIndex === null) setAdsFromIndex(currentIndex === 0 ? 0 : currentIndex + 1)
 
   // Merge regular places with sponsored places at intervals
   // Also apply enriched images from background fetches
@@ -107,40 +141,142 @@ export default function CardStack({
       return place
     }
 
-    // Premium subscribers see no ads (per the Pricing page's "no ads, ever"
-    // promise). App Store rejection-risk if a paying user still sees
-    // sponsored cards on review.
-    if (isPremium || !sponsoredPlaces || sponsoredPlaces.length === 0) {
-      return places.map(p => ({ place: applyEnrichedImage(p), isSponsored: false }))
-    }
+    return mergeCards({
+      places,
+      sponsoredPlaces,
+      isPremium,
+      adsEnabled,
+      removedSlots: removedAdSlots,
+      adsFromIndex: adsFromIndex ?? 0,
+      keptSlots: keptAdSlots,
+      deck: deckId,
+      mapPlace: applyEnrichedImage,
+    })
+  }, [places, sponsoredPlaces, enrichedImages, isPremium, adsEnabled, removedAdSlots, adsFromIndex, keptAdSlots, deckId])
 
-    const result = []
-    let sponsoredIndex = 0
+  if (!adsEnabled && adsFromIndex !== null) {
+    setAdsFromIndex(null)
+    // The deck as it was with ads on (mergedPlaces has already dropped them)
+    const withAds = mergeCards({
+      places, sponsoredPlaces, adsEnabled: true, removedSlots: removedAdSlots, adsFromIndex, keptSlots: keptAdSlots, deck: deckId,
+    })
+    const passed = withAds.slice(0, currentIndex).filter(c => c.isAd).map(c => c.slot)
+    setKeptAdSlots(prev => new Set([...prev, ...passed]))
+  }
 
-    for (let i = 0; i < places.length; i++) {
-      result.push({ place: applyEnrichedImage(places[i]), isSponsored: false })
-
-      // Insert sponsored card after every SPONSORED_INTERVAL regular cards
-      if ((i + 1) % SPONSORED_INTERVAL === 0 && sponsoredIndex < sponsoredPlaces.length) {
-        const sponsored = sponsoredPlaces[sponsoredIndex]
-        result.push({
-          place: applyEnrichedImage(sponsored.place),
-          isSponsored: true,
-          sponsoredData: sponsored
-        })
-        sponsoredIndex++
-      }
-    }
-
-    return result
-  }, [places, sponsoredPlaces, enrichedImages, isPremium])
+  // Native ad slots asked for this deck; all ever loaded (to release)
+  const requestedAdSlotsRef = useRef(new Set())
+  const loadedAdSlotsRef = useRef(new Set())
+  const adExpiryTimersRef = useRef([])
 
   // Reset index when places change - legitimate pattern for syncing state to props
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setCurrentIndex(0)
+    setAdStatuses({})
+    setRemovedAdSlots(new Set())
+    setKeptAdSlots(new Set())
+    setAdsFromIndex(null)
+    requestedAdSlotsRef.current = new Set()
+    // New deck: release every native ad held for the old one
+    loadedAdSlotsRef.current.forEach(slot => destroyNativeAd(slot).catch(() => {}))
+    loadedAdSlotsRef.current.clear()
   }, [places])
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Collapse ad slots with no fill, and an ad that reaches the top before
+  // it filled, so an empty ad card is never shown. Done during render so
+  // the empty card never paints; only slots at/after currentIndex change.
+  const adSlotsToRemove = slotsToRemove(mergedPlaces, currentIndex, adStatuses, !native)
+  if (adSlotsToRemove.length > 0) {
+    setRemovedAdSlots(prev => new Set([...prev, ...adSlotsToRemove]))
+  }
+
+  // meta.waitedMs: how long the request waited before giving up (tuning)
+  const setAdStatus = useCallback((slot, status, meta) => {
+    setAdStatuses(prev => (prev[slot] === status ? prev : { ...prev, [slot]: status }))
+    if (status === 'unfilled') track('ad_card_unfilled', { platform: getPlatform(), ...meta })
+  }, [])
+
+  // Web: load the AdSense script (script only, no ad unit) once an ad slot
+  // is within 3 cards, so it is ready when the card reaches the top. The
+  // unit itself is only requested on top (AdCard).
+  useEffect(() => {
+    if (native) return
+    const upcoming = mergedPlaces.slice(currentIndex, currentIndex + 4)
+    if (upcoming.some(c => c.isAd)) injectAdSenseScript()
+  }, [native, currentIndex, mergedPlaces])
+
+  // Consent withdrawn in the privacy options form: release every native ad
+  // held and collapse its slot (no ad_card_unfilled: nothing failed to fill)
+  useEffect(() => {
+    const onRevoked = () => {
+      const loaded = [...loadedAdSlotsRef.current]
+      loadedAdSlotsRef.current.clear()
+      loaded.forEach(slot => destroyNativeAd(slot).catch(() => {}))
+      setAdStatuses(prev => {
+        const next = { ...prev }
+        loaded.forEach(slot => { next[slot] = 'unfilled' })
+        return next
+      })
+    }
+    window.addEventListener(ADS_REVOKED_EVENT, onRevoked)
+    return () => window.removeEventListener(ADS_REVOKED_EVENT, onRevoked)
+  }, [])
+
+  // Native: load ads for slots within 3 cards of the top. Web ads load
+  // when AdCard mounts in the visible stack and report via onStatus.
+  useEffect(() => {
+    if (!native || noAds) return
+    for (let i = currentIndex; i <= Math.min(currentIndex + 3, mergedPlaces.length - 1); i++) {
+      const { isAd, slot } = mergedPlaces[i]
+      if (!isAd || requestedAdSlotsRef.current.has(slot)) continue
+      // The deck this load belongs to: a load that settles after the deck
+      // changed must not touch the new deck's state
+      const deck = requestedAdSlotsRef.current
+      const startedAt = Date.now()
+      deck.add(slot)
+      loadedAdSlotsRef.current.add(slot)
+      loadNativeAd(slot, { isPremium: noAds }).then(
+        () => {
+          // Slot collapsed or deck reset while loading: nothing will show it
+          if (requestedAdSlotsRef.current !== deck || !loadedAdSlotsRef.current.has(slot)) {
+            destroyNativeAd(slot).catch(() => {})
+            return
+          }
+          setAdStatus(slot, 'filled')
+          // AdMob ads go stale after an hour: one still waiting in the deck
+          // at 55 minutes collapses (and is released) instead of showing
+          adExpiryTimersRef.current.push(setTimeout(() => {
+            if (requestedAdSlotsRef.current === deck) setAdStatus(slot, 'expired')
+          }, NATIVE_AD_TTL_MS))
+        },
+        () => {
+          if (requestedAdSlotsRef.current !== deck) return
+          setAdStatus(slot, 'unfilled', { waitedMs: Date.now() - startedAt })
+        }
+      )
+    }
+  }, [native, noAds, currentIndex, mergedPlaces, setAdStatus])
+
+  // Collapsed slots will never show: release their native ads now
+  useEffect(() => {
+    const loaded = loadedAdSlotsRef.current
+    removedAdSlots.forEach(slot => {
+      if (!loaded.delete(slot)) return
+      destroyNativeAd(slot).catch(() => {})
+    })
+  }, [removedAdSlots])
+
+  // Release any native ads still held when the stack goes away.
+  useEffect(() => {
+    const loaded = loadedAdSlotsRef.current
+    const timers = adExpiryTimersRef.current
+    return () => {
+      timers.forEach(clearTimeout)
+      loaded.forEach(slot => destroyNativeAd(slot).catch(() => {}))
+    }
+  }, [])
 
   // Rotate loading messages
   useEffect(() => {
@@ -333,15 +469,19 @@ export default function CardStack({
     onLoadMore()
   }, [currentIndex, mergedPlaces.length, loading, loadingMore, onLoadMore])
 
-  const handleSwipe = (action) => {
+  const handleSwipe = (action, meta) => {
     const currentItem = mergedPlaces[currentIndex]
     const place = currentItem?.place
 
     // Fire BEFORE the sponsored short-circuit so AdMob's frequency cap
     // counts every swipe equally (regular + sponsored). This is what
     // drives the every-25-swipes interstitial — missing sponsored swipes
-    // would skew the count.
-    onAnySwipe?.(action, place)
+    // would skew the count. A web ad card skipped before it filled was
+    // never an ad view and is not counted; an ad card swipe is flagged so
+    // an interstitial never follows straight after it.
+    if (!meta?.unfilled) {
+      onAnySwipe?.(action, place, currentItem?.isAd ? { isAd: true } : undefined)
+    }
 
     // Track sponsored card views for premium hint
     if (currentItem?.isSponsored) {
@@ -350,13 +490,14 @@ export default function CardStack({
 
     // Open directions SYNCHRONOUSLY for "go" action to avoid popup blockers
     // This must happen before any async operations or timeouts
-    if (action === 'go' && place) {
+    if (action === 'go' && place && !currentItem?.isAd) {
       openDirections(place.lat, place.lng, place.name)
     }
 
     // Notify parent (pass the place, not the wrapper object)
-    // Don't track sponsored cards in the main save flow (handled by SponsoredCard)
-    if (!currentItem?.isSponsored) {
+    // Don't track sponsored cards in the main save flow (handled by SponsoredCard).
+    // Ad cards never save: any swipe on one is a skip.
+    if (!currentItem?.isSponsored && !currentItem?.isAd) {
       onSwipe?.(action, place)
     }
 
@@ -371,6 +512,10 @@ export default function CardStack({
       })
     }, 100)
   }
+
+  // Progress counts places only, not ad cards
+  const placeTotal = mergedPlaces.filter(c => !c.isAd).length
+  const placePosition = Math.max(1, mergedPlaces.slice(0, currentIndex + 1).filter(c => !c.isAd).length)
 
   // Get visible cards (current + 2 behind)
   const visibleCards = mergedPlaces.slice(currentIndex, currentIndex + 3)
@@ -587,9 +732,11 @@ export default function CardStack({
             const yOffset = index * 8
 
             // Create unique key for sponsored vs regular cards
-            const cardKey = isSponsored
-              ? `sponsored-${sponsoredData?.sponsored_id || place.id}`
-              : place.id
+            const cardKey = item.isAd
+              ? item.slot
+              : isSponsored
+                ? `sponsored-${sponsoredData?.sponsored_id || place.id}`
+                : place.id
 
             return (
               <motion.div
@@ -623,7 +770,15 @@ export default function CardStack({
                   width: '100%'
                 }}
               >
-                {isSponsored ? (
+                {item.isAd ? (
+                  <AdCard
+                    slot={item.slot}
+                    native={native}
+                    isTop={isTop}
+                    onSwipe={isTop ? handleSwipe : undefined}
+                    onStatus={setAdStatus}
+                  />
+                ) : isSponsored ? (
                   <SponsoredCard
                     sponsoredPlace={sponsoredData}
                     place={place}
@@ -656,12 +811,12 @@ export default function CardStack({
           <motion.div
             className="card-stack-progress-fill"
             initial={{ width: 0 }}
-            animate={{ width: `${((currentIndex + 1) / mergedPlaces.length) * 100}%` }}
+            animate={{ width: `${(placePosition / placeTotal) * 100}%` }}
             transition={{ duration: 0.3, ease: "easeOut" }}
           />
         </div>
         <span className="card-stack-count">
-          {currentIndex + 1} of {mergedPlaces.length}
+          {placePosition} of {placeTotal}
         </span>
       </div>
 

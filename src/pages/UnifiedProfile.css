@@ -857,6 +857,13 @@
   margin-bottom: 6px;
   transition: background 0.15s ease;
 }
+button.unified-profile-settings-link-row {
+  width: 100%;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .unified-profile-settings-link-row::after {
   content: '›';
   color: var(--roam-stone, #6b6b6b);

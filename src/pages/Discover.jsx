@@ -85,7 +85,9 @@ export default function Discover({ location }) {
   // Targeting is derived from the active category filters (banner) plus
   // the current place (each swipe). No-op on web (AdBanner handles
   // AdSense separately) and no-op for ROAM+ subscribers.
-  const { trackSwipe } = useAdMob({ bannerOnScreen: true, selectedCategories })
+  // No banner until there's content: onboarding and the location prompt have
+  // no location yet, and AdMob disallows ads on screens without content
+  const { trackSwipe } = useAdMob({ bannerOnScreen: Boolean(location), selectedCategories })
   const [showFilterModal, setShowFilterModal] = useState(false)
   const [showJustGo, setShowJustGo] = useState(false)
   const [viewMode, setViewMode] = useState('swipe') // 'swipe' | 'map' | 'list'

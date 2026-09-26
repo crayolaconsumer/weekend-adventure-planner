@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { isNative } from '../utils/nativeBridge'
+import { isPremiumUser, isAdFree } from '../utils/adEligibility'
 
 /**
  * Hook for managing user subscription state and premium features
@@ -18,17 +19,10 @@ export function useSubscription() {
   }
 
   // Determine if user has premium access
-  const isPremium = useMemo(() => {
-    if (!user) return false
-    if (user.tier === 'premium') {
-      // Check if subscription hasn't expired
-      if (user.subscription_expires_at) {
-        return new Date(user.subscription_expires_at) > new Date()
-      }
-      return true
-    }
-    return false
-  }, [user])
+  const isPremium = useMemo(() => isPremiumUser(user), [user])
+  // Gate for every ad request: also true when the user is unknown but
+  // signed in / last known premium (see utils/adEligibility)
+  const noAds = useMemo(() => isAdFree(user), [user])
 
   // Feature access checks
   const features = useMemo(() => ({
@@ -180,6 +174,7 @@ export function useSubscription() {
   return {
     // State
     isPremium,
+    noAds,
     tier: user?.tier || 'free',
     expiresAt: user?.subscription_expires_at,
     isCancelled: !!user?.subscription_cancelled_at,

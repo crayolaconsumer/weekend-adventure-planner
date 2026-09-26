@@ -15,10 +15,17 @@
  * Env vars (Vite — exposed to client):
  *   VITE_ADSENSE_CLIENT_ID   — your AdSense publisher ID (ca-pub-…)
  *   VITE_ADSENSE_SLOT_BANNER — the ad unit slot ID for the banner slot
+ *   VITE_ADSENSE_SLOT_CARD   — in-feed ad unit slot ID for the ad card in
+ *                              the Discover swipe stack (AdCard). Without it
+ *                              (or the client ID) no ad cards are inserted.
+ *   VITE_ADSENSE_CARD_LAYOUT_KEY — optional data-ad-layout-key for that
+ *                              in-feed unit (copy it from the AdSense unit code)
  */
 
 const CLIENT_ID = import.meta.env.VITE_ADSENSE_CLIENT_ID || null
 export const ADSENSE_SLOT_BANNER = import.meta.env.VITE_ADSENSE_SLOT_BANNER || null
+export const ADSENSE_SLOT_CARD = import.meta.env.VITE_ADSENSE_SLOT_CARD || null
+export const ADSENSE_CARD_LAYOUT_KEY = import.meta.env.VITE_ADSENSE_CARD_LAYOUT_KEY || null
 
 let scriptInjected = false
 

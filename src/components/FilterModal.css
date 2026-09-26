@@ -53,6 +53,17 @@
   overscroll-behavior: contain;
 }
 
+.filter-modal-privacy {
+  align-self: center;
+  padding: var(--space-xs) var(--space-sm);
+  background: none;
+  border: none;
+  font-size: var(--text-xs);
+  color: var(--roam-ink-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .filter-modal-scroll-hint {
   display: inline-flex;
   align-items: center;

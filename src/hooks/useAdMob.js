@@ -3,6 +3,7 @@ import { useSubscription } from './useSubscription'
 import { useAuth } from '../contexts/AuthContext'
 import { isNative } from '../utils/nativeBridge'
 import { buildAdTargeting } from '../utils/adTargeting'
+import { AD_CARD_EVENT, isAdCardActive } from '../utils/nativeAd'
 import {
   initAdMobIfNeeded,
   showBanner,
@@ -29,7 +30,9 @@ import {
  */
 export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {}) {
   const { user, loading: authLoading } = useAuth()
-  const { isPremium } = useSubscription()
+  // noAds, not isPremium: also covers a signed-in user whose tier is
+  // unknown because the auth check failed
+  const { isPremium, noAds } = useSubscription()
   const initRef = useRef(false)
 
   // Hold the latest selected categories in a ref so the banner (shown
@@ -48,7 +51,7 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
   useEffect(() => {
     if (authLoading) return
     if (!isNative()) return
-    if (isPremium) {
+    if (noAds) {
       resetAdMobState()
       return
     }
@@ -58,7 +61,7 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
     initAdMobIfNeeded({ isPremium: false }).catch(err => {
       console.warn('[useAdMob] init failed', err)
     })
-  }, [authLoading, isPremium, user?.id])
+  }, [authLoading, noAds, user?.id])
 
   // Banner lifecycle — bound to the screen the hook is mounted on.
   useEffect(() => {
@@ -68,7 +71,7 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
     // loads from the server. (Same fix already applied to web AdBanner.)
     if (authLoading) return
     if (!isNative()) return
-    if (isPremium) return
+    if (noAds) return
     if (!bannerOnScreen) return
 
     let cancelled = false
@@ -76,27 +79,43 @@ export function useAdMob({ bannerOnScreen = false, selectedCategories = [] } = {
     // the banner first mounts). Place-level targeting is added per-swipe
     // on the interstitial path.
     const targeting = buildAdTargeting({ selectedCategories: categoriesRef.current })
-    showBanner(targeting).catch(err => {
-      if (!cancelled) console.warn('[useAdMob] showBanner failed', err)
-    })
+    // One ad on screen at a time: the banner steps aside while a native
+    // ad card is up (AdCard announces it) and comes back after.
+    const show = () => {
+      if (isAdCardActive()) return
+      showBanner(targeting)
+        .then(() => { if (isAdCardActive()) hideBanner().catch(() => {}) })
+        .catch(err => {
+          if (!cancelled) console.warn('[useAdMob] showBanner failed', err)
+        })
+    }
+    const onAdCard = (e) => {
+      if (e.detail?.active) hideBanner().catch(() => {})
+      else show()
+    }
+    show()
+    window.addEventListener(AD_CARD_EVENT, onAdCard)
 
     return () => {
       cancelled = true
+      window.removeEventListener(AD_CARD_EVENT, onAdCard)
       hideBanner().catch(() => {})
     }
-  }, [authLoading, bannerOnScreen, isPremium])
+  }, [authLoading, bannerOnScreen, noAds])
 
-  const trackSwipe = useCallback((action, place) => {
+  // meta.isAd: the swipe was on an ad card (CardStack); an interstitial
+  // due now waits one swipe so two ads never run back to back
+  const trackSwipe = useCallback((action, place, meta) => {
     if (authLoading) return
-    if (isPremium) return
+    if (noAds) return
     const targeting = buildAdTargeting({
       selectedCategories: categoriesRef.current,
       place: place || null,
     })
-    maybeShowInterstitial({ isPremium, targeting }).catch(err => {
+    maybeShowInterstitial({ isPremium: noAds, targeting, afterAdCard: Boolean(meta?.isAd) }).catch(err => {
       console.warn('[useAdMob] interstitial failed', err)
     })
-  }, [authLoading, isPremium])
+  }, [authLoading, noAds])
 
   return { trackSwipe, isPremium }
 }

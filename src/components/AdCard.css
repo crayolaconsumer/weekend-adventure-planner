@@ -1,0 +1,163 @@
+/* Ad card: ROAM's card frame around an ad. The native placeholder must
+   match the native card drawn over it (ios/ + android/ RoamNativeAd). */
+
+.ad-card {
+  --ad-fill: var(--roam-parchment);
+  position: absolute;
+  inset: 0;
+  margin: 0 auto;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 3/4;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--roam-parchment);
+  box-shadow: 0 8px 24px rgba(42, 37, 32, 0.12);
+  font-family: var(--font-body);
+  user-select: none;
+}
+
+[data-theme="dark"] .ad-card {
+  --ad-fill: var(--roam-paper);
+}
+
+.ad-card-covered {
+  opacity: 0;
+}
+
+.ad-card-gone {
+  visibility: hidden;
+}
+
+.ad-card-web {
+  touch-action: none;
+  cursor: grab;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+}
+
+.ad-card-web:focus-visible {
+  outline: 2px solid var(--roam-gold);
+  outline-offset: 2px;
+}
+
+.ad-card-media {
+  flex: 0 0 56%;
+  /* Inset like a framed photo: keeps the ad's AdChoices icon clear of the
+     card's rounded corner on native, and the placeholder must match */
+  margin: 8px 8px 0;
+  border-radius: var(--radius-lg);
+  background: var(--ad-fill);
+}
+
+.ad-card-body {
+  padding: 16px 20px 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ad-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ad-card-pill {
+  flex: none;
+  height: 22px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  background: var(--roam-paper);
+  color: var(--roam-ink-light);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ad-card-skeleton {
+  display: block;
+  border-radius: var(--radius-full);
+  background: var(--ad-fill);
+}
+
+.ad-card-skeleton-advertiser {
+  width: 96px;
+  height: 12px;
+}
+
+.ad-card-skeleton-headline {
+  margin-top: 12px;
+  width: 88%;
+  height: 22px;
+}
+
+.ad-card-skeleton-headline.short {
+  margin-top: 6px;
+  width: 56%;
+}
+
+.ad-card-skeleton-line {
+  margin-top: 12px;
+  width: 72%;
+  height: 14px;
+}
+
+/* Web: the AdSense in-feed unit fills the space between the Sponsored
+   row and the bottom row. */
+.ad-card-slot {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 12px 20px 0;
+  overflow: hidden;
+}
+
+.ad-card-bottom {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding: 0 20px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+}
+
+.ad-card-skip {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--roam-paper);
+  border: 1px solid var(--roam-parchment);
+  color: var(--roam-ink);
+  cursor: pointer;
+}
+
+.ad-card-skip:focus-visible {
+  outline: 2px solid var(--roam-gold);
+  outline-offset: 2px;
+}
+
+.ad-card-filling {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-elevated);
+  pointer-events: none;
+}
+
+.ad-card-slot ins {
+  text-decoration: none;
+}

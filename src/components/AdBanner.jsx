@@ -23,7 +23,8 @@ import './AdBanner.css'
  */
 export default function AdBanner({ slot = 'banner', className = '' }) {
   const { loading: authLoading } = useAuth()
-  const { isPremium } = useSubscription()
+  // noAds also covers a signed-in user whose tier is unknown (auth check failed)
+  const { noAds } = useSubscription()
   const insRef = useRef(null)
   const pushedRef = useRef(false)
 
@@ -40,22 +41,25 @@ export default function AdBanner({ slot = 'banner', className = '' }) {
     // ad request in that window, breaking the "no ads ever" promise.
     if (authLoading) return
     if (!adSenseReady) return
-    if (isPremium) return
+    if (noAds) return
+    // Only with a slot to fill: the script alone lets Auto ads place ads on
+    // screens with no content (onboarding, loading), which AdSense rejects
+    if (!slotId) return
     injectAdSenseScript()
-  }, [authLoading, adSenseReady, isPremium])
+  }, [authLoading, adSenseReady, noAds, slotId])
 
   useEffect(() => {
     if (authLoading) return
     if (!adSenseReady) return
-    if (isPremium) return
+    if (noAds) return
     if (pushedRef.current) return
     if (!insRef.current) return
     pushAdSlot()
     pushedRef.current = true
-  }, [authLoading, adSenseReady, isPremium])
+  }, [authLoading, adSenseReady, noAds])
 
   if (authLoading) return null
-  if (isPremium) return null
+  if (noAds) return null
   if (onNative) return null
   if (!adSenseReady || !clientId || !slotId) {
     // Reserve space so AdSense-not-yet-approved layout matches the
