@@ -21,6 +21,7 @@
 
 import { useCallback } from 'react'
 import { motion } from 'framer-motion'
+import { track } from '../utils/analytics'
 import './Onboarding.css'
 
 const ArrowIcon = () => (
@@ -56,11 +57,13 @@ export default function Onboarding({ onComplete }) {
 
   const handleStart = useCallback(() => {
     localStorage.setItem('roam_onboarded', 'true')
+    track('onboarding_completed', { via: 'start' })
     onComplete()
   }, [onComplete])
 
   const handleSignIn = useCallback(() => {
     localStorage.setItem('roam_onboarded', 'true')
+    track('onboarding_completed', { via: 'sign_in' })
     onComplete()
     // App.jsx listens for this event and opens AuthModal — same path
     // the rest of the app uses for sign-in

@@ -169,8 +169,6 @@
 
 .town-filters .chip {
   flex: 0 0 auto;
-  /* global .chip sets no font, and <button> won't inherit Outfit on its own */
-  font-family: inherit;
 }
 
 .town-section {

@@ -36,6 +36,9 @@ import AdminRoute from './components/AdminRoute'
 import PartnerRoute from './components/PartnerRoute'
 
 import Onboarding from './components/Onboarding'
+import ResumeOnboarding from './components/ResumeOnboarding'
+import { shouldDeferOnboarding } from './utils/sharedLink'
+import { track } from './utils/analytics'
 import ErrorBoundary from './components/ErrorBoundary'
 // DebugHud disabled — it was a triple-tap-anywhere overlay used to
 // diagnose the WKWebView auth failure. Now that auth + the network
@@ -424,8 +427,24 @@ function App() {
 
   const [location, setLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
+  // A first-time web visitor arriving on a shared place/profile/plan link sees
+  // that content first. Onboarding (and the location prompt behind it) is
+  // deferred until they move on, e.g. tap Discover. See ResumeOnboarding.
+  const [onboardingDeferred, setOnboardingDeferred] = useState(() => {
+    const defer = shouldDeferOnboarding({
+      onboarded: Boolean(localStorage.getItem('roam_onboarded')),
+      native: isNative(),
+      pathname: window.location.pathname
+    })
+    // Once per browser session, so reloads of the shared page don't inflate it
+    if (defer && !sessionStorage.getItem('roam_onboarding_deferred')) {
+      sessionStorage.setItem('roam_onboarding_deferred', '1')
+      track('onboarding_deferred', { entry: window.location.pathname.split('/')[1] })
+    }
+    return defer
+  })
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !localStorage.getItem('roam_onboarded') && !isStandalonePath
+    return !localStorage.getItem('roam_onboarded') && !isStandalonePath && !onboardingDeferred
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState('login')
@@ -516,8 +535,8 @@ function App() {
 
   // Get user location only after onboarding is complete
   useEffect(() => {
-    // Don't request location while onboarding is showing
-    if (showOnboarding) return
+    // Don't request location while onboarding is showing, or before it has run
+    if (showOnboarding || onboardingDeferred) return
     // The partner portal never uses device location — don't prompt for it.
     if (isStandalonePath) return
 
@@ -543,7 +562,7 @@ function App() {
         // Default to London as fallback (display only — not a real fix).
         setLocation({ lat: 51.5074, lng: -0.1278, isFallback: true })
       })
-  }, [showOnboarding, isStandalonePath])
+  }, [showOnboarding, onboardingDeferred, isStandalonePath])
 
   // Retry location permission
   const retryLocation = () => {
@@ -627,10 +646,13 @@ function App() {
               />
 
               {/* PWA Install Banner */}
-              <InstallBanner />
+              <InstallBanner hidden={onboardingDeferred} />
 
               <IntentHandler />
               <UniversalLinkHandler />
+              {onboardingDeferred && (
+                <ResumeOnboarding onResume={showIntro => { setOnboardingDeferred(false); setShowOnboarding(showIntro) }} />
+              )}
               <DisplayNameNudge />
               <OfflineIndicator />
               <UserActivityHeartbeat />

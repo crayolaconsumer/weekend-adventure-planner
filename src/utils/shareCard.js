@@ -5,6 +5,7 @@
  */
 
 import { getCachedImage } from './imageCache'
+import { track } from './analytics'
 
 /**
  * Generate a shareable place card image
@@ -218,7 +219,7 @@ export async function generateAdventureCard(places, stats = {}) {
 /**
  * Share content using Web Share API or fallback
  * @param {Object} shareData - Share data
- * @returns {Promise<boolean>} - Whether share was successful
+ * @returns {Promise<'shared'|'copied'|false>} - What happened (truthy on success)
  */
 export async function shareContent(shareData) {
   const { title, text, url, files } = shareData
@@ -231,7 +232,7 @@ export async function shareContent(shareData) {
       const { shareContent: nativeShare } = await import('./nativePlugins')
       try {
         await nativeShare({ title, text, url, dialogTitle: title })
-        return true
+        return 'shared'
       } catch (err) {
         // Capacitor's Share throws { code: 'CANCELED' } on user dismiss
         if (err?.code === 'CANCELED' || err?.message?.includes('cancel')) {
@@ -253,7 +254,7 @@ export async function shareContent(shareData) {
       }
 
       await navigator.share(data)
-      return true
+      return 'shared'
     } catch (err) {
       if (err.name === 'AbortError') {
         // User cancelled - not an error
@@ -267,7 +268,7 @@ export async function shareContent(shareData) {
   try {
     const shareText = `${title}\n\n${text}\n\n${url}`
     await navigator.clipboard.writeText(shareText)
-    return true
+    return 'copied'
   } catch (err) {
     console.error('Clipboard copy failed:', err)
     return false
@@ -362,4 +363,28 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 4) {
 function truncateText(text, maxLength) {
   if (text.length <= maxLength) return text
   return text.slice(0, maxLength - 1) + '…'
+}
+
+/**
+ * Share a place's public page (go-roam.uk/place/:id, which shows web visitors
+ * a GetAppCard). Used at the moments
+ * people most want to share: just saved it, just visited and loved it.
+ * Returns what actually happened: 'shared' (share sheet), 'copied'
+ * (clipboard fallback, so the UI can say so) or false (cancelled / failed).
+ * Logs place_share for growth tracking.
+ */
+// Ids /place/:id can load for someone else (see fetchPlaceById): OSM numeric or
+// typed. wiki_ ids can't be fetched by id, and OpenTripMap's keys are revoked,
+// so sharing those would send a friend to "Place not found".
+export const isShareablePlaceId = id => /^([0-9]+|[nwr][0-9]+)$/.test(String(id))
+
+export async function sharePlaceLink(place, source) {
+  const { getPublicShareUrl } = await import('./nativeBridge')
+  const result = await shareContent({
+    title: place.name,
+    text: source === 'visited' ? `I loved ${place.name}. Found it on ROAM.` : `${place.name} looks good. Found it on ROAM.`,
+    url: getPublicShareUrl(`/place/${place.id}`)
+  })
+  track('place_share', { source, method: result || 'cancelled' })
+  return result
 }

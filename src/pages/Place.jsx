@@ -10,6 +10,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { enrichPlace, fetchPlaceById } from '../utils/apiClient'
 import PlaceDetail from '../components/PlaceDetail'
+import GetAppCard from '../components/GetAppCard'
+import { isNative } from '../utils/nativeBridge'
 import LoadingState from '../components/LoadingState'
 import { useSEO } from '../hooks/useSEO'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
@@ -173,6 +175,8 @@ export default function Place() {
       place={place}
       onClose={handleClose}
       onGo={handleGo}
+      // Shared place links land here on the web; give visitors the app
+      footer={isNative() ? null : <GetAppCard source="place" />}
     />
   )
 }

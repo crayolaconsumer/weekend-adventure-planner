@@ -12,6 +12,8 @@ import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { usePlaceRatings } from '../hooks/usePlaceRatings'
 import PhotoUpload from './PhotoUpload'
 import { tap as hapticTap, success as hapticSuccess, warn as hapticWarn } from '../utils/haptics'
+import SharePlaceButton from './SharePlaceButton'
+import { isShareablePlaceId } from '../utils/shareCard'
 import './VisitedPrompt.css'
 
 // Pre-generated confetti particles. The container is full-viewport, so each
@@ -107,6 +109,8 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
   const [selectedNoise, setSelectedNoise] = useState(null)
   const [selectedValue, setSelectedValue] = useState(null)
   const [reviewText, setReviewText] = useState('')
+  // Loved it, and it has a link a friend can open: that's the moment to share
+  const offerShare = recommended === true && isShareablePlaceId(place.id)
 
   const handleVisited = () => {
     hapticTap('medium')
@@ -211,11 +215,14 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
     setStep('success')
     setShowConfetti(true)
 
-    // Notify parent and auto-close
+    // Notify parent. A place they loved is the moment to share it, so that
+    // screen waits for "Done"; otherwise auto-close as before.
     onConfirm?.(place, recommended)
-    setTimeout(() => {
-      onDismiss?.()
-    }, 2500)
+    if (!offerShare) {
+      setTimeout(() => {
+        onDismiss?.()
+      }, 2500)
+    }
   }
 
   const handleSkipRating = () => {
@@ -617,7 +624,17 @@ export default function VisitedPrompt({ place, userLocation, onConfirm, onDismis
                   </svg>
                 </motion.div>
                 <h3 className="visited-title">+1 on your map</h3>
-                <p className="visited-subtitle">Keep exploring to unlock badges</p>
+                {offerShare ? (
+                  <>
+                    <p className="visited-subtitle">Know someone who'd love {place.name} too?</p>
+                    <div className="visited-actions">
+                      <SharePlaceButton place={place} source="visited" className="visited-btn primary" />
+                      <button className="visited-btn secondary" onClick={onDismiss}>Done</button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="visited-subtitle">Keep exploring to unlock badges</p>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

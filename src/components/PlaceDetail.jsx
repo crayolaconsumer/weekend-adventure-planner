@@ -172,7 +172,7 @@ const CalendarPlusIcon = () => (
 // intentional design choice rather than a misleading photo. Real photos
 // only come from place_data or Wikipedia (resolved via PlaceImage).
 
-export default function PlaceDetail({ place, onClose, onGo, userLocation = null }) {
+export default function PlaceDetail({ place, onClose, onGo, userLocation = null, footer = null }) {
   const { resolved: theme } = useTheme()
   const mapTile = theme === 'dark' ? DARK_TILE : VOYAGER_TILE
   const [enrichedPlace, setEnrichedPlace] = useState(place)
@@ -733,6 +733,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null 
               <NavigationIcon />
               <span>Get Directions</span>
             </motion.button>
+            {footer}
           </div>
         </motion.div>
       </motion.div>

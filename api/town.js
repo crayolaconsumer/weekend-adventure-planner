@@ -13,7 +13,7 @@
  *
  * Places come from the existing Overpass proxy, invoked in-process so it
  * keeps its KV cache, mirror failover, kill-switch and per-IP rate limit
- * (keyed on the real visitor). Pages are CDN-cached for an hour.
+ * (keyed on the real visitor). Pages are CDN-cached for a day.
  */
 
 import overpassProxy from './places/overpass/nearby.js'
@@ -32,7 +32,8 @@ const TOWN_RATE_LIMIT = { windowMs: 5 * 60 * 1000, max: 60, blockDurationMs: 10 
 // so one client gets far fewer of them than of named towns
 const NEAR_RATE_LIMIT = { windowMs: 5 * 60 * 1000, max: 10, blockDurationMs: 10 * 60 * 1000 }
 
-const PAGE_CACHE = 'public, s-maxage=3600, stale-while-revalidate=86400'
+// A day at the CDN: places change slowly, and ~1,650 sitemap towns being crawled
+// must not turn into ~1,650 Overpass queries an hour
 const LONG_CACHE = 'public, s-maxage=86400, stale-while-revalidate=604800'
 // Under the service worker's 30s navigation timeout (public/sw.js), so a
 // returning visitor gets this page rather than the SPA fallback. One slow
@@ -213,8 +214,13 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate }
       const { grouped, ok } = await fetchGroupedPlaces(town, getRateLimitKey(req), proxy, deadline)
       console.log(`[town] render ${slug} places=${grouped.total}${ok ? '' : ' (upstream failed)'}`)
       // A failed fetch reflects this moment (or this visitor's rate limit), never share it
-      const cache = !ok ? 'no-store' : grouped.total > 0 ? PAGE_CACHE : 'public, s-maxage=600'
-      return sendHtml(res, 200, renderTownPage(town, grouped), cache)
+      if (!ok) {
+        // Upstream failed: a 503 tells crawlers "retry later" (a 200 page with
+        // no places would get noindexed); people still see the page and a way on
+        res.setHeader('Retry-After', '300')
+        return sendHtml(res, 503, renderTownPage(town, grouped), 'no-store')
+      }
+      return sendHtml(res, 200, renderTownPage(town, grouped), grouped.total > 0 ? LONG_CACHE : 'public, s-maxage=600')
     } catch (err) {
       // Geocoder down, busy or timed out: say so, don't cache it
       console.error(`[town] ${near ? 'near' : rawSlug}: ${err.message}`)

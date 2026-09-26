@@ -1,0 +1,54 @@
+/* Mirrors the town pages' .get panel (api/lib/towns.js); literal forest because
+   the token lightens in dark mode (see docs/BRAND.md) */
+.get-app-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-md);
+  align-items: center;
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  border-radius: var(--radius-xl);
+  background: #1a3a2f;
+  color: #fdfcf8;
+}
+
+.get-app-card h3 {
+  margin: 0 0 var(--space-xs);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: #fdfcf8;
+}
+
+.get-app-card p {
+  margin: 0;
+  color: #d0c5b0;
+  font-size: var(--text-sm);
+}
+
+.get-app-card-stores {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.get-app-card-stores a {
+  flex: 1;
+  text-align: center;
+  padding: 12px var(--space-md);
+  border-radius: var(--radius-full);
+  border: 2px solid #fdfcf8;
+  background: #fdfcf8;
+  color: #1a3a2f;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.get-app-card-stores a.alt {
+  background: transparent;
+  color: #fdfcf8;
+}
+
+[data-theme="dark"] .get-app-card {
+  background: var(--color-surface-elevated);
+}

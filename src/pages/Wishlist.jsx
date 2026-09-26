@@ -691,9 +691,8 @@ export default function Wishlist() {
         <VisitedPrompt
           place={visitPromptPlace}
           userLocation={null}
-          onConfirm={() => {
-            setVisitPromptPlace(null)
-          }}
+          // Closing happens in onDismiss (after the success screen), like Discover;
+          // closing on confirm cut off the celebration and the share offer
           onDismiss={() => {
             setVisitPromptPlace(null)
           }}

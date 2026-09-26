@@ -53,6 +53,7 @@ Category colours come from `CategoryIcon` (`src/components/icons/CategoryIcon.js
 |---|---|---|
 | Display: titles, wordmark, section headings | Newsreader (`--font-display`) | 400 for big titles with `-0.04em` tracking, 500 for section headings |
 | Body, UI, buttons | Outfit (`--font-body`) | 400 body, 500 chips, 600 buttons and names |
+| | | Buttons and inputs inherit the page font via a global rule in `src/index.css`; don't set a system font on them |
 
 Scale (`src/index.css`): `--text-xs` 0.75 / `sm` 0.875 / `base` 1 / `lg` 1.125 / `xl` 1.375 / `2xl` 1.75 / `3xl` 2.25 / `4xl` 3 / `hero` 4 rem.
 In-app page titles use `.page-title` sizing: `--text-2xl`, weight 500, ink (Saved, Social, town screens). Forest `--text-hero` is reserved for the Discover wordmark; public web landing pages may go up to `--text-3xl`.

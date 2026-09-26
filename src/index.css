@@ -221,6 +221,13 @@ body {
   overscroll-behavior: none;
 }
 
+/* Browsers don't let form controls inherit the page font, so any button
+   without its own font-family fell back to the system font (Arial) instead
+   of Outfit. Family only: sizes and weights stay as each component sets them. */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
 /* Paper texture overlay */
 body::before {
   content: '';

@@ -65,6 +65,8 @@ describe('pickDisplayName', () => {
     expect(pickDisplayName('leigh', 'Leigh-on-Sea')).toBe('Leigh-on-Sea')
     expect(pickDisplayName('york', 'City of York')).toBe('York')
     expect(pickDisplayName('westminster', 'City of Westminster')).toBe('Westminster')
+    // regression: stacked suffixes titled the page "Belfast City District" and 301'd it
+    expect(pickDisplayName('belfast', 'Belfast City District')).toBe('Belfast')
   })
 })
 

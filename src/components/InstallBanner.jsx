@@ -6,7 +6,8 @@ import './InstallBanner.css'
  * PWA Install Banner
  * Shows a non-intrusive banner when the app can be installed
  */
-export default function InstallBanner() {
+// hidden: a shared-link visitor already sees the app-store card on the page
+export default function InstallBanner({ hidden = false }) {
   const { canInstall, installApp, dismissPrompt } = usePWAInstall()
 
   const handleInstall = async () => {
@@ -18,7 +19,7 @@ export default function InstallBanner() {
 
   return (
     <AnimatePresence>
-      {canInstall && (
+      {canInstall && !hidden && (
         <motion.div
           className="install-banner"
           initial={{ opacity: 0, y: 50 }}

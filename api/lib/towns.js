@@ -53,7 +53,8 @@ export function pickDisplayName(slug, resultName) {
   const n = normalise(resultName || '')
   if (!n) return titleCase(s)
   if (s === n || s.startsWith(n + ' ')) return resultName
-  const adminWrapped = new RegExp(`^(greater |(royal |metropolitan |london )?borough of |city (and county )?of |county of |municipality of )?${escapeRe(s)}( city| borough| district| municipality)?$`)
+  // Suffixes can stack: Nominatim calls Belfast "Belfast City District"
+  const adminWrapped = new RegExp(`^(greater |(royal |metropolitan |london )?borough of |city (and county )?of |county of |municipality of )?${escapeRe(s)}( city| borough| district| municipality| council| county)*$`)
   if (adminWrapped.test(n)) return titleCase(s)
   return resultName
 }
@@ -435,7 +436,7 @@ function analyticsScript(slug) {
   return `<script>(function(c){var id='town_'+Math.random().toString(36).slice(2);
 function send(e,p){try{var b=JSON.stringify({api_key:c.key,event:e,distinct_id:id,properties:Object.assign({town:c.slug,$current_url:location.href,$referrer:document.referrer},p)});
 navigator.sendBeacon?navigator.sendBeacon(c.host+'/capture/',new Blob([b],{type:'text/plain'})):fetch(c.host+'/capture/',{method:'POST',body:b,keepalive:true})}catch(_){}}
-send('town_page_view',{});document.addEventListener('click',function(ev){var a=ev.target.closest&&ev.target.closest('a[data-store]');if(a)send('town_store_click',{store:a.getAttribute('data-store')})})})(${cfg})</script>`
+send('town_page_view',{});document.addEventListener('click',function(ev){var a=ev.target.closest&&ev.target.closest('a[data-store]');if(a)send('store_click',{source:'town',store:a.getAttribute('data-store')})})})(${cfg})</script>`
 }
 
 function playLink(slug) {

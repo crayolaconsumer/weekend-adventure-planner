@@ -55,7 +55,7 @@ describe('api/town — web pages', () => {
     const res = await run(handler, { slug: 'hatfield' })
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toMatch(/text\/html/)
-    expect(res.headers['cache-control']).toBe('public, s-maxage=3600, stale-while-revalidate=86400')
+    expect(res.headers['cache-control']).toBe('public, s-maxage=86400, stale-while-revalidate=604800')
     expect(res.body).toContain('<h1>Hatfield</h1>')
     expect(res.body).toContain('href="/place/101"')
     expect(res.body).toContain('href="/place/w102"')
@@ -70,10 +70,11 @@ describe('api/town — web pages', () => {
     expect(px.mock.calls[0][0].headers['x-forwarded-for']).toBe('203.0.113.9')
   })
 
-  it('still renders when Overpass is down, but never caches that moment publicly', async () => {
+  it('still renders when Overpass is down, as a 503 crawlers retry (regression: 200 + noindex got pages dropped)', async () => {
     handler = createHandler({ proxy: proxy({ status: 503, body: { error: 'down' } }), fetchImpl, gate })
     const res = await run(handler, { slug: 'hatfield' })
-    expect(res.statusCode).toBe(200)
+    expect(res.statusCode).toBe(503)
+    expect(res.headers['retry-after']).toBe('300')
     // regression: one rate-limited visitor's empty page was shared via the CDN
     expect(res.headers['cache-control']).toBe('no-store')
     expect(res.body).toContain('noindex')
@@ -118,7 +119,7 @@ describe('api/town — web pages', () => {
   it('an all-empty Overpass answer is a degraded mirror, not an empty town: never cached (regression)', async () => {
     handler = createHandler({ proxy: proxy({ body: { elements: [], remark: 'runtime error: Query timed out' } }), fetchImpl, gate })
     const res = await run(handler, { slug: 'hatfield' })
-    expect(res.statusCode).toBe(200)
+    expect(res.statusCode).toBe(503)
     expect(res.headers['cache-control']).toBe('no-store')
   })
 

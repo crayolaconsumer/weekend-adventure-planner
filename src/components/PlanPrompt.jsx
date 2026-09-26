@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { success as hapticSuccess } from '../utils/haptics'
+import SharePlaceButton from './SharePlaceButton'
 import './PlanPrompt.css'
 
 // Bookmark/map icon - represents saved adventures
@@ -177,6 +178,7 @@ export default function PlanPrompt({ place, onClose, onAddToPlan }) {
               </span>
               Plan Adventure
             </button>
+            <SharePlaceButton place={place} source="saved" className="plan-prompt-btn ghost" />
             <button
               className="plan-prompt-btn ghost"
               onClick={handleDismiss}
