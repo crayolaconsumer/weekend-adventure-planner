@@ -85,9 +85,9 @@ export async function awardBadge(userId, badgeId) {
 }
 
 /**
- * Re-evaluate every stats-derived badge for a user. Idempotent —
- * awardBadge checks for existing rows before inserting, so this is
- * safe to run after every relevant event.
+ * Re-evaluate every stats-derived badge for a user. Idempotent (only
+ * missing badges are inserted, with INSERT IGNORE), so this is safe to
+ * run after every relevant event.
  *
  * Source-of-truth tables (saved_places, plans, visited_places,
  * contributions) are queried directly rather than trusting the
@@ -102,34 +102,34 @@ export async function awardBadge(userId, badgeId) {
 export async function evaluateBadges(userId) {
   if (!userId) return
 
-  const [stats, savedCount, planCount, visitedCount, contribCount, followerCount, helpfulSum] = await Promise.all([
-    queryOne(
-      `SELECT current_streak, best_streak, boredom_busts FROM user_stats WHERE user_id = ?`,
-      [userId]
-    ),
-    queryOne(`SELECT COUNT(*) AS n FROM saved_places WHERE user_id = ?`, [userId]),
-    queryOne(`SELECT COUNT(*) AS n FROM plans WHERE user_id = ?`, [userId]),
-    queryOne(`SELECT COUNT(*) AS n FROM visited_places WHERE user_id = ?`, [userId]),
-    queryOne(
-      `SELECT COUNT(*) AS n FROM contributions WHERE user_id = ? AND status = 'approved'`,
-      [userId]
-    ),
-    queryOne(`SELECT COUNT(*) AS n FROM follows WHERE following_id = ?`, [userId]),
-    queryOne(
-      `SELECT COALESCE(SUM(upvotes), 0) AS n FROM contributions WHERE user_id = ? AND status = 'approved'`,
-      [userId]
-    ),
-  ])
+  // One round trip for every input plus the badges already owned. This used
+  // to be 7 parallel queries and up to 16 SELECT/INSERT pairs, all queued on
+  // the instance's single pooled connection.
+  const row = await queryOne(
+    `SELECT
+       (SELECT current_streak FROM user_stats WHERE user_id = ?) AS cs,
+       (SELECT best_streak FROM user_stats WHERE user_id = ?) AS bs,
+       (SELECT boredom_busts FROM user_stats WHERE user_id = ?) AS bb,
+       (SELECT COUNT(*) FROM saved_places WHERE user_id = ?) AS saved,
+       (SELECT COUNT(*) FROM plans WHERE user_id = ?) AS plans,
+       (SELECT COUNT(*) FROM visited_places WHERE user_id = ?) AS visited,
+       (SELECT COUNT(*) FROM contributions WHERE user_id = ? AND status = 'approved') AS contribs,
+       (SELECT COUNT(*) FROM follows WHERE following_id = ?) AS followers,
+       (SELECT COALESCE(SUM(upvotes), 0) FROM contributions WHERE user_id = ? AND status = 'approved') AS helpful,
+       (SELECT GROUP_CONCAT(badge_id) FROM user_badges WHERE user_id = ?) AS owned`,
+    Array(10).fill(userId)
+  )
 
-  const cs = stats?.current_streak || 0
-  const bs = stats?.best_streak || 0
-  const bb = stats?.boredom_busts || 0
-  const saved = savedCount?.n || 0
-  const plans = planCount?.n || 0
-  const visited = visitedCount?.n || 0
-  const contribs = contribCount?.n || 0
-  const followers = followerCount?.n || 0
-  const helpful = Number(helpfulSum?.n) || 0
+  const cs = Number(row?.cs) || 0
+  const bs = Number(row?.bs) || 0
+  const bb = Number(row?.bb) || 0
+  const saved = Number(row?.saved) || 0
+  const plans = Number(row?.plans) || 0
+  const visited = Number(row?.visited) || 0
+  const contribs = Number(row?.contribs) || 0
+  const followers = Number(row?.followers) || 0
+  const helpful = Number(row?.helpful) || 0
+  const owned = new Set(row?.owned ? String(row.owned).split(',') : [])
 
   // Streak badges. Best-streak floors so a user who once hit 7 days
   // still owns streak_7 after their streak resets to 0.
@@ -161,9 +161,15 @@ export async function evaluateBadges(userId) {
   if (helpful >= 10) awards.push('helpful_10')
   if (helpful >= 50) awards.push('helpful_50')
 
-  // Award all in parallel. awardBadge is idempotent so duplicates are
-  // cheap no-ops.
-  await Promise.all(awards.map(badgeId => awardBadge(userId, badgeId)))
+  // Insert only what is missing, in one statement. Skipping owned badges
+  // means the usual case writes nothing and burns no AUTO_INCREMENT ids;
+  // INSERT IGNORE on UNIQUE(user_id, badge_id) covers a concurrent award.
+  const missing = awards.filter(id => !owned.has(id))
+  if (missing.length === 0) return
+  await query(
+    `INSERT IGNORE INTO user_badges (user_id, badge_id) VALUES ${missing.map(() => '(?, ?)').join(', ')}`,
+    missing.flatMap(id => [userId, id])
+  )
 }
 
 export default withCors(handler)

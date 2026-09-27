@@ -5,7 +5,7 @@
  */
 
 import { getUserFromRequest } from '../lib/auth.js'
-import { query, queryOne } from '../lib/db.js'
+import { query, queryOne, update } from '../lib/db.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { evaluateBadges } from './badges.js'
@@ -13,6 +13,11 @@ import { waitUntil } from '@vercel/functions'
 
 // Maximum value to prevent integer overflow (MySQL INT max is 2147483647)
 const MAX_STAT_VALUE = 999999999
+
+// Fields no badge reads (evaluateBadges uses streaks, boredom busts and
+// source tables only). Every swipe PUTs totalSwipes, and old native builds
+// keep doing so, so a swipe-only write must not trigger badge evaluation.
+const SWIPE_FIELDS = new Set(['totalSwipes', 'swipesRight', 'swipesLeft'])
 
 async function handler(req, res) {
   const user = await getUserFromRequest(req)
@@ -91,11 +96,9 @@ async function handlePut(req, res, user) {
 
   const { increment, ...directUpdates } = req.body
 
-  // Ensure stats row exists with atomic INSERT IGNORE
-  await query('INSERT IGNORE INTO user_stats (user_id) VALUES (?)', [user.id])
-
   const updates = []
   const params = []
+  const touched = [] // request keys that produced a SET clause
 
   // Whitelist of allowed fields. New activity + streak fields live
   // alongside the existing counters. Numeric fields all share the same
@@ -138,6 +141,7 @@ async function handlePut(req, res, user) {
           // Use LEAST to cap at MAX_STAT_VALUE to prevent overflow
           updates.push(`${dbField} = LEAST(${dbField} + ?, ${MAX_STAT_VALUE})`)
           params.push(safeAmount)
+          touched.push(key)
         }
       }
     }
@@ -151,6 +155,7 @@ async function handlePut(req, res, user) {
       const safeValue = Math.min(Math.max(0, Math.floor(value)), MAX_STAT_VALUE)
       updates.push(`${dbField} = ?`)
       params.push(safeValue)
+      touched.push(key)
     }
   }
 
@@ -160,6 +165,7 @@ async function handlePut(req, res, user) {
     if (!dbField) continue
     if (value === null) {
       updates.push(`${dbField} = NULL`)
+      touched.push(key)
     } else if (typeof value === 'string') {
       const parsed = new Date(value)
       if (!Number.isNaN(parsed.getTime())) {
@@ -167,6 +173,7 @@ async function handlePut(req, res, user) {
         // For DATE columns, MySQL accepts YYYY-MM-DD; for TIMESTAMP
         // it accepts ISO. mysql2 will coerce either correctly.
         params.push(parsed)
+        touched.push(key)
       }
     }
   }
@@ -177,10 +184,20 @@ async function handlePut(req, res, user) {
 
   params.push(user.id)
 
-  await query(
-    `UPDATE user_stats SET ${updates.join(', ')} WHERE user_id = ?`,
-    params
-  )
+  // UPDATE first: one statement once the row exists. mysql2 sets
+  // CLIENT_FOUND_ROWS, so affectedRows counts matched rows, and 0 means
+  // no row yet. The old per-request INSERT IGNORE (and an upsert would
+  // too) burned an AUTO_INCREMENT id on every call; now only the first
+  // write for a user inserts. INSERT IGNORE covers two first writes racing.
+  const sql = `UPDATE user_stats SET ${updates.join(', ')} WHERE user_id = ?`
+  if (await update(sql, params) === 0) {
+    await query('INSERT IGNORE INTO user_stats (user_id) VALUES (?)', [user.id])
+    await update(sql, params)
+  }
+
+  if (touched.every(key => SWIPE_FIELDS.has(key))) {
+    return res.status(200).json({ success: true })
+  }
 
   // Re-evaluate ALL stats-derived badges after every stats write.
   // evaluateBadges queries source-of-truth tables for activity counts
