@@ -17,6 +17,7 @@ vi.mock('../../../api/lib/db.js', () => ({
 }))
 vi.mock('../../../api/lib/rateLimit.js', () => ({
   applyRateLimit: () => null,
+  checkRateLimit: () => ({ allowed: true }),
   RATE_LIMITS: {},
 }))
 vi.mock('jose', () => ({

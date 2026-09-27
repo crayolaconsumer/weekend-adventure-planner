@@ -143,7 +143,7 @@ describe('rateLimit.applyRateLimit', () => {
 describe('rateLimit.RATE_LIMITS presets', () => {
   it('exposes expected named presets', () => {
     const required = [
-      'AUTH_LOGIN', 'AUTH_REGISTER', 'AUTH_GOOGLE',
+      'AUTH_LOGIN', 'AUTH_LOGIN_EMAIL', 'AUTH_REGISTER', 'AUTH_REGISTER_EMAIL', 'AUTH_GOOGLE',
       'SHARE_CODE_LOOKUP', 'API_GENERAL', 'API_WRITE',
       'CONTRIBUTION', 'VOTE', 'FOLLOW',
     ]
@@ -156,7 +156,14 @@ describe('rateLimit.RATE_LIMITS presets', () => {
 
   it('auth-write presets are tighter than general API', () => {
     expect(RATE_LIMITS.AUTH_LOGIN.max).toBeLessThan(RATE_LIMITS.API_GENERAL.max)
-    expect(RATE_LIMITS.AUTH_REGISTER.max).toBeLessThan(RATE_LIMITS.AUTH_LOGIN.max)
+  })
+
+  it('per-IP auth caps survive a carrier NAT; per-email caps stay tight', () => {
+    // Many phones share one IP on mobile carriers (CGNAT)
+    expect(RATE_LIMITS.AUTH_REGISTER.max).toBeGreaterThanOrEqual(20)
+    expect(RATE_LIMITS.AUTH_LOGIN.max).toBeGreaterThanOrEqual(20)
+    expect(RATE_LIMITS.AUTH_REGISTER_EMAIL.max).toBeLessThanOrEqual(3)
+    expect(RATE_LIMITS.AUTH_LOGIN_EMAIL.max).toBeLessThanOrEqual(10)
   })
 })
 

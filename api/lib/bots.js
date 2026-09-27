@@ -1,3 +1,4 @@
+import { isLoadTest } from './loadtest.js'
 // Link-preview bots (share-meta.js gives them time for a cold lookup) plus
 // search and AI crawlers (town.js keeps them off the Ticketmaster quota).
 // `(?<!cu)bot[/-]`: "Cubot" is a phone brand, not a bot.
@@ -24,7 +25,8 @@ export const isSearchCrawler = req => {
  * upstream (Wikipedia, Commons, Overpass). Returns true once it has replied.
  */
 export function refuseBotUpstream(req, res) {
-  if (!isSearchCrawler(req)) return false
+  // Load tests get the same cache-only treatment (api/lib/loadtest.js)
+  if (!isSearchCrawler(req) && !isLoadTest(req)) return false
   res.setHeader('Cache-Control', 'private, no-store')
   res.status(503).json({ error: 'cache-only for crawlers' })
   return true

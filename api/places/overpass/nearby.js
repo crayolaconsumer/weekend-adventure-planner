@@ -1,4 +1,5 @@
 import { isSearchCrawler } from '../../lib/bots.js'
+import { isLoadTest } from '../../lib/loadtest.js'
 import { logPlaces } from '../../lib/placesLog.js'
 /**
  * Overpass API Proxy with Edge Caching
@@ -423,7 +424,8 @@ export default async function handler(req, res) {
   // Crawlers rendering /place and /town pages (1 page/s after the sitemap
   // went out) must never spend the public Overpass servers' tiny quota:
   // they get the same cache-only treatment as the kill-switch.
-  if (isSearchCrawler(req) || !(await isFeatureEnabled('overpassProxy'))) {
+  // Load tests (api/lib/loadtest.js) likewise never go upstream
+  if (isSearchCrawler(req) || isLoadTest(req) || !(await isFeatureEnabled('overpassProxy'))) {
     if (isCacheEnabled()) {
       const staleData = await readStale()
       if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {

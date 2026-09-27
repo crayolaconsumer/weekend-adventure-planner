@@ -23,7 +23,7 @@ describe('crawlers never trigger live upstream calls', () => {
   it('is wired into every free-upstream proxy', () => {
     expect(readFileSync('api/wikipedia/summary.js', 'utf8')).toMatch(/refuseBotUpstream\(req, res\)/)
     expect(readFileSync('api/places/image-resolve.js', 'utf8')).toMatch(/refuseBotUpstream\(req, res\)/)
-    expect(readFileSync('api/places/overpass/nearby.js', 'utf8')).toMatch(/isSearchCrawler\(req\) \|\| !\(await isFeatureEnabled/)
+    expect(readFileSync('api/places/overpass/nearby.js', 'utf8')).toMatch(/isSearchCrawler\(req\) \|\| isLoadTest\(req\) \|\| !\(await isFeatureEnabled/)
   })
 
   it('robots.txt keeps crawlers off the data API but not the pages or share images', () => {

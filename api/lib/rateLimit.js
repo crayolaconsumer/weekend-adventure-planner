@@ -10,6 +10,7 @@
  */
 
 import { getClient as getKvClient } from './kvCache.js'
+import { bypassesRateLimit } from './loadtest.js'
 
 // Store: Map of key -> { count, windowStart, blocked, blockedUntil }
 const store = new Map()
@@ -39,8 +40,12 @@ function cleanup() {
  */
 export const RATE_LIMITS = {
   // Auth endpoints - stricter limits
-  AUTH_LOGIN: { windowMs: 15 * 60 * 1000, max: 10, blockDurationMs: 30 * 60 * 1000 }, // 10 per 15 min, block 30 min
-  AUTH_REGISTER: { windowMs: 60 * 60 * 1000, max: 5, blockDurationMs: 60 * 60 * 1000 }, // 5 per hour, block 1 hour
+  // Per-IP caps are loose on purpose: mobile carriers put many phones behind
+  // one IP (CGNAT). The per-email caps are what stop guessing and spam.
+  AUTH_LOGIN: { windowMs: 15 * 60 * 1000, max: 30, blockDurationMs: 30 * 60 * 1000 }, // 30 per 15 min per IP, block 30 min
+  AUTH_LOGIN_EMAIL: { windowMs: 15 * 60 * 1000, max: 10, blockDurationMs: 15 * 60 * 1000 }, // 10 per 15 min per account, block 15 min
+  AUTH_REGISTER: { windowMs: 60 * 60 * 1000, max: 30, blockDurationMs: 60 * 60 * 1000 }, // 30 per hour per IP, block 1 hour
+  AUTH_REGISTER_EMAIL: { windowMs: 60 * 60 * 1000, max: 3, blockDurationMs: 60 * 60 * 1000 }, // 3 per hour per email, block 1 hour
   AUTH_GOOGLE: { windowMs: 15 * 60 * 1000, max: 20, blockDurationMs: 15 * 60 * 1000 }, // 20 per 15 min
 
   // Share code lookup - prevent enumeration
@@ -121,6 +126,11 @@ export function checkRateLimit(key, config) {
   }
 }
 
+/** Forget a key's count and block (e.g. a successful login clears its failures) */
+export function resetRateLimit(key) {
+  store.delete(key)
+}
+
 /**
  * Get rate limit key from request
  * Uses X-Forwarded-For header (set by Vercel) or falls back to connection IP
@@ -148,6 +158,8 @@ export function getRateLimitKey(req, suffix = '') {
  * @returns {Object|null} Error response object or null if allowed
  */
 export function applyRateLimit(req, res, config, keySuffix = '') {
+  // One load-test runner IP stands in for thousands of users (api/lib/loadtest.js)
+  if (bypassesRateLimit(req, keySuffix)) return null
   const key = getRateLimitKey(req, keySuffix)
   const result = checkRateLimit(key, config)
 
@@ -179,6 +191,7 @@ export function applyRateLimit(req, res, config, keySuffix = '') {
  * @returns {Promise<Object|null>} 429 payload, or null if allowed
  */
 export async function applySharedRateLimit(req, res, { max, windowSec }, name, client = getKvClient()) {
+  if (bypassesRateLimit(req, name)) return null
   if (!client) return null
   const nowSec = Math.floor(Date.now() / 1000)
   const window = Math.floor(nowSec / windowSec)

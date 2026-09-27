@@ -1,0 +1,72 @@
+# Staged load test of www.go-roam.uk (k6). Manual only. Runbook: scripts/loadtest/README.md
+# Test accounts are created and removed from a trusted machine (DB credentials never
+# reach this public repo's Actions). Requests carry x-roam-loadtest so the API skips
+# per-IP limits and never calls Overpass/Wikimedia (api/lib/loadtest.js); that only
+# works while LOADTEST_SECRET is set in Vercel, which is removed after each run.
+name: Load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Test account run id (lt_<run_id>_<i>), as created by scripts/loadtest/accounts.mjs
+        required: true
+      accounts:
+        description: Number of test accounts created
+        default: '50'
+      max_vus:
+        description: Highest stage (10,25,50,100,250,500,1000 up to this)
+        default: '1000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: loadtest
+  cancel-in-progress: false
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install k6 and deps
+        run: |
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -q && sudo apt-get install -y -q k6
+          npm ci --ignore-scripts --no-audit --no-fund
+          k6 version
+
+      - name: Queries + warm the CDN (sequential, once)
+        run: |
+          node scripts/loadtest/queries.mjs
+          node scripts/loadtest/warm.mjs
+
+      - name: Run k6
+        env:
+          LOADTEST_SECRET: ${{ secrets.LOADTEST_SECRET }}
+          LOADTEST_PASSWORD: ${{ secrets.LOADTEST_PASSWORD }}
+          RUN_ID: ${{ inputs.run_id }}
+          ACCOUNTS: ${{ inputs.accounts }}
+          MAX_VUS: ${{ inputs.max_vus }}
+        run: |
+          if [ -z "$LOADTEST_SECRET" ]; then echo "LOADTEST_SECRET secret missing" >&2; exit 1; fi
+          k6 run --quiet --summary-export summary-export.json scripts/loadtest/k6.js
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: loadtest-${{ inputs.run_id }}
+          path: |
+            summary.json
+            summary-export.json
+          if-no-files-found: warn

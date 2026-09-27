@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHandler, callOverpassProxy, parseNear } from '../../../api/town.js'
 import { weekendWindow } from '../../../api/lib/townEvents.js'
 
@@ -370,5 +370,52 @@ describe('callOverpassProxy', () => {
   })
   it('rejects if the proxy throws', async () => {
     await expect(callOverpassProxy('q', 'ip', async () => { throw new Error('boom') })).rejects.toThrow('boom')
+  })
+})
+
+// End to end through the real Overpass proxy (api/places/overpass/nearby.js):
+// crawlers and load tests must never cause a live Overpass, Nominatim or
+// Ticketmaster call via /town, even on a cache miss
+describe('api/town — crawlers and load tests are cache-only', () => {
+  const SECRET = 'L'.repeat(40)
+  let net, ticketmaster, h
+  beforeEach(() => {
+    vi.stubEnv('LOADTEST_SECRET', SECRET)
+    net = vi.fn(async url => { throw new Error(`live call: ${url}`) })
+    vi.stubGlobal('fetch', net)
+    ticketmaster = vi.fn(async (req, res) => res.status(200).json({ events: [] }))
+    h = createHandler({ fetchImpl: net, gate, ticketmaster }) // default proxy = the real one
+  })
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
+
+  const cases = {
+    crawler: { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+    'load test': { 'user-agent': 'k6/0.52', 'x-roam-loadtest': SECRET }
+  }
+  for (const [who, headers] of Object.entries(cases)) {
+    it(`${who}: a shipped town never reaches Overpass or Ticketmaster`, async () => {
+      const res = await run(h, { slug: 'hatfield' }, headers)
+      expect(res.statusCode).toBe(503) // no cached places: retry later, not cached
+      expect(net).not.toHaveBeenCalled()
+      expect(ticketmaster).not.toHaveBeenCalled()
+    })
+
+    it(`${who}: an unknown town never reaches Nominatim`, async () => {
+      const res = await run(h, { slug: 'zzyzx-springs' }, headers)
+      expect(res.statusCode).toBe(503)
+      expect(net).not.toHaveBeenCalled()
+    })
+  }
+
+  it('control: a person on a cache miss does go live (the checks above are not vacuous)', async () => {
+    await run(h, { slug: 'hatfield' }, { 'user-agent': 'Mozilla/5.0 (iPhone) Safari/604.1' })
+    expect(net).toHaveBeenCalled()
+    expect(ticketmaster).toHaveBeenCalled()
+  })
+
+  it('callOverpassProxy forwards only user-agent and the load-test header', async () => {
+    const px = proxy()
+    await callOverpassProxy('q', '1.2.3.4', px, 1000, { headers: { 'user-agent': 'UA', 'x-roam-loadtest': 'S', cookie: 'roam_token=secret' } })
+    expect(px.mock.calls[0][0].headers).toEqual({ 'content-type': 'application/json', 'x-forwarded-for': '1.2.3.4', 'user-agent': 'UA', 'x-roam-loadtest': 'S' })
   })
 })

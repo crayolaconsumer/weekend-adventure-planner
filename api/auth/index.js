@@ -23,12 +23,13 @@ import {
   createLogoutCookie,
   isValidEmail,
   validatePassword,
-  generateUsername,
+  insertWithUniqueUsername,
+  duplicateKey,
   getUserFromRequest,
   extractToken,
   verifyToken
 } from '../lib/auth.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, checkRateLimit, resetRateLimit, getRateLimitKey, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
 // Trim env vars — Vercel dashboard sometimes appends trailing whitespace/newlines
@@ -108,6 +109,22 @@ async function dropUnverifiedPassword(user, provider) {
     console.warn(`[auth] ${provider} link cleared unverified password and revoked sessions on user ${user.id}`)
   }
 }
+
+// Per-account limit on a key that names the account (normalised email), so
+// people sharing a carrier IP never pool together
+function applyEmailRateLimit(res, config, key) {
+  const result = checkRateLimit(key, config)
+  if (result.allowed) return null
+  res.setHeader('Retry-After', result.retryAfter)
+  return { status: 429, error: 'Too many attempts for this email. Please try again later.', retryAfter: result.retryAfter }
+}
+
+// Unknown emails still pay for one bcrypt compare, so response time doesn't
+// reveal which emails are registered (hash of a throwaway string, cost 10)
+const DUMMY_PASSWORD_HASH = '$2b$10$HVssjdLoDNNshzNbf4wT.OmMs1nmVNm5gn/21zmP2y3.3nsxgZI7O'
+
+const EMAIL_IN_USE = 'Unable to create account. Please try signing in instead.'
+const EMAIL_NEEDS_PASSWORD = 'An account with this email already exists. Please sign in with your password.'
 
 function validatePopupOAuthState(req) {
   const { oauthState, oauthStateCheck } = req.body || {}
@@ -238,12 +255,21 @@ async function handleLogin(req, res) {
     return res.status(400).json({ error: 'Invalid email format' })
   }
 
+  // Per account AND client IP: a stranger's failures elsewhere can't lock the
+  // owner out; the per-IP cap above bounds how many accounts one IP can try
+  const accountKey = `login-email:${email.toLowerCase()}:${getRateLimitKey(req)}`
+  const emailLimitError = applyEmailRateLimit(res, RATE_LIMITS.AUTH_LOGIN_EMAIL, accountKey)
+  if (emailLimitError) {
+    return res.status(emailLimitError.status).json(emailLimitError)
+  }
+
   const user = await queryOne(
     'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, tier, is_banned, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE email = ?',
     [email.toLowerCase()]
   )
 
   if (!user) {
+    await comparePassword(password, DUMMY_PASSWORD_HASH)
     return res.status(401).json({ error: 'Invalid email or password' })
   }
 
@@ -267,6 +293,7 @@ async function handleLogin(req, res) {
     return res.status(401).json({ error: 'Invalid email or password' })
   }
 
+  resetRateLimit(accountKey)
   await update('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id])
 
   const token = generateToken(user)
@@ -332,6 +359,11 @@ async function handleRegister(req, res) {
     }
   }
 
+  const emailLimitError = applyEmailRateLimit(res, RATE_LIMITS.AUTH_REGISTER_EMAIL, `register-email:${email.toLowerCase()}`)
+  if (emailLimitError) {
+    return res.status(emailLimitError.status).json(emailLimitError)
+  }
+
   const existingUser = await queryOne(
     'SELECT id FROM users WHERE email = ?',
     [email.toLowerCase()]
@@ -340,17 +372,23 @@ async function handleRegister(req, res) {
   if (existingUser) {
     // Generic message to prevent email enumeration
     // In production, consider sending a "someone tried to register" email to the existing user
-    return res.status(400).json({ error: 'Unable to create account. Please try signing in instead.' })
+    return res.status(400).json({ error: EMAIL_IN_USE })
   }
 
   const passwordHash = await hashPassword(password)
-  const username = await generateUsername(email)
 
-  const userId = await insert(
-    `INSERT INTO users (email, password_hash, username, display_name, email_verified)
-     VALUES (?, ?, ?, ?, FALSE)`,
-    [email.toLowerCase(), passwordHash, username, displayName || null]
-  )
+  let userId
+  try {
+    userId = await insertWithUniqueUsername(email, (username) => insert(
+      `INSERT INTO users (email, password_hash, username, display_name, email_verified)
+       VALUES (?, ?, ?, ?, FALSE)`,
+      [email.toLowerCase(), passwordHash, username, displayName || null]
+    ))
+  } catch (err) {
+    // Double-tap on Sign up: the other request created the account first
+    if (duplicateKey(err) === 'email') return res.status(400).json({ error: EMAIL_IN_USE })
+    throw err
+  }
 
   const user = await queryOne(
     'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
@@ -488,13 +526,21 @@ async function handleGoogle(req, res) {
         [user.id]
       )
     } else {
-      const username = await generateUsername(email)
-
-      const userId = await insert(
-        `INSERT INTO users (email, google_id, username, display_name, avatar_url, email_verified, last_login_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-        [email.toLowerCase(), googleId, username, displayName, avatarUrl, emailVerified]
-      )
+      let userId
+      try {
+        userId = await insertWithUniqueUsername(email, (username) => insert(
+          `INSERT INTO users (email, google_id, username, display_name, avatar_url, email_verified, last_login_at)
+           VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+          [email.toLowerCase(), googleId, username, displayName, avatarUrl, emailVerified]
+        ))
+      } catch (err) {
+        const key = duplicateKey(err)
+        if (key !== 'email' && key !== 'google_id') throw err
+        // Concurrent first sign-in with this Google account: use the row the other request created
+        userId = (await queryOne('SELECT id FROM users WHERE google_id = ?', [googleId]))?.id
+        // Someone else took the email meanwhile (another provider or a password sign-up)
+        if (!userId) return res.status(409).json({ error: EMAIL_NEEDS_PASSWORD })
+      }
 
       user = await queryOne(
         'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
@@ -680,13 +726,20 @@ async function handleApple(req, res) {
       if (!email) {
         return res.status(400).json({ error: 'No email available — Apple did not share an email address' })
       }
-      const username = await generateUsername(email)
-
-      const userId = await insert(
-        `INSERT INTO users (email, apple_id, username, display_name, email_verified, last_login_at)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
-        [email, appleId, username, displayName, emailVerified || isPrivateEmail]
-      )
+      let userId
+      try {
+        userId = await insertWithUniqueUsername(email, (username) => insert(
+          `INSERT INTO users (email, apple_id, username, display_name, email_verified, last_login_at)
+           VALUES (?, ?, ?, ?, ?, NOW())`,
+          [email, appleId, username, displayName, emailVerified || isPrivateEmail]
+        ))
+      } catch (err) {
+        const key = duplicateKey(err)
+        if (key !== 'email' && key !== 'apple_id') throw err
+        // Concurrent first sign-in with this Apple ID: use the row the other request created
+        userId = (await queryOne('SELECT id FROM users WHERE apple_id = ?', [appleId]))?.id
+        if (!userId) return res.status(409).json({ error: EMAIL_NEEDS_PASSWORD })
+      }
 
       user = await queryOne(
         'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',

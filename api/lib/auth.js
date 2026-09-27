@@ -230,9 +230,12 @@ export function validatePassword(password) {
  * @param {string} email - User email
  * @returns {Promise<string>} Unique username
  */
+function usernameBase(email) {
+  return email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)
+}
+
 export async function generateUsername(email) {
-  const base = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
-  let username = base.slice(0, 20)
+  let username = usernameBase(email)
   let attempts = 0
 
   while (attempts < 100) {
@@ -252,6 +255,38 @@ export async function generateUsername(email) {
 
   // Fallback: use timestamp
   return `${username}${Date.now()}`.slice(0, 50)
+}
+
+/**
+ * Which unique key a MySQL duplicate-entry error hit ('email', 'username',
+ * 'google_id', 'apple_id'), or null when it is not a duplicate-entry error.
+ * MySQL 8 names the key 'users.email', 5.7 just 'email'.
+ */
+export function duplicateKey(err) {
+  if (err?.code !== 'ER_DUP_ENTRY') return null
+  return /for key '(?:[^']*\.)?([^'.]+)'\s*$/.exec(err.message || '')?.[1] || 'unknown'
+}
+
+const USERNAME_RETRIES = 5
+
+/**
+ * Insert a new user row under a generated username. generateUsername()
+ * checks before the INSERT, so two sign-ups whose emails share a local part
+ * can both pick the same name; the loser retries with a fresh suffix.
+ * @param {string} email
+ * @param {(username: string) => Promise<number>} insertRow - runs the INSERT
+ * @returns {Promise<number>} the new user id
+ */
+export async function insertWithUniqueUsername(email, insertRow) {
+  let username = await generateUsername(email)
+  for (let retry = 0; ; retry++) {
+    try {
+      return await insertRow(username)
+    } catch (err) {
+      if (duplicateKey(err) !== 'username' || retry >= USERNAME_RETRIES) throw err
+      username = `${usernameBase(email)}${Math.floor(Math.random() * 10000)}`
+    }
+  }
 }
 
 /**
@@ -306,6 +341,8 @@ export default {
   isValidEmail,
   validatePassword,
   generateUsername,
+  duplicateKey,
+  insertWithUniqueUsername,
   isPremiumUser,
   getUserLimits
 }

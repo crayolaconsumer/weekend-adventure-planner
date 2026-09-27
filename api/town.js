@@ -19,7 +19,8 @@
 import overpassProxy from './places/overpass/nearby.js'
 import ticketmasterProxy from './events/ticketmaster.js'
 import { weekendEvents } from './lib/townEvents.js'
-import { isPreviewBot } from './lib/bots.js'
+import { isPreviewBot, isSearchCrawler } from './lib/bots.js'
+import { isLoadTest } from './lib/loadtest.js'
 import { applyRateLimit, applySharedRateLimit, getRateLimitKey, dropRateLimitHeaders } from './lib/rateLimit.js'
 import {
   slugify, isValidSlug, resolveTown, resolveNear, slugForQuery, townOverpassQuery, groupPlaces,
@@ -51,8 +52,10 @@ const NO_PLACES = { groups: [], total: 0 }
 /**
  * Run the Overpass proxy handler without an HTTP hop. Resolves { status, body };
  * resolves { status: 504 } if it doesn't answer within timeoutMs.
+ * `from` is the visitor's request: its user-agent and load-test header ride
+ * along so the proxy's cache-only rule for crawlers and load tests still holds.
  */
-export function callOverpassProxy(query, ip, proxy = overpassProxy, timeoutMs = BUDGET_MS) {
+export function callOverpassProxy(query, ip, proxy = overpassProxy, timeoutMs = BUDGET_MS, from = null) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => resolve({ status: 504, body: null }), Math.max(0, timeoutMs))
     const done = value => { clearTimeout(timer); resolve(value) }
@@ -65,7 +68,13 @@ export function callOverpassProxy(query, ip, proxy = overpassProxy, timeoutMs = 
     }
     const req = {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+      headers: {
+        'content-type': 'application/json',
+        'x-forwarded-for': ip,
+        ...Object.fromEntries(['user-agent', 'x-roam-loadtest']
+          .filter(h => typeof from?.headers?.[h] === 'string')
+          .map(h => [h, from.headers[h]]))
+      },
       body: { query },
       socket: {}
     }
@@ -79,9 +88,9 @@ export function callOverpassProxy(query, ip, proxy = overpassProxy, timeoutMs = 
  * every mirror came back empty, which is how a degraded Overpass looks (a real
  * town always has a café or a park inside 3km).
  */
-async function fetchGroupedPlaces(town, ip, proxy, deadline) {
+async function fetchGroupedPlaces(town, ip, proxy, deadline, from) {
   try {
-    const { status, body } = await callOverpassProxy(townOverpassQuery(town.lat, town.lng), ip, proxy, deadline - Date.now())
+    const { status, body } = await callOverpassProxy(townOverpassQuery(town.lat, town.lng), ip, proxy, deadline - Date.now(), from)
     if (status === 200 && Array.isArray(body?.elements) && body.elements.length > 0) {
       return { grouped: groupPlaces(body.elements, town), ok: true }
     }
@@ -139,10 +148,18 @@ export function parseNear(value) {
   return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null
 }
 
+// Crawlers and load tests are cache-only: a geocoder cache miss fails (503,
+// uncached) instead of calling Nominatim
+const NO_GEOCODER = {
+  fetchImpl: async () => { throw new Error('geocoder is cache-only for crawlers and load tests') },
+  gate: async () => {}
+}
+
 export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, ticketmaster = ticketmasterProxy } = {}) {
-  const geo = { fetchImpl, gate }
   return async function handler(req, res) {
     const deadline = Date.now() + BUDGET_MS
+    const cacheOnly = isSearchCrawler(req) || isLoadTest(req)
+    const geo = cacheOnly ? NO_GEOCODER : { fetchImpl, gate }
     const { slug: rawSlug, q, near, format } = req.query || {}
     const json = format === 'json'
 
@@ -221,8 +238,9 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, 
       const ip = getRateLimitKey(req)
       // Events are extra: fetched alongside places, never allowed to hold the page up
       const [{ grouped, ok }, events] = await Promise.all([
-        fetchGroupedPlaces(town, ip, proxy, deadline),
-        weekendEvents(town, ip, ticketmaster, { bot: isPreviewBot(req) })
+        fetchGroupedPlaces(town, ip, proxy, deadline, req),
+        // bot: cache-only, a miss is "no events", never a Ticketmaster call
+        weekendEvents(town, ip, ticketmaster, { bot: cacheOnly || isPreviewBot(req) })
       ])
       console.log(`[town] render ${slug} places=${grouped.total}${ok ? '' : ' (upstream failed)'}`)
       // A failed fetch reflects this moment (or this visitor's rate limit), never share it
