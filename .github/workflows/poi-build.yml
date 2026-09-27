@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      WORK: ${{ runner.temp }}/poi
+      WORK: /tmp/poi  # runner.temp is not available at job level
       NODE_OPTIONS: --max-old-space-size=12000
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

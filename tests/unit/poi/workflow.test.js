@@ -294,3 +294,14 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
     })
   })
 })
+
+// Regression: `${{ runner.temp }}` in job-level env made GitHub reject the
+// workflow ("Unrecognized named-value: 'runner'"); the runner context only
+// exists inside steps.
+describe('poi-build workflow parses on GitHub', () => {
+  it('uses no runner.* context outside steps', async () => {
+    const src = (await import('node:fs')).readFileSync('.github/workflows/poi-build.yml', 'utf8')
+    const beforeSteps = src.split(/^\s+steps:/m)[0]
+    expect(beforeSteps).not.toMatch(/\$\{\{\s*runner\./)
+  })
+})
