@@ -48,3 +48,13 @@ describe('FilterModal open-now toggle', () => {
     expect(screen.queryByText('Open now')).toBeNull()
   })
 })
+
+// The Discover settings sheet is the signed-out user's "about": the place
+// data (ODbL) credit lives there too
+describe('FilterModal OSM credit', () => {
+  it('links to the OpenStreetMap copyright page', async () => {
+    render(<FilterModal isOpen onClose={() => {}} />)
+    expect(await screen.findByRole('link', { name: 'OpenStreetMap contributors' }))
+      .toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
+  })
+})

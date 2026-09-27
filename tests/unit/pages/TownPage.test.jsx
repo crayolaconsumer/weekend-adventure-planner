@@ -58,6 +58,8 @@ describe('TownPage', () => {
     await waitFor(() => expect(fetchNearbyPlaces).toHaveBeenCalledWith(48.8589, 2.32, 3300))
     const names = (await screen.findAllByText(/Café de Flore|Jardin du Luxembourg/)).map(n => n.textContent)
     expect(names).toEqual(['Café de Flore', 'Jardin du Luxembourg'])
+    expect(screen.getByRole('link', { name: 'OpenStreetMap contributors' })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
+    expect(screen.getByText(/Photos: Wikimedia Commons contributors/)).toBeInTheDocument()
   })
 
   it('near-me resolves device GPS to the real town URL', async () => {
@@ -96,6 +98,7 @@ describe('TownPage', () => {
     mockApi({ 'slug=paris': PARIS })
     renderAt('/town/paris')
     expect(await screen.findByText('Nothing listed here yet')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'OpenStreetMap contributors' })).toBeNull()
     expect(screen.queryByText(/Check your connection/)).toBeNull()
   })
 

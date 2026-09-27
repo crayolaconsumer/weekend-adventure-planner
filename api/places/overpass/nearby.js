@@ -1,4 +1,5 @@
 import { isSearchCrawler } from '../../lib/bots.js'
+import { logPlaces } from '../../lib/placesLog.js'
 /**
  * Overpass API Proxy with Edge Caching
  *
@@ -26,7 +27,8 @@ export const config = {
 
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
-import { isFeatureEnabled } from '../../lib/flags.js'
+import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
+import { parseQuery, getPois, isCoveredNow, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
@@ -230,7 +232,75 @@ function applyCorsHeaders(res) {
   }
 }
 
+// Self-built POI table (api/lib/poiQuery.js). The flags fail CLOSED: if they
+// can't be read, 0% of tiles touch the DB and today's path serves. Fresh
+// cached values are used synchronously; otherwise each KV read gets 50 ms (it
+// carries on and fills its cache for the next request), so a KV hit never
+// waits long on the flag store. With both percentages at 0 the generation
+// isn't read at all.
+const POI_FLAGS_WAIT_MS = 50
+const POI_OFF = { serve: 0, shadow: 0, gen: 0 }
+function within(promise, ms) {
+  let timer
+  const late = new Promise(resolve => { timer = setTimeout(resolve, ms, null) })
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer))
+}
+async function poiFlags() {
+  try {
+    const flags = peekFlags() || await within(getFlags(), POI_FLAGS_WAIT_MS)
+    if (!flags || !(flags.poiDbPct > 0 || flags.poiShadowPct > 0)) return POI_OFF
+    const gen = peekPoiGen() ?? await within(getPoiGen(), POI_FLAGS_WAIT_MS)
+    if (gen === null) return POI_OFF
+    return { serve: flags.poiDbPct || 0, shadow: flags.poiShadowPct || 0, gen }
+  } catch {
+    return POI_OFF
+  }
+}
+
+// Stable per tile, so a tile stays on one side of the rollout (clean A/B)
+const rolloutBucket = q => parseInt(hashKey(q).slice(0, 8), 16) % 100
+
+function sendPoiBody(res, db) {
+  dropRateLimitHeaders(res)
+  res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+  res.setHeader('X-Places-Source', 'db')
+  res.setHeader('X-Places-Build', db.buildId)
+  res.status(200)
+  // The body is already JSON text; in-process callers (town.js) only have json()
+  if (typeof res.send !== 'function') return res.json(JSON.parse(db.body))
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  return res.send(db.body)
+}
+
+// Shadow mode: what would the DB have served for a response we just gave from
+// KV or Overpass? Runs after the response (waitUntil), logs one line to compare.
+async function poiShadow(plan, key, live, gen) {
+  const db = await getPois(plan, key, { useLru: false, gen })
+  if (!db) return // not covered, over the row cap, breaker open, or DB error
+  const dbIds = new Set(db.ids)
+  const jaccard = els => {
+    const ids = new Set(els.map(el => `${el.type}/${el.id}`))
+    let both = 0
+    for (const id of dbIds) if (ids.has(id)) both++
+    const union = ids.size + dbIds.size - both
+    return union ? Math.round((both / union) * 1000) / 1000 : 1
+  }
+  // The build keeps only named elements (the app drops unnamed ones anyway),
+  // so the like-for-like comparison is against live's named elements
+  const named = live.elements.filter(el => el.tags?.name || el.tags?.['name:en'])
+  // In the DB but not live: mostly bbox-overlap extras (see poiQuery.js header)
+  const namedIds = new Set(named.map(el => `${el.type}/${el.id}`))
+  const extra = [...dbIds].filter(id => !namedIds.has(id))
+  console.log(JSON.stringify({
+    evt: 'poi_shadow', n_live: live.elements.length, n_live_named: named.length, n_db: db.n,
+    jaccard_ids: jaccard(named), jaccard_raw: jaccard(live.elements),
+    extra_db: extra.length, extra_db_sample: extra.slice(0, 5),
+    db_ms: db.ms, build: db.buildId
+  }))
+}
+
 export default async function handler(req, res) {
+  const t0 = Date.now()
   applyCorsHeaders(res)
 
   if (req.method === 'OPTIONS') {
@@ -295,6 +365,32 @@ export default async function handler(req, res) {
     if (hasPlaces(snapped) || !legacyStaleKey) return snapped
     return cacheGet(legacyStaleKey)
   }
+  // POI table first, for queries it can answer (parseQuery null = not ours)
+  // in the rollout bucket. getPois is null when the bbox isn't covered by the
+  // active build, the breaker is open or the DB errored; that, or 0 rows (an
+  // id outside the build), falls through to the path below unchanged.
+  // Crawlers may use it: it costs Overpass nothing.
+  const poiPlan = parseQuery(upstreamQuery)
+  const poiPct = poiPlan ? await poiFlags() : POI_OFF
+  const poiBucket = poiPlan ? rolloutBucket(upstreamQuery) : 100
+  const poiServe = poiBucket < poiPct.serve
+  // §8 log fields: rollout bucket (null = not a POI query) and last-known coverage
+  // (covered is read when the line is logged, after any coverage load)
+  const poiLog = { bucket: poiPlan ? poiBucket : null, get covered() { return Boolean(poiPlan) && isCoveredNow(poiPlan) } }
+  if (poiServe) {
+    // The DB gets POI_DEADLINE_MS before we use the old path; a query still
+    // running carries on, is killed server-side by MAX_EXECUTION_TIME, and
+    // counts as a breaker failure in getPois when it was this slow
+    const deadlineAt = Date.now() + POI_DEADLINE_MS
+    const db = await within(getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt }), Math.max(0, deadlineAt - Date.now()))
+    if (db && db.n > 0) {
+      logPlaces(req, t0, 'db', db.n, poiLog)
+      return sendPoiBody(res, db)
+    }
+  }
+  const shadowPoi = live => {
+    if (!poiServe && poiBucket < poiPct.shadow) waitUntil(poiShadow(poiPlan, upstreamQuery, live, poiPct.gen).catch(() => {}))
+  }
   if (isCacheEnabled()) {
     const cached = await cacheGet(cacheKey)
     // Only serve a cached entry that actually has places. A degraded
@@ -306,6 +402,8 @@ export default async function handler(req, res) {
       dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Cache', 'HIT')
+      shadowPoi(cached)
+      logPlaces(req, t0, 'kv', cached.elements.length, poiLog)
       return res.status(200).json(cached)
     }
   }
@@ -332,11 +430,13 @@ export default async function handler(req, res) {
         res.setHeader('Cache-Control', 'no-store')
         res.setHeader('X-Overpass-Cache', 'STALE')
         res.setHeader('X-Overpass-Fallback', 'killswitch')
+        logPlaces(req, t0, 'stale', staleData.elements.length, poiLog)
         return res.status(200).json(staleData)
       }
     }
     res.setHeader('Cache-Control', 'no-store')
     res.setHeader('Retry-After', '120')
+    logPlaces(req, t0, '503', 0, poiLog)
     return res.status(503).json({ error: 'Discover temporarily in cache-only mode' })
   }
 
@@ -406,6 +506,8 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
       res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
+      shadowPoi(data)
+      logPlaces(req, t0, 'overpass', data.elements.length, poiLog)
       return res.status(200).json(data)
 
     } catch (error) {
@@ -438,6 +540,7 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Overpass-Cache', 'STALE')
       res.setHeader('X-Overpass-Fallback', 'stale')
+      logPlaces(req, t0, 'stale', staleData.elements.length, poiLog)
       return res.status(200).json(staleData)
     }
   }
@@ -450,12 +553,14 @@ export default async function handler(req, res) {
   if (emptyResponse) {
     res.setHeader('Cache-Control', 'no-store')
     res.setHeader('X-Overpass-Cache', 'EMPTY')
+    logPlaces(req, t0, 'empty', 0, poiLog)
     return res.status(200).json(emptyResponse)
   }
 
   // Detail kept server-side only — the lastError message can include
   // upstream URLs, timeouts, and infra hints we shouldn't echo to clients.
   res.setHeader('Retry-After', '60')
+  logPlaces(req, t0, '503', 0, poiLog)
   return res.status(503).json({
     error: 'Overpass API unavailable',
     message: 'All upstream endpoints failed. Please retry in a moment.'

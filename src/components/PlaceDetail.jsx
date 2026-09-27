@@ -36,6 +36,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { tileUrlFor, TILE_ATTRIBUTION } from '../utils/mapTiles'
 import { RouteLine, RouteChip } from './map/RouteOverlay'
 import { useRouteLine, realOrigin } from '../hooks/useRouteLine'
+import { OsmDataCredit, PhotoCredit } from './Attribution'
 
 // The place map follows the Discover travel mode (walking / transit / the
 // driving-range modes), read from the same saved preference.
@@ -471,6 +472,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                   animate={{ scale: 1 }}
                   transition={{ duration: 0.6, ease: 'easeOut' }}
                 />
+                <PhotoCredit attribution={enrichedPlace.imageAttribution} className="place-detail-photo-credit" />
               </>
             ) : (
               // No real photo. Render the stylized placeholder — never a stock
@@ -481,6 +483,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 place={enrichedPlace}
                 alt={enrichedPlace.name}
                 className="place-detail-image loaded place-detail-image--no-real"
+                creditClassName="place-detail-photo-credit"
               />
             )}
             <div className="place-detail-hero-gradient" />
@@ -792,6 +795,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               <NavigationIcon />
               <span>Get directions</span>
             </motion.button>
+            <OsmDataCredit className="place-detail-data-credit" />
             {footer}
           </div>
         </motion.div>

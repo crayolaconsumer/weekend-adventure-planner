@@ -407,3 +407,69 @@ CREATE TABLE IF NOT EXISTS plan_stop_votes (
   INDEX idx_plan_id (plan_id),
   INDEX idx_stop_id (stop_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------
+-- POI TABLES (phase11-pois.sql)
+-- Self-built place database loaded nightly by api/admin/poi-load.js
+-- from our own GitHub Release. pois_staging / pois_prev and the
+-- poi_photos equivalents are made by the loader with CREATE TABLE ... LIKE.
+-- cell = FLOOR((lat + 90) * 10) * 3600 + FLOOR((lon + 180) * 10)
+-- -------------------------------------------
+CREATE TABLE IF NOT EXISTS pois (
+  cell         INT UNSIGNED     NOT NULL,             -- 0.1° grid cell of the element's centre
+  osm_type     TINYINT UNSIGNED NOT NULL,             -- 1 node, 2 way, 3 relation (Overpass output order)
+  osm_id       BIGINT UNSIGNED  NOT NULL,
+  lat          DOUBLE           NOT NULL,             -- node position, or bbox centre (= Overpass `center`)
+  lon          DOUBLE           NOT NULL,
+  min_lat      DOUBLE           NOT NULL,             -- bounds (nodes: = lat/lon). Overpass (bbox) matches
+  min_lon      DOUBLE           NOT NULL,             -- elements that INTERSECT the box, so the query side
+  max_lat      DOUBLE           NOT NULL,             -- scans cells padded by CELL_PAD_DEG and filters on these
+  max_lon      DOUBLE           NOT NULL,
+  k_amenity    VARCHAR(48) COLLATE utf8mb4_0900_bin NULL, -- exact, NO PAD: 'cafe ' <> 'cafe', as in Overpass
+  k_tourism    VARCHAR(48) COLLATE utf8mb4_0900_bin NULL,
+  k_leisure    VARCHAR(48) COLLATE utf8mb4_0900_bin NULL,
+  k_historic   VARCHAR(48) COLLATE utf8mb4_0900_bin NULL,
+  k_shop       VARCHAR(48) COLLATE utf8mb4_0900_bin NULL,
+  k_natural    VARCHAR(48) COLLATE utf8mb4_0900_bin NULL,     -- NATURAL is reserved, hence the k_ prefix
+  k_man_made   VARCHAR(48) COLLATE utf8mb4_0900_bin NULL,
+  has_name     TINYINT(1) NOT NULL,                   -- name or name:en present
+  has_name_tag TINYINT(1) NOT NULL,                   -- the `name` tag itself (Overpass ["name"])
+  has_wikidata TINYINT(1) NOT NULL,
+  el           TEXT NOT NULL,                         -- finished Overpass element JSON, served as-is
+  PRIMARY KEY (cell, osm_type, osm_id),
+  UNIQUE KEY uq_osm (osm_type, osm_id)                -- id lookups (placeLookup, fetchPlaceById)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS poi_photos (
+  photo_key   VARCHAR(64)  NOT NULL,
+  url         VARCHAR(512) NOT NULL,                  -- Commons Special:FilePath ...?width=800, or Geograph thumb
+  width       SMALLINT UNSIGNED NULL,
+  height      SMALLINT UNSIGNED NULL,
+  source      ENUM('wikidata','commons-osm','geograph') NOT NULL,
+  artist      VARCHAR(255) NULL,                      -- HTML stripped
+  license     VARCHAR(64)  NOT NULL,                  -- e.g. 'CC BY-SA 4.0'
+  license_url VARCHAR(255) NULL,
+  page_url    VARCHAR(512) NOT NULL,                  -- file / photo page, for the credit link
+  checked_on  DATE NOT NULL,
+  PRIMARY KEY (photo_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS poi_builds (
+  build_id       VARCHAR(40) NOT NULL,                -- 'uk-20261001T0215Z'
+  release_tag    VARCHAR(64) NOT NULL,                -- 'poi-<build_id>'
+  schema_version SMALLINT    NOT NULL,                -- must equal POI_SCHEMA_VERSION (api/lib/poiQuery.js)
+  osm_timestamp  DATETIME    NOT NULL,                -- data freshness (UTC)
+  chunks_total   SMALLINT    NOT NULL,
+  chunks_loaded  SMALLINT    NOT NULL DEFAULT 0,      -- resume point: chunks 0..chunks_loaded-1 are in staging
+  row_count      INT NULL,
+  photo_count    INT NULL,
+  coverage       JSON NULL,                           -- array of cells fully inside the extract .poly
+  status ENUM('loading','validating','active','previous','failed','rolled_back') NOT NULL,
+  gate_report    JSON NULL,
+  manifest_sha256 CHAR(64) NULL,                      -- release revision pinned at begin: resume never mixes revisions
+  coverage_sha256 CHAR(64) NULL,
+  gen_pending    TINYINT(1) NOT NULL DEFAULT 0,       -- tables changed, roam:poiGen INCR not yet confirmed
+  created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  activated_at   DATETIME NULL,
+  PRIMARY KEY (build_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -515,7 +515,7 @@ function playLink(slug) {
   return `${PLAY_STORE_URL}&referrer=${referrer}`
 }
 
-function shell({ title, description, url, body, slug, noindex = false, extraHead = '', extraBody = '' }) {
+function shell({ title, description, url, body, slug, noindex = false, extraHead = '', extraBody = '', photoCredit = false }) {
   const t = escapeHtml(title)
   const d = escapeHtml(description)
   return `<!doctype html>
@@ -553,7 +553,7 @@ function shell({ title, description, url, body, slug, noindex = false, extraHead
 ${body}
   </main>
   <footer><a href="/town">Explore towns</a> &nbsp; <a href="/events">What's on</a> &nbsp; <a href="/get-roam">Get the app</a><br />
-  Place data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a></footer>
+  Place data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>${photoCredit ? '<br />\n  Photos: Wikimedia Commons contributors and others, credited on each place' : ''}</footer>
   ${extraBody}
   ${analyticsScript(slug || '')}
 </body>
@@ -711,7 +711,9 @@ ${featuredList(town.slug)}`
     // A page with no places is thin content; keep it out of the index until it has data
     noindex: grouped.total === 0,
     extraHead: `<script type="application/ld+json">${jsonLd(structured)}</script>`,
-    extraBody: photoScript
+    extraBody: photoScript,
+    // Thumbs are too small to caption; each /place page credits its photo
+    photoCredit: grouped.total > 0
   })
 }
 

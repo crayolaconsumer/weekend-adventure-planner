@@ -13,7 +13,7 @@
 import { withCors } from '../lib/cors.js'
 import { RATE_LIMITS } from '../lib/rateLimit.js'
 import { guardAdmin, NOT_FOUND } from '../lib/adminGuard.js'
-import { cacheGet, cacheSet, isCacheEnabled } from '../lib/kvCache.js'
+import { cacheGet, cacheSet, isCacheEnabled, getClient } from '../lib/kvCache.js'
 
 const KV_FLAGS_KEY = 'roam:flags'
 // Effectively persistent — a kill-switch must not silently expire. If KV
@@ -57,17 +57,32 @@ async function handler(req, res) {
     if (!incoming || typeof incoming !== 'object') {
       return res.status(400).json({ error: 'Body must be { flags: { <name>: <boolean> } }' })
     }
-    const next = await readEffective()
+    // MERGE into the stored blob: numeric rollout flags (poiDbPct, poiShadowPct)
+    // and any key this editor doesn't know must survive a boolean edit. Read with
+    // the raw client: cacheGet turns a KV error into null, and writing after a
+    // failed read would wipe every other flag.
+    let stored
+    try {
+      stored = await getClient()?.get(KV_FLAGS_KEY)
+      if (typeof stored === 'string') stored = JSON.parse(stored)
+      if (stored != null && (typeof stored !== 'object' || Array.isArray(stored))) throw new Error('not an object')
+    } catch {
+      return res.status(503).json({ error: 'Could not read current flags; nothing written' })
+    }
+    const current = await readEffective()
+    const next = { ...(stored || {}) }
+    delete next.poiGen // the cache generation has its own key (roam:poiGen); never written from here
     let changed = false
     for (const k of Object.keys(DEFAULTS)) {
-      if (typeof incoming[k] === 'boolean' && incoming[k] !== next[k]) {
+      if (typeof incoming[k] === 'boolean' && incoming[k] !== current[k]) {
         next[k] = incoming[k]
         changed = true
       }
     }
     const ok = await cacheSet(KV_FLAGS_KEY, next, FLAG_TTL_SECONDS)
     if (!ok) return res.status(500).json({ error: 'Failed to persist flags' })
-    return res.status(200).json({ flags: next, defaults: DEFAULTS, changed, note: 'Live within ~60s (cache TTLs).' })
+    const flags = Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, typeof next[k] === 'boolean' ? next[k] : DEFAULTS[k]]))
+    return res.status(200).json({ flags, defaults: DEFAULTS, changed, note: 'Live within ~60s (cache TTLs).' })
   }
 
   return NOT_FOUND(res)

@@ -64,6 +64,18 @@
   cursor: pointer;
 }
 
+.filter-modal-data-credit {
+  align-self: center;
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--roam-ink-light);
+}
+
+.filter-modal-data-credit a {
+  color: inherit;
+}
+
 .filter-modal-scroll-hint {
   display: inline-flex;
   align-items: center;

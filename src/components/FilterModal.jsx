@@ -20,6 +20,7 @@ import DistanceBandSlider from './discover/DistanceBandSlider'
 import { maxReachKm } from '../pages/Discover/distanceBands'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { usePrivacyChoices } from '../hooks/usePrivacyChoices'
+import { OsmDataCredit } from './Attribution'
 import './FilterModal.css'
 
 // Backdrop animation
@@ -499,6 +500,8 @@ export function FilterModal({
                 Privacy choices
               </button>
             )}
+
+            <OsmDataCredit className="filter-modal-data-credit" />
 
             {/* Footer */}
             <div className="filter-modal-footer">

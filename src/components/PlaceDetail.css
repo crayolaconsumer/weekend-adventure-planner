@@ -625,3 +625,34 @@
 .place-detail-wiki-credit:hover {
   border-bottom-color: var(--roam-forest, #1a3a2f);
 }
+
+/* Photo credit over the hero, opposite the category pill */
+.place-detail-photo-credit {
+  position: absolute;
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  z-index: 2;
+  max-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #fff;
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* OpenStreetMap (ODbL) data credit under the directions button */
+.place-detail-data-credit {
+  margin: var(--space-md) 0 0;
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--roam-ink-light);
+}
+
+.place-detail-data-credit a {
+  color: inherit;
+}

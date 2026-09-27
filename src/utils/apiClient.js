@@ -305,7 +305,7 @@ function calculatePlaceQuality(tags) {
 /**
  * Parse Overpass response into place objects
  */
-function parseOverpassResponse(data) {
+export function parseOverpassResponse(data) {
   if (!data.elements) return []
 
   return data.elements.map(element => {

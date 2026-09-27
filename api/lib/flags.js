@@ -8,7 +8,9 @@
  * Design constraints:
  *   1. EVERY feature defaults to ENABLED (true). The kill-switch only ever
  *      turns things OFF. A missing/absent flag file means "business as
- *      usual" — never an accidental outage.
+ *      usual" — never an accidental outage. Numeric flags (poiDbPct, a rollout
+ *      percentage) are the exception: they default to 0, so a failed read
+ *      turns the NEW path off and keeps the old one (fail closed).
  *   2. KV is a soft layer (see kvCache.js). This module must NEVER throw and
  *      must NEVER hard-depend on KV: on any error (KV down, malformed JSON,
  *      whatever) it returns the safe DEFAULTS — i.e. fail OPEN, everything on.
@@ -31,6 +33,11 @@ const DEFAULTS = Object.freeze({
   pushNudges: true,
   promotedEvents: true,
   promotedEventPush: true,
+  // Percentage (0-100) of Discover tiles served from the POI table (api/lib/poiQuery.js)
+  poiDbPct: 0,
+  // Percentage (0-100) of tiles whose KV/Overpass answer is also queried from
+  // the POI table and compared (shadow log only, never served)
+  poiShadowPct: 0,
 })
 
 const CACHE_TTL_MS = 30 * 1000
@@ -42,8 +49,10 @@ let cachedAt = 0
  * Read the runtime feature flags, merged over the safe DEFAULTS.
  *
  * Never throws — on any error returns a copy of DEFAULTS (fail-open).
- * Result is cached in-memory for ~30s. Only boolean values from the KV blob
- * are honoured (a non-boolean override is ignored, keeping the default).
+ * Result is cached in-memory for ~30s. A KV value is honoured only when its
+ * type matches the default's: booleans for boolean flags, finite numbers
+ * (whole numbers, clamped to 0-100) for numeric ones. Anything else keeps
+ * the default.
  */
 export async function getFlags() {
   const now = Date.now()
@@ -57,7 +66,9 @@ export async function getFlags() {
 
     if (stored && typeof stored === 'object') {
       for (const key of Object.keys(DEFAULTS)) {
-        if (typeof stored[key] === 'boolean') {
+        if (typeof DEFAULTS[key] === 'number') {
+          if (Number.isFinite(stored[key])) merged[key] = Math.min(100, Math.max(0, Math.trunc(stored[key])))
+        } else if (typeof stored[key] === 'boolean') {
           merged[key] = stored[key]
         }
       }
@@ -74,6 +85,14 @@ export async function getFlags() {
 }
 
 /**
+ * The cached flags if they are fresh, else null. Synchronous: for hot paths
+ * that must not wait on KV (they call getFlags() to refresh in the background).
+ */
+export function peekFlags() {
+  return cachedFlags && Date.now() - cachedAt < CACHE_TTL_MS ? cachedFlags : null
+}
+
+/**
  * Convenience: is a single feature enabled? Unknown names default to true
  * (fail-open) so a typo never silently disables something.
  */
@@ -82,4 +101,4 @@ export async function isFeatureEnabled(name) {
   return flags[name] !== false
 }
 
-export default { getFlags, isFeatureEnabled }
+export default { getFlags, peekFlags, isFeatureEnabled }

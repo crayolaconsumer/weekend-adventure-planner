@@ -361,21 +361,32 @@
   border-radius: 1px;
 }
 
-/* Photo credit (e.g. Mapillary) — required attribution for street-level
-   imagery, tucked bottom-right over the scrim so it's unobtrusive. */
+/* Photo credit ("Photo: {artist}, {licence}"), required by CC BY / BY-SA
+   and Mapillary. Top-right so it never sits under the Skip/Go/Save row;
+   white on a dark chip reads over any photo in light and dark themes. */
 .swipe-card-photo-credit {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
   right: 8px;
   z-index: 5;
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.35);
+  max-width: 70%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #fff;
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.6);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   padding: 2px 6px;
   border-radius: 4px;
-  pointer-events: none;
+}
+
+a.swipe-card-photo-credit:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 1px;
 }
 
 /* Composed blurb — the honest, data-derived fallback shown when there's

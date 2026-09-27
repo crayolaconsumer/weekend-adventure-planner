@@ -13,6 +13,7 @@ import { composeBlurb, placeFeatures } from '../utils/placeBlurb'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import FriendChips from './FriendChips'
+import { PhotoCredit } from './Attribution'
 import './SwipeCard.css'
 
 // Category-specific placeholder images
@@ -110,7 +111,7 @@ export default function SwipeCard({
   // place.imageAttribution. Commons CC-BY / Mapillary require a visible
   // credit; we show honest provenance for every real photo (null for the
   // category-stock fallback and bare OSM image= tags, which have none).
-  const photoCredit = enrichedImageUrl ? (place.imageAttribution?.source || null) : null
+  const photoCredit = enrichedImageUrl ? (place.imageAttribution || null) : null
 
   // Track the last loaded source to detect enrichment updates
   const lastLoadedSourceRef = useRef(null)
@@ -470,6 +471,9 @@ export default function SwipeCard({
         break
       case 'Enter':
       case ' ':
+        // Enter on a focused child (the photo credit link) is that
+        // child's, not a request to open the card
+        if (e.target !== e.currentTarget) return
         e.preventDefault()
         onExpand?.(place)
         break
@@ -515,9 +519,7 @@ export default function SwipeCard({
                 (threaded via place.imageAttribution). Commons CC-BY /
                 Mapillary require a visible credit; we show provenance for
                 every real photo. */}
-            {photoCredit && (
-              <span className="swipe-card-photo-credit">{photoCredit}</span>
-            )}
+            <PhotoCredit attribution={photoCredit} className="swipe-card-photo-credit" tabIndex={isTop ? undefined : -1} />
           </>
         ) : (
           // No usable photo (no source, or every fetch attempt failed).

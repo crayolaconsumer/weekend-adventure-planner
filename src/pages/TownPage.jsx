@@ -21,6 +21,7 @@ import { BackIcon, ShareIcon, ChevronIcon } from './townIcons'
 import CategoryIcon from '../components/icons/CategoryIcon'
 import PlaceImage from '../components/PlaceImage'
 import PlaceDetail from '../components/PlaceDetail'
+import { OsmDataCredit } from '../components/Attribution'
 import LoadingState from '../components/LoadingState'
 import NotFound from './NotFound'
 import { useSEO } from '../hooks/useSEO'
@@ -198,6 +199,14 @@ export default function TownPage() {
           </span>
           <span className="town-near-chevron"><ChevronIcon /></span>
         </Link>
+      )}
+
+      {places.length > 0 && (
+        <>
+          <OsmDataCredit className="town-data-credit" />
+          {/* Thumbs are too small to caption; PlaceDetail credits each photo */}
+          <p className="town-data-credit">Photos: Wikimedia Commons contributors and others, credited on each place</p>
+        </>
       )}
 
       <AnimatePresence>

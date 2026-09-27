@@ -390,6 +390,12 @@ describe('renderTownPage', () => {
     expect(list.itemListElement[1].url).toBe('https://www.go-roam.uk/place/12')
   })
 
+  it('credits OpenStreetMap for the place data (ODbL) and the thumbnails\' photographers in the footer', () => {
+    expect(html).toMatch(/<footer>[\s\S]*Place data © <a href="https:\/\/www\.openstreetmap\.org\/copyright">OpenStreetMap contributors<\/a>/)
+    expect(html).toMatch(/Photos: Wikimedia Commons contributors and others, credited on each place<\/footer>/)
+    expect(renderTownPage(town, groupPlaces([]))).not.toContain('Photos: Wikimedia Commons')
+  })
+
   it('escapes place names everywhere, including inside JSON-LD', () => {
     expect(html).not.toContain('<script>alert(1)')
     expect(html).toContain('Musée &lt;script&gt;alert(1)&lt;/script&gt;')

@@ -14,7 +14,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
+import { resolvePlaceImageSync, resolvePlaceImageWithMeta } from '../utils/placeImage'
+import { PhotoCredit } from './Attribution'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
 import './PlaceImage.css'
@@ -34,11 +35,15 @@ export default function PlaceImage({
   className = '',
   categoryKey: categoryKeyProp,
   rounded = false,
-  imgProps = {}
+  imgProps = {},
+  // Set on large renders (PlaceDetail hero) to show "Photo: ..." for a
+  // resolved Wikipedia/Commons photo; the parent must be positioned
+  creditClassName = null
 }) {
   const initialSrc = srcProp ?? resolvePlaceImageSync(place)
   const [src, setSrc] = useState(initialSrc)
   const [errored, setErrored] = useState(false)
+  const [attribution, setAttribution] = useState(null)
   const cancelledRef = useRef(false)
 
   // Async upgrade if no sync image was available. Setting state from
@@ -50,19 +55,23 @@ export default function PlaceImage({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync prop -> state
       setSrc(srcProp)
       setErrored(false)
+      setAttribution(null)
       return
     }
     const sync = resolvePlaceImageSync(place)
     if (sync) {
       setSrc(sync)
       setErrored(false)
+      setAttribution(place?.imageAttribution ?? null)
       return
     }
     setSrc(null)
     setErrored(false)
-    resolvePlaceImageAsync(place).then((url) => {
-      if (cancelledRef.current) return
-      if (url) setSrc(url)
+    setAttribution(null)
+    resolvePlaceImageWithMeta(place).then((meta) => {
+      if (cancelledRef.current || !meta?.url) return
+      setSrc(meta.url)
+      setAttribution(meta.attribution ?? null)
     })
     return () => { cancelledRef.current = true }
   }, [place, srcProp])
@@ -95,7 +104,7 @@ export default function PlaceImage({
     )
   }
 
-  return (
+  const img = (
     <img
       {...imgProps}
       src={src}
@@ -110,5 +119,12 @@ export default function PlaceImage({
       // bodies. no-referrer makes those CDNs serve the image normally.
       referrerPolicy="no-referrer"
     />
+  )
+  if (!creditClassName || !attribution) return img
+  return (
+    <>
+      {img}
+      <PhotoCredit attribution={attribution} className={creditClassName} />
+    </>
   )
 }

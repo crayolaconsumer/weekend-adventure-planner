@@ -1,0 +1,207 @@
+# Nightly POI build: Geofabrik GB + Ireland/NI -> GitHub Release poi-<build_id>
+# -> Vercel pulls each chunk into pois_staging and swaps it live after its gates.
+# Runbook, contract and failure handling: scripts/poi/build.sh and the POI pipeline plan.
+# The repo is public: never echo secrets, never print the DB host. Each secret is
+# only in the env of the step that needs it.
+name: POI build
+
+on:
+  schedule:
+    - cron: '15 2 * * *'
+  workflow_dispatch:
+    inputs:
+      load:
+        description: Load the build into the database after publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: poi-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      WORK: ${{ runner.temp }}/poi
+      NODE_OPTIONS: --max-old-space-size=12000
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q osmium-tool
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      # Drift baseline = the build that is live now (the loader's status step),
+      # else the newest published release.
+      - name: Previous manifest (per-key drift gate)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
+        run: |
+          mkdir -p "$WORK"
+          active=
+          if [ -n "$POI_LOAD_SECRET" ] && code=$(curl -sS -o "$RUNNER_TEMP/status.json" -w '%{http_code}' --max-time 30 \
+              -H "Authorization: Bearer ${POI_LOAD_SECRET}" "https://www.go-roam.uk/api/admin/poi-load?step=status"); then
+            [ "$code" = 200 ] && active=$(jq -r '.active_release_tag // ""' "$RUNNER_TEMP/status.json" 2>/dev/null || true)
+          fi
+          if [[ "$active" =~ ^poi-[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z$ ]]; then
+            prev="$active"
+            echo "Drift baseline: active release $active"
+          else
+            prev=$(gh release list --exclude-drafts --limit 50 --json tagName,createdAt \
+              --jq '[.[] | select(.tagName | startswith("poi-"))] | sort_by(.createdAt) | last | .tagName // ""')
+            echo "Drift baseline: newest published release ${prev:-none} (no active build reported)"
+          fi
+          if [ -n "$prev" ]; then
+            gh release download "$prev" --pattern manifest.json --output "$WORK/prev-manifest.json" --clobber
+            echo "Previous build: $prev"
+          fi
+
+      - name: Build (download, md5, filter, export, build.mjs, local gates)
+        run: PREV_MANIFEST="$WORK/prev-manifest.json" scripts/poi/build.sh
+
+      # Draft first, every asset uploaded and counted, then published: the
+      # loader only ever sees a complete release. A leftover draft from a
+      # failed run is deleted and recreated (drafts have no tag to clean up).
+      # Already published (same extract as a previous run): its manifest is
+      # what the loader reads, so its chunk count is used, and a local build
+      # with different chunk hashes fails loudly rather than loading a mix.
+      - name: Publish release
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(jq -r .build_id "$WORK/out/manifest.json")
+          tag="poi-$id"
+          echo "build_id=$id" >> "$GITHUB_OUTPUT"
+          draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          if [ "$draft" = false ]; then
+            gh release download "$tag" --pattern manifest.json --output "$RUNNER_TEMP/published-manifest.json" --clobber
+            hashes='[.chunks[] | [.name, .sha256]]'
+            if [ "$(jq -c "$hashes" "$RUNNER_TEMP/published-manifest.json")" != "$(jq -c "$hashes" "$WORK/out/manifest.json")" ]; then
+              echo "$tag is already published with different chunks than this build: refusing to load a mix" >&2
+              exit 1
+            fi
+            echo "$tag already published with identical chunks (extract unchanged since the last run)"
+            echo "chunks=$(jq '.chunks | length' "$RUNNER_TEMP/published-manifest.json")" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "chunks=$(jq '.chunks | length' "$WORK/out/manifest.json")" >> "$GITHUB_OUTPUT"
+          if [ "$draft" = true ]; then gh release delete "$tag" --yes; fi
+          gh release create "$tag" --draft --title "POI build $id" \
+            --notes "Place data derived from OpenStreetMap. © OpenStreetMap contributors, available under the Open Database Licence (ODbL 1.0): https://www.openstreetmap.org/copyright"
+          gh release upload "$tag" "$WORK"/out/chunk-*.ndjson.gz "$WORK/out/manifest.json" "$WORK/out/coverage.json"
+          want=$(( $(jq '.chunks | length' "$WORK/out/manifest.json") + 2 ))
+          got=$(gh release view "$tag" --json assets --jq '.assets | length')
+          if [ "$got" != "$want" ]; then
+            echo "Release $tag has $got assets, expected $want" >&2
+            exit 1
+          fi
+          gh release edit "$tag" --draft=false
+
+      # Retries 5xx (503 + Retry-After included), timeouts, network errors and
+      # a busy lock (4xx with {"retry":true}), backing off 15, 30 .. 75 s
+      # (~3.75 min over 6 tries); any other 4xx (bad build, 422 gate) stops. begin says noop when this build
+      # is already active, and chunks_loaded when resuming a partial load.
+      - name: Load into the database
+        id: load
+        if: ${{ github.event_name == 'schedule' || inputs.load }}
+        env:
+          POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
+          BUILD_ID: ${{ steps.publish.outputs.build_id }}
+          CHUNKS: ${{ steps.publish.outputs.chunks }}
+        run: |
+          if [ -z "$POI_LOAD_SECRET" ]; then
+            echo "POI_LOAD_SECRET is not set but a load was requested. Add the secret, or run workflow_dispatch with load=false to publish only." >&2
+            exit 1
+          fi
+          post() {
+            for attempt in 1 2 3 4 5 6; do
+              rm -f "$RUNNER_TEMP/resp.json"
+              # curl's exit status and the HTTP code are separate: a timeout or
+              # dropped connection (non-zero exit) is retried like a 5xx
+              if code=$(curl -sS -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' --max-time 150 -X POST \
+                  -H "Authorization: Bearer ${POI_LOAD_SECRET}" \
+                  "https://www.go-roam.uk/api/admin/poi-load?build=${BUILD_ID}&$1"); then rc=0; else rc=$?; fi
+              if [ "$rc" != 0 ]; then
+                echo "step $1: curl exit $rc, retry $attempt" >&2
+              else
+                case "$code" in
+                  2??) cat "$RUNNER_TEMP/resp.json"; echo; return 0 ;;
+                  5??) echo "step $1: HTTP $code, retry $attempt" >&2 ;;
+                  *)
+                    # 409 {retry:true}: the loader's lock is busy (e.g. a frozen
+                    # instance after a 504); it frees itself. Any other 4xx is fatal.
+                    if jq -e '.retry == true' "$RUNNER_TEMP/resp.json" > /dev/null 2>&1; then
+                      echo "step $1: HTTP $code (busy, retryable), retry $attempt" >&2
+                    else
+                      echo "step $1: HTTP $code" >&2; cat "$RUNNER_TEMP/resp.json" >&2 2>/dev/null; echo >&2; return 1
+                    fi ;;
+                esac
+              fi
+              sleep $(( attempt * ${RETRY_DELAY_S:-15} ))
+            done
+            echo "step $1: gave up after retries" >&2
+            return 1
+          }
+          post "step=begin" > "$RUNNER_TEMP/begin.json"
+          cat "$RUNNER_TEMP/begin.json"
+          if [ "$(jq -r '.noop // false' "$RUNNER_TEMP/begin.json")" = true ]; then
+            echo "$BUILD_ID is already active: nothing to load"
+            echo "active=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          start=$(jq -r '.chunks_loaded // 0' "$RUNNER_TEMP/begin.json")
+          for i in $(seq "$start" $((CHUNKS - 1))); do post "step=chunk&i=$i"; done
+          post "step=finalize" > "$RUNNER_TEMP/finalize.json"
+          cat "$RUNNER_TEMP/finalize.json"
+          if [ "$(jq -r '.status // ""' "$RUNNER_TEMP/finalize.json")" != active ]; then
+            echo "$BUILD_ID did not go live (finalize gates): the previous build keeps serving" >&2
+            exit 1
+          fi
+          echo "active=true" >> "$GITHUB_OUTPUT"
+
+      # Only after this run's build went live. Keeps the newest 7 plus whatever
+      # the database says is active and previous (a rollback can make an old
+      # release live again). If the loader can't say which is active, nothing
+      # is pruned.
+      - name: Prune releases (keep the newest 7 builds)
+        if: ${{ steps.load.outputs.active == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
+          BUILD_ID: ${{ steps.publish.outputs.build_id }}
+        run: |
+          tag_re='^poi-[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z$'
+          if ! code=$(curl -sS -o "$RUNNER_TEMP/status.json" -w '%{http_code}' --max-time 30 \
+              -H "Authorization: Bearer ${POI_LOAD_SECRET}" "https://www.go-roam.uk/api/admin/poi-load?step=status") || [ "$code" != 200 ]; then
+            echo "Loader status unavailable: not pruning"
+            exit 0
+          fi
+          active=$(jq -r '.active_release_tag // ""' "$RUNNER_TEMP/status.json" 2>/dev/null || true)
+          previous=$(jq -r '.previous_release_tag // ""' "$RUNNER_TEMP/status.json" 2>/dev/null || true)
+          if ! [[ "$active" =~ $tag_re ]]; then
+            echo "Loader status has no active release: not pruning"
+            exit 0
+          fi
+          [[ "$previous" =~ $tag_re ]] || previous=
+          echo "Keeping the newest 7 plus active $active and previous ${previous:-none}"
+          gh release list --exclude-drafts --limit 100 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("poi-"))] | sort_by(.createdAt) | reverse | .[7:] | .[].tagName' |
+          while read -r tag; do
+            case "$tag" in "$active"|"$previous"|"poi-$BUILD_ID") continue ;; esac
+            gh release delete "$tag" --cleanup-tag --yes
+          done

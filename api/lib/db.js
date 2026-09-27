@@ -11,6 +11,26 @@ import { attachDatabasePool } from '@vercel/functions'
 // Connection pool (reused across invocations in warm lambdas)
 let pool = null
 
+const connectionConfig = () => ({
+  host: process.env.MYSQL_HOST,
+  port: parseInt(process.env.MYSQL_PORT || '3306', 10),
+  database: process.env.MYSQL_DATABASE,
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  connectTimeout: 5000,
+})
+
+/**
+ * One connection OUTSIDE the pool, for session state that has to outlive a
+ * single query (a named lock, lock_wait_timeout) while the request keeps
+ * using the pool's one connection for everything else. Borrowing the pool's
+ * connection instead would deadlock the request's own pool queries. Rare
+ * admin jobs only (the POI loader); the caller must end() it.
+ */
+export function dedicatedConnection() {
+  return mysql.createConnection(connectionConfig())
+}
+
 /**
  * Get database connection pool
  * Creates pool on first call, reuses on subsequent calls
@@ -28,11 +48,7 @@ export function getPool() {
     // for mysql2's default 10s. Past this, the next steps are fewer, larger
     // functions or RDS Proxy.
     pool = mysql.createPool({
-      host: process.env.MYSQL_HOST,
-      port: parseInt(process.env.MYSQL_PORT || '3306', 10),
-      database: process.env.MYSQL_DATABASE,
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD,
+      ...connectionConfig(),
       waitForConnections: true,
       // 1 per instance: a query takes milliseconds, so one connection serves
       // hundreds a second, while the database's total (connections x warm
@@ -42,7 +58,6 @@ export function getPool() {
       queueLimit: 100,       // bounded, but deep enough for cron push bursts and admin dashboards
       maxIdle: 1,
       idleTimeout: 10000,
-      connectTimeout: 5000,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0
     })

@@ -55,6 +55,11 @@ export default function Terms() {
           We aim for high uptime but don't guarantee 100% — third-party services (mapping, events APIs, payments) can fail. ROAM is provided "as is" without warranties beyond those required by UK consumer law.
         </p>
 
+        <h2>Place data and photos</h2>
+        <p>
+          ROAM's place data derives from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © OpenStreetMap contributors, and is available under the <a href="https://opendatacommons.org/licenses/odbl/">Open Database License (ODbL)</a>. The derived database we build from it is published at <a href="https://github.com/crayolaconsumer/weekend-adventure-planner/releases">github.com/crayolaconsumer/weekend-adventure-planner/releases</a>. Photos belong to their creators and are credited on each place with their licence.
+        </p>
+
         <h2>Acceptable use</h2>
         <p>
           Don't try to disrupt the service, scrape it at scale, reverse-engineer it, or use it for anything illegal. Don't use automated tools to create accounts or interact with other users.

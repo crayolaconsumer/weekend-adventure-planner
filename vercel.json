@@ -55,6 +55,10 @@
     },
     "api/cron/weekend-plans-nudge.js": {
       "maxDuration": 300
+    },
+    "api/admin/poi-load.js": {
+      "maxDuration": 120,
+      "includeFiles": "scripts/poi/sentinels.json"
     }
   },
   "rewrites": [
