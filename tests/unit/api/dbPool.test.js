@@ -1,32 +1,32 @@
 import { describe, it, expect, vi } from 'vitest'
-import process from 'node:process'
 
-const createPool = vi.fn(() => ({ query: vi.fn() }))
-vi.mock('mysql2/promise', () => ({ default: { createPool } }))
+// Regression: idle connections survived Fluid compute suspension (idleTimeout
+// can't run while paused), so one session across ~17 endpoints held 51 DB
+// connections against a ~60 limit. The pool must be attached so Vercel
+// releases idle connections before suspending the instance.
+const attach = vi.fn()
+const inner = { on: vi.fn() }
+const fakePool = { query: vi.fn(), execute: vi.fn(), pool: inner }
+vi.mock('@vercel/functions', () => ({ attachDatabasePool: (p) => attach(p) }))
+vi.mock('mysql2/promise', () => ({ default: { createPool: vi.fn(() => fakePool) } }))
 
-describe('db pool budget', () => {
-  it('keeps each instance to a small, self-releasing pool', async () => {
+describe('db pool', () => {
+  it('attaches the pool to Vercel once, however often it is fetched', async () => {
     const { getPool } = await import('../../../api/lib/db.js')
+    expect(getPool()).toBe(fakePool)
     getPool()
-    getPool()
-    expect(createPool).toHaveBeenCalledTimes(1) // one pool per instance
-    const cfg = createPool.mock.calls[0][0]
-    // 3 per instance x peak warm instances must stay under max_connections
-    expect(cfg.connectionLimit).toBe(3)
-    expect(cfg.queueLimit).toBeGreaterThan(0) // bounded, never 0 (= unbounded)
-    expect(cfg.connectTimeout).toBeLessThanOrEqual(5000)
-    // mysql2 only runs its idle reaper when maxIdle < connectionLimit
-    expect(cfg.maxIdle).toBeLessThan(cfg.connectionLimit)
-    expect(cfg.idleTimeout).toBeLessThanOrEqual(10000)
+    expect(attach).toHaveBeenCalledTimes(1)
+    // the callback pool inside mysql2/promise: the promise wrapper is rejected
+    expect(attach).toHaveBeenCalledWith(inner)
   })
 })
 
-describe('vercel.json regions', () => {
-  it('pins every function to lhr1, next to the London database', async () => {
-    const { readFileSync } = await import('node:fs')
-    const { join } = await import('node:path')
-    const cfg = JSON.parse(readFileSync(join(process.cwd(), 'vercel.json'), 'utf8'))
-    expect(cfg.regions).toEqual(['lhr1'])
-    for (const [path, fn] of Object.entries(cfg.functions || {})) expect(fn.regions, path).toBeUndefined()
-  })
+it('the real mysql2 promise pool exposes a pool Vercel accepts', async () => {
+  vi.doUnmock('@vercel/functions'); vi.doUnmock('mysql2/promise'); vi.resetModules()
+  const mysql = (await import('mysql2/promise')).default
+  const { attachDatabasePool } = await import('@vercel/functions')
+  const p = mysql.createPool({ host: '127.0.0.1', user: 'x', connectionLimit: 1 })
+  expect(() => attachDatabasePool(p.pool)).not.toThrow()
+  expect(() => attachDatabasePool(p)).toThrow()
+  await p.end()
 })

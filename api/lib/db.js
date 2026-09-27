@@ -6,6 +6,7 @@
  */
 
 import mysql from 'mysql2/promise'
+import { attachDatabasePool } from '@vercel/functions'
 
 // Connection pool (reused across invocations in warm lambdas)
 let pool = null
@@ -43,6 +44,12 @@ export function getPool() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 0
     })
+    // idleTimeout can't fire while Fluid compute has the instance suspended,
+    // so every paused function (one per endpoint) kept an idle connection
+    // open: one user's session across ~17 endpoints held 51 connections
+    // (alarm 2026-09-27). This closes idle connections before suspension.
+    // mysql2/promise wraps the callback pool that attachDatabasePool knows
+    try { attachDatabasePool(pool.pool) } catch (err) { console.warn('[db] attachDatabasePool failed', err.message) }
   }
   return pool
 }
