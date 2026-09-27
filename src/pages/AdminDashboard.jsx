@@ -25,6 +25,11 @@ const FLAG_META = [
   { key: 'contributionsUpload', label: 'Photo uploads', desc: 'Off rejects new contribution photo uploads (abuse or storage-cost control).' },
   { key: 'pushNudges', label: 'Marketing push nudges', desc: 'Off pauses the re-engagement and weekend nudge crons. Visit reminders are unaffected.' },
 ]
+// Place database rollout, 0-100% of Discover/town requests. 0 is the kill switch.
+const PCT_META = [
+  { key: 'poiDbPct', label: 'Place database: serve', desc: 'Share of place lookups answered from our own database instead of Overpass.' },
+  { key: 'poiShadowPct', label: 'Place database: shadow', desc: 'Share of Overpass answers also checked against our database (logged, never shown).' },
+]
 
 const EXTERNAL = [
   { href: 'https://app.revenuecat.com', title: 'RevenueCat', desc: 'ROAM+ subscriptions' },
@@ -75,9 +80,8 @@ export default function AdminDashboard() {
 
   useEffect(() => { load() }, [load])
 
-  const toggleFlag = useCallback(async (name) => {
+  const setFlag = useCallback(async (name, desired) => {
     if (!flags || flagBusy) return
-    const desired = !flags[name]
     const before = flags
     setFlags({ ...flags, [name]: desired })
     setFlagBusy(true)
@@ -90,11 +94,12 @@ export default function AdminDashboard() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setFlags((await res.json()).flags)
-      const label = FLAG_META.find((f) => f.key === name)?.label || name
-      toast.success(`${label} turned ${desired ? 'on' : 'off'}. Live within about a minute.`)
+      const label = [...FLAG_META, ...PCT_META].find((f) => f.key === name)?.label || name
+      const what = typeof desired === 'number' ? `set to ${desired}%` : `turned ${desired ? 'on' : 'off'}`
+      toast.success(`${label} ${what}. Live within about a minute.`)
     } catch (err) {
       setFlags(before)
-      toast.error(`Couldn't change that switch: ${err.message}`)
+      toast.error(`Couldn't save that change: ${err.message}`)
     } finally {
       setFlagBusy(false)
     }
@@ -190,7 +195,10 @@ export default function AdminDashboard() {
             {flags ? (
               <div className="admin-dash-flags">
                 {FLAG_META.map((f) => (
-                  <FlagRow key={f.key} meta={f} on={flags[f.key] !== false} busy={flagBusy} onToggle={() => toggleFlag(f.key)} />
+                  <FlagRow key={f.key} meta={f} on={flags[f.key] !== false} busy={flagBusy} onToggle={() => setFlag(f.key, !flags[f.key])} />
+                ))}
+                {PCT_META.map((f) => (
+                  <PctRow key={`${f.key}:${flags[f.key]}`} meta={f} value={Number(flags[f.key]) || 0} busy={flagBusy} onSave={(v) => setFlag(f.key, v)} />
                 ))}
               </div>
             ) : (
@@ -234,6 +242,23 @@ function HealthPill({ label, state, text }) {
       <span className="admin-health-label">{label}</span>
       <span className="admin-health-text">{text}</span>
     </div>
+  )
+}
+
+function PctRow({ meta, value, busy, onSave }) {
+  const [draft, setDraft] = useState(String(value))
+  const next = Number(draft)
+  const ok = draft !== '' && Number.isInteger(next) && next >= 0 && next <= 100 && next !== value
+  return (
+    <form className="admin-flag" onSubmit={(e) => { e.preventDefault(); if (ok) onSave(next) }}>
+      <div className="admin-flag-text">
+        <strong>{meta.label}: {value}%</strong>
+        <span className="admin-muted">{meta.desc}</span>
+      </div>
+      <input type="number" min="0" max="100" step="1" inputMode="numeric" value={draft}
+        onChange={(e) => setDraft(e.target.value)} aria-label={`${meta.label} percent`} disabled={busy} style={{ width: '4.5em' }} />
+      <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !ok}>Save</button>
+    </form>
   )
 }
 

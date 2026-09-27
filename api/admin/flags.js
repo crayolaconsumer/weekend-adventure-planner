@@ -24,11 +24,19 @@ const DEFAULTS = Object.freeze({
   overpassProxy: true,
   contributionsUpload: true,
   pushNudges: true,
+  // Rollout percentages (0-100); 0 is off and the fail-closed default
+  poiDbPct: 0,
+  poiShadowPct: 0,
 })
 
-// The boolean flags this editor controls, from a stored blob (defaults for anything else)
-const effective = stored =>
-  Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, typeof stored?.[k] === 'boolean' ? stored[k] : DEFAULTS[k]]))
+const isPct = v => Number.isInteger(v) && v >= 0 && v <= 100
+const valid = (k, v) => (typeof DEFAULTS[k] === 'number' ? isPct(v) : typeof v === 'boolean')
+
+// What api/lib/flags.js actually serves from a stored blob: numbers clamped, not dropped
+const served = (k, v) => typeof DEFAULTS[k] === 'number'
+  ? (Number.isFinite(v) ? Math.min(100, Math.max(0, Math.trunc(v))) : DEFAULTS[k])
+  : (typeof v === 'boolean' ? v : DEFAULTS[k])
+const effective = stored => Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, served(k, stored?.[k])]))
 
 async function handler(req, res) {
   if (!(await guardAdmin(req, res, { key: 'admin-flags-ip', limit: RATE_LIMITS.API_GENERAL }))) return
@@ -47,10 +55,12 @@ async function handler(req, res) {
     }
     const incoming = (req.body && typeof req.body === 'object') ? req.body.flags : null
     if (!incoming || typeof incoming !== 'object') {
-      return res.status(400).json({ error: 'Body must be { flags: { <name>: <boolean> } }' })
+      return res.status(400).json({ error: 'Body must be { flags: { <name>: <boolean | 0-100> } }' })
     }
-    // MERGE into the stored blob: numeric rollout flags (poiDbPct, poiShadowPct)
-    // and any key this editor doesn't know must survive a boolean edit. Read with
+    const bad = Object.keys(incoming).find(k => Object.hasOwn(DEFAULTS, k) && !valid(k, incoming[k]))
+    if (bad) return res.status(400).json({ error: `${bad} must be ${typeof DEFAULTS[bad] === 'number' ? 'an integer 0-100' : 'a boolean'}` })
+    // MERGE into the stored blob: keys not in this edit (and any key this
+    // editor doesn't know) must survive it. Read with
     // the raw client: cacheGet turns a KV error into null, and writing after a
     // failed read would wipe every other flag.
     let stored
@@ -61,11 +71,12 @@ async function handler(req, res) {
     } catch {
       return res.status(503).json({ error: 'Could not read current flags; nothing written' })
     }
-    const current = effective(stored)
     const next = { ...(stored || {}) }
     let changed = false
     for (const k of Object.keys(DEFAULTS)) {
-      if (typeof incoming[k] === 'boolean' && incoming[k] !== current[k]) {
+      // Against the raw value: a stored 150 serves 100 but reads back as 100,
+      // so comparing effective values could skip the kill switch's write
+      if (Object.hasOwn(incoming, k) && incoming[k] !== stored?.[k]) {
         next[k] = incoming[k]
         changed = true
       }

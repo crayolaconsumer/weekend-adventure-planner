@@ -50,6 +50,60 @@ describe('POST /api/admin/flags', () => {
     expect(kv.writes).toEqual([])
   })
 
+  it('sets a rollout percentage and keeps the other keys; 0 is the kill switch', async () => {
+    kv.value = { overpassProxy: false, poiDbPct: 25 }
+    const res = await post({ poiShadowPct: 10 })
+    expect(res.statusCode).toBe(200)
+    expect(kv.value).toEqual({ overpassProxy: false, poiDbPct: 25, poiShadowPct: 10 })
+    expect(res.body.flags).toMatchObject({ poiDbPct: 25, poiShadowPct: 10 })
+    await post({ poiDbPct: 0 })
+    expect(kv.value.poiDbPct).toBe(0)
+  })
+
+  it.each([150, 12.7, '10', null, undefined])('kill switch writes 0 over a stored %j, and GET matches what is served', async (bad) => {
+    kv.value = { poiDbPct: bad }
+    const res = await post({ poiDbPct: 0 })
+    expect(res.statusCode).toBe(200)
+    expect(kv.value.poiDbPct).toBe(0)
+    kv.value = { poiDbPct: 150 }
+    expect((await post({ pushNudges: false })).body.flags.poiDbPct).toBe(100)
+  })
+
+  it('GET shows the truncated value that is served', async () => {
+    kv.value = { poiDbPct: 12.7 }
+    expect((await post({ pushNudges: false })).body.flags.poiDbPct).toBe(12)
+  })
+
+  it('a non-admin writes nothing', async () => {
+    getUserFromRequest.mockResolvedValue({ id: 2, is_admin: false })
+    kv.value = { poiDbPct: 5 }
+    const res = await post({ poiDbPct: 0 })
+    expect(res.statusCode).toBe(404)
+    expect(kv.writes).toEqual([])
+  })
+
+  it('a __proto__ key cannot smuggle a flag in', async () => {
+    kv.value = { poiDbPct: 5 }
+    const res = await post(JSON.parse('{"__proto__":{"poiDbPct":50},"pushNudges":false}'))
+    expect(res.statusCode).toBe(200)
+    expect(kv.value).toEqual({ poiDbPct: 5, pushNudges: false })
+  })
+
+  it('ignores inherited names like constructor', async () => {
+    const res = await post({ constructor: 'x', pushNudges: false })
+    expect(res.statusCode).toBe(200)
+    expect(kv.value).toEqual({ pushNudges: false })
+  })
+
+  it.each([
+    ['poiDbPct', 101], ['poiDbPct', -1], ['poiDbPct', 2.5], ['poiDbPct', '50'], ['poiDbPct', true], ['overpassProxy', 0],
+  ])('rejects %s = %j and writes nothing', async (k, v) => {
+    kv.value = { poiDbPct: 5 }
+    const res = await post({ [k]: v, pushNudges: false })
+    expect(res.statusCode).toBe(400)
+    expect(kv.writes).toEqual([])
+  })
+
   it('an empty store gets just the edited flag', async () => {
     await post({ contributionsUpload: false })
     expect(kv.writes[0].value).toEqual({ contributionsUpload: false })
