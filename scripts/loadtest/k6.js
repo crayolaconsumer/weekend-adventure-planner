@@ -151,9 +151,9 @@ export function setup() {
   // Canary: prove the server honours the secret BEFORE any load. A query the
   // place DB can't answer (bench), in a box nothing has cached, must come back
   // as the cache-only 503; anything else means requests would go live upstream.
-  const box = (51.4 + Math.random() * 0.2).toFixed(4)
+  const s = 51.4 + Math.random() * 0.2
   const canary = http.post(`${BASE}/api/places/overpass/nearby`,
-    JSON.stringify({ query: `[out:json][timeout:10];node["amenity"="bench"](${box},-0.2000,${box},-0.1990);out;` }),
+    JSON.stringify({ query: `[out:json][timeout:10][bbox:${s.toFixed(4)},-0.2000,${(s + 0.001).toFixed(4)},-0.1990];node["amenity"="bench"];out;` }),
     { headers: { ...HDR, ...JSON_WRITE }, tags: { name: 'canary', stage: 'setup' }, responseCallback: CACHE_ONLY_OK })
   if (!(canary.status === 503 && /cache-only/.test(canary.body || ''))) {
     exec.test.abort(`load-test mode not active on the server (canary HTTP ${canary.status}): refusing to run`)
