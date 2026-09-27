@@ -48,7 +48,7 @@ const GB = cellsOf(49.9, -8, 60.9, 1.8)
 function runSql({ sql, params }, rows) {
   let i = 0
   return sql.replace(/\?/g, () => `p[${i++}]`).split(' UNION ALL ').flatMap(part => {
-    const m = /^\(SELECT (?:\/\*.*?\*\/ )?(\d+) AS g, osm_type, osm_id, el FROM \w+ WHERE (.*) ORDER BY osm_type, osm_id LIMIT p\[(\d+)\]\)/.exec(part)
+    const m = /^\(SELECT (?:\/\*.*?\*\/ )?(\d+) AS g, osm_type, osm_id, el FROM \w+(?: FORCE INDEX \(PRIMARY\))? WHERE (.*) ORDER BY osm_type, osm_id LIMIT p\[(\d+)\]\)/.exec(part)
     const where = m[2]
       .replace(/(\w+) BETWEEN (p\[\d+\]) AND (p\[\d+\])/g, '(r.$1 >= $2 && r.$1 <= $3)')
       .replace(/(\w+)(?: COLLATE utf8mb4_0900_bin)? IN \(([^)]*)\)/g, '[$2].includes(r.$1)')
@@ -250,7 +250,7 @@ describe('SQL', () => {
     const ranges = cellRanges(51.45 - PAD, -0.25 - PAD, 51.55 + PAD, -0.05 + PAD)
     expect(ranges).toHaveLength(6)
     expect(sql).toBe(
-      '(SELECT /*+ MAX_EXECUTION_TIME(800) */ 0 AS g, osm_type, osm_id, el FROM pois WHERE (' +
+      '(SELECT /*+ MAX_EXECUTION_TIME(800) */ 0 AS g, osm_type, osm_id, el FROM pois FORCE INDEX (PRIMARY) WHERE (' +
       Array(7).fill('cell BETWEEN ? AND ?').join(' OR ') + ') AND ' +
       'max_lat >= ? AND min_lat <= ? AND max_lon >= ? AND min_lon <= ? AND ' +
       '((osm_type IN (?,?) AND k_amenity COLLATE utf8mb4_0900_bin IN (?,?)) OR (osm_type IN (?,?) AND k_shop COLLATE utf8mb4_0900_bin IN (?) AND has_wikidata = 1)) ' +
@@ -323,6 +323,9 @@ describe('SQL', () => {
     expect(parts[7]).toMatch(/^\(SELECT 7 AS g,.* LIMIT \?\) ORDER BY g, osm_type, osm_id$/)
     // ["name"] needs the name tag itself; has_name also counts name:en-only rows
     expect(parts[0]).toMatch(/has_name_tag = 1 AND has_wikidata = 1\)\) ORDER BY osm_type, osm_id LIMIT \?\)$/)
+    // Regression: left to itself MySQL walked uq_osm for the LIMIT (York 24 s)
+    // or full-scanned dense London (20 s); area reads must go through the cells
+    for (const p of parts) expect(p).toContain('FROM pois FORCE INDEX (PRIMARY) WHERE (cell BETWEEN')
 
     const ids = parseQuery('[out:json][timeout:10];way(12);out body center;')
     expect(buildSql(ids)).toEqual({

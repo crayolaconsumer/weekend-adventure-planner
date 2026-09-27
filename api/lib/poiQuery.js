@@ -254,7 +254,9 @@ export function buildSql(plan, table = 'pois') {
     // One row past the scan bound tells queryPois the answer is too big.
     // The hint is only allowed in the first SELECT and covers the whole statement.
     params.push(group.limit || SCAN_ROWS + 1)
-    return `(SELECT ${g === 0 ? `${HINT} ` : ''}${g} AS g, osm_type, osm_id, el FROM ${table} ` +
+    // Area reads go through the cell range. Left alone, MySQL walks uq_osm in id
+    // order for the LIMIT (24 s for York) or full-scans dense London (20 s).
+    return `(SELECT ${g === 0 ? `${HINT} ` : ''}${g} AS g, osm_type, osm_id, el FROM ${table}${plan.bbox ? ' FORCE INDEX (PRIMARY)' : ''} ` +
       `WHERE ${where.join(' AND ')} ORDER BY osm_type, osm_id LIMIT ?)`
   })
   return { sql: `${selects.join(' UNION ALL ')} ORDER BY g, osm_type, osm_id`, params }
