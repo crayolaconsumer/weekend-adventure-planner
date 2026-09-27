@@ -45,6 +45,8 @@ Dark theme is `[data-theme="dark"]` in the app. Outside the app use `@media (pre
 
 **Forest buttons with white text use the literal `#1a3a2f`**, because `--roam-forest` lightens in dark mode and white text on it becomes unreadable (see `GetRoam.css`, `.town-search button`).
 
+**Forest text on a dark card (`--color-surface-elevated`) uses `--roam-forest-light`**: dark `--roam-forest` is 4.34:1 there, just under WCAG AA. Small text never uses `--roam-ink-muted` on cards (3.2 to 3.7:1 in both themes); use `--color-text-secondary`. `tests/unit/components/darkContrast.test.js` checks the fixed rules.
+
 Category colours come from `CategoryIcon` (`src/components/icons/CategoryIcon.jsx`): food terracotta, nature sage, culture plum, historic umber, entertainment coral, nightlife indigo, active blue, shopping violet.
 
 ## Type

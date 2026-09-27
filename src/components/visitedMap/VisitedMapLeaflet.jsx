@@ -113,7 +113,7 @@ export default function VisitedMapLeaflet({ places, onPinTap, focusedPlaceId }) 
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
-        <TileLayer url={tileUrl} attribution={TILE_ATTRIBUTION} detectRetina key={tileUrl} />
+        <TileLayer url={tileUrl} attribution={TILE_ATTRIBUTION} key={tileUrl} />
         <MapResizeFix />
         <FitToBounds places={normalizedPlaces} />
         <FlyToFocused places={normalizedPlaces} focusedPlaceId={focusedPlaceId} />

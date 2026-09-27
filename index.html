@@ -8,13 +8,22 @@
        inert for ROAM+ subscribers and the native app. Actual ad serving
        is handled by AdBanner.jsx, gated to free web users. -->
   <meta name="google-adsense-account" content="ca-pub-9063326286159934" />
-  <!-- maximum-scale + user-scalable=no disables pinch-zoom of the page itself.
-       Without this, accidental two-finger pinches in iOS WKWebView zoom the
-       chrome out of place (and recovery is awkward). Inner content that wants
-       its own zoom (maps, photo viewers) handles it via gestures inside its
-       own component. Web a11y trade-off accepted because native apps don't
-       expose page-zoom either — system Display Zoom + Dynamic Type still work. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- Pinch-zoom stays on for the web (WCAG 1.4.4: user-scalable=no fails
+       Lighthouse and blocks low-vision users). The native app turns it off
+       below: accidental two-finger pinches in iOS WKWebView zoom the chrome out
+       of place and recovery is awkward, and maximum-scale=1 also stops the
+       focus zoom on small inputs. Native users keep system Display Zoom and
+       Dynamic Type. Capacitor injects window.Capacitor at document start, and
+       the iOS bundle loads from capacitor://, so this runs before first paint. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script>
+    (function () {
+      var C = window.Capacitor
+      if ((C && C.isNativePlatform && C.isNativePlatform()) || location.protocol === 'capacitor:') {
+        document.querySelector('meta[name="viewport"]').setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover')
+      }
+    })()
+  </script>
 
   <!-- Theme bootstrap — runs synchronously before any CSS or React loads.
        Apply the user's saved theme preference (or follow the OS) BEFORE

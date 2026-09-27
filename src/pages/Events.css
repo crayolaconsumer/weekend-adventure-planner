@@ -674,7 +674,7 @@
   margin-bottom: var(--space-lg);
 }
 
-.events-empty h3 {
+.events-empty h2 {
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 500;
@@ -853,6 +853,16 @@
 
 .events-view-segment.active {
   color: var(--roam-forest);
+}
+
+/* Dark --roam-forest is 4.34:1 on the elevated surface, just under AA.
+   The lighter forest token clears it (5.95:1). */
+[data-theme="dark"] .events-filters-toggle:not(.active),
+[data-theme="dark"] .events-time-chip:not(.active),
+[data-theme="dark"] .events-view-segment:hover,
+[data-theme="dark"] .events-view-segment.active,
+[data-theme="dark"] .events-alt-link {
+  color: var(--roam-forest-light);
 }
 
 /* Toolbar secondary actions */
@@ -1458,7 +1468,7 @@
   margin-bottom: var(--space-lg);
 }
 
-.events-swipe-empty h3 {
+.events-swipe-empty h2 {
   font-family: var(--font-display);
   font-size: var(--text-xl);
   color: var(--roam-forest);

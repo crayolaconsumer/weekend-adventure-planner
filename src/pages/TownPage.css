@@ -246,7 +246,7 @@
 }
 
 .town-near span span {
-  color: var(--roam-ink-muted);
+  color: var(--roam-ink-light);
   font-size: var(--text-sm);
 }
 

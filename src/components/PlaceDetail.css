@@ -310,6 +310,12 @@
   opacity: 0.6;
 }
 
+/* Dark: forest at 0.7 opacity is 2.9:1 on the card. Full lighter forest is 5.95:1. */
+[data-theme="dark"] .place-detail-section-title {
+  color: var(--roam-forest-light);
+  opacity: 1;
+}
+
 /* Community Tips header row — title on the left, "Share a tip" CTA
    on the right so the affordance is visible whether or not tips
    exist. Was previously a bare title with the section only rendered

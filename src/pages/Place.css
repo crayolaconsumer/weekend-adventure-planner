@@ -81,7 +81,7 @@
 .place-page-error p {
   margin: 0 0 var(--space-lg);
   font-size: var(--text-sm);
-  color: var(--roam-text-muted);
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
@@ -90,7 +90,8 @@
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-lg);
-  background: var(--roam-terracotta);
+  /* Dark terracotta: white on the base terracotta is 4.24:1, under AA. */
+  background: var(--roam-terracotta-dark);
   color: white;
   font-weight: 600;
   font-size: var(--text-sm);
@@ -101,7 +102,7 @@
 }
 
 .place-page-error-btn:hover {
-  background: var(--roam-terracotta-dark);
+  filter: brightness(0.9);
 }
 
 .place-page-error-btn:active {

@@ -18,6 +18,7 @@ import { ContributionList } from './ContributionDisplay'
 import ContributionPrompt from './ContributionPrompt'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useNearViewport } from '../hooks/useNearViewport'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { useBackToClose } from '../hooks/useBackToClose'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
@@ -188,6 +189,8 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
   const [showPlanVisit, setShowPlanVisit] = useState(false)
   const [showTipPrompt, setShowTipPrompt] = useState(false)
   const [animationComplete, setAnimationComplete] = useState(false)
+  const mapBoxRef = useRef(null)
+  const mapNearView = useNearViewport(mapBoxRef, enrichedPlace.lat != null && enrichedPlace.lng != null)
   const { contributions, loading: contributionsLoading, refresh: refreshContributions } = useContributions(place?.id)
   const { updatePlannedDate } = useSavedPlaces()
   const formatDistance = useFormatDistance()
@@ -584,10 +587,10 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
               >
-                <h3 className="place-detail-section-title">
+                <h2 className="place-detail-section-title">
                   <MapPinIcon />
                   Address
-                </h3>
+                </h2>
                 <p className="place-detail-address">{enrichedPlace.address}</p>
               </motion.div>
             )}
@@ -600,11 +603,14 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.27 }}
               >
-                <div className="place-detail-map">
+                <div className="place-detail-map" ref={mapBoxRef}>
                   {/* Mount the map only after the open animation settles —
                       initialising Leaflet mid-transform leaves blank tile
-                      strips that no later invalidateSize reliably fixes. */}
-                  {animationComplete && (
+                      strips that no later invalidateSize reliably fixes —
+                      and once it is near the viewport, so its tiles never
+                      compete with the photo and title on first load. The
+                      page variant only fades in (no scale), so it needn't wait. */}
+                  {(animationComplete || isPage) && mapNearView && (
                     <MapContainer
                       key={enrichedPlace.id}
                       center={[enrichedPlace.lat, enrichedPlace.lng]}
@@ -617,8 +623,10 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                       attributionControl={false}
                     >
                       <MapResizeFix />
-                      <TileLayer url={mapTile} attribution={TILE_ATTRIBUTION} detectRetina key={mapTile} />
-                      <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} />
+                      <TileLayer url={mapTile} attribution={TILE_ATTRIBUTION} key={mapTile} />
+                      {/* Static preview: the pin has no action, so keep it out
+                          of the tab order (Leaflet gives it an unnamed role=button). */}
+                      <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} keyboard={false} interactive={false} />
                     </MapContainer>
                   )}
                 </div>
@@ -638,10 +646,10 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  <h3 className="place-detail-section-title">
+                  <h2 className="place-detail-section-title">
                     <ClockIcon />
                     Opening hours
-                  </h3>
+                  </h2>
                   {schedule ? (
                     <ul className="place-detail-hours-table" role="list">
                       {schedule.map(({ day, hours }) => (
@@ -710,7 +718,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               transition={{ delay: 0.45 }}
             >
               <div className="place-detail-tips-header">
-                <h3 className="place-detail-section-title">Community tips</h3>
+                <h2 className="place-detail-section-title">Community tips</h2>
                 <button
                   type="button"
                   className="btn btn-secondary place-detail-tip-add"

@@ -440,6 +440,12 @@ p {
   border-color: var(--roam-forest);
 }
 
+/* Dark --roam-forest is 4.34:1 on the elevated surface, just under AA.
+   The lighter forest token clears it (5.95:1). */
+[data-theme="dark"] .btn-secondary {
+  color: var(--roam-forest-light);
+}
+
 .btn-accent {
   background: var(--roam-terracotta);
   color: #ffffff;
@@ -609,7 +615,8 @@ body.has-location-banner main {
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
-  color: var(--color-text-muted);
+  /* Secondary ink, not muted: muted is 3.2-3.7:1 on the bar in both themes. */
+  color: var(--color-text-secondary);
   text-decoration: none;
   font-size: var(--text-xs);
   font-weight: 500;
@@ -630,6 +637,11 @@ body.has-location-banner main {
 
 .nav-item.active svg {
   transform: scale(1.15);
+}
+
+[data-theme="dark"] .nav-item:hover,
+[data-theme="dark"] .nav-item.active {
+  color: var(--roam-forest-light);
 }
 
 /* ═══════════════════════════════════════════════════════

@@ -411,7 +411,7 @@
   margin-bottom: var(--space-lg);
 }
 
-.discover-location-pending h3 {
+.discover-location-pending h2 {
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 500;
@@ -446,7 +446,7 @@
   margin-bottom: var(--space-lg);
 }
 
-.discover-error-recovery h3 {
+.discover-error-recovery h2 {
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: 500;

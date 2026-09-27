@@ -40,7 +40,6 @@ export default function InstallBanner({ hidden = false }) {
             <button
               className="install-banner-dismiss"
               onClick={dismissPrompt}
-              aria-label="Dismiss"
             >
               Not now
             </button>

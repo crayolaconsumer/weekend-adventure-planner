@@ -125,7 +125,7 @@ export default function MiniMapRibbon({ stops = [], activeIndex = -1, onPinTap, 
             zoomControl={false}
             attributionControl={true}
           >
-            <TileLayer url={tileUrl} attribution={TILE_ATTRIBUTION} detectRetina key={tileUrl} />
+            <TileLayer url={tileUrl} attribution={TILE_ATTRIBUTION} key={tileUrl} />
             <FitToRoute points={points} />
             <FlyToActive points={points} activeIndex={activeIndex} />
             {points.length > 1 && (

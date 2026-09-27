@@ -745,7 +745,7 @@ export default function Events({ location }) {
             >
               <EmptyStateIllustration variant="events-quiet" size="md" />
             </motion.div>
-            <h3>Quiet around here</h3>
+            <h2>Quiet around here</h2>
             <p>
               Nothing showing up nearby right now. Try a different date, or have a
               look at these platforms for what's on in your area:
@@ -790,7 +790,7 @@ export default function Events({ location }) {
                 >
                   <EmptyStateIllustration variant="celebration" size="md" />
                 </motion.div>
-                <h3>You've seen all events!</h3>
+                <h2>You've seen all events!</h2>
                 <p>
                   {savedCount > 0
                     ? `You saved ${savedCount} event${savedCount === 1 ? '' : 's'}`

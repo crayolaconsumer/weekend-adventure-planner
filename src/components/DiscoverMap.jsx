@@ -216,7 +216,6 @@ export default function DiscoverMap({
         <TileLayer
           attribution={tileAttribution}
           url={tileUrl}
-          detectRetina
           crossOrigin="anonymous"
           eventHandlers={{
             tileerror: handleTileError

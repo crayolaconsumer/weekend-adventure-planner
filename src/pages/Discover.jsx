@@ -766,7 +766,7 @@ export default function Discover({ location }) {
                 <circle cx="12" cy="10" r="3" />
               </svg>
             </div>
-            <h3>Location taking too long</h3>
+            <h2>Location taking too long</h2>
             <p>
               We couldn&apos;t get your location. You can try again or use a default location to start exploring.
             </p>
@@ -798,7 +798,7 @@ export default function Discover({ location }) {
                 <circle cx="12" cy="10" r="3" />
               </svg>
             </motion.div>
-            <h3>Getting your location...</h3>
+            <h2>Getting your location...</h2>
             <p>This helps us find places near you</p>
           </div>
         )}
