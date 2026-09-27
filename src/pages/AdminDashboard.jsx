@@ -255,9 +255,14 @@ function PctRow({ meta, value, busy, onSave }) {
         <strong>{meta.label}: {value}%</strong>
         <span className="admin-muted">{meta.desc}</span>
       </div>
-      <input type="number" min="0" max="100" step="1" inputMode="numeric" value={draft}
-        onChange={(e) => setDraft(e.target.value)} aria-label={`${meta.label} percent`} disabled={busy} style={{ width: '4.5em' }} />
-      <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !ok}>Save</button>
+      <div className="admin-pct">
+        <label className="admin-pct-field">
+          <input type="number" min="0" max="100" step="1" inputMode="numeric" value={draft}
+            onChange={(e) => setDraft(e.target.value)} aria-label={`${meta.label} percent`} disabled={busy} />
+          <span aria-hidden="true">%</span>
+        </label>
+        <button type="submit" className="admin-pct-save" disabled={busy || !ok}>Save</button>
+      </div>
     </form>
   )
 }
