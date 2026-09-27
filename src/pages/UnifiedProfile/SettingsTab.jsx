@@ -80,9 +80,6 @@ export default function SettingsTab({ user, onLogout }) {
   const [accessibilityMode, setAccessibilityMode] = useState(() =>
     localStorage.getItem('roam_accessibility') === 'true',
   )
-  const [openOnly, setOpenOnly] = useState(() =>
-    localStorage.getItem('roam_open_only') === 'true',
-  )
 
   // Travel mode options. Icon comes from FilterIcon via the mode key,
   // so no emoji field is needed here.
@@ -118,8 +115,7 @@ export default function SettingsTab({ user, onLogout }) {
     usernameChanged ||
     travelMode !== (localStorage.getItem('roam_travel_mode') || 'walking') ||
     freeOnly !== (localStorage.getItem('roam_free_only') === 'true') ||
-    accessibilityMode !== (localStorage.getItem('roam_accessibility') === 'true') ||
-    openOnly !== (localStorage.getItem('roam_open_only') === 'true')
+    accessibilityMode !== (localStorage.getItem('roam_accessibility') === 'true')
   )
 
   // Warn before leaving with unsaved changes
@@ -141,8 +137,7 @@ export default function SettingsTab({ user, onLogout }) {
     localStorage.setItem('roam_travel_mode', travelMode)
     localStorage.setItem('roam_free_only', freeOnly.toString())
     localStorage.setItem('roam_accessibility', accessibilityMode.toString())
-    localStorage.setItem('roam_open_only', openOnly.toString())
-  }, [travelMode, freeOnly, accessibilityMode, openOnly])
+  }, [travelMode, freeOnly, accessibilityMode])
 
   // Handle save
   const handleSave = async () => {
@@ -208,7 +203,6 @@ export default function SettingsTab({ user, onLogout }) {
     setTravelMode(localStorage.getItem('roam_travel_mode') || 'walking')
     setFreeOnly(localStorage.getItem('roam_free_only') === 'true')
     setAccessibilityMode(localStorage.getItem('roam_accessibility') === 'true')
-    setOpenOnly(localStorage.getItem('roam_open_only') === 'true')
     setSaveError('')
     setIsEditing(false)
   }
@@ -537,28 +531,6 @@ export default function SettingsTab({ user, onLogout }) {
               <span className="toggle-desc">Prioritize accessible places</span>
             </span>
             <span className={`toggle-switch ${accessibilityMode ? 'on' : ''}`}>
-              <span className="toggle-knob" />
-            </span>
-          </button>
-
-          <button
-            className={`unified-profile-settings-toggle ${openOnly ? 'active' : ''}`}
-            onClick={() => {
-              const newValue = !openOnly
-              setOpenOnly(newValue)
-              if (!isEditing) {
-                localStorage.setItem('roam_open_only', newValue.toString())
-              }
-            }}
-            disabled={isSaving}
-            aria-pressed={openOnly}
-          >
-            <span className="toggle-icon"><ToggleIcon name="clock" size={20} /></span>
-            <span className="toggle-text">
-              <span className="toggle-label">Open now only</span>
-              <span className="toggle-desc">Hide places that are closed</span>
-            </span>
-            <span className={`toggle-switch ${openOnly ? 'on' : ''}`}>
               <span className="toggle-knob" />
             </span>
           </button>

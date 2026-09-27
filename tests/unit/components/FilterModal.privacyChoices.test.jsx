@@ -38,3 +38,13 @@ describe('FilterModal privacy choices', () => {
     expect(screen.queryByRole('button', { name: 'Privacy choices' })).toBeNull()
   })
 })
+
+// Closed places are hidden by default; the Discover ClosedNowNotice is the
+// only way to include them, so the sheet has no "Open now" toggle
+describe('FilterModal open-now toggle', () => {
+  it('is gone', async () => {
+    render(<FilterModal isOpen onClose={() => {}} />)
+    await screen.findByText('Accessible places')
+    expect(screen.queryByText('Open now')).toBeNull()
+  })
+})

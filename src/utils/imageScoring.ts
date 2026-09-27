@@ -8,7 +8,6 @@
 export type ImageSource =
   | 'wikipedia'
   | 'wikidata'
-  | 'opentripmap'
   | 'unsplash'
   | 'user'
   | 'placeholder'
@@ -31,7 +30,6 @@ export interface ScoredImage extends ImageData {
 const SOURCE_SCORES: Record<string, number> = {
   wikipedia: 80,
   wikidata: 75,
-  opentripmap: 60,
   unsplash: 50,
   user: 90, // User uploads are highly relevant
   placeholder: 20,

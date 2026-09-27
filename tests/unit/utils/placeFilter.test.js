@@ -65,12 +65,6 @@ describe('placeFilter.scorePlace', () => {
     const withWiki = scorePlace(makePlace({ wikipedia: 'en:Stonehenge' }))
     expect(withWiki).toBeGreaterThan(without)
   })
-
-  it('rewards opentripmap source', () => {
-    const without = scorePlace(makePlace())
-    const withOtm = scorePlace(makePlace({ source: 'opentripmap', rating: 5 }))
-    expect(withOtm).toBeGreaterThan(without)
-  })
 })
 
 describe('placeFilter.filterPlaces', () => {

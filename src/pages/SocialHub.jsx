@@ -218,31 +218,25 @@ function DiscoverUsers() {
   )
 }
 
-// Auth prompt for unauthenticated users
-function AuthPrompt({ message }) {
+// Signed-out state: say what the tab holds and how to get in
+function SignedOutPrompt() {
   const openAuthModal = (mode) => {
     window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode } }))
   }
 
   return (
-    <div className="social-hub-auth-prompt">
-      <h3>{message}</h3>
-      <p>Connect with friends to see their discoveries and recommendations.</p>
+    <section className="social-hub-auth-prompt" aria-labelledby="social-signed-out-title">
+      <h2 id="social-signed-out-title">Sign in to see the social tab</h2>
+      <p>See your friends&apos; saves, plans and activity in one place. Sign in, follow people you know and it fills up.</p>
       <div className="social-hub-auth-prompt-actions">
-        <button
-          className="social-hub-auth-prompt-btn primary"
-          onClick={() => openAuthModal('login')}
-        >
+        <button type="button" className="btn btn-primary" onClick={() => openAuthModal('login')}>
           Sign in
         </button>
-        <button
-          className="social-hub-auth-prompt-btn secondary"
-          onClick={() => openAuthModal('register')}
-        >
-          Sign up
+        <button type="button" className="btn btn-secondary" onClick={() => openAuthModal('register')}>
+          Create account
         </button>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -269,6 +263,8 @@ export default function SocialHub({ location }) {
 
   // Request geolocation only if no location from prop and not already fetched
   useEffect(() => {
+    // Signed-out users only see the sign-in prompt: no location needed
+    if (!isAuthenticated) return
     // Don't request if we have a prop-based location or already have geolocation
     if (locationSource === 'prop' || locationSource === 'geo') {
       return
@@ -316,7 +312,7 @@ export default function SocialHub({ location }) {
       setUserLocation({ lat: 51.5074, lng: -0.1278 })
       setLocationSource('default')
     }
-  }, [userLocation, locationSource, toast])
+  }, [userLocation, locationSource, toast, isAuthenticated])
 
   // Resolve the user's location to a town name so the "Your location" pill
   // shows WHERE (e.g. "Hastings") rather than just a generic label.
@@ -333,6 +329,17 @@ export default function SocialHub({ location }) {
     return (
       <div className="page social-hub-page">
         <LoadingState variant="skeleton" type="cards" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="page social-hub-page">
+        <header className="social-hub-header">
+          <h1 className="social-hub-title">Social</h1>
+        </header>
+        <SignedOutPrompt />
       </div>
     )
   }
@@ -399,17 +406,11 @@ export default function SocialHub({ location }) {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {isAuthenticated ? (
-                <>
-                  <LocationAwareFeed location={userLocation} locationReady={locationSource !== null} />
-                  {/* Community signal — what's popular right now. Sits
-                      below the friend feed: 'what people I follow are
-                      doing' first, 'what everyone's loving' second. */}
-                  <TrendingPlaces />
-                </>
-              ) : (
-                <AuthPrompt message="Sign in to see what friends recommend" />
-              )}
+              <LocationAwareFeed location={userLocation} locationReady={locationSource !== null} />
+              {/* Community signal — what's popular right now. Sits
+                  below the friend feed: 'what people I follow are
+                  doing' first, 'what everyone's loving' second. */}
+              <TrendingPlaces />
             </motion.div>
           ) : (
             <motion.div

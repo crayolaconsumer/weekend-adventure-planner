@@ -16,7 +16,7 @@ const defaults = {
   selectedCategories: [],
   showFreeOnly: false,
   accessibilityMode: false,
-  showOpenOnly: false,
+ 
   showLocalsPicks: false,
   showOffPeak: false,
   isPremium: false,
@@ -31,7 +31,7 @@ describe('Discover/applyFilters.buildFilterKey', () => {
       travelMode: 'walking',
       showFreeOnly: false,
       accessibilityMode: false,
-      showOpenOnly: false,
+     
       showLocalsPicks: false,
       showOffPeak: false,
       selectedCategories: ['food', 'culture'],
@@ -42,13 +42,13 @@ describe('Discover/applyFilters.buildFilterKey', () => {
   })
 
   it("doesn't depend on selectedCategories input order", () => {
-    const k1 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showOpenOnly: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: ['food', 'culture'] })
-    const k2 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showOpenOnly: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: ['culture', 'food'] })
+    const k1 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: ['food', 'culture'] })
+    const k2 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: ['culture', 'food'] })
     expect(k1).toBe(k2)
   })
 
   it('changes when travelMode changes', () => {
-    const base = { showFreeOnly: false, accessibilityMode: false, showOpenOnly: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: [] }
+    const base = { showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: [] }
     expect(buildFilterKey({ ...base, travelMode: 'walking' })).not.toBe(buildFilterKey({ ...base, travelMode: 'driving' }))
   })
 })

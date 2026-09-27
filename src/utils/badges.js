@@ -50,10 +50,22 @@ export const KNOWN_CHAINS = [
  */
 export function isChainPlace(place) {
   if (!place) return false
+  if (isMajorAttraction(place)) return false
   if (place.brand || place.brandWikidata || place['brand:wikidata']) return true
   const name = String(place.name || '').toLowerCase().trim()
   if (!name) return false
   return KNOWN_CHAINS.some(chain => name === chain || name.startsWith(chain + ' '))
+}
+
+// Big attractions carry brand tags too (Merlin's Madame Tussauds, SEA LIFE)
+// but they are destinations, not high-street chains. Food and retail only.
+const ATTRACTION_TOURISM = new Set(['attraction', 'museum', 'theme_park', 'zoo', 'aquarium', 'gallery'])
+const FOOD_OR_RETAIL = new Set(['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'food_court', 'ice_cream'])
+
+export function isMajorAttraction(place) {
+  if (!place || place.shop) return false
+  const tourism = place.tourism || place.type
+  return ATTRACTION_TOURISM.has(tourism) && !FOOD_OR_RETAIL.has(place.type)
 }
 
 // Chains are never hidden gems. Demoted, not removed: sometimes the only

@@ -733,3 +733,52 @@
     font-size: var(--text-2xl);
   }
 }
+
+/* Closed-now notice: the deck is thin because most places are shut.
+   In map view it floats over the map instead of under it */
+.discover-content.view-map > .discover-closed-notice {
+  inset: 16px 16px auto 16px;
+  width: auto;
+  height: auto;
+  z-index: 500; /* above Leaflet panes (400) */
+  background: var(--color-surface-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.discover-closed-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  text-align: center;
+  margin: var(--space-md) auto;
+  padding: var(--space-lg) var(--space-md);
+  max-width: 360px;
+}
+
+.discover-closed-notice h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.discover-closed-notice p {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 var(--space-sm);
+}
+
+.discover-closed-notice.compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-xs) auto;
+}
+
+.discover-closed-notice.compact p {
+  margin: 0;
+}

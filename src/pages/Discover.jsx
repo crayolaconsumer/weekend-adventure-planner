@@ -28,7 +28,8 @@ import { openDirections } from '../utils/navigation'
 import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
-import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure } from './Discover/applyFilters'
+import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure, firstOpening, MIN_OPEN_CARDS } from './Discover/applyFilters'
+import ClosedNowNotice from './Discover/ClosedNowNotice'
 import { DEFAULT_BAND, bandStorageKey, getBandsFor } from './Discover/distanceBands'
 import { buildWentOutPatch } from './Discover/stats'
 import { shouldShowPlanPrompt, PLAN_PROMPT_FIRST_SAVE } from './Discover/planPrompt'
@@ -153,9 +154,9 @@ export default function Discover({ location }) {
   const [accessibilityMode, setAccessibilityMode] = useState(() => {
     return localStorage.getItem('roam_accessibility') === 'true'
   })
-  const [showOpenOnly, setShowOpenOnly] = useState(() => {
-    return localStorage.getItem('roam_open_only') === 'true'
-  })
+  // Closed-right-now places are left out of the deck; this opts back in when
+  // too few are open (at night). Not persisted: tomorrow morning starts fresh.
+  const [includeClosed, setIncludeClosed] = useState(false)
 
   // Premium filters (only available to ROAM+ users)
   const [showLocalsPicks, setShowLocalsPicks] = useState(() => {
@@ -226,12 +227,11 @@ export default function Discover({ location }) {
       travelMode,
       showFreeOnly,
       accessibilityMode,
-      showOpenOnly,
       showLocalsPicks,
       showOffPeak,
       selectedCategories,
     }),
-    [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories],
+    [travelMode, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, selectedCategories],
   )
 
   useEffect(() => {
@@ -246,12 +246,11 @@ export default function Discover({ location }) {
   // helper. All filter state is passed through explicitly so the helper stays
   // testable in isolation.
   const applyFilters = useCallback(
-    (list, currentWeather = weather, currentFriendActivity = friendActivity) =>
+    (list, currentWeather = weather, currentFriendActivity = friendActivity, overrides = {}) =>
       applyDiscoverFilters(list, {
         selectedCategories,
         showFreeOnly,
         accessibilityMode,
-        showOpenOnly,
         showLocalsPicks,
         showOffPeak,
         isPremium,
@@ -260,8 +259,10 @@ export default function Discover({ location }) {
         friendActivity: currentFriendActivity,
         travelMode,
         selectedBand,
+        includeClosed,
+        ...overrides,
       }),
-    [selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand],
+    [selectedCategories, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand, includeClosed],
   )
 
   // Memoized filtered places - only recalculates when basePlaces or filter deps change
@@ -269,6 +270,15 @@ export default function Discover({ location }) {
     if (!basePlaces || basePlaces.length === 0) return []
     return applyFilters(basePlaces, weather, friendActivity)
   }, [basePlaces, applyFilters, weather, friendActivity])
+
+  // Too few open places (night time): would including closed ones help?
+  // Only then do we offer them, labelled with when the first one opens.
+  const closedOffer = useMemo(() => {
+    if (includeClosed || filteredPlaces.length >= MIN_OPEN_CARDS || basePlaces.length === 0) return null
+    const withClosed = applyFilters(basePlaces, weather, friendActivity, { includeClosed: true })
+    if (withClosed.length <= filteredPlaces.length) return null
+    return { firstOpens: firstOpening(withClosed), closedCount: withClosed.length - filteredPlaces.length }
+  }, [includeClosed, filteredPlaces.length, basePlaces, applyFilters, weather, friendActivity])
 
   // Places swiped this session (any direction). I'm Bored must not offer
   // something the user has just skipped or already acted on.
@@ -291,9 +301,8 @@ export default function Discover({ location }) {
     localStorage.setItem('roam_travel_mode', travelMode)
     localStorage.setItem('roam_free_only', showFreeOnly.toString())
     localStorage.setItem('roam_accessibility', accessibilityMode.toString())
-    localStorage.setItem('roam_open_only', showOpenOnly.toString())
     localStorage.setItem('roam_interests', JSON.stringify(selectedCategories))
-  }, [travelMode, showFreeOnly, accessibilityMode, showOpenOnly, selectedCategories])
+  }, [travelMode, showFreeOnly, accessibilityMode, selectedCategories])
 
   // Detect desktop viewport for view mode toggle
   useEffect(() => {
@@ -484,7 +493,8 @@ export default function Discover({ location }) {
           p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
         )
       }
-      if (showOpenOnly) {
+      // Closed-right-now places stay out unless the user opted in to them
+      if (!includeClosed) {
         filtered = filtered.filter(p => {
           const openStatus = isPlaceOpen(p)
           return openStatus === true || openStatus === null
@@ -525,7 +535,7 @@ export default function Discover({ location }) {
     } finally {
       setLoadingMore(false)
     }
-  }, [effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showOpenOnly, weather, seenPlaceIds, userProfile, isPremium])
+  }, [effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, includeClosed, weather, seenPlaceIds, userProfile, isPremium])
 
   // Sync places state with memoized filtered results
   // This is more efficient than the old useEffect because filteredPlaces
@@ -627,7 +637,6 @@ export default function Discover({ location }) {
     setSelectedCategories([])
     setShowFreeOnly(false)
     setAccessibilityMode(false)
-    setShowOpenOnly(false)
     setShowLocalsPicks(false)
     setShowOffPeak(false)
     setSelectedBand(DEFAULT_BAND)
@@ -833,11 +842,10 @@ export default function Discover({ location }) {
       />
 
       {/* Active filters indicator (desktop only, mobile shows in trigger) */}
-      {(showFreeOnly || accessibilityMode || showOpenOnly) && (
+      {(showFreeOnly || accessibilityMode) && (
         <div className="discover-active-filters">
           {showFreeOnly && <span className="active-filter">💸 Free only</span>}
           {accessibilityMode && <span className="active-filter">♿ Accessible</span>}
-          {showOpenOnly && <span className="active-filter">🕐 Open now</span>}
         </div>
       )}
 
@@ -883,8 +891,20 @@ export default function Discover({ location }) {
           />
         )}
 
-        {/* Card Stack (always on mobile, conditional on desktop) */}
-        {(viewMode === 'swipe' || !isDesktop) && !loadError && (
+        {!loading && !loadError && (closedOffer || includeClosed) && (
+          <ClosedNowNotice
+            openCount={filteredPlaces.length}
+            firstOpens={closedOffer?.firstOpens}
+            closedCount={closedOffer?.closedCount ?? 0}
+            filtered={selectedCategories.length > 0 || showFreeOnly || accessibilityMode || showLocalsPicks || showOffPeak}
+            includeClosed={includeClosed}
+            onToggle={() => setIncludeClosed(v => !v)}
+          />
+        )}
+
+        {/* Card Stack (always on mobile, conditional on desktop). With nothing
+            open, the closed-now notice above is the empty state instead. */}
+        {(viewMode === 'swipe' || !isDesktop) && !loadError && !(closedOffer && places.length === 0 && !loading) && (
           <CardStack
             places={places}
             sponsoredPlaces={sponsoredPlaces}
@@ -903,13 +923,12 @@ export default function Discover({ location }) {
             emptyReason={
               // Provide contextual reason for empty state
               basePlaces.length === 0 ? 'no-places' :
-              selectedCategories.length > 0 || showFreeOnly || showOpenOnly || accessibilityMode ? 'filters' :
+              selectedCategories.length > 0 || showFreeOnly || accessibilityMode ? 'filters' :
               'swiped'
             }
             activeFiltersCount={
               selectedCategories.length +
               (showFreeOnly ? 1 : 0) +
-              (showOpenOnly ? 1 : 0) +
               (accessibilityMode ? 1 : 0) +
               (showLocalsPicks && isPremium ? 1 : 0) +
               (showOffPeak && isPremium ? 1 : 0)
@@ -1018,8 +1037,6 @@ export default function Discover({ location }) {
         onToggleFreeOnly={() => setShowFreeOnly(prev => !prev)}
         accessibilityMode={accessibilityMode}
         onToggleAccessibility={() => setAccessibilityMode(prev => !prev)}
-        showOpenOnly={showOpenOnly}
-        onToggleOpenOnly={() => setShowOpenOnly(prev => !prev)}
         showLocalsPicks={showLocalsPicks}
         onToggleLocalsPicks={() => setShowLocalsPicks(prev => !prev)}
         showOffPeak={showOffPeak}

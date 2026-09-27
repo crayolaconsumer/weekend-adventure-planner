@@ -57,7 +57,9 @@ export function generateToken(user) {
     {
       userId: user.id,
       email: user.email,
-      username: user.username
+      username: user.username,
+      // Session version: bumping users.token_version revokes every token
+      tv: user.token_version || 0
     },
     EFFECTIVE_JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
@@ -119,11 +121,15 @@ export async function getUserFromRequest(req) {
   if (!payload) return null
 
   const user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, is_admin, is_banned, stripe_customer_id, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source FROM users WHERE id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, is_admin, is_banned, stripe_customer_id, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, token_version FROM users WHERE id = ?',
     [payload.userId]
   )
 
   if (!user) return null
+
+  // Revoked session: the account's token_version moved on since this token
+  // was issued (tokens from before the column existed carry none: 0)
+  if ((payload.tv || 0) !== (Number(user.token_version) || 0)) return null
 
   // MySQL returns TINYINT(1) as 0/1; normalise to booleans.
   user.is_admin = Boolean(user.is_admin)

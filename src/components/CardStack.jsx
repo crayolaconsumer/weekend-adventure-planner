@@ -37,14 +37,13 @@ function withEnrichmentTags(place) {
     ...place,
     wikipedia: place?.wikipedia || tags.wikipedia,
     wikidata: place?.wikidata || tags.wikidata,
-    xid: place?.xid || tags.xid,
   }
 }
 
 function hasEnrichmentTags(place) {
   if (!place) return false
   const tags = place.tags || {}
-  return Boolean(place.wikipedia || tags.wikipedia || place.wikidata || tags.wikidata || place.xid || tags.xid)
+  return Boolean(place.wikipedia || tags.wikipedia || place.wikidata || tags.wikidata)
 }
 
 // Compass icon component
@@ -308,7 +307,7 @@ export default function CardStack({
   // resolvePlaceImageAsync hits /api/places/image-resolve which runs
   // Wikipedia + Wikidata + wikimedia_commons + website-og-image +
   // Commons geosearch by lat/lng in parallel server-side and returns
-  // the first hit. Previously this function only checked xid/wiki/
+  // the first hit. Previously this function only checked wiki/
   // wikidata tags directly — most OSM places have none of those, so
   // most cards rendered with the green category placeholder even
   // though Commons or the place's website would have served a real

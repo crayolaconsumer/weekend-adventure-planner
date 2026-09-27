@@ -3,7 +3,7 @@
  *
  * Public indexable routes plus every /place/:id page users have saved or
  * visited. Only IDs the Place page can actually load are listed: numeric
- * OSM IDs (bare or typed n/w/r) and otm_ OpenTripMap IDs (wiki_ IDs can't be fetched by ID).
+ * OSM IDs (bare or typed n/w/r). wiki_ and legacy otm_ IDs can't be fetched by ID.
  * If the DB is unavailable the static routes are still served.
  */
 
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
          UNION ALL
          SELECT place_id, visited_at FROM visited_places
        ) p
-       WHERE place_id REGEXP '^([0-9]+|[nwr][0-9]+|otm_[A-Za-z0-9]+)$'
+       WHERE place_id REGEXP '^([0-9]+|[nwr][0-9]+)$'
        GROUP BY place_id
        ORDER BY COUNT(*) DESC, lastmod DESC
        LIMIT ?`,

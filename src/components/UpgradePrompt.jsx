@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
+import { maxReachKm } from '../pages/Discover/distanceBands'
 import { isNative } from '../utils/nativeBridge'
 import './UpgradePrompt.css'
 
@@ -32,9 +33,9 @@ const PROMPT_CONFIGS = {
   },
   collections: {
     title: 'Collection limit reached',
-    description: "You've created 3 collections. Upgrade to organize unlimited adventures.",
+    description: "You've created 3 collections. Upgrade to organise unlimited adventures.",
     cta: 'Unlock unlimited collections',
-    benefit: 'Organize your world, your way'
+    benefit: 'Organise your world, your way'
   },
   offline: {
     title: 'Offline maps are a premium feature',
@@ -56,7 +57,7 @@ const PROMPT_CONFIGS = {
   },
   radius: {
     title: 'Explore further with ROAM+',
-    description: 'Unlock day trip (75km) and Explorer (150km) modes for grand tours and weekend adventures.',
+    description: `Unlock Day trip (up to ${maxReachKm('dayTrip')}km) and Explorer (up to ${maxReachKm('explorer')}km) modes for grand tours and weekend adventures.`,
     cta: 'Unlock extended range',
     benefit: 'Discover places worth the drive'
   },

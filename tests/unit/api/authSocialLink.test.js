@@ -117,7 +117,8 @@ describe('Google access-token login audience', () => {
 const preRegistered = { id: 7, email: 'victim@example.com', password_hash: '$2b$attacker', email_verified: 0, google_id: null, apple_id: null }
 
 function passwordCleared() {
-  return update.mock.calls.some(([sql, params]) => /password_hash = NULL/.test(sql) && params[0] === 7)
+  // Clearing the password must also revoke existing sessions (token_version bump)
+  return update.mock.calls.some(([sql, params]) => /password_hash = NULL/.test(sql) && /token_version = token_version \+ 1/.test(sql) && params[0] === 7)
 }
 
 describe('Google linking to an existing email account', () => {

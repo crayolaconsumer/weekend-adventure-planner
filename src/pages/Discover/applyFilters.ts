@@ -8,8 +8,8 @@
  * of the component and now takes everything as explicit args.
  */
 
-import { filterPlaces } from '../../utils/placeFilter'
-import { isPlaceOpen } from '../../utils/openingHours'
+import { filterPlaces, isClosedNow } from '../../utils/placeFilter'
+import { getOpeningState } from '../../utils/openingHours'
 import { getBandFor, type DistanceBandKey } from './distanceBands'
 
 interface PlaceLike {
@@ -33,7 +33,6 @@ export interface ApplyFiltersOptions {
   selectedCategories: string[]
   showFreeOnly: boolean
   accessibilityMode: boolean
-  showOpenOnly: boolean
   showLocalsPicks: boolean
   showOffPeak: boolean
   isPremium: boolean
@@ -47,6 +46,27 @@ export interface ApplyFiltersOptions {
   // updated).
   travelMode?: string
   selectedBand?: DistanceBandKey
+  // Places closed right now (by their opening_hours) are left out of the
+  // deck unless the user asks for places that open later. Unknown hours stay.
+  includeClosed?: boolean
+}
+
+// Below this many open cards the deck offers places that open later
+export const MIN_OPEN_CARDS = 8
+
+/**
+ * When the first of these closed places opens again, or null if none of
+ * them has a known next opening.
+ */
+export function firstOpening(places: PlaceLike[]): Date | null {
+  let first: Date | null = null
+  for (const p of places) {
+    if (!isClosedNow(p)) continue
+    const state = getOpeningState((p.openingHours || p.opening_hours) as string, p) as { nextChange?: Date | null }
+    const next = state.nextChange ?? null
+    if (next && (!first || next < first)) first = next
+  }
+  return first
 }
 
 /**
@@ -57,12 +77,11 @@ export function buildFilterKey(opts: {
   travelMode: string
   showFreeOnly: boolean
   accessibilityMode: boolean
-  showOpenOnly: boolean
   showLocalsPicks: boolean
   showOffPeak: boolean
   selectedCategories: string[]
 }): string {
-  const { travelMode, showFreeOnly, accessibilityMode, showOpenOnly, showLocalsPicks, showOffPeak, selectedCategories } = opts
+  const { travelMode, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, selectedCategories } = opts
   const categoriesKey = [...selectedCategories].sort().join('|')
   // NB: selectedBand is deliberately NOT part of this key. The key is
   // used to discard stale FETCHES — but band filtering is purely
@@ -72,7 +91,7 @@ export function buildFilterKey(opts: {
   // old band's key, invalidating the in-flight match and silently
   // dropping the result. filteredPlaces invalidates correctly via
   // applyFilters' own dep list, so band changes still re-filter.
-  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showOpenOnly}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
+  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
 }
 
 const CHAIN_NAME_REGEX = /^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Subway|KFC|Burger King|Pizza Hut|Domino|Nando)/i
@@ -81,7 +100,7 @@ const CHAIN_NAME_REGEX = /^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Sub
  * Apply Discover's full filter pipeline:
  *
  *   1. Run the smart filter (category + score + diversity) via filterPlaces.
- *   2. Apply UI toggles: free only, accessibility, open now, locals' picks
+ *   2. Apply UI toggles: free only, accessibility, locals' picks
  *      (premium), off-peak (premium).
  *   3. Sort by qualityScore when locals' picks is active.
  */
@@ -95,7 +114,6 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     selectedCategories,
     showFreeOnly,
     accessibilityMode,
-    showOpenOnly,
     showLocalsPicks,
     showOffPeak,
     isPremium,
@@ -104,12 +122,12 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     friendActivity,
     travelMode,
     selectedBand,
+    includeClosed = false,
   } = options
 
   const hasActiveFilters =
     showFreeOnly ||
     accessibilityMode ||
-    showOpenOnly ||
     (showLocalsPicks && isPremium) ||
     (showOffPeak && isPremium)
 
@@ -133,6 +151,8 @@ export function applyDiscoverFilters<T extends PlaceLike>(
       })
     }
   }
+
+  if (!includeClosed) candidates = candidates.filter(p => !isClosedNow(p))
 
   let filtered = filterPlaces(candidates as never, {
     categories: selectedCategories.length > 0 ? selectedCategories : null,
@@ -159,12 +179,6 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     if (accessibilityMode) {
       const isAccessible = p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
       if (!isAccessible) return false
-    }
-
-    // Open now filter
-    if (showOpenOnly) {
-      const openStatus = isPlaceOpen(p)
-      if (openStatus === false) return false
     }
 
     // Premium: Locals' picks — filter out tourist traps and chains

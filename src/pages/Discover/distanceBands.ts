@@ -79,6 +79,15 @@ export function getBandsFor(mode: string): DistanceBand[] {
 }
 
 /**
+ * How far a mode really reaches in km: the far edge of its longest band.
+ * Copy (Pricing, upgrade prompts, the mode picker) reads this so it never
+ * promises the nominal fetch radius the deck does not actually show.
+ */
+export function maxReachKm(mode: string): number {
+  return getBandsFor(mode)[2].maxMeters / 1000
+}
+
+/**
  * Single band lookup by mode + band key. Returns null when the mode
  * isn't recognised, so callers can no-op cleanly without applying a
  * band filter.

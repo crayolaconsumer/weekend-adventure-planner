@@ -270,7 +270,7 @@
   margin-bottom: 16px;
 }
 
-.social-hub-auth-prompt h3 {
+.social-hub-auth-prompt h2 {
   font-family: var(--font-display, 'Fraunces', serif);
   font-size: 20px;
   font-weight: 600;
@@ -287,37 +287,9 @@
 
 .social-hub-auth-prompt-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 12px;
-}
-
-.social-hub-auth-prompt-btn {
-  padding: 12px 24px;
-  border-radius: 24px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.social-hub-auth-prompt-btn.primary {
-  background: #1a3a2f;
-  border: 2px solid var(--roam-forest);
-  color: white;
-}
-
-.social-hub-auth-prompt-btn.primary:hover {
-  background: #142d24;
-  border-color: var(--roam-forest-dark);
-}
-
-.social-hub-auth-prompt-btn.secondary {
-  background: transparent;
-  border: 2px solid var(--roam-forest);
-  color: var(--roam-forest);
-}
-
-.social-hub-auth-prompt-btn.secondary:hover {
-  background: var(--roam-cream);
 }
 
 /* Discover users */

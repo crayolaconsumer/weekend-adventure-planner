@@ -2,7 +2,6 @@
  * ROAM API Client
  * Handles fetching places from multiple data sources:
  * - OpenStreetMap via Overpass API (primary)
- * - OpenTripMap for tourist attractions (enrichment)
  * - Wikipedia Geosearch for notable places (discovery)
  * - Wikipedia/Wikidata for descriptions and images (enrichment)
  *
@@ -19,6 +18,7 @@ import { selectBestImage } from './imageScoring'
 import { recordApiCall } from './apiTelemetry'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 import { pickPlaceElement } from '../../shared/osmPick.mjs'
+import { isMajorAttraction } from './badges'
 
 // Public Overpass instances for the CLIENT-DIRECT fallback — used only
 // when the server proxy (/api/places/overpass/nearby) times out. This
@@ -42,9 +42,6 @@ const OVERPASS_ENDPOINTS = [
 
 const WIKIPEDIA_API = 'https://en.wikipedia.org/api/rest_v1'
 const WIKIPEDIA_ACTION_API = 'https://en.wikipedia.org/w/api.php'
-
-// OpenTripMap is now proxied through our API routes for security
-// See /api/places/opentripmap/nearby.js and /api/places/opentripmap/details.js
 
 // Overpass proxy endpoint for edge caching
 const OVERPASS_PROXY = '/api/places/overpass/nearby'
@@ -300,7 +297,7 @@ function calculatePlaceQuality(tags) {
   // hammer them too hard. Was -20 which essentially killed every
   // branded place; -8 is enough to surface independents first
   // without erasing chains entirely.
-  if (tags.brand) score -= 8
+  if (tags.brand && !isMajorAttraction({ tourism: tags.tourism, shop: tags.shop, type: tags.amenity || tags.tourism })) score -= 8
 
   return Math.max(0, Math.min(100, score))
 }
@@ -550,9 +547,9 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
   return centerPlaces
 }
 
-// Geocoding + weather + Wikipedia helpers + OpenTripMap extracted into
-// focused modules. Wikipedia + OpenTripMap helpers are still called from
-// INSIDE this file (fetchEnrichedPlaces, enrichPlace, fetchPlaceById), so
+// Geocoding + weather + Wikipedia helpers extracted into
+// focused modules. Wikipedia helpers are still called from
+// INSIDE this file (fetchEnrichedPlaces, enrichPlace), so
 // we have to import them explicitly — `export { x } from './y'` re-exports
 // to external call sites but does NOT bring `x` into the module's own scope.
 // Geocode + weather have no internal callers so a pure re-export is fine.
@@ -564,14 +561,8 @@ import {
   fetchWikidataImage,
   fetchWikipediaSummary,
 } from './apiClient/wikipedia'
-import {
-  fetchOpenTripMapPlaces,
-  fetchOpenTripMapDetails,
-  mapOtmKind,
-} from './apiClient/opentripmap'
 
 export { fetchWikipediaImage, fetchWikidataImage, fetchWikipediaSummary }
-export { fetchOpenTripMapPlaces, fetchOpenTripMapDetails, mapOtmKind }
 
 // ═══════════════════════════════════════════════════════
 // WIKIPEDIA GEOSEARCH - Notable places discovery
@@ -639,9 +630,8 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
 
 /**
  * Fetch places from multiple sources and merge results
- * Uses all three data sources with individual failure handling:
+ * Uses both data sources with individual failure handling:
  * - OSM/Overpass (primary - high volume)
- * - OpenTripMap (curated tourist spots)
  * - Wikipedia Geosearch (notable/famous places, max 10km)
  *
  * For large radii, uses progressive loading - returns center immediately,
@@ -656,12 +646,12 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  */
 export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null, onProgress = null, options = {}) {
   const isLargeRadius = radius > 15000
-  const { onProgressiveCommit = null, onIncomplete = null, force = false } = options
+  const { onProgressiveCommit = null, force = false } = options
 
   // For large radii, fetch Wikipedia from multiple sample points
   // to better cover the search area (since Wiki max radius is 10km)
-  // Overpass is the primary source and OpenTripMap the only other real place
-  // source; Wikipedia alone yields things like "Greater London Built-up Area".
+  // Overpass is the only real place source; Wikipedia alone yields things
+  // like "Greater London Built-up Area".
   let osmFailed = false
   const wikiFail = () => []
   const wikiPromises = []
@@ -688,13 +678,12 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   const usesTiling = radius > 40000
   let osmPlacesForMerge = []
   const progressiveOsmPlaces = []
-  let otmPlacesForMerge = []
   let wikiPlacesForMerge = []
   let canCommitProgress = false
 
   const commitProgressiveMerge = () => {
     if (!canCommitProgress || !onProgressiveCommit || osmFailed) return
-    onProgressiveCommit(mergeAndDedupe(osmPlacesForMerge, otmPlacesForMerge, wikiPlacesForMerge))
+    onProgressiveCommit(mergeAndDedupe(osmPlacesForMerge, wikiPlacesForMerge))
   }
 
   const osmFetcher = usesTiling
@@ -714,44 +703,30 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
         return []
       })
 
-  // OpenTripMap proxy hard-caps radius at 50km — anything above 400s server-side.
-  // For Day Trip (75km) and Explorer (150km), skip OTM entirely rather than waste
-  // the round-trip + log noise. OSM tiling already covers the area, and OTM has
-  // been winding down with silently-revoked keys anyway (see the proxy comment).
-  const otmSkipped = radius > 50000
-  const otmFetcher = otmSkipped
-    ? Promise.resolve([])
-    : fetchOpenTripMapPlaces(lat, lng, radius).catch(err => {
-        console.warn('OpenTripMap fetch failed:', err)
-        return []
-      })
-
   // Fetch from ALL sources in parallel with individual failure handling
-  const [osmPlaces, otmPlaces, ...wikiResults] = await Promise.all([
+  const [osmPlaces, ...wikiResults] = await Promise.all([
     osmFetcher,
-    otmFetcher,
     ...wikiPromises
   ])
 
   // Merge all wiki results
   const wikiPlaces = wikiResults.flat()
   osmPlacesForMerge = [...osmPlaces, ...progressiveOsmPlaces]
-  otmPlacesForMerge = otmPlaces
   wikiPlacesForMerge = wikiPlaces
   canCommitProgress = true
 
   // Merge and deduplicate all sources
-  let merged = mergeAndDedupe(osmPlacesForMerge, otmPlaces, wikiPlaces)
+  let merged = mergeAndDedupe(osmPlacesForMerge, wikiPlaces)
 
-  // No real place source answered (OTM failed, skipped, or unconfigured and
-  // empty). Show the connection error with retry rather than a deck of
-  // Wikipedia areas and seed landmarks, which reads as "No places nearby".
-  if (osmFailed && otmPlaces.length === 0) {
+  // Overpass is the only real place source. If it failed, show the connection
+  // error with retry rather than a deck of Wikipedia areas and seed landmarks,
+  // which reads as "No places nearby". Throwing also keeps it out of the cache.
+  if (osmFailed) {
     throw new Error('Network error: could not reach any place source')
   }
 
   // Never-empty floor: if the live sources + caches yielded fewer than the
-  // floor (e.g. a sparse area, or Overpass down while OpenTripMap answers),
+  // floor (e.g. a sparse area),
   // top up with the nearest bundled seed landmarks so the deck is never empty.
   // Pure local array math. Deduped by coords against what we already have;
   // seed places are tagged source:'seed', low quality. The seed data is a
@@ -766,18 +741,15 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     if (topup.length) merged = [...merged, ...topup]
   }
 
-  // A load without Overpass is partial: show it, but never cache it, or the
-  // gap sticks for the whole cache lifetime after the network recovers.
-  if (osmFailed) onIncomplete?.()
-  else onProgressiveCommit?.(merged)
+  onProgressiveCommit?.(merged)
   return merged
 }
 
 /**
  * Merge places from multiple sources, removing duplicates
- * Prioritizes OSM data, enriches with OTM/Wiki when available
+ * Prioritizes OSM data, enriches with Wiki when available
  */
-function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
+function mergeAndDedupe(osmPlaces, wikiPlaces) {
   // Create maps for deduplication by location and name
   const byLocation = new Map()
   const seenNames = new Set()
@@ -800,36 +772,6 @@ function mergeAndDedupe(osmPlaces, otmPlaces, wikiPlaces) {
     byLocation.get(key).push(place)
     seenNames.add(normalName)
     merged.push({ ...place, source: 'osm' })
-  }
-
-  // Add OpenTripMap places (curated tourist data)
-  for (const place of otmPlaces) {
-    const normalName = normalizeName(place.name)
-
-    // Skip if we already have this exact name
-    if (seenNames.has(normalName)) continue
-
-    // Check for similar nearby places
-    const key = locationKey(place)
-    const nearby = byLocation.get(key) || []
-    const hasSimilar = nearby.some(existing => {
-      const existingNorm = normalizeName(existing.name)
-      return existingNorm.includes(normalName) ||
-             normalName.includes(existingNorm)
-    })
-
-    if (hasSimilar) continue
-
-    // Add the place
-    if (!byLocation.has(key)) {
-      byLocation.set(key, [])
-    }
-    byLocation.get(key).push(place)
-    seenNames.add(normalName)
-    merged.push({
-      ...place,
-      needsEnrichment: true
-    })
   }
 
   // Add Wikipedia places (notable/famous)
@@ -888,19 +830,16 @@ export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = nul
   const cacheKey = makeCacheKey(lat, lng, radius, category)
   const ttl = 10 * 60 * 1000
 
-  let complete = true
   return getWithSWR(
     cacheKey,
     () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress, {
       onProgressiveCommit: (places) => setCache(cacheKey, places, ttl),
-      onIncomplete: () => { complete = false },
       force
     }),
     {
       ttl, // 10 minute freshness
       onBackgroundRefresh: onRefresh,
-      force,
-      cacheable: () => complete
+      force
     }
   )
 }
@@ -948,7 +887,7 @@ function cacheEnrichedPlace(placeId, data) {
 }
 
 /**
- * Enrich a single place with additional data (Wikipedia, OTM details)
+ * Enrich a single place with additional data (Wikipedia, Wikidata)
  * Call this for places shown in detail view, not for list view
  * Uses caching with 30 minute TTL for fast subsequent loads
  * @param {Object} place - Place object
@@ -965,29 +904,6 @@ export async function enrichPlace(place) {
 
   // Fetch all sources in parallel for better performance
   const fetchPromises = []
-
-  // OTM details fetch
-  if (place.xid && !place.description) {
-    fetchPromises.push(
-      fetchOpenTripMapDetails(place.xid).then(details => {
-        if (details) {
-          enriched.description = details.description || enriched.description
-          enriched.address = details.address || enriched.address
-          enriched.website = details.website || enriched.website
-          if (details.image) {
-            imagePromises.push(Promise.resolve({
-              url: details.image,
-              source: 'opentripmap',
-              width: null,
-              height: null,
-              attribution: { name: null, url: details.website || null, source: 'OpenTripMap' }
-            }))
-          }
-        }
-        return details
-      })
-    )
-  }
 
   // Wikipedia summary fetch
   if (place.wikipedia) {
@@ -1063,20 +979,6 @@ export async function enrichPlace(place) {
 export async function fetchPlaceById(placeId) {
   // Handle prefixed IDs from different sources
   if (typeof placeId === 'string') {
-    if (placeId.startsWith('otm_')) {
-      const xid = placeId.replace('otm_', '')
-      const details = await fetchOpenTripMapDetails(xid)
-      if (details) {
-        return {
-          id: placeId,
-          xid,
-          ...details,
-          source: 'opentripmap'
-        }
-      }
-      return null
-    }
-
     if (placeId.startsWith('wiki_')) {
       // Wikipedia places need enrichment via Wikipedia summary
       // We don't have a direct API for fetching by Wikipedia page ID, return null

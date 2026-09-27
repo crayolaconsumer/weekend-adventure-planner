@@ -82,12 +82,6 @@ function scorePlaceBase(place, context = {}) {
     score += 35
   }
 
-  // OpenTripMap places (curated tourist attractions)
-  if (place.source === 'opentripmap') {
-    score += 12
-    if (place.rating >= 3) score += 8
-  }
-
   // Photo bonus
   if (place.photo || place.image) {
     score += 12
@@ -396,6 +390,11 @@ function openNowCached(place) {
   }
   if (!openCache.map.has(hours)) openCache.map.set(hours, isPlaceOpen(place))
   return openCache.map.get(hours)
+}
+
+/** Known to be closed right now from its opening_hours (unknown hours = false). */
+export function isClosedNow(place) {
+  return openNowCached(place) === false
 }
 
 // Deck ranking weights, on top of the 0-100 quality score.

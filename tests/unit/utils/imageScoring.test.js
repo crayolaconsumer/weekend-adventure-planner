@@ -19,10 +19,10 @@ describe('scoreImage', () => {
     expect(user.qualityScore).toBeGreaterThan(placeholder.qualityScore)
   })
 
-  it('Wikipedia outscores OpenTripMap', () => {
+  it('Wikipedia outscores Wikidata', () => {
     const wiki = scoreImage({ url: 'https://x/y.jpg', source: 'wikipedia' })
-    const otm = scoreImage({ url: 'https://x/y.jpg', source: 'opentripmap' })
-    expect(wiki.qualityScore).toBeGreaterThan(otm.qualityScore)
+    const wikidata = scoreImage({ url: 'https://x/y.jpg', source: 'wikidata' })
+    expect(wiki.qualityScore).toBeGreaterThan(wikidata.qualityScore)
   })
 
   it('large resolution adds bonus', () => {

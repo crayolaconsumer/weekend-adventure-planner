@@ -30,7 +30,7 @@ const log = []
  * Record an API call for telemetry
  *
  * @param {Object} params
- * @param {string} params.source - Data source (overpass, opentripmap, wikipedia, etc.)
+ * @param {string} params.source - Data source (overpass, wikipedia, etc.)
  * @param {string} [params.endpoint] - Specific endpoint URL
  * @param {number} params.duration - Request duration in ms
  * @param {string} params.status - 'success' | 'error' | 'cancelled' | 'timeout'

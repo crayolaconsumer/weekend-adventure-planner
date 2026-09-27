@@ -98,12 +98,14 @@ async function verifyGoogleAccessTokenAudience(accessToken) {
 // address with a password they know, wait for the victim to sign in with
 // Google/Apple, and keep a working password on the merged account. When the
 // account's password was never proven by a verified login, drop it.
-// Existing JWTs stay valid until expiry: there is no session/token-version
-// column to revoke them with.
+// Bumping token_version also signs out every existing session on the
+// account, so a pre-registered attacker's login dies too.
 async function dropUnverifiedPassword(user, provider) {
   if (user.password_hash && !user.email_verified && !user.google_id && !user.apple_id) {
-    await update('UPDATE users SET password_hash = NULL WHERE id = ?', [user.id])
-    console.warn(`[auth] ${provider} link cleared unverified password on user ${user.id}`)
+    await update('UPDATE users SET password_hash = NULL, token_version = token_version + 1 WHERE id = ?', [user.id])
+    // The token issued for this sign-in must carry the new version
+    user.token_version = (user.token_version || 0) + 1
+    console.warn(`[auth] ${provider} link cleared unverified password and revoked sessions on user ${user.id}`)
   }
 }
 
@@ -237,7 +239,7 @@ async function handleLogin(req, res) {
   }
 
   const user = await queryOne(
-    'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, tier, is_banned, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
+    'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, tier, is_banned, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE email = ?',
     [email.toLowerCase()]
   )
 
@@ -351,7 +353,7 @@ async function handleRegister(req, res) {
   )
 
   const user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, created_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
     [userId]
   )
 
@@ -454,13 +456,13 @@ async function handleGoogle(req, res) {
   }
 
   let user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE google_id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE google_id = ?',
     [googleId]
   )
 
   if (!user) {
     user = await queryOne(
-      'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
+      'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE email = ?',
       [email.toLowerCase()]
     )
 
@@ -482,7 +484,7 @@ async function handleGoogle(req, res) {
       )
 
       user = await queryOne(
-        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE id = ?',
+        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
         [user.id]
       )
     } else {
@@ -495,7 +497,7 @@ async function handleGoogle(req, res) {
       )
 
       user = await queryOne(
-        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE id = ?',
+        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
         [userId]
       )
     }
@@ -638,7 +640,7 @@ async function handleApple(req, res) {
 
   // Look up by apple_id first
   let user = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE apple_id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, last_login_at, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE apple_id = ?',
     [appleId]
   )
 
@@ -648,7 +650,7 @@ async function handleApple(req, res) {
     // is verified so this is safe to auto-link.
     if (email) {
       user = await queryOne(
-        'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
+        'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE email = ?',
         [email]
       )
     }
@@ -670,7 +672,7 @@ async function handleApple(req, res) {
       )
 
       user = await queryOne(
-        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE id = ?',
+        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
         [user.id]
       )
     } else {
@@ -687,7 +689,7 @@ async function handleApple(req, res) {
       )
 
       user = await queryOne(
-        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE id = ?',
+        'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
         [userId]
       )
     }
@@ -901,7 +903,7 @@ async function handleUpdateProfile(req, res) {
 
   // Fetch updated user
   const updatedUser = await queryOne(
-    'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE id = ?',
+    'SELECT id, email, username, display_name, avatar_url, email_verified, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id, token_version FROM users WHERE id = ?',
     [user.id]
   )
 

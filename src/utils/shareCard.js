@@ -374,8 +374,8 @@ function truncateText(text, maxLength) {
  * Logs place_share for growth tracking.
  */
 // Ids /place/:id can load for someone else (see fetchPlaceById): OSM numeric or
-// typed. wiki_ ids can't be fetched by id, and OpenTripMap's keys are revoked,
-// so sharing those would send a friend to "Place not found".
+// typed. wiki_ and legacy otm_ ids can't be fetched by id, so sharing those
+// would send a friend to "Place not found".
 export const isShareablePlaceId = id => /^([0-9]+|[nwr][0-9]+)$/.test(String(id))
 
 export async function sharePlaceLink(place, source) {

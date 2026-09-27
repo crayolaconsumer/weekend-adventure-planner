@@ -24,6 +24,7 @@ export const config = {
 }
 
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
+import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { isFeatureEnabled } from '../../lib/flags.js'
 import { applyRateLimit, applySharedRateLimit } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
@@ -285,7 +286,7 @@ export default async function handler(req, res) {
   const cacheKey = `overpass:${hashKey(upstreamQuery)}`
   const staleKey = `overpass:stale:${hashKey(upstreamQuery)}`
   // Outage fallback: stale copies saved before grid snapping live under the
-  // raw-query key; read those too until the snapped layer refills (30 days)
+  // raw-query key; read those too until the snapped layer refills (7 days)
   const legacyStaleKey = upstreamQuery === query ? null : `overpass:stale:${hashKey(query)}`
   const readStale = async () => {
     const hasPlaces = d => d && Array.isArray(d.elements) && d.elements.length > 0
@@ -313,7 +314,7 @@ export default async function handler(req, res) {
   // endpoint was slow we'd burn the entire budget on it and never get
   // to try the others — Vercel killed the function at 60s with 504.
   // Kill-switch: if the `overpassProxy` feature flag is turned OFF (a KV
-  // write, no deploy), make ZERO live Overpass calls — serve the 30-day
+  // write, no deploy), make ZERO live Overpass calls — serve the 7-day
   // stale copy if we have one, else 503. Lets us instantly shed live
   // upstream load during an incident (runaway cost / OSM IP-ban risk).
   // Reached only on a cache MISS (cache HITs already returned above), and
@@ -363,7 +364,8 @@ export default async function handler(req, res) {
         continue
       }
 
-      const data = await response.json()
+      // Drop the tags no client reads: halves the payload, and the cache copy with it
+      const data = trimOverpassResponse(await response.json())
 
       // A 200 with zero elements is a failure mode (overpass-api.de returns
       // 200 + 0 elements + a "Query timed out" remark when it runs out of
@@ -384,12 +386,14 @@ export default async function handler(req, res) {
       markEndpointHealthy(endpoint)
 
       // Persist to KV so subsequent callers in the 24h window get cache
-      // hits, plus a 30-day "last known good" copy for the never-empty
+      // hits, plus a 7-day "last known good" copy for the never-empty
       // fallback below. Only non-empty results reach here, so we never
       // cache a degraded-empty response.
       if (isCacheEnabled()) {
         waitUntil(cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {}))
-        waitUntil(cacheSet(staleKey, data, 30 * 24 * 60 * 60).catch(() => {}))
+        // 7-day outage copy: long enough to ride out an Overpass outage without
+        // filling the KV store with month-old tiles
+        waitUntil(cacheSet(staleKey, data, 7 * 24 * 60 * 60).catch(() => {}))
       }
 
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
@@ -415,7 +419,7 @@ export default async function handler(req, res) {
   console.error('[Overpass Proxy] All endpoints failed:', lastError?.message)
 
   // Never-empty fallback: serve the last known good result for this exact
-  // query (up to 30d old, written on every success above) instead of 503.
+  // query (up to 7 days old, written on every success above) instead of 503.
   // A deck of slightly-stale REAL places beats an empty Discover for a
   // paying user during a total Overpass outage. Flagged via header so the
   // degraded mode stays observable in telemetry. Brand-new tiles never

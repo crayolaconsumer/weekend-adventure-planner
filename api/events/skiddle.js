@@ -44,8 +44,7 @@ async function handler(req, res) {
   // Skiddle is a SUPPLEMENTARY events source — Ticketmaster carries the
   // bulk of the events feed. When SKIDDLE_KEY isn't configured (which
   // is currently the case in production), return an empty result set
-  // instead of erroring. Same defensive pattern as the OpenTripMap
-  // proxy: secondary sources should fail silently so the client falls
+  // instead of erroring. Secondary sources should fail silently so the client falls
   // back to whatever's working without surfacing a console error.
   const apiKey = process.env.SKIDDLE_KEY
   if (!apiKey) {

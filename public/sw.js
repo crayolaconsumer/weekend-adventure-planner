@@ -339,7 +339,6 @@ self.addEventListener('fetch', (event) => {
 function isApiRequest(url) {
   return url.pathname.startsWith('/api/') ||
          url.hostname.includes('overpass-api') ||
-         url.hostname.includes('opentripmap') ||
          url.hostname.includes('wikipedia') ||
          url.hostname.includes('nominatim') ||
          url.hostname.includes('ticketmaster') ||

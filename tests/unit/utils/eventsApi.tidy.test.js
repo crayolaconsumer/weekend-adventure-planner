@@ -28,6 +28,13 @@ describe('isNonEvent', () => {
     expect(isNonEvent({ name: 'The Gift - a new play' })).toBe(false)
     expect(isNonEvent({ name: 'Cardiff Comedy Night' })).toBe(false)
   })
+
+  it('keeps bookable attractions (owner call: they belong in Events too)', () => {
+    expect(isNonEvent({ name: 'Madame Tussauds London - Entry Ticket' })).toBe(false)
+    expect(isNonEvent({ name: 'The London Eye Standard Experience' })).toBe(false)
+    expect(isNonEvent({ name: "Shrek's Adventure! London" })).toBe(false)
+    expect(isNonEvent({ name: 'Tower of London Admission' })).toBe(false)
+  })
 })
 
 describe('sortEvents puts sold-out events last', () => {

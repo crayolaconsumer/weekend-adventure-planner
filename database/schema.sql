@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   last_login_at TIMESTAMP NULL,
+  token_version INT UNSIGNED NOT NULL DEFAULT 0, -- bump to revoke every session (JWT tv claim)
   INDEX idx_email (email),
   INDEX idx_google_id (google_id),
   INDEX idx_apple_id (apple_id),

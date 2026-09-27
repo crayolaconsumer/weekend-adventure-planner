@@ -595,44 +595,6 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               </motion.div>
             )}
 
-            {/* Mini Map Preview */}
-            {enrichedPlace.lat && enrichedPlace.lng && (
-              <motion.div
-                className="place-detail-section"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.27 }}
-              >
-                <div className="place-detail-map" ref={mapBoxRef}>
-                  {/* Mount the map only after the open animation settles —
-                      initialising Leaflet mid-transform leaves blank tile
-                      strips that no later invalidateSize reliably fixes —
-                      and once it is near the viewport, so its tiles never
-                      compete with the photo and title on first load. The
-                      page variant only fades in (no scale), so it needn't wait. */}
-                  {(animationComplete || isPage) && mapNearView && (
-                    <MapContainer
-                      key={enrichedPlace.id}
-                      center={[enrichedPlace.lat, enrichedPlace.lng]}
-                      zoom={15}
-                      scrollWheelZoom={false}
-                      dragging={false}
-                      doubleClickZoom={false}
-                      zoomControl={false}
-                      className="place-detail-map-leaflet"
-                      attributionControl={false}
-                    >
-                      <MapResizeFix />
-                      <TileLayer url={mapTile} attribution={TILE_ATTRIBUTION} key={mapTile} />
-                      {/* Static preview: the pin has no action, so keep it out
-                          of the tab order (Leaflet gives it an unnamed role=button). */}
-                      <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} keyboard={false} interactive={false} />
-                    </MapContainer>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
             {/* Opening Hours — parsed weekly schedule with today highlighted.
                 Falls back to the raw OSM string only when the parser can't
                 handle the format (rare). */}
@@ -703,6 +665,45 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 <span>Plan visit</span>
               </button>
             </motion.div>
+
+            {/* Mini Map Preview: after the photo, title and key info so the
+                photo leads and the map never pushes the essentials down */}
+            {enrichedPlace.lat && enrichedPlace.lng && (
+              <motion.div
+                className="place-detail-section"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                <div className="place-detail-map" ref={mapBoxRef}>
+                  {/* Mount the map only after the open animation settles —
+                      initialising Leaflet mid-transform leaves blank tile
+                      strips that no later invalidateSize reliably fixes —
+                      and once it is near the viewport, so its tiles never
+                      compete with the photo and title on first load. The
+                      page variant only fades in (no scale), so it needn't wait. */}
+                  {(animationComplete || isPage) && mapNearView && (
+                    <MapContainer
+                      key={enrichedPlace.id}
+                      center={[enrichedPlace.lat, enrichedPlace.lng]}
+                      zoom={15}
+                      scrollWheelZoom={false}
+                      dragging={false}
+                      doubleClickZoom={false}
+                      zoomControl={false}
+                      className="place-detail-map-leaflet"
+                      attributionControl={false}
+                    >
+                      <MapResizeFix />
+                      <TileLayer url={mapTile} attribution={TILE_ATTRIBUTION} key={mapTile} />
+                      {/* Static preview: the pin has no action, so keep it out
+                          of the tab order (Leaflet gives it an unnamed role=button). */}
+                      <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} keyboard={false} interactive={false} />
+                    </MapContainer>
+                  )}
+                </div>
+              </motion.div>
+            )}
 
             {/* User Review */}
             <PlaceReviews placeId={place.id} />

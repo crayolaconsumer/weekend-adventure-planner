@@ -1,7 +1,7 @@
 /**
  * Upstream-response cache backed by Vercel KV (Upstash Redis).
  *
- * Used by upstream proxies (Overpass, OpenTripMap, etc.) to avoid
+ * Used by upstream proxies (Overpass, etc.) to avoid
  * re-hitting third-party APIs for queries we've already answered.
  * Critical at scale because:
  *   1. Most upstream APIs we rely on are community-funded (OSM) or
@@ -24,6 +24,7 @@
 
 import { Redis } from '@upstash/redis'
 import { createHash } from 'node:crypto'
+import { gzipSync, gunzipSync } from 'node:zlib'
 
 let cachedClient = null
 let initAttempted = false
@@ -76,6 +77,9 @@ export async function cacheGet(key) {
   try {
     const raw = await client.get(key)
     if (raw == null) return null
+    if (typeof raw === 'string' && raw.startsWith(GZ_PREFIX)) {
+      return JSON.parse(gunzipSync(Buffer.from(raw.slice(GZ_PREFIX.length), 'base64')).toString('utf8'))
+    }
     // We stored a JSON string in cacheSet; parse it back here. If
     // some operator wrote a raw value via the Upstash console, the
     // parse will throw — fall back to returning the raw value rather
@@ -106,6 +110,12 @@ export async function cacheGet(key) {
  */
 const MAX_CACHE_PAYLOAD_BYTES = 900 * 1024
 
+// Big values (Overpass tiles are ~0.5 MB of JSON) are stored gzipped and
+// base64'd behind this prefix: about 6-10x smaller, which keeps the store
+// inside the free plan's storage. Small values stay plain JSON.
+const GZ_PREFIX = 'gz1:'
+const COMPRESS_OVER_BYTES = 8 * 1024
+
 export async function cacheSet(key, value, ttlSeconds) {
   const client = getClient()
   if (!client) return false
@@ -114,7 +124,10 @@ export async function cacheSet(key, value, ttlSeconds) {
     // JSON-encode once for the size check. Upstash's client also
     // serialises objects, but it doesn't expose the encoded length
     // and we want to skip oversized writes before the network call.
-    const serialised = JSON.stringify(value)
+    const json = JSON.stringify(value)
+    const serialised = Buffer.byteLength(json, 'utf8') > COMPRESS_OVER_BYTES
+      ? GZ_PREFIX + gzipSync(json).toString('base64')
+      : json
     const payloadBytes = Buffer.byteLength(serialised, 'utf8')
     if (payloadBytes > MAX_CACHE_PAYLOAD_BYTES) {
       console.warn(

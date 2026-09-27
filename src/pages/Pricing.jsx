@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useSubscription } from '../hooks/useSubscription'
 import { PRICING } from '../constants/pricing'
 import PremiumBadge from '../components/PremiumBadge'
+import { maxReachKm } from './Discover/distanceBands'
 import { track } from '../utils/analytics'
 import { isNative, getPlatform } from '../utils/nativeBridge'
 import { openExternalUrl } from '../utils/nativePlugins'
@@ -95,10 +96,10 @@ const FEATURE_ICONS = {
 const FEATURES = [
   { key: 'discover', label: 'Discover places near you', free: true, premium: true },
   { key: 'community', label: 'See what locals recommend', free: true, premium: true },
-  { key: 'saves', label: 'Save places to revisit', free: '10', premium: 'Unlimited' },
+  { key: 'saves', label: 'Save places and events', free: '10 each', premium: 'Unlimited' },
   { key: 'collections', label: 'Build themed lists', free: '3', premium: 'Unlimited' },
   { key: 'filters', label: "Locals' picks & off-peak filters", free: false, premium: true },
-  { key: 'radius', label: 'Reach further afield', free: 'Up to 30km', premium: 'Up to 150km' },
+  { key: 'radius', label: 'Discover further afield', free: `Up to ${maxReachKm('driving')}km`, premium: `Up to ${maxReachKm('explorer')}km` },
   { key: 'offline', label: 'Explore when signal drops', free: false, premium: 'Offline maps' },
   { key: 'adFree', label: 'Distraction-free browsing', free: false, premium: 'No ads, ever' },
   { key: 'poster', label: 'Print your visited map', free: false, premium: 'Poster export' },

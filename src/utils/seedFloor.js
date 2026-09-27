@@ -3,7 +3,7 @@
  *
  * A small, bundled set of high-confidence worldwide landmarks (generated
  * from Overture Places — see scripts that write src/data/seedPlaces.json).
- * When the live sources (Overpass / OpenTripMap / Wikipedia) return too few
+ * When the live sources (Overpass / Wikipedia) return too few
  * results, Discover tops up from this so a thin area never shows an empty
  * deck. A total outage (every real place source down) shows the connection
  * error with retry instead. It is purely local array math: no network,

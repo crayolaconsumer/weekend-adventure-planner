@@ -13,7 +13,6 @@ import { getCache, setCache } from './geoCache'
 // Rate limits per data source (requests per minute)
 const SOURCE_LIMITS = {
   overpass: { maxPerMinute: 10, minInterval: 6000 },      // 10/min, 6s between
-  opentripmap: { maxPerMinute: 20, minInterval: 3000 },   // 20/min, 3s between
   wikipedia: { maxPerMinute: 30, minInterval: 2000 },     // 30/min, 2s between
   nominatim: { maxPerMinute: 1, minInterval: 60000 },     // 1/min (strict policy)
   weather: { maxPerMinute: 60, minInterval: 1000 }        // 60/min

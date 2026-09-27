@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { isChainPlace } from '../../../src/utils/badges.js'
+import { isChainPlace, isMajorAttraction } from '../../../src/utils/badges.js'
 import { scorePlace, filterPlaces, clearShownPlaces } from '../../../src/utils/placeFilter.js'
 import { getTopRecommendations } from '../../../src/utils/tasteProfile.js'
 
@@ -71,5 +71,38 @@ describe('smart (diversity) deck ordering', () => {
     const indie = { id: 'z-indie', name: 'Bean There', type: 'cafe', lat: 51.6, lng: -0.3, website: 'x', openingHours: 'x', address: 'x' }
     const out = filterPlaces([chain, indie], { minScore: 0 })
     expect(out.map(p => p.id)).toEqual(['z-indie', 'a-chain'])
+  })
+})
+
+describe('major attractions are not chains', () => {
+  const tussauds = { ...base, id: 'mt', name: 'Madame Tussauds', type: 'attraction', tourism: 'attraction', brand: 'Madame Tussauds', brandWikidata: 'Q186309' }
+  const sealife = { ...base, id: 'sl', name: 'SEA LIFE London', type: 'aquarium', tourism: 'aquarium', brand: 'Sea Life' }
+  const museum = { ...base, id: 'mu', name: 'Tower of London', type: 'museum', tourism: 'museum' }
+
+  it('does not flag branded attractions, museums, zoos, aquariums or theme parks', () => {
+    expect(isChainPlace(tussauds)).toBe(false)
+    expect(isChainPlace(sealife)).toBe(false)
+    expect(isChainPlace({ name: 'Chessington', type: 'theme_park', brand: 'Merlin' })).toBe(false)
+    expect(isChainPlace({ name: 'ZSL', type: 'zoo', tourism: 'zoo', brand: 'ZSL' })).toBe(false)
+  })
+
+  it('still flags food and retail brands, even with a tourism tag', () => {
+    expect(isChainPlace({ name: 'Rainforest Cafe', type: 'restaurant', tourism: 'attraction', brand: 'Rainforest Cafe' })).toBe(true)
+    expect(isChainPlace({ name: 'Lego Store', shop: 'toys', type: 'toys', tourism: 'attraction', brand: 'Lego' })).toBe(true)
+    expect(isChainPlace({ name: 'Starbucks', type: 'cafe' })).toBe(true)
+  })
+
+  it('isMajorAttraction reads the tourism tag or the type', () => {
+    expect(isMajorAttraction(tussauds)).toBe(true)
+    expect(isMajorAttraction({ type: 'museum' })).toBe(true)
+    expect(isMajorAttraction({ type: 'cafe' })).toBe(false)
+    expect(isMajorAttraction(null)).toBe(false)
+  })
+
+  it('ranks a branded attraction level with an unbranded one', () => {
+    clearShownPlaces()
+    const plain = { ...tussauds, id: 'plain', brand: undefined, brandWikidata: undefined }
+    expect(scorePlace(tussauds)).toBe(scorePlace(plain))
+    expect(scorePlace(museum)).toBeGreaterThan(0)
   })
 })

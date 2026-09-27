@@ -17,6 +17,7 @@ import { GOOD_CATEGORIES } from '../utils/categories'
 import CategoryIcon from './icons/CategoryIcon'
 import FilterIcon from './icons/FilterIcon'
 import DistanceBandSlider from './discover/DistanceBandSlider'
+import { maxReachKm } from '../pages/Discover/distanceBands'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { usePrivacyChoices } from '../hooks/usePrivacyChoices'
 import './FilterModal.css'
@@ -90,8 +91,6 @@ export function FilterModal({
   onToggleFreeOnly = () => {},
   accessibilityMode = false,
   onToggleAccessibility = () => {},
-  showOpenOnly = false,
-  onToggleOpenOnly = () => {},
   // Premium filters
   showLocalsPicks = false,
   onToggleLocalsPicks = () => {},
@@ -173,7 +172,7 @@ export function FilterModal({
   }
 
   const hasDistanceBandFilter = selectedBand && selectedBand !== 'medium'
-  const activeCount = selectedCategories.length + (hasDistanceBandFilter ? 1 : 0) + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showOpenOnly ? 1 : 0) + (showLocalsPicks ? 1 : 0) + (showOffPeak ? 1 : 0)
+  const activeCount = selectedCategories.length + (hasDistanceBandFilter ? 1 : 0) + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showLocalsPicks ? 1 : 0) + (showOffPeak ? 1 : 0)
   const categories = Object.entries(GOOD_CATEGORIES)
 
   const handleDragStart = (event) => {
@@ -210,7 +209,6 @@ export function FilterModal({
     selectedCategories.forEach(cat => onToggleCategory(cat))
     if (showFreeOnly) onToggleFreeOnly()
     if (accessibilityMode) onToggleAccessibility()
-    if (showOpenOnly) onToggleOpenOnly()
     if (showLocalsPicks) onToggleLocalsPicks()
     if (showOffPeak) onToggleOffPeak()
   }
@@ -317,7 +315,7 @@ export function FilterModal({
                           </span>
                           <span className="filter-modal-mode-label">{mode.label}</span>
                           <span className="filter-modal-mode-detail">
-                            Up to {formatDistance(mode.maxRadius / 1000)}
+                            Up to {formatDistance(maxReachKm(key))}
                           </span>
                           {isLocked && (
                             <span className="filter-modal-mode-badge">ROAM+</span>
@@ -425,20 +423,6 @@ export function FilterModal({
                   </span>
                   <span className="filter-extra-label">Accessible places</span>
                   <span className={`filter-extra-toggle ${accessibilityMode ? 'on' : ''}`}>
-                    <span className="filter-extra-toggle-knob" />
-                  </span>
-                </button>
-
-                <button
-                  className={`filter-extra-item ${showOpenOnly ? 'selected' : ''}`}
-                  onClick={onToggleOpenOnly}
-                  aria-pressed={showOpenOnly}
-                >
-                  <span className="filter-extra-icon" aria-hidden="true">
-                    <FilterIcon name="open-now" size={22} />
-                  </span>
-                  <span className="filter-extra-label">Open now</span>
-                  <span className={`filter-extra-toggle ${showOpenOnly ? 'on' : ''}`}>
                     <span className="filter-extra-toggle-knob" />
                   </span>
                 </button>

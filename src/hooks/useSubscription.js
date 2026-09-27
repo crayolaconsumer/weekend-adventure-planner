@@ -28,7 +28,7 @@ export function useSubscription() {
     adFree: isPremium,
     premiumFilters: isPremium, // Locals' picks + Off-peak
     posterExport: isPremium,
-    extendedRadius: isPremium, // Day Trip (75km) and Explorer (150km) modes
+    extendedRadius: isPremium, // Day trip (up to 70km) and Explorer (up to 110km) modes, see maxReachKm
     // Limits for free users
     saveLimit: isPremium ? Infinity : 10,
     collectionLimit: isPremium ? Infinity : 3
