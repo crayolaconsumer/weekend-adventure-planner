@@ -30,7 +30,7 @@ export default function Support() {
         <ul>
           <li><strong>If you subscribed on iPhone:</strong> Settings app → tap your name → Subscriptions → ROAM → Cancel.</li>
           <li><strong>If you subscribed on Android:</strong> Play Store → Profile → Payments &amp; subscriptions → Subscriptions → ROAM → Cancel.</li>
-          <li><strong>If you subscribed on the web:</strong> Sign in → Profile → Settings → Manage Subscription.</li>
+          <li><strong>If you subscribed on the web:</strong> Sign in → Profile → Settings → Manage subscription.</li>
         </ul>
         <p>
           You'll keep premium access until the end of the current billing period. No partial refunds.
@@ -48,7 +48,7 @@ export default function Support() {
 
         <h3>I subscribed on iPhone but premium isn't showing up on the web (or vice versa)</h3>
         <p>
-          Sign in with the same account on both platforms. Subscription status syncs automatically — if it doesn't, try Settings → Manage Subscription → Restore Purchases (or sign out and back in). If it still doesn't update, email us with your account email and the date you subscribed.
+          Sign in with the same account on both platforms. Subscription status syncs automatically — if it doesn't, try Settings → Manage subscription → Restore purchases (or sign out and back in). If it still doesn't update, email us with your account email and the date you subscribed.
         </p>
 
         <h3>I was charged but premium isn't active</h3>
@@ -77,7 +77,7 @@ export default function Support() {
 
         <h3>The app says "No places nearby"</h3>
         <p>
-          ROAM searches a radius around your current location. If you're somewhere rural with sparse mapping data, try tapping "Expand Radius" or change your discovery mode to "Driving" or "Explorer" (premium) to reach further.
+          ROAM searches a radius around your current location. If you're somewhere rural with sparse mapping data, try tapping "Expand radius" or change your discovery mode to "Driving" or "Explorer" (premium) to reach further.
         </p>
 
         <h3>Location isn't working</h3>

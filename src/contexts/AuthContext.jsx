@@ -4,15 +4,14 @@
  * Provides authentication state and methods throughout the app.
  */
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { identifyUser, clearUser } from '../utils/errorReporting'
 import { identify as analyticsIdentify, resetAnalytics, track } from '../utils/analytics'
 import { identifyUserToRC, logoutFromRC } from '../utils/revenueCat'
 import { bestEffortUnsubscribePushNotifications } from '../hooks/usePushNotifications'
 import { rememberPremium, forgetPremium } from '../utils/adEligibility'
+import { TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY, getAuthToken } from '../utils/authToken'
 
-const TOKEN_STORAGE_KEY = 'roam_auth_token'
-const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 const MIGRATION_KEY = 'roam_places_migrated'
 const WISHLIST_KEY = 'roam_wishlist'
 
@@ -29,13 +28,12 @@ const AuthContext = createContext(null)
  * Auth Provider Component
  */
 export function AuthProvider({ children }) {
+  const hadUserRef = useRef(false)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const getStoredToken = useCallback(() => {
-    return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY)
-  }, [])
+  const getStoredToken = useCallback(() => getAuthToken(), [])
 
   const storeToken = useCallback((token, remember = true) => {
     if (!token) return
@@ -71,23 +69,37 @@ export function AuthProvider({ children }) {
 
     try {
       const places = JSON.parse(savedPlaces)
+      // Corrupt local data: leave it alone rather than delete it
+      if (!Array.isArray(places)) return
       if (places.length === 0) {
         localStorage.setItem(migrationKey, 'true')
         return
       }
 
-      const response = await fetch('/api/places/saved/migrate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        credentials: 'include',
-        body: JSON.stringify({ places })
-      })
+      // The server takes at most 500 per request; send in chunks so a big
+      // list can't get stuck being rejected on every sign-in
+      let allSafe = true
+      let anyCapped = false
+      for (let i = 0; i < places.length; i += 500) {
+        const response = await fetch('/api/places/saved/migrate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          credentials: 'include',
+          body: JSON.stringify({ places: places.slice(i, i + 500) })
+        })
+        const result = response.ok ? await response.json().catch(() => null) : null
+        if (!result || result.failed || (!result.success && !result.capped)) allSafe = false
+        if (result?.capped) anyCapped = true
+      }
 
-      if (response.ok) {
-        // Clear localStorage after successful migration
+      // Every place safely on the server: drop the local copy and stop.
+      // Anything failed or over the free cap: keep the local copy and try
+      // again next sign-in (idempotent and cheap), so capped saves arrive
+      // by themselves once the user upgrades.
+      if (allSafe && !anyCapped) {
         localStorage.removeItem(WISHLIST_KEY)
         localStorage.setItem(migrationKey, 'true')
       }
@@ -110,7 +122,12 @@ export function AuthProvider({ children }) {
     try {
       setLoading(true)
       const storedToken = getStoredToken()
-      const headers = storedToken ? { Authorization: `Bearer ${storedToken}` } : undefined
+      // X-Roam-Remember: a renewed web cookie keeps the lifetime this login
+      // chose ("Keep me signed in" off = session token = short cookie)
+      const remembered = !sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY)
+      const headers = storedToken
+        ? { Authorization: `Bearer ${storedToken}`, 'X-Roam-Remember': remembered ? '1' : '0' }
+        : undefined
       const response = await fetch('/api/auth', {
         credentials: 'include',
         headers
@@ -118,6 +135,8 @@ export function AuthProvider({ children }) {
 
       if (response.ok) {
         const data = await response.json()
+        // Sliding session: keep the renewed token wherever the current one lives
+        if (data.token) storeToken(data.token, remembered)
         setUser(data.user)
         return
       }
@@ -133,19 +152,23 @@ export function AuthProvider({ children }) {
       // on every other open.
       if (response.status === 401 || response.status === 403) {
         clearStoredToken()
+        setUser(null)
+        return
       }
-      setUser(null)
+      // Transient (5xx, 429): keep whoever is signed in. Setting user=null
+      // here showed people as signed out (and logged them out of RevenueCat
+      // and analytics) on every server hiccup. With no token, nobody is.
+      if (!getStoredToken()) setUser(null)
     } catch (err) {
-      // Network failure / fetch threw. Don't clear the token — likely
-      // transient (offline, DNS hiccup, Vercel cold-start aborted).
-      // Leave the token so checkAuth on the next mount or app foreground
-      // can re-validate it.
+      // Network failure / fetch threw: likely transient (offline, DNS
+      // hiccup, cold start). Keep the token and the signed-in user; the
+      // next mount or app foreground re-validates.
       console.error('Auth check failed:', err)
-      setUser(null)
+      if (!getStoredToken()) setUser(null)
     } finally {
       setLoading(false)
     }
-  }, [getStoredToken, clearStoredToken])
+  }, [getStoredToken, clearStoredToken, storeToken])
 
   // Native: refresh auth + subscription state when the app returns to
   // foreground. A RevenueCat webhook that flips the user to premium
@@ -179,11 +202,15 @@ export function AuthProvider({ children }) {
       // re-sign-in nudge can target lapsed users without nagging
       // first-time visitors. Idempotent.
       try { localStorage.setItem(HAS_SIGNED_IN_KEY, 'true') } catch { /* private mode */ }
-    } else {
+    } else if (hadUserRef.current) {
+      // Only on a real sign-out: on launch user starts null before the
+      // auth check lands, and logging out of RevenueCat then made
+      // premium flicker off on every app start
       clearUser()
       resetAnalytics()
       logoutFromRC()
     }
+    hadUserRef.current = Boolean(user)
   }, [user])
 
   /**

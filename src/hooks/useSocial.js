@@ -7,14 +7,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { clearFriendActivityCache } from './useFriendActivity'
-
-/**
- * Get auth headers for API requests
- */
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 /**
  * Hook for following/unfollowing users
@@ -34,7 +27,7 @@ export function useFollow() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ action: 'follow', userId })
@@ -73,7 +66,7 @@ export function useFollow() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ action: 'unfollow', userId })
@@ -130,7 +123,7 @@ export function useUserProfile(username) {
     try {
       const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (fetchId !== fetchIdRef.current) return
@@ -179,7 +172,7 @@ export function useFollowers(userId) {
         `/api/social?action=followers&userId=${userId}&limit=20&offset=${offset}`,
         {
           credentials: 'include',
-          headers: getAuthHeaders()
+          headers: authHeaders()
         }
       )
 
@@ -237,7 +230,7 @@ export function useFollowing(userId) {
         `/api/social?action=following&userId=${userId}&limit=20&offset=${offset}`,
         {
           credentials: 'include',
-          headers: getAuthHeaders()
+          headers: authHeaders()
         }
       )
 
@@ -295,7 +288,7 @@ export function useActivityFeed() {
         `/api/social?action=feed&limit=20&offset=${offset}`,
         {
           credentials: 'include',
-          headers: getAuthHeaders()
+          headers: authHeaders()
         }
       )
 
@@ -375,7 +368,7 @@ export function useUnifiedActivityFeed(typeFilter = null) {
 
       const response = await fetch(url, {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (!response.ok) {
@@ -436,7 +429,7 @@ export function useDiscoverUsers() {
     try {
       const response = await fetch('/api/social?action=discover&limit=10', {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (!response.ok) {
@@ -490,7 +483,7 @@ export function useUserSearch() {
         `/api/users/search?q=${encodeURIComponent(query.trim())}&limit=20&offset=${offset}`,
         {
           credentials: 'include',
-          headers: getAuthHeaders()
+          headers: authHeaders()
         }
       )
 

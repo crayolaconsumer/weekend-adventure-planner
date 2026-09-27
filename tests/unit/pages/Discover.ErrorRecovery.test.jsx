@@ -44,8 +44,9 @@ describe('Discover/ErrorRecovery.classifyLoadError', () => {
 describe('Discover/ErrorRecovery component', () => {
   it('renders network-error title for network errors', () => {
     render(<ErrorRecovery loadError="Failed to fetch" onRetry={() => {}} onOpenFilters={() => {}} />)
-    expect(screen.getByText(/Connection issue/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Retry Connection/i })).toBeInTheDocument()
+    expect(screen.getByText(/Can't reach the internet/i)).toBeInTheDocument()
+    expect(screen.getByText('Check your connection and try again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Try again/i })).toBeInTheDocument()
   })
 
   it('renders generic title + offers Check Filters secondary action', () => {

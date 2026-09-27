@@ -13,8 +13,8 @@ export const FILTERS: Filter[] = [
   { id: 'today', label: 'Today' },
   { id: 'tomorrow', label: 'Tomorrow' },
   { id: 'weekend', label: 'Weekend' },
-  { id: 'week', label: 'This Week' },
-  { id: 'month', label: 'This Month' },
+  { id: 'week', label: 'This week' },
+  { id: 'month', label: 'This month' },
   { id: 'free', label: 'Free' },
 ]
 
@@ -52,7 +52,7 @@ export interface PriceOption {
 }
 
 export const PRICE_OPTIONS: PriceOption[] = [
-  { id: 'any', label: 'Any Price', maxPrice: null },
+  { id: 'any', label: 'Any price', maxPrice: null },
   { id: 'free', label: 'Free', maxPrice: 0 },
   { id: 'under20', label: 'Under £20', maxPrice: 20 },
   { id: 'under50', label: 'Under £50', maxPrice: 50 },

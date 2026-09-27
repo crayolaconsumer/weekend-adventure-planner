@@ -19,6 +19,7 @@ import { applyPageMeta } from '../shared/pageMeta.mjs'
 import { lookupPlace } from './lib/placeLookup.js'
 import imageResolve from './places/image-resolve.js'
 import { callJson } from './lib/invoke.js'
+import { isPreviewBot } from './lib/bots.js'
 
 export const config = { runtime: 'nodejs' }
 
@@ -27,8 +28,7 @@ const HIT = 'public, s-maxage=86400, stale-while-revalidate=604800'
 const MISS = 'public, s-maxage=600'
 // Link-preview bots are the only readers of these tags, so they get time for a
 // cold lookup (cached for everyone after); people get the app shell fast.
-const PREVIEW_BOT = /\bbot\b|bot[/-]|crawl|spider|facebookexternalhit|whatsapp|slack|telegrambot|discord|linkedinbot|skype|embedly|pinterestbot|preview|mastodon|iframely|google-pagerenderer/i
-export const isPreviewBot = req => PREVIEW_BOT.test(req.headers['user-agent'] || '')
+export { isPreviewBot }
 const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise(res => setTimeout(() => res(fallback), ms))])
 
 // Built index.html, bundled via vercel.json "includeFiles" (an HTTP self-fetch

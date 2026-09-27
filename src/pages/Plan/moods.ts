@@ -30,7 +30,7 @@ export interface MoodOverride {
 export const MOODS: MoodOverride[] = [
   {
     key: 'cozy',
-    label: 'Cozy',
+    label: 'Cosy',
     blurb: 'Bookshops, cafés, quiet corners',
     vibe: 'mixed',
     durationHours: 4,

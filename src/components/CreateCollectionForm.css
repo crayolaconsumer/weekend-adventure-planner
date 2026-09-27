@@ -162,27 +162,6 @@
   color: #dc2626;
 }
 
-.create-collection-submit {
-  padding: var(--space-md);
-  background: var(--roam-gold);
-  border: none;
-  border-radius: var(--radius-md);
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.create-collection-submit:hover {
-  background: var(--roam-gold-light);
-}
-
-.create-collection-submit:active {
-  transform: scale(0.98);
-}
-
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════════ */

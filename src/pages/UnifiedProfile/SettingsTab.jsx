@@ -280,7 +280,7 @@ export default function SettingsTab({ user, onLogout }) {
               }}
               disabled={subLoading}
             >
-              {subLoading ? 'Loading...' : 'Manage Subscription'}
+              {subLoading ? 'Loading...' : 'Manage subscription'}
             </button>
             {/* Hide the iap-not-available code from users — it's the
                 internal signal that this surface should route through
@@ -368,7 +368,7 @@ export default function SettingsTab({ user, onLogout }) {
         {isEditing ? (
           <div className="unified-profile-settings-field">
             <label htmlFor="displayName" className="unified-profile-settings-label">
-              Display Name
+              Display name
             </label>
             <input
               id="displayName"
@@ -383,7 +383,7 @@ export default function SettingsTab({ user, onLogout }) {
           </div>
         ) : (
           <div className="unified-profile-settings-item">
-            <span className="unified-profile-settings-label">Display Name</span>
+            <span className="unified-profile-settings-label">Display name</span>
             <span className="unified-profile-settings-value">
               {user?.displayName || user?.username || 'Not set'}
             </span>
@@ -408,7 +408,7 @@ export default function SettingsTab({ user, onLogout }) {
               onClick={handleSave}
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSaving ? 'Saving...' : 'Save changes'}
             </button>
           </div>
         )}
@@ -420,7 +420,7 @@ export default function SettingsTab({ user, onLogout }) {
 
         {/* Travel Mode */}
         <div className="unified-profile-settings-field">
-          <span className="unified-profile-settings-label">Default Travel Mode</span>
+          <span className="unified-profile-settings-label">Default travel mode</span>
           <div className="unified-profile-settings-mode-grid">
             {Object.entries(travelModes).map(([key, mode]) => (
               <button
@@ -444,7 +444,7 @@ export default function SettingsTab({ user, onLogout }) {
 
         {/* Distance Units */}
         <div className="unified-profile-settings-field">
-          <span className="unified-profile-settings-label">Distance Units</span>
+          <span className="unified-profile-settings-label">Distance units</span>
           <div className="unified-profile-settings-segment">
             <button
               className={`unified-profile-settings-segment-btn ${distanceUnit === 'km' ? 'active' : ''}`}
@@ -511,7 +511,7 @@ export default function SettingsTab({ user, onLogout }) {
           >
             <span className="toggle-icon"><ToggleIcon name="free" size={20} /></span>
             <span className="toggle-text">
-              <span className="toggle-label">Free Places Only</span>
+              <span className="toggle-label">Free places only</span>
               <span className="toggle-desc">Show only free attractions</span>
             </span>
             <span className={`toggle-switch ${freeOnly ? 'on' : ''}`}>
@@ -533,7 +533,7 @@ export default function SettingsTab({ user, onLogout }) {
           >
             <span className="toggle-icon"><ToggleIcon name="accessibility" size={20} /></span>
             <span className="toggle-text">
-              <span className="toggle-label">Accessibility Mode</span>
+              <span className="toggle-label">Accessibility mode</span>
               <span className="toggle-desc">Prioritize accessible places</span>
             </span>
             <span className={`toggle-switch ${accessibilityMode ? 'on' : ''}`}>
@@ -555,7 +555,7 @@ export default function SettingsTab({ user, onLogout }) {
           >
             <span className="toggle-icon"><ToggleIcon name="clock" size={20} /></span>
             <span className="toggle-text">
-              <span className="toggle-label">Open Now Only</span>
+              <span className="toggle-label">Open now only</span>
               <span className="toggle-desc">Hide places that are closed</span>
             </span>
             <span className={`toggle-switch ${openOnly ? 'on' : ''}`}>
@@ -603,14 +603,14 @@ export default function SettingsTab({ user, onLogout }) {
           Terms of Use
         </Link>
         <Link to="/support" className="unified-profile-settings-link-row">
-          Contact Support
+          Contact support
         </Link>
       </div>
 
       {/* Sign Out */}
       <button className="unified-profile-logout-btn" onClick={onLogout}>
         <LogOutIcon />
-        Sign Out
+        Sign out
       </button>
 
       {/* Delete Account — App Store Review 5.1.1(v) */}

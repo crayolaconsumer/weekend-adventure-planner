@@ -187,7 +187,7 @@ export default function Pricing() {
       return
     }
     if (!selectedPackage) {
-      setRcError('Subscription not available — please try again in a moment.')
+      setRcError('Subscription not available. Try again in a moment.')
       return
     }
     setRcLoading(true)
@@ -326,14 +326,14 @@ export default function Pricing() {
             <div className="pricing-card-footer">
               {user ? (
                 <button className="pricing-btn secondary" disabled>
-                  Current Plan
+                  Current plan
                 </button>
               ) : (
                 <button
                   className="pricing-btn secondary"
                   onClick={() => openAuthModal?.('signup')}
                 >
-                  Get Started
+                  Get started
                 </button>
               )}
             </div>
@@ -348,7 +348,7 @@ export default function Pricing() {
           >
             <div className="pricing-card-badge">
               <PremiumBadge size="md" showBevel={false} />
-              Most Popular
+              Most popular
             </div>
 
             <div className="pricing-card-header">
@@ -360,7 +360,7 @@ export default function Pricing() {
                 <span className="price-period">/month</span>
               </div>
               {billingPeriod === 'annual' ? (
-                <p className="pricing-billed">Billed annually — £{annualPrice}/year (save {savingsPercent}%)</p>
+                <p className="pricing-billed">Billed annually: £{annualPrice}/year (save {savingsPercent}%)</p>
               ) : (
                 <p className="pricing-billed">Billed monthly. Switch to annual any time and save {savingsPercent}%.</p>
               )}
@@ -380,7 +380,7 @@ export default function Pricing() {
             <div className="pricing-card-footer">
               {isPremium ? (
                 <button className="pricing-btn primary" disabled>
-                  Current Plan
+                  Current plan
                 </button>
               ) : isNative() && subscribedViaWeb ? (
                 /* Cross-source guard — user already paid via Stripe on
@@ -404,7 +404,7 @@ export default function Pricing() {
                     {rcLoading ? 'Loading...' :
                       !selectedPackage ? 'Subscription unavailable' :
                       trialOnOffer ? 'Start 7-day free trial' :
-                      `Subscribe — ${selectedPackage.product?.priceString || `£${billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}`}${billingPeriod === 'annual' ? '/year' : '/month'}`}
+                      `Subscribe for ${selectedPackage.product?.priceString || `£${billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}`}${billingPeriod === 'annual' ? '/year' : '/month'}`}
                   </button>
                   {/* Prominent payment-processor attribution directly under
                       the CTA — makes it unambiguous to the user that the
@@ -443,7 +443,7 @@ export default function Pricing() {
                     onClick={handleRestorePurchases}
                     disabled={restoring}
                   >
-                    {restoring ? 'Restoring…' : 'Restore Purchases'}
+                    {restoring ? 'Restoring…' : 'Restore purchases'}
                   </button>
                 </>
               )}
@@ -455,7 +455,7 @@ export default function Pricing() {
                   {(() => {
                     const platform = getPlatform()
                     const billingHome = platform === 'android'
-                      ? 'Google Play Subscriptions'
+                      ? 'Google Play subscriptions'
                       : 'Settings → Apple ID → Subscriptions'
                     const accountWord = platform === 'android'
                       ? 'Google Play account'
@@ -491,7 +491,7 @@ export default function Pricing() {
               ) : (
                 <>
                   <p className="pricing-trial-note">
-                    7 days free, then £{billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}{billingPeriod === 'annual' ? '/year' : '/month'}. Subscription auto-renews until canceled at least 24 hours before the end of the current period. Cancel anytime during the trial — no charge.
+                    7 days free, then £{billingPeriod === 'annual' ? annualPrice : monthlyPrice.toFixed(2)}{billingPeriod === 'annual' ? '/year' : '/month'}. Subscription auto-renews until cancelled at least 24 hours before the end of the current period. Cancel any time during the trial at no charge.
                   </p>
                   <p className="pricing-legal-links">
                     By subscribing you agree to our{' '}
@@ -517,18 +517,14 @@ export default function Pricing() {
             <span>
               {isNative()
                 ? (getPlatform() === 'android'
-                    ? 'Google Play handles payments through your Play account — your card never touches our servers.'
-                    : 'Apple handles payments through your Apple ID — your card never touches our servers.')
-                : 'Stripe handles payments — your card never touches our servers.'}
+                    ? 'Google Play handles payments through your Play account so your card never touches our servers.'
+                    : 'Apple handles payments through your Apple ID so your card never touches our servers.')
+                : 'Stripe handles payments so your card never touches our servers.'}
             </span>
           </div>
           <div className="pricing-trust-item">
             <strong>Fair</strong>
             <span>Cancel from your phone in two taps. We&apos;ll never trick you into renewing.</span>
-          </div>
-          <div className="pricing-trust-item">
-            <strong>Indie</strong>
-            <span>Built by one person who actually wants you to get out more.</span>
           </div>
         </motion.div>
 
@@ -543,7 +539,7 @@ export default function Pricing() {
           <div className="faq-grid">
             <div className="faq-item">
               <h4>Can I cancel during the trial?</h4>
-              <p>Yes — cancel from your phone in two taps. You won&apos;t be charged a penny.</p>
+              <p>Yes. Cancel from your phone in two taps. You won&apos;t be charged a penny.</p>
             </div>
             <div className="faq-item">
               <h4>What happens to my saved places if I downgrade?</h4>
@@ -569,7 +565,7 @@ export default function Pricing() {
             </div>
             <div className="faq-item">
               <h4>How do I manage my subscription?</h4>
-              <p>Go to Settings → Manage Subscription to update payment or cancel.</p>
+              <p>Go to Settings → Manage subscription to update payment or cancel.</p>
             </div>
           </div>
         </motion.div>

@@ -148,8 +148,6 @@
   font-family: var(--font-body);
   font-size: var(--text-lg);
   font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
   border-radius: var(--radius-md);
   border: 3px solid;
   pointer-events: none;
@@ -225,7 +223,6 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  text-transform: uppercase;
 }
 
 .swipe-card-category span:first-child {
@@ -364,8 +361,6 @@
   right: 8px;
   z-index: 5;
   font-size: 9px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: rgba(255, 255, 255, 0.7);
   background: rgba(0, 0, 0, 0.35);
   -webkit-backdrop-filter: blur(4px);
@@ -439,7 +434,7 @@
 
 .swipe-card-tip .contribution-badge-trusted {
   background: var(--roam-gold);
-  color: var(--roam-forest);
+  color: #1a3a2f;
 }
 
 .swipe-card-tip .contribution-badge-score {
@@ -498,7 +493,7 @@
   gap: 6px;
   padding: 8px 14px;
   background: var(--roam-gold);
-  color: var(--roam-forest);
+  color: #1a3a2f;
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;

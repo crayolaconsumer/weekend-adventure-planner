@@ -6,6 +6,7 @@
  */
 
 import { withCors } from '../lib/cors.js'
+import { applySharedRateLimit } from '../lib/rateLimit.js'
 
 // Simple in-memory rate limiting
 const requestCounts = new Map()
@@ -40,6 +41,9 @@ async function handler(req, res) {
   if (isRateLimited(clientIp)) {
     return res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' })
   }
+  // Across instances too: the Ticketmaster key's daily quota is shared by everyone
+  const shared = await applySharedRateLimit(req, res, { max: 300, windowSec: 60 }, 'ticketmaster')
+  if (shared) return res.status(429).json(shared)
 
   // Validate API key exists
   const apiKey = process.env.TICKETMASTER_KEY
@@ -49,7 +53,9 @@ async function handler(req, res) {
   }
 
   // Get and validate query parameters
-  const { lat, lng, radius = '30', page = '0', from, to } = req.query
+  const { lat, lng, radius = '30', page = '0', from, to, start, end, country } = req.query
+  // GB unless a town page outside the UK asks for its own country (IE, US, CA, AU, NZ)
+  const countryCode = /^[a-z]{2}$/i.test(country || '') ? country.toUpperCase() : 'GB'
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'Missing required parameters: lat, lng' })
@@ -87,9 +93,11 @@ async function handler(req, res) {
     const day = /^\d{4}-\d{2}-\d{2}$/
     const now = new Date()
     const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000)
-    // An hour early: UK midnight is 23:00Z during BST (callers filter by local date)
-    const startDateTime = day.test(from || '') ? new Date(Date.parse(`${from}T00:00:00Z`) - 3600000).toISOString().slice(0, 19) + 'Z' : now.toISOString().slice(0, 19) + 'Z'
-    const endDateTime = day.test(to || '') ? `${to}T23:59:59Z` : endDate.toISOString().slice(0, 19) + 'Z'
+    // Town pages send exact UTC bounds for the town's local weekend (start/end);
+    // the app sends UK dates: an hour early covers UK midnight (23:00Z in BST)
+    const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/
+    const startDateTime = instant.test(start || '') ? start : day.test(from || '') ? new Date(Date.parse(`${from}T00:00:00Z`) - 3600000).toISOString().slice(0, 19) + 'Z' : now.toISOString().slice(0, 19) + 'Z'
+    const endDateTime = instant.test(end || '') ? end : day.test(to || '') ? `${to}T23:59:59Z` : endDate.toISOString().slice(0, 19) + 'Z'
 
     const params = new URLSearchParams({
       apikey: apiKey,
@@ -101,7 +109,7 @@ async function handler(req, res) {
       size: '50',
       page: pageNum.toString(),
       sort: 'date,asc',
-      countryCode: 'GB'
+      countryCode
     })
 
     // Identify ourselves honestly to Ticketmaster — the previous spoofed

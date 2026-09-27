@@ -9,6 +9,8 @@
  * direct URL construction unreliable).
  */
 
+import { fetchWikipediaSummary as fetchWikipediaSummaryViaProxy } from '../placeImage'
+
 const WIKIPEDIA_API = 'https://en.wikipedia.org/api/rest_v1'
 
 export interface WikipediaSummary {
@@ -108,48 +110,21 @@ export async function fetchWikidataImage(wikidataId: string): Promise<string | n
 
 /**
  * Fetch Wikipedia summary/extract for a place.
- * Title can be "en:Article Name" format from OSM wikipedia tag — language
- * code is split off and used to switch to the matching ${lang}.wikipedia.org.
+ * Goes through the same cached /api/wikipedia/summary proxy as PlaceDetail
+ * and PlaceImage (placeImage.fetchWikipediaSummary), so there is one client
+ * path to Wikipedia. The proxy parses "en:Article Name" OSM tags itself.
+ * The proxy returns the image's dimensions as thumbnailWidth/Height.
  */
 export async function fetchWikipediaSummary(title: string): Promise<WikipediaSummary | null> {
-  try {
-    // Handle "en:Article Name" format from OSM tags
-    let articleTitle = title
-    let lang = 'en'
-
-    if (title.includes(':')) {
-      const [langCode, ...rest] = title.split(':')
-      if (langCode.length === 2) {
-        lang = langCode
-        articleTitle = rest.join(':')
-      }
-    }
-
-    const apiBase = `https://${lang}.wikipedia.org/api/rest_v1`
-    const response = await fetch(
-      `${apiBase}/page/summary/${encodeURIComponent(articleTitle)}`,
-    )
-
-    if (!response.ok) return null
-
-    const data = await response.json() as WikipediaSummaryResponse
-
-    // Pair the dimensions with whichever image URL we actually return, so
-    // selectBestImage's resolution/aspect scoring sees real numbers instead
-    // of always-null (the previous bug: imageWidth/imageHeight were read in
-    // enrichPlace but never produced here).
-    const usingThumb = !!data.thumbnail?.source
-    return {
-      title: data.title ?? articleTitle,
-      extract: data.extract ?? null,
-      extractShort: data.extract ? truncateText(data.extract, 150) : null,
-      image: data.thumbnail?.source || data.originalimage?.source || null,
-      imageWidth: (usingThumb ? data.thumbnail?.width : data.originalimage?.width) ?? null,
-      imageHeight: (usingThumb ? data.thumbnail?.height : data.originalimage?.height) ?? null,
-      url: data.content_urls?.desktop?.page || null,
-    }
-  } catch (error) {
-    console.warn('Wikipedia summary fetch failed:', error)
-    return null
+  const data = await fetchWikipediaSummaryViaProxy(title)
+  if (!data) return null
+  return {
+    title: data.title ?? title,
+    extract: data.extract ?? null,
+    extractShort: data.extract ? truncateText(data.extract, 150) : null,
+    image: data.thumbnail || null,
+    imageWidth: typeof data.thumbnailWidth === 'number' ? data.thumbnailWidth : null,
+    imageHeight: typeof data.thumbnailHeight === 'number' ? data.thumbnailHeight : null,
+    url: data.contentUrl || null,
   }
 }

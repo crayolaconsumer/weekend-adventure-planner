@@ -10,41 +10,19 @@
  * Returns:
  *   reports:   { open, critical_open, high_open, actioned_30d }
  *   campaigns: { active, paused, draft, lifetime_impressions, lifetime_clicks, lifetime_spent_pence }
- *   users:     { total, premium, banned, new_30d }
+ *   users:     { total, premium, banned, new_7d, new_30d }
+ *   activity:  { dau, wau, saves, visits }  (dau/wau from user_stats.last_activity_at)
+ *   promoted:  { live }  (paid, active, not moderated out)
  *   ads:       { impressions_7d, clicks_7d, saves_7d }
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
 import { queryOne } from '../lib/db.js'
-import { withCors, ALLOWED_ORIGINS } from '../lib/cors.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
-
-const NOT_FOUND = (res) => res.status(404).json({ error: 'Not found' })
-
-function clientIp(req) {
-  const fwd = req.headers?.['x-forwarded-for']
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim()
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown'
-}
-
-function isOriginAllowed(req) {
-  const candidate = req.headers?.origin || req.headers?.referer
-  if (!candidate) return false
-  for (const allowed of ALLOWED_ORIGINS) {
-    if (candidate === allowed || candidate.startsWith(allowed + '/')) return true
-  }
-  return false
-}
+import { withCors } from '../lib/cors.js'
+import { RATE_LIMITS } from '../lib/rateLimit.js'
+import { guardAdmin, NOT_FOUND } from '../lib/adminGuard.js'
 
 async function handler(req, res) {
-  const ipKey = clientIp(req)
-  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, `admin-dash-ip:${ipKey}`)
-  if (rateLimitError) return NOT_FOUND(res)
-
-  if (!isOriginAllowed(req)) return NOT_FOUND(res)
-
-  const user = await getUserFromRequest(req)
-  if (!user || !user.is_admin) return NOT_FOUND(res)
+  if (!(await guardAdmin(req, res, { key: 'admin-dash-ip', limit: RATE_LIMITS.API_GENERAL }))) return
 
   if (req.method !== 'GET') return NOT_FOUND(res)
 
@@ -60,13 +38,14 @@ async function handler(req, res) {
     campaignsPaused,
     campaignsDraft,
     campaignsLifetime,
-    usersTotal,
-    usersPremium,
-    usersBanned,
-    usersNew30d,
+    usersRow,
     ads7d,
     auditTotal,
     audit7d,
+    activeRow,
+    savesRow,
+    visitsRow,
+    promotedLive,
   ] = await Promise.all([
     queryOne(`SELECT COUNT(*) AS n FROM content_reports WHERE status = 'open'`).catch(() => null),
     queryOne(`SELECT COUNT(*) AS n FROM content_reports WHERE status = 'open' AND ai_severity = 'critical'`).catch(() => null),
@@ -82,10 +61,16 @@ async function handler(req, res) {
          (SELECT COUNT(*) FROM ad_impressions WHERE clicked = TRUE) AS clicks
        FROM sponsored_places`
     ).catch(() => null),
-    queryOne(`SELECT COUNT(*) AS n FROM users WHERE is_banned = FALSE OR is_banned IS NULL`).catch(() => null),
-    queryOne(`SELECT COUNT(*) AS n FROM users WHERE tier = 'premium' AND (subscription_expires_at IS NULL OR subscription_expires_at > NOW())`).catch(() => null),
-    queryOne(`SELECT COUNT(*) AS n FROM users WHERE is_banned = TRUE`).catch(() => null),
-    queryOne(`SELECT COUNT(*) AS n FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`).catch(() => null),
+    // One pass over users instead of four COUNT queries.
+    queryOne(
+      `SELECT
+         SUM(CASE WHEN is_banned = TRUE THEN 0 ELSE 1 END) AS total,
+         SUM(CASE WHEN tier = 'premium' AND (subscription_expires_at IS NULL OR subscription_expires_at > NOW()) THEN 1 ELSE 0 END) AS premium,
+         SUM(CASE WHEN is_banned = TRUE THEN 1 ELSE 0 END) AS banned,
+         SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS new_7d,
+         SUM(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS new_30d
+       FROM users`
+    ).catch(() => null),
     queryOne(
       `SELECT
          COUNT(*) AS impressions,
@@ -96,6 +81,15 @@ async function handler(req, res) {
     ).catch(() => null),
     queryOne(`SELECT COUNT(*) AS n FROM admin_actions`).catch(() => null),
     queryOne(`SELECT COUNT(*) AS n FROM admin_actions WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`).catch(() => null),
+    queryOne(
+      `SELECT
+         SUM(CASE WHEN last_activity_at >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS dau,
+         SUM(CASE WHEN last_activity_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS wau
+       FROM user_stats`
+    ).catch(() => null),
+    queryOne(`SELECT COUNT(*) AS n FROM saved_places`).catch(() => null),
+    queryOne(`SELECT COUNT(*) AS n FROM visited_places`).catch(() => null),
+    queryOne(`SELECT COUNT(*) AS n FROM promoted_events WHERE status = 'active' AND payment_status = 'paid' AND moderation_status = 'live'`).catch(() => null),
   ])
 
   return res.status(200).json({
@@ -114,10 +108,20 @@ async function handler(req, res) {
       lifetime_spent_pence: campaignsLifetime?.spent_pence ?? 0,
     },
     users: {
-      total: usersTotal?.n ?? 0,
-      premium: usersPremium?.n ?? 0,
-      banned: usersBanned?.n ?? 0,
-      new_30d: usersNew30d?.n ?? 0,
+      total: Number(usersRow?.total ?? 0),
+      premium: Number(usersRow?.premium ?? 0),
+      banned: Number(usersRow?.banned ?? 0),
+      new_7d: Number(usersRow?.new_7d ?? 0),
+      new_30d: Number(usersRow?.new_30d ?? 0),
+    },
+    activity: {
+      dau: Number(activeRow?.dau ?? 0),
+      wau: Number(activeRow?.wau ?? 0),
+      saves: savesRow?.n ?? 0,
+      visits: visitsRow?.n ?? 0,
+    },
+    promoted: {
+      live: promotedLive?.n ?? 0,
     },
     ads: {
       impressions_7d: ads7d?.impressions ?? 0,

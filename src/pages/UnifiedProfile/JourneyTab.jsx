@@ -66,7 +66,7 @@ export default function JourneyTab({
       {/* Stats Grid. Places Visited reads from server stats so it
           matches the header counter on every device. Day Streak,
           Boredom Busts and Saved Places are localStorage-only concepts
-          (the streak ticks on Discover "Let's Go" taps, boredom busts
+          (the streak ticks on Discover "Let's go" taps, boredom busts
           on swipe activity, wishlist is the user's local Saved list)
           so they're only meaningful on the user's own profile.
           Showing them on someone else's profile leaked the viewer's
@@ -74,21 +74,21 @@ export default function JourneyTab({
       <div className="unified-profile-stats-grid">
         <div className="unified-profile-stat-card">
           <span className="unified-profile-stat-card-value">{serverStats?.placesVisited ?? 0}</span>
-          <span className="unified-profile-stat-card-label">Places Visited</span>
+          <span className="unified-profile-stat-card-label">Places visited</span>
         </div>
         {isOwnProfile && (
           <>
             <div className="unified-profile-stat-card">
               <span className="unified-profile-stat-card-value">{stats.currentStreak || 0}</span>
-              <span className="unified-profile-stat-card-label">Day Streak</span>
+              <span className="unified-profile-stat-card-label">Day streak</span>
             </div>
             <div className="unified-profile-stat-card">
               <span className="unified-profile-stat-card-value">{stats.boredomBusts || 0}</span>
-              <span className="unified-profile-stat-card-label">Boredom Busts</span>
+              <span className="unified-profile-stat-card-label">Boredom busts</span>
             </div>
             <div className="unified-profile-stat-card">
               <span className="unified-profile-stat-card-value">{stats.wishlistCount || 0}</span>
-              <span className="unified-profile-stat-card-label">Saved Places</span>
+              <span className="unified-profile-stat-card-label">Saved places</span>
             </div>
           </>
         )}
@@ -96,7 +96,7 @@ export default function JourneyTab({
           <>
             <div className="unified-profile-stat-card">
               <span className="unified-profile-stat-card-value">{serverStats?.contributions ?? 0}</span>
-              <span className="unified-profile-stat-card-label">Tips Shared</span>
+              <span className="unified-profile-stat-card-label">Tips shared</span>
             </div>
             <div className="unified-profile-stat-card">
               <span className="unified-profile-stat-card-value">{serverStats?.helpfulVotes ?? 0}</span>
@@ -177,7 +177,7 @@ export default function JourneyTab({
       {/* Map Preview — first thing in the Journey tab. Tap → opens the
           full /user/:username/map page (Leaflet map + list + edit reviews). */}
       <div className="unified-profile-journey-map">
-        <h3 className="unified-profile-section-title">Your Map</h3>
+        <h3 className="unified-profile-section-title">Your map</h3>
         <MapPreviewBand
           places={visitedPlaces}
           onClick={() => username && navigate(`/user/${username}/map`)}
@@ -205,7 +205,7 @@ export default function JourneyTab({
           </span>
           <div className="unified-profile-highlight-content">
             <span className="unified-profile-highlight-value">{stats.bestStreak} days</span>
-            <span className="unified-profile-highlight-label">Best Streak</span>
+            <span className="unified-profile-highlight-label">Best streak</span>
           </div>
         </div>
       )}

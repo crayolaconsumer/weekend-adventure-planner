@@ -10,38 +10,21 @@
  * IP rate limit, Origin/Referer gate, is_admin enforcement.
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
-import { withCors, ALLOWED_ORIGINS } from '../lib/cors.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
+import { RATE_LIMITS } from '../lib/rateLimit.js'
+import { guardAdmin, NOT_FOUND } from '../lib/adminGuard.js'
 import { cacheGet, cacheSet, isCacheEnabled } from '../lib/kvCache.js'
 
-const NOT_FOUND = (res) => res.status(404).json({ error: 'Not found' })
 const KV_FLAGS_KEY = 'roam:flags'
 // Effectively persistent — a kill-switch must not silently expire. If KV
 // ever drops the key, getFlags() falls back to all-ON (safe by design).
 const FLAG_TTL_SECONDS = 10 * 365 * 24 * 60 * 60
 // Mirrors DEFAULTS in api/lib/flags.js — every feature ON by default.
 const DEFAULTS = Object.freeze({
-  discover: true,
   overpassProxy: true,
   contributionsUpload: true,
   pushNudges: true,
 })
-
-function clientIp(req) {
-  const fwd = req.headers?.['x-forwarded-for']
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim()
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown'
-}
-
-function isOriginAllowed(req) {
-  const candidate = req.headers?.origin || req.headers?.referer
-  if (!candidate) return false
-  for (const allowed of ALLOWED_ORIGINS) {
-    if (candidate === allowed || candidate.startsWith(allowed + '/')) return true
-  }
-  return false
-}
 
 async function readEffective() {
   const effective = { ...DEFAULTS }
@@ -60,14 +43,7 @@ async function readEffective() {
 }
 
 async function handler(req, res) {
-  const ipKey = clientIp(req)
-  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, `admin-flags-ip:${ipKey}`)
-  if (rateLimitError) return NOT_FOUND(res)
-
-  if (!isOriginAllowed(req)) return NOT_FOUND(res)
-
-  const user = await getUserFromRequest(req)
-  if (!user || !user.is_admin) return NOT_FOUND(res)
+  if (!(await guardAdmin(req, res, { key: 'admin-flags-ip', limit: RATE_LIMITS.API_GENERAL }))) return
 
   if (req.method === 'GET') {
     return res.status(200).json({ flags: await readEffective(), defaults: DEFAULTS, kvEnabled: isCacheEnabled() })

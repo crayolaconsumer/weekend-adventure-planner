@@ -105,7 +105,7 @@
 }
 
 .discover-settings-btn:hover {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   transform: rotate(45deg);
   box-shadow: var(--shadow-md);
@@ -116,7 +116,7 @@
 }
 
 .discover-settings-btn.active {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   transform: rotate(45deg);
 }
@@ -226,15 +226,23 @@
    STATUS BAR - Weather & Mode
    ═══════════════════════════════════════════════════════ */
 
+/* One row that scrolls sideways if it ever overflows (BRAND.md: filter
+   rows never wrap). "safe center" keeps the first chip reachable. */
 .discover-status {
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-sm);
   margin-top: var(--space-xl);
   margin-bottom: var(--space-md);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 2px 4px;
 }
+
+.discover-status::-webkit-scrollbar { display: none; }
 
 .discover-weather,
 .discover-mode {
@@ -249,6 +257,8 @@
   color: var(--color-text-secondary);
   box-shadow: var(--shadow-sm);
   transition: all 0.2s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .discover-weather:hover,
@@ -258,8 +268,12 @@
 }
 
 .discover-mode {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
+}
+
+[data-theme="dark"] .discover-mode {
+  box-shadow: inset 0 0 0 1px var(--roam-forest);
 }
 
 .discover-mode-icon {
@@ -312,7 +326,7 @@
   height: 20px;
   padding: 0 5px;
   background: var(--roam-gold);
-  color: var(--roam-forest);
+  color: #1a3a2f;
   font-size: 11px;
   font-weight: 700;
   line-height: 20px;
@@ -458,7 +472,7 @@
   justify-content: center;
   gap: var(--space-xs);
   padding: var(--space-md) var(--space-xl);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border: none;
   border-radius: var(--radius-full);
@@ -470,7 +484,7 @@
 }
 
 .discover-error-retry:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
   transform: translateY(-1px);
 }
 
@@ -553,9 +567,13 @@
   }
 
   .view-toggle-btn.active {
-    background: var(--roam-forest);
+    background: #1a3a2f;
     color: white;
     box-shadow: var(--shadow-sm);
+  }
+
+  [data-theme="dark"] .view-toggle-btn.active {
+    box-shadow: inset 0 0 0 1px var(--roam-forest);
   }
 
   .view-toggle-btn svg {
@@ -648,4 +666,51 @@
   text-decoration: none;
   background: var(--color-surface-elevated);
   color: var(--color-text-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════
+   DESKTOP SWIPE LAYOUT (>= 1024px)
+   Hero and controls on the left, the card deck on the right, in one
+   1100px column, so the card is above the fold instead of pushed under
+   a phone-sized hero. Map and list views keep the full-width stack.
+   ═══════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  .discover-page:has(> .discover-content.view-swipe) {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(360px, 460px);
+    grid-auto-rows: min-content;
+    column-gap: var(--space-2xl);
+    align-content: start;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    padding-inline: var(--space-lg);
+    height: auto;
+    overflow: visible;
+  }
+
+  .discover-page:has(> .discover-content.view-swipe) > * {
+    grid-column: 1 / -1;
+  }
+
+  .discover-page:has(> .discover-content.view-swipe) > .discover-header {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    padding-top: var(--space-2xl);
+  }
+
+  .discover-page:has(> .discover-content.view-swipe) > .discover-active-filters,
+  .discover-page:has(> .discover-content.view-swipe) > .discover-view-toggle {
+    grid-column: 1;
+  }
+
+  .discover-page:has(> .discover-content.view-swipe) > .discover-content.view-swipe {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    max-width: none;
+    padding: var(--space-lg) 0 0;
+    min-height: min(640px, calc(100dvh - 96px));
+    display: flex;
+  }
 }

@@ -6,7 +6,7 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update, transaction } from '../lib/db.js'
-import { validateId } from '../lib/validation.js'
+import { validateId, validatePlanTitle, validatePlanStops } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
@@ -171,6 +171,20 @@ async function handlePut(req, res, id) {
   }
 
   const { title, isPublic, stops } = req.body
+
+  // Same rules as plan create (api/plans/index.js)
+  if (title !== undefined) {
+    const titleValidation = validatePlanTitle(title)
+    if (!titleValidation.valid) {
+      return res.status(400).json({ error: titleValidation.message })
+    }
+  }
+  if (stops !== undefined && stops !== null) {
+    const stopsValidation = validatePlanStops(stops)
+    if (!stopsValidation.valid) {
+      return res.status(400).json({ error: stopsValidation.message })
+    }
+  }
 
   // Update plan metadata
   if (title !== undefined || isPublic !== undefined) {

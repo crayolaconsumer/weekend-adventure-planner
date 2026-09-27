@@ -19,6 +19,7 @@ import ContributionPrompt from './ContributionPrompt'
 import { useContributions } from '../hooks/useContributions'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
+import { useBackToClose } from '../hooks/useBackToClose'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
@@ -170,7 +171,11 @@ const CalendarPlusIcon = () => (
 // intentional design choice rather than a misleading photo. Real photos
 // only come from place_data or Wikipedia (resolved via PlaceImage).
 
-export default function PlaceDetail({ place, onClose, onGo, userLocation = null, footer = null }) {
+// variant="page" renders the same content as a normal page (the shared
+// /place/:id web page) instead of a bottom-sheet dialog: no backdrop, no
+// close button, no scroll lock or focus trap.
+export default function PlaceDetail({ place, onClose, onGo, userLocation = null, footer = null, variant = 'modal' }) {
+  const isPage = variant === 'page'
   const { resolved: theme } = useTheme()
   const mapTile = tileUrlFor(theme)
   const [enrichedPlace, setEnrichedPlace] = useState(place)
@@ -304,19 +309,22 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
     }
   }, [enrichedPlace?.photo, enrichedPlace?.image, place?.id, revokePreviousBlob])
 
+  // Back (browser or Android hardware) closes the detail instead of leaving
+  useBackToClose(onClose, !isPage)
+
   // Handle escape key
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape' && !isPage) onClose()
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [onClose])
+  }, [onClose, isPage])
 
   // Prevent body scroll when modal is open. PlaceDetail only mounts
   // when the user opens a place, so the lock is always-on while
   // mounted — pass true unconditionally.
-  useLockBodyScroll(true)
+  useLockBodyScroll(!isPage)
 
   const category = enrichedPlace.category
 
@@ -375,26 +383,26 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
   }
 
   // Focus trap for accessibility - only activate after animation completes
-  const focusTrapRef = useFocusTrap(animationComplete)
+  const focusTrapRef = useFocusTrap(animationComplete && !isPage)
 
   return (
     <>
       <AnimatePresence mode="wait">
         <motion.div
-          className="place-detail-overlay"
+          className={`place-detail-overlay${isPage ? ' place-detail-overlay--page' : ''}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          onClick={onClose}
+          onClick={isPage ? undefined : onClose}
         >
         <motion.div
           ref={focusTrapRef}
-          className="place-detail-modal"
-          role="dialog"
-          aria-modal="true"
+          className={`place-detail-modal${isPage ? ' place-detail-modal--page' : ''}`}
+          role={isPage ? 'article' : 'dialog'}
+          aria-modal={isPage ? undefined : 'true'}
           aria-labelledby="place-detail-title"
-          initial={{ opacity: 0, y: '100%', scale: 0.95 }}
+          initial={isPage ? { opacity: 0, y: 12 } : { opacity: 0, y: '100%', scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{
             opacity: 0,
@@ -454,9 +462,11 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
             {/* Header buttons */}
             <div className="place-detail-header-buttons">
               <ShareButton place={enrichedPlace} variant="icon" />
-              <button className="place-detail-close" onClick={onClose} aria-label="Close place details">
-                <CloseIcon />
-              </button>
+              {!isPage && (
+                <button className="place-detail-close" onClick={onClose} aria-label="Close place details">
+                  <CloseIcon />
+                </button>
+              )}
             </div>
 
             {/* Category badge */}
@@ -515,7 +525,9 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               <SocialProof placeId={place.id} variant="full" />
             </motion.div>
 
-            {/* Description */}
+            {/* Description. Only rendered when there is something to show,
+                otherwise the empty section left a gap under the pills. */}
+            {(loading || wikiSummary?.extract || enrichedPlace.description) && (
             <motion.div
               className="place-detail-section"
               initial={{ opacity: 0, y: 20 }}
@@ -562,6 +574,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 </>
               )}
             </motion.div>
+            )}
 
             {/* Address */}
             {enrichedPlace.address && (
@@ -627,7 +640,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 >
                   <h3 className="place-detail-section-title">
                     <ClockIcon />
-                    Opening Hours
+                    Opening hours
                   </h3>
                   {schedule ? (
                     <ul className="place-detail-hours-table" role="list">
@@ -656,30 +669,30 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               transition={{ delay: 0.35 }}
             >
               {enrichedPlace.phone && (
-                <button className="place-detail-action-btn" onClick={handlePhone}>
+                <button className="btn btn-secondary place-detail-action-btn" onClick={handlePhone}>
                   <PhoneIcon />
                   <span>Call</span>
                 </button>
               )}
               {enrichedPlace.website && (
-                <button className="place-detail-action-btn" onClick={handleWebsite}>
+                <button className="btn btn-secondary place-detail-action-btn" onClick={handleWebsite}>
                   <GlobeIcon />
                   <span>Website</span>
                 </button>
               )}
               {enrichedPlace.wikipedia && (
-                <button className="place-detail-action-btn" onClick={handleWikipedia}>
+                <button className="btn btn-secondary place-detail-action-btn" onClick={handleWikipedia}>
                   <WikiIcon />
                   <span>Wikipedia</span>
                 </button>
               )}
-              <button className="place-detail-action-btn" onClick={() => setShowCollectionManager(true)}>
+              <button className="btn btn-secondary place-detail-action-btn" onClick={() => setShowCollectionManager(true)}>
                 <FolderPlusIcon />
                 <span>Save</span>
               </button>
-              <button className="place-detail-action-btn plan-visit-btn" onClick={() => setShowPlanVisit(true)}>
+              <button className="btn btn-secondary place-detail-action-btn plan-visit-btn" onClick={() => setShowPlanVisit(true)}>
                 <CalendarPlusIcon />
-                <span>Plan Visit</span>
+                <span>Plan visit</span>
               </button>
             </motion.div>
 
@@ -697,10 +710,10 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               transition={{ delay: 0.45 }}
             >
               <div className="place-detail-tips-header">
-                <h3 className="place-detail-section-title">Community Tips</h3>
+                <h3 className="place-detail-section-title">Community tips</h3>
                 <button
                   type="button"
-                  className="place-detail-tip-add"
+                  className="btn btn-secondary place-detail-tip-add"
                   onClick={() => setShowTipPrompt(true)}
                   aria-label="Share a tip about this place"
                 >
@@ -720,7 +733,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
 
             {/* Go Button */}
             <motion.button
-              className="place-detail-go-btn"
+              className="btn btn-primary btn-lg btn-block place-detail-go-btn"
               onClick={handleDirections}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -729,7 +742,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
               whileTap={{ scale: 0.98 }}
             >
               <NavigationIcon />
-              <span>Get Directions</span>
+              <span>Get directions</span>
             </motion.button>
             {footer}
           </div>

@@ -26,8 +26,6 @@
 
 .ad-banner-label {
   font-size: 0.625rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   color: var(--text-secondary, #888);
   opacity: 0.7;
   padding: 0.125rem 0.5rem 0;

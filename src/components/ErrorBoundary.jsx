@@ -107,7 +107,7 @@ class ErrorBoundary extends Component {
                 onClick={this.handleRetry}
               >
                 <RefreshIcon />
-                Try Again
+                Try again
               </button>
 
               <button
@@ -115,7 +115,7 @@ class ErrorBoundary extends Component {
                 onClick={this.handleGoHome}
               >
                 <HomeIcon />
-                Go Home
+                Go home
               </button>
             </div>
           </motion.div>

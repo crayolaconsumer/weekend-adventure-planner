@@ -20,6 +20,7 @@ import {
 import { geocodeAddress } from '../../utils/apiClient/geocode'
 import { ReachIcon, CheckIcon, StarIcon, PinIcon, SparkIcon, MegaphoneIcon, ArrowLeftIcon } from './icons'
 import './Partners.css'
+import { getAuthToken } from '../../utils/authToken'
 
 // Preset key → icon component, and band key → ReachIcon level.
 const PRESET_ICONS = { taster: SparkIcon, standard: StarIcon, bignight: MegaphoneIcon }
@@ -187,7 +188,7 @@ export default function PartnerEvent() {
     setUploading(true)
     setError('')
     try {
-      const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+      const token = getAuthToken()
       const res = await fetch('/api/contributions/upload', {
         method: 'POST',
         credentials: 'include',

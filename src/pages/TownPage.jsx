@@ -159,7 +159,7 @@ export default function TownPage() {
           <h2>{ERRORS[problem].title}</h2>
           <p>{ERRORS[problem].body}</p>
           {(problem === 'network' || problem === 'location') && (
-            <button className="place-page-error-btn" onClick={() => window.location.reload()}>Try Again</button>
+            <button className="place-page-error-btn" onClick={() => window.location.reload()}>Try again</button>
           )}
         </div>
       )}

@@ -9,8 +9,10 @@
  *   - the user is unknown and was premium the last time the tier was known
  *     (roam_last_premium, cleared only by an explicit sign out).
  */
+import { TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY } from './authToken'
+
 const LAST_PREMIUM_KEY = 'roam_last_premium'
-const TOKEN_KEYS = ['roam_auth_token', 'roam_auth_token_session']
+const TOKEN_KEYS = [TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY]
 
 export function isPremiumUser(user) {
   if (!user) return false

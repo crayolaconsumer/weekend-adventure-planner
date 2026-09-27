@@ -59,7 +59,7 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.legal-article a:hover { color: var(--roam-gold, #d4a855); }
+.legal-article a:hover { color: var(--roam-forest); }
 
 @media (max-width: 640px) {
   .legal-article {

@@ -68,7 +68,7 @@ export default function UnifiedProfile() {
   // Dynamic SEO for user profiles
   const displayName = formatDisplayName(profile?.user) || username
   useSEO({
-    title: isOwnProfile ? 'My Profile' : `${displayName} (@${username})`,
+    title: isOwnProfile ? 'My profile' : `${displayName} (@${username})`,
     description: profile?.stats
       ? `${displayName} on ROAM — ${profile.stats.contributions || 0} tips shared, ${profile.stats.followers || 0} followers`
       : `${displayName}'s profile on ROAM`,
@@ -180,7 +180,7 @@ export default function UnifiedProfile() {
         <span className="avatar-with-premium unified-profile-avatar-wrap">
           {/* Uses the shared Avatar component so the no-photo fallback
               renders identical hue-rotated initials as the Social tab's
-              "My Profile" link — previously the profile used a separate
+              "My profile" link — previously the profile used a separate
               ui-avatars.com URL (terracotta + white) which made the same
               user look different on each screen. */}
           <Avatar

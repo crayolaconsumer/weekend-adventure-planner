@@ -268,7 +268,7 @@
 }
 
 .activity-search-clear:hover {
-  background: var(--roam-forest, #1a3a2f);
+  background: #1a3a2f;
 }
 
 .activity-search-count {

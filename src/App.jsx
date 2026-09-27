@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
 // Lazy load page components for code splitting
@@ -40,13 +40,6 @@ import ResumeOnboarding from './components/ResumeOnboarding'
 import { shouldDeferOnboarding } from './utils/sharedLink'
 import { track } from './utils/analytics'
 import ErrorBoundary from './components/ErrorBoundary'
-// DebugHud disabled — it was a triple-tap-anywhere overlay used to
-// diagnose the WKWebView auth failure. Now that auth + the network
-// stack are healthy, the triple-tap was firing accidentally during
-// normal swipe/scroll interactions and was getting in the way.
-// Keeping the file in tree (src/components/DebugHud.jsx + the fetch
-// instrumentation in src/main.jsx) so we can re-enable when needed.
-// import DebugHud from './components/DebugHud'
 import LoadingState from './components/LoadingState'
 import AuthModal from './components/AuthModal'
 import LocationSync from './components/LocationSync'
@@ -67,6 +60,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
 import { PUSH_OPT_IN_KEY, usePushNotifications } from './hooks/usePushNotifications'
 import { isNative } from './utils/nativeBridge'
+import { getAuthToken } from './utils/authToken'
 
 /**
  * Wires the native (iOS / Android) "user tapped a push notification"
@@ -149,10 +143,6 @@ function PushAuthSync() {
   return null
 }
 
-function getStoredAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
-
 function UserActivityHeartbeat() {
   const { isAuthenticated, user } = useAuth()
 
@@ -166,7 +156,7 @@ function UserActivityHeartbeat() {
       // sessionStorage unavailable; still send the heartbeat.
     }
 
-    const token = getStoredAuthToken()
+    const token = getAuthToken()
     fetch('/api/users/activity', {
       method: 'POST',
       headers: {
@@ -243,6 +233,13 @@ const LocationIcon = () => (
 )
 
 // Location fallback banner
+// The admin console is the operator's cockpit: none of the consumer
+// overlays (location banner, sign-in nudge, bell, name prompt) belong there
+export function ConsumerOnly({ children }) {
+  const { pathname } = useLocation()
+  return pathname.startsWith('/admin') ? null : children
+}
+
 function LocationBanner({ error, onRetry }) {
   const [dismissed, setDismissed] = useState(false)
   const [permState, setPermState] = useState('prompt')
@@ -284,7 +281,7 @@ function LocationBanner({ error, onRetry }) {
   // explicit when iOS has already denied and only Settings can flip
   // the switch.
   const isDenied = permState === 'denied'
-  const buttonLabel = isDenied ? 'Open Settings' : 'Enable Location'
+  const buttonLabel = isDenied ? 'Open settings' : 'Enable location'
 
   const handleClick = async () => {
     if (busy) return
@@ -370,7 +367,7 @@ function ProfileRedirect({ onOpenAuth }) {
         color: 'var(--roam-forest)',
         margin: '0 0 8px'
       }}>
-        Your Profile
+        Your profile
       </h2>
       <p style={{
         fontSize: '14px',
@@ -394,7 +391,7 @@ function ProfileRedirect({ onOpenAuth }) {
             cursor: 'pointer'
           }}
         >
-          Sign In
+          Sign in
         </button>
         <button
           onClick={() => onOpenAuth('register')}
@@ -409,7 +406,7 @@ function ProfileRedirect({ onOpenAuth }) {
             cursor: 'pointer'
           }}
         >
-          Sign Up
+          Sign up
         </button>
       </div>
     </div>
@@ -597,11 +594,13 @@ function App() {
                 )}
               </AnimatePresence>
 
+              <ConsumerOnly>
               <AnimatePresence>
                 {locationError && !showOnboarding && (
                   <LocationBanner error={locationError} onRetry={retryLocation} />
                 )}
               </AnimatePresence>
+              </ConsumerOnly>
 
               {/* Re-sign-in nudge for previously-authed users whose
                   session has lapsed. Self-gated on roam_has_signed_in
@@ -614,14 +613,16 @@ function App() {
                   urgency so they win the slot. The re-sign-in nudge
                   will reappear once geolocation recovers. */}
               {!showOnboarding && !locationError && (
+                <ConsumerOnly>
                 <ReSignInBanner onSignIn={() => {
                   setAuthModalMode('login')
                   setShowAuthModal(true)
                 }} />
+                </ConsumerOnly>
               )}
 
               {/* Floating Notification Bell */}
-              {!showOnboarding && <NotificationBell />}
+              {!showOnboarding && <ConsumerOnly><NotificationBell /></ConsumerOnly>}
 
               {/* Persist coarse location (signed-in only) for "events near you"
                   push targeting. Renders nothing; skipped on the partner portal. */}
@@ -653,7 +654,7 @@ function App() {
               {onboardingDeferred && (
                 <ResumeOnboarding onResume={showIntro => { setOnboardingDeferred(false); setShowOnboarding(showIntro) }} />
               )}
-              <DisplayNameNudge />
+              <ConsumerOnly><DisplayNameNudge /></ConsumerOnly>
               <OfflineIndicator />
               <UserActivityHeartbeat />
               <PushAuthSync />
@@ -706,7 +707,6 @@ function App() {
             </div>
           </ErrorBoundary>
           </BrowserRouter>
-          {/* <DebugHud /> — see import note above */}
         </ToastProvider>
       </DistanceProvider>
     </AuthProvider>
@@ -731,6 +731,12 @@ function ChromeNav() {
   if (pathname === '/get-roam') return null
   return (
     <nav className="nav-bar">
+      {/* Desktop-only lockup (hidden on phones by CSS): the top bar reads
+          as a website header rather than a stretched phone tab bar. */}
+      <Link to="/" className="nav-brand" aria-label="ROAM home">
+        <img src="/icons/icon.svg" alt="" width="30" height="30" />
+        <span>ROAM</span>
+      </Link>
       <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
         <CompassIcon />
         <span>Discover</span>

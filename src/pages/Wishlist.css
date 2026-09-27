@@ -45,7 +45,7 @@
 .wishlist-limit:hover {
   background: var(--roam-gold);
   border-color: var(--roam-gold);
-  color: white;
+  color: #1a3a2f;
 }
 
 /* Warning state: approaching limit (uses gold palette) */
@@ -58,7 +58,7 @@
 .wishlist-limit.warning:hover {
   background: var(--roam-gold);
   border-color: var(--roam-gold);
-  color: white;
+  color: #1a3a2f;
 }
 
 /* Full state: at limit (uses terracotta palette) */
@@ -84,9 +84,7 @@
 .limit-upgrade-hint {
   margin-left: 2px;
   font-weight: 700;
-  text-transform: uppercase;
   font-size: 9px;
-  letter-spacing: 0.05em;
 }
 
 .wishlist-collections-link {
@@ -105,7 +103,7 @@
 
 .wishlist-collections-link:hover {
   background: var(--roam-gold);
-  color: white;
+  color: #1a3a2f;
 }
 
 /* Filters — tighter chip sizing scoped to the wishlist so the row
@@ -266,13 +264,13 @@
 
 .wishlist-card-btn.go {
   flex: 1;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border: none;
 }
 
 .wishlist-card-btn.go:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
 }
 
 .wishlist-card-btn.remove {
@@ -345,40 +343,9 @@
   margin-bottom: var(--space-lg);
 }
 
+/* Visuals come from .btn .btn-primary (src/index.css). */
 .wishlist-empty-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-md) var(--space-xl);
-  background: var(--roam-forest);
-  color: white;
-  border: none;
-  border-radius: var(--radius-full);
-  font-family: var(--font-display);
-  font-size: var(--text-base);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
   text-decoration: none;
-}
-
-.wishlist-empty-cta:hover {
-  background: var(--roam-forest-light);
-  transform: translateY(-1px);
-}
-
-/* Dark mode — forest on forest disappears into the page background.
-   Switch to gold (the brand accent that DOESN'T re-theme) so the CTA
-   reads as the primary action it is. White text on gold is readable
-   but slightly low-contrast, so use the deep forest as the text colour
-   to mirror the "ink on cream" feel from light mode, just inverted. */
-[data-theme="dark"] .wishlist-empty-cta {
-  background: var(--roam-gold);
-  color: var(--roam-forest);
-}
-
-[data-theme="dark"] .wishlist-empty-cta:hover {
-  background: var(--roam-gold-light, #e3bd6d);
 }
 
 /* Responsive */
@@ -433,7 +400,7 @@
 }
 
 .wishlist-tab.active {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border-color: var(--roam-forest);
   color: white;
 }
@@ -504,7 +471,7 @@
   flex: 1;
   background: var(--roam-gold);
   border: none;
-  color: white;
+  color: #1a3a2f;
 }
 
 .wishlist-event-btn.tickets:hover {
@@ -621,7 +588,7 @@
 
 .wishlist-error button {
   padding: var(--space-sm) var(--space-lg);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border: none;
   border-radius: var(--radius-full);
@@ -631,7 +598,7 @@
 }
 
 .wishlist-error button:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -675,7 +642,7 @@
 
 .wishlist-adventure-view {
   padding: 8px 16px;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border: none;
   border-radius: var(--radius-md);
@@ -686,7 +653,7 @@
 }
 
 .wishlist-adventure-view:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
 }
 
 .wishlist-adventure-delete {

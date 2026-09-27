@@ -129,7 +129,7 @@ function PlacePopup({ place, onSelect, formatDistance }) {
           </span>
         )}
         <button className="map-popup-btn" onClick={() => onSelect(place)}>
-          View Details
+          View details
         </button>
       </div>
     </div>

@@ -34,13 +34,18 @@ let tmCache = {
  * @param {number} page - Page number (0-indexed)
  * @returns {Promise<{events: Array, pagination: Object|null}>}
  */
-async function fetchTicketmasterPage(lat, lng, radiusKm, page) {
+async function fetchTicketmasterPage(lat, lng, radiusKm, page, from, to) {
   const params = new URLSearchParams({
     lat: lat.toString(),
     lng: lng.toString(),
     radius: radiusKm.toString(),
     page: page.toString()
   })
+  // Optional UK date range (YYYY-MM-DD) so date filters search the whole range
+  if (from && to) {
+    params.set('from', from)
+    params.set('to', to)
+  }
 
   const response = await fetchWithTimeout(`/api/events/ticketmaster?${params}`)
 
@@ -72,7 +77,7 @@ async function fetchTicketmasterPage(lat, lng, radiusKm, page) {
  * @returns {Promise<{events: RoamEvent[], pagination: Object|null}>}
  */
 export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options = {}) {
-  const { pagesToFetch = 3, startPage = 0 } = options
+  const { pagesToFetch = 3, startPage = 0, from, to } = options
 
   // Validate inputs
   const coordCheck = validateCoordinates(lat, lng)
@@ -94,7 +99,7 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options =
   }
 
   // Check cache validity (only for initial load, startPage === 0)
-  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm}`
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm},${from || ''},${to || ''}`
   if (
     startPage === 0 &&
     tmCache.data &&
@@ -111,7 +116,7 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options =
     try {
       // Fetch multiple pages in parallel
       const pagePromises = Array.from({ length: pagesToFetch }, (_, i) =>
-        fetchTicketmasterPage(lat, lng, radiusKm, startPage + i)
+        fetchTicketmasterPage(lat, lng, radiusKm, startPage + i, from, to)
       )
 
       const results = await Promise.allSettled(pagePromises)

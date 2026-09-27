@@ -89,7 +89,7 @@
 .collections-limit:hover {
   background: var(--roam-gold);
   border-color: var(--roam-gold);
-  color: white;
+  color: #1a3a2f;
 }
 
 .collections-limit.full {
@@ -128,7 +128,7 @@
 
 .collections-add-btn:hover {
   background: var(--roam-gold);
-  color: white;
+  color: #1a3a2f;
 }
 
 .collections-delete-btn:hover {
@@ -248,27 +248,7 @@
   margin: 0 0 var(--space-lg) 0;
 }
 
-.collections-create-btn,
-.collections-discover-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-lg);
-  background: var(--roam-gold);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
 
-.collections-create-btn:hover,
-.collections-discover-btn:hover {
-  background: var(--roam-gold-light);
-}
 
 /* ═══════════════════════════════════════════════════════
    COLLECTIONS GRID

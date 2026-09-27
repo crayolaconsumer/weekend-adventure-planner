@@ -17,6 +17,7 @@ import {
   createPlatformBreakdown, mergePlatformBreakdown, recordCronRun, PROMOTED_EVENT_PUSH_JOB
 } from '../lib/cronRuns.js'
 import { boundingBox, haversineKm, isQuietHoursUk, FREQ_CAP_HOURS } from '../lib/promotedEventPush.js'
+import { isAuthorizedCron } from '../lib/cronAuth.js'
 
 const MAX_EVENTS_PER_RUN = 10
 const MAX_USERS_PER_EVENT = 5000
@@ -25,9 +26,7 @@ const CHUNK_SIZE = 20
 const CHUNK_DELAY_MS = 400
 
 export default async function handler(req, res) {
-  const cronSecret = process.env.CRON_SECRET
-  const isVercelCron = req.headers['x-vercel-cron'] === '1'
-  if (!isVercelCron && req.headers.authorization !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCron(req)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 

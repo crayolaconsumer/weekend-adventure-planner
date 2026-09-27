@@ -8,13 +8,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getAuthToken } from '../utils/authToken'
 
 const STORAGE_KEY = 'roam_wishlist'
-
-// Helper to get auth token from storage (checks localStorage first, then sessionStorage)
-const getToken = () => {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
 
 export function useSavedPlaces() {
   const { isAuthenticated, loading: authLoading } = useAuth()
@@ -39,7 +35,7 @@ export function useSavedPlaces() {
     try {
       if (isAuthenticated) {
         // Fetch from API
-        const token = getToken()
+        const token = getAuthToken()
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined
 
         const response = await fetch('/api/places/saved', {
@@ -96,8 +92,10 @@ export function useSavedPlaces() {
     // Optimistic update — add to front. Preserve the original savedAt when
     // re-saving an already-saved place so the "Saved" date doesn't jump to now
     // (server also preserves saved_at on conflict); only stamp now for a new save.
+    let previous = null
     setPlaces(prev => {
       const existing = prev.find(p => p.id === place.id)
+      previous = existing || null
       const entry = existing?.savedAt != null
         ? { ...placeWithTimestamp, savedAt: existing.savedAt }
         : placeWithTimestamp
@@ -112,7 +110,7 @@ export function useSavedPlaces() {
 
     if (isAuthenticated) {
       try {
-        const token = getToken()
+        const token = getAuthToken()
         const response = await fetch('/api/places/saved', {
           method: 'POST',
           headers: {
@@ -128,20 +126,13 @@ export function useSavedPlaces() {
         }
         return { success: true }
       } catch (err) {
-        // Revert optimistic update
-        setPlaces(prev => prev.filter(p => p.id !== place.id))
-        // Save to localStorage as fallback (preserve original savedAt on re-save)
-        const saved = localStorage.getItem(STORAGE_KEY)
-        const current = saved ? JSON.parse(saved) : []
-        const existingLocal = current.find(p => p.id === place.id)
-        const fallbackEntry = existingLocal?.savedAt != null
-          ? { ...placeWithTimestamp, savedAt: existingLocal.savedAt }
-          : placeWithTimestamp
-        const updated = [fallbackEntry, ...current.filter(p => p.id !== place.id)]
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-        // Re-add to state from localStorage fallback
-        setPlaces(updated)
-        return { success: false, error: err.message, fallback: true }
+        // Roll back only this place: drop it, or restore the entry it replaced.
+        // Never touch localStorage while logged in: that list belongs to the
+        // anonymous user and is migrated into whichever account logs in next.
+        setPlaces(prev => previous
+          ? prev.map(p => (p.id === place.id ? previous : p))
+          : prev.filter(p => p.id !== place.id))
+        return { success: false, error: err.message }
       }
     } else {
       // localStorage update (preserve original savedAt on re-save)
@@ -166,7 +157,7 @@ export function useSavedPlaces() {
 
     if (isAuthenticated) {
       try {
-        const token = getToken()
+        const token = getAuthToken()
         const response = await fetch(`/api/places/saved?placeId=${encodeURIComponent(placeId)}`, {
           method: 'DELETE',
           credentials: 'include',
@@ -219,7 +210,7 @@ export function useSavedPlaces() {
 
     if (isAuthenticated) {
       try {
-        const token = getToken()
+        const token = getAuthToken()
         const response = await fetch('/api/places/saved', {
           method: 'PATCH',
           headers: {

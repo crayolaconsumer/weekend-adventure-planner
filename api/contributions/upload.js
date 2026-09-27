@@ -30,6 +30,92 @@ async function getBlob() {
   return put
 }
 
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+// Read the body with a hard cap (Content-Length is client-controlled).
+async function readBody(req) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > MAX_UPLOAD_BYTES) return null
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
+}
+
+// Read the EXIF Orientation tag (0x0112) from an APP1 Exif payload.
+function readExifOrientation(payload) {
+  try {
+    if (payload.toString('latin1', 0, 6) !== 'Exif\0\0') return 1
+    const tiff = payload.subarray(6)
+    const le = tiff[0] === 0x49
+    const r16 = (o) => (le ? tiff.readUInt16LE(o) : tiff.readUInt16BE(o))
+    const ifd = le ? tiff.readUInt32LE(4) : tiff.readUInt32BE(4)
+    const count = r16(ifd)
+    for (let i = 0; i < count; i++) {
+      const entry = ifd + 2 + i * 12
+      if (r16(entry) === 0x0112) return r16(entry + 8)
+    }
+  } catch {
+    // Truncated or malformed EXIF: treat as no orientation
+  }
+  return 1
+}
+
+// Minimal APP1 Exif segment carrying only the Orientation tag, so phone
+// photos that rely on it still display upright after the strip.
+function orientationSegment(orientation) {
+  const seg = Buffer.alloc(36)
+  seg.writeUInt16BE(0xFFE1, 0)
+  seg.writeUInt16BE(34, 2)
+  seg.write('Exif\0\0', 4, 'latin1')
+  seg.write('MM', 10, 'latin1')
+  seg.writeUInt16BE(42, 12)
+  seg.writeUInt32BE(8, 14)
+  seg.writeUInt16BE(1, 18) // one IFD0 entry
+  seg.writeUInt16BE(0x0112, 20) // Orientation
+  seg.writeUInt16BE(3, 22) // SHORT
+  seg.writeUInt32BE(1, 24)
+  seg.writeUInt16BE(orientation, 28)
+  // bytes 30-35: value padding + next IFD offset 0
+  return seg
+}
+
+/**
+ * Drop APP1 (Exif/XMP, where GPS lives) and APP13 (IPTC) segments from a
+ * JPEG, keeping only the Orientation tag. Returns the input unchanged when it
+ * is not a JPEG, and null when it claims to be one but is malformed.
+ */
+export function stripJpegMetadata(buf) {
+  if (buf.length < 4 || buf[0] !== 0xFF || buf[1] !== 0xD8) return buf
+  const parts = [buf.subarray(0, 2)]
+  let keptOrientation = false
+  let pos = 2
+  while (pos + 4 <= buf.length) {
+    if (buf[pos] !== 0xFF) return null
+    const marker = buf[pos + 1]
+    if (marker === 0xFF) { pos++; continue } // fill byte
+    if (marker === 0xDA || marker === 0xD9) {
+      parts.push(buf.subarray(pos)) // start of scan / end: image data follows
+      return Buffer.concat(parts)
+    }
+    const end = pos + 2 + buf.readUInt16BE(pos + 2)
+    if (end > buf.length || end < pos + 4) return null
+    if (marker === 0xE1) {
+      const orientation = readExifOrientation(buf.subarray(pos + 4, end))
+      if (!keptOrientation && orientation > 1 && orientation <= 8) {
+        parts.push(orientationSegment(orientation))
+        keptOrientation = true
+      }
+    } else if (marker !== 0xED) {
+      parts.push(buf.subarray(pos, end))
+    }
+    pos = end
+  }
+  return null
+}
+
 export const config = {
   api: {
     bodyParser: false
@@ -96,7 +182,7 @@ async function handler(req, res) {
     if (!Number.isFinite(contentLength) || contentLength <= 0) {
       return res.status(400).json({ error: 'Missing or invalid Content-Length' })
     }
-    if (contentLength > 5 * 1024 * 1024) {
+    if (contentLength > MAX_UPLOAD_BYTES) {
       return res.status(400).json({ error: 'File too large. Maximum size is 5MB' })
     }
 
@@ -104,18 +190,21 @@ async function handler(req, res) {
     // the raw content-type string (which could be "image/../../etc.html").
     const filename = `contributions/${user.id}/${Date.now()}.${ext}`
 
-    // TODO(privacy): strip EXIF before storing. JPEG/HEIC from iOS contain
-    // GPS coordinates in metadata. Two options:
-    //   1. Server-side: install `sharp` and `sharp(buf).rotate().toBuffer()`
-    //      (which discards EXIF by default). Heavy cold-start hit on Vercel.
-    //   2. Client-side: pre-process the image through canvas.toBlob() before
-    //      upload — canvas strips EXIF naturally. Cheaper, but only effective
-    //      if every upload path goes through that helper.
-    // Until then, our privacy policy must disclose precise-location storage,
-    // and Apple's App Store data-collection disclosures must match.
+    // Photos are public: strip JPEG EXIF/XMP (GPS) server-side. Detected by
+    // magic bytes, not the client-controlled content-type.
+    // ponytail: JPEG only. PNG eXIf, WebP EXIF and HEIC metadata still pass
+    // through; add a parser (or sharp) if those formats show up with GPS.
+    const raw = await readBody(req)
+    if (!raw) {
+      return res.status(400).json({ error: 'File too large. Maximum size is 5MB' })
+    }
+    const body = stripJpegMetadata(raw)
+    if (!body) {
+      return res.status(400).json({ error: 'Invalid image file' })
+    }
 
     // Upload to Vercel Blob
-    const blob = await blobPut(filename, req, {
+    const blob = await blobPut(filename, body, {
       access: 'public',
       contentType
     })

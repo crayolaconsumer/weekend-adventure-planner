@@ -52,7 +52,7 @@ export default function PlaceReviews({ placeId }) {
 
   return (
     <div className="place-reviews">
-      <h4 className="place-reviews-title">Your Review</h4>
+      <h4 className="place-reviews-title">Your review</h4>
 
       <div className="place-review-card">
         {/* Header with recommendation and date */}

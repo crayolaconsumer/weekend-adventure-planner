@@ -18,6 +18,7 @@ import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import {
   fetchAllEvents,
   fetchMoreEvents,
+  eventsDateRange,
   getTodayEvents,
   getTomorrowEvents,
   getWeekendEvents,
@@ -57,8 +58,8 @@ export default function Events({ location }) {
   // Server-side pagination state
   const [hasMoreFromServer, setHasMoreFromServer] = useState(false)
   const [nextServerPage, setNextServerPage] = useState(0)
-  const [totalAvailable, setTotalAvailable] = useState(0)
   const loadMoreTimeoutRef = useRef(null)
+  const loadRequestRef = useRef(0)
   const [searchRadius, setSearchRadius] = useState(() => {
     const saved = localStorage.getItem('roam_events_radius')
     return saved ? parseInt(saved, 10) : 25
@@ -102,9 +103,13 @@ export default function Events({ location }) {
     }
 
     setLoading(true)
+    const requestId = ++loadRequestRef.current
 
     try {
-      const result = await fetchAllEvents(location.lat, location.lng, searchRadius)
+      // Date filters are sent to the server so they search every matching
+      // event, not just the first page of the default 4-week range
+      const result = await fetchAllEvents(location.lat, location.lng, searchRadius, { ...eventsDateRange(activeFilter) })
+      if (requestId !== loadRequestRef.current) return
       const fetchedEvents = result.events || result // Handle both new and old format
       setEvents(fetchedEvents)
       setCurrentIndex(0)
@@ -113,7 +118,6 @@ export default function Events({ location }) {
       // Update server-side pagination state
       setHasMoreFromServer(result.hasMore || false)
       setNextServerPage(result.currentPage || 3) // Default to page 3 since we fetched 0,1,2
-      setTotalAvailable(result.totalAvailable || fetchedEvents.length)
 
       // Track which sources returned data
       const sources = [...new Set(fetchedEvents.map(e => e.source))]
@@ -123,9 +127,9 @@ export default function Events({ location }) {
       })
     } catch (err) {
       console.error('Failed to load events:', err)
-      setApiStatus({ hasEvents: false, sources: [] })
+      if (requestId === loadRequestRef.current) setApiStatus({ hasEvents: false, sources: [] })
     } finally {
-      setLoading(false)
+      if (requestId === loadRequestRef.current) setLoading(false)
     }
   }
 
@@ -145,7 +149,8 @@ export default function Events({ location }) {
           location.lng,
           searchRadius,
           nextServerPage,
-          3 // Fetch 3 more pages
+          3, // Fetch 3 more pages
+          eventsDateRange(activeFilter)
         )
 
         if (result.events && result.events.length > 0) {
@@ -157,7 +162,6 @@ export default function Events({ location }) {
           })
           setHasMoreFromServer(result.hasMore)
           setNextServerPage(result.currentPage)
-          setTotalAvailable(result.totalAvailable)
         }
       } catch (err) {
         console.error('Failed to load more events:', err)
@@ -167,7 +171,7 @@ export default function Events({ location }) {
     // Always increase display limit
     setDisplayLimit(prev => prev + EVENTS_PAGE_SIZE)
     setLoadingMore(false)
-  }, [loadingMore, events.length, displayLimit, hasMoreFromServer, location?.lat, location?.lng, searchRadius, nextServerPage])
+  }, [loadingMore, events.length, displayLimit, hasMoreFromServer, location?.lat, location?.lng, searchRadius, nextServerPage, activeFilter])
 
   // Clean up timeout on unmount. Captures the ref into a local var
   // because the lint rule (and reality) is right that `ref.current`
@@ -182,11 +186,11 @@ export default function Events({ location }) {
     }
   }, [])
 
-  // Fetch events when location or radius changes
+  // Fetch events when location, radius or time filter changes
   useEffect(() => {
     loadEvents()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadEvents causes infinite loop if added
-  }, [location?.lat, location?.lng, searchRadius])
+  }, [location?.lat, location?.lng, searchRadius, activeFilter])
 
   // Persist radius to localStorage
   useEffect(() => {
@@ -383,10 +387,10 @@ export default function Events({ location }) {
           <div className="events-title-section">
             <CalendarIcon />
             <div>
-              <h1 className="page-title">What's On</h1>
+              <h1 className="page-title">What's on</h1>
               <p className="events-subtitle">
                 {apiStatus.hasEvents
-                  ? `${filteredEvents.length} events${totalAvailable > events.length ? ` (${totalAvailable.toLocaleString()} available)` : ' near you'}`
+                  ? `${filteredEvents.length} events near you`
                   : 'Local events near you'
                 }
               </p>
@@ -458,18 +462,6 @@ export default function Events({ location }) {
                 <span className="events-saved-badge">{savedCount}</span>
               )}
             </Link>
-            {events.length > 0 && (
-              <motion.button
-                className="events-toolbar-btn"
-                onClick={loadEvents}
-                disabled={loading}
-                aria-label="Refresh events"
-                animate={loading ? { rotate: 360 } : { rotate: 0 }}
-                transition={loading ? { duration: 1, repeat: Infinity, ease: 'linear' } : { duration: 0 }}
-              >
-                <RefreshIcon />
-              </motion.button>
-            )}
           </div>
         </div>
       </header>
@@ -528,7 +520,7 @@ export default function Events({ location }) {
                   transition={{ delay: 0.05 }}
                 >
                   <div className="events-filter-section-header">
-                    <span className="events-filter-section-title">Search Radius</span>
+                    <span className="events-filter-section-title">Search radius</span>
                     <span className="events-filter-section-value">{searchRadius}km</span>
                   </div>
                   <div className="events-filter-section-content">
@@ -604,7 +596,7 @@ export default function Events({ location }) {
                   transition={{ delay: 0.15 }}
                 >
                   <div className="events-filter-section-header">
-                    <span className="events-filter-section-title">Price Range</span>
+                    <span className="events-filter-section-title">Price range</span>
                   </div>
                   <div className="events-filter-section-content">
                     <div className="events-price-grid">
@@ -633,7 +625,7 @@ export default function Events({ location }) {
                   transition={{ delay: 0.18 }}
                 >
                   <div className="events-filter-section-header">
-                    <span className="events-filter-section-title">Sort By</span>
+                    <span className="events-filter-section-title">Sort by</span>
                   </div>
                   <div className="events-filter-section-content">
                     <div className="events-sort-grid">
@@ -804,7 +796,7 @@ export default function Events({ location }) {
                       setCurrentIndex(0)
                     }}
                   >
-                    Start Over
+                    Start over
                   </button>
                   <button
                     className="events-refresh-btn-large"
@@ -899,19 +891,16 @@ export default function Events({ location }) {
                   disabled={loadingMore}
                 >
                   {loadingMore ? 'Loading...' : hasMoreToLoad
-                    ? `Load More (${allFilteredEvents.length - filteredEvents.length} remaining)`
+                    ? `Load more (${allFilteredEvents.length - filteredEvents.length} remaining)`
                     : hasMoreFromServer
-                      ? `Load More Events (${totalAvailable.toLocaleString()} available)`
-                      : 'Load More'
+                      ? 'Load more events'
+                      : 'Load more'
                   }
                 </button>
               </div>
             )}
             <p className="events-grid-count">
               Showing {filteredEvents.length} of {allFilteredEvents.length} events
-              {hasMoreFromServer && totalAvailable > 0 && (
-                <span className="events-total-available"> ({totalAvailable.toLocaleString()} available)</span>
-              )}
             </p>
           </div>
         )}

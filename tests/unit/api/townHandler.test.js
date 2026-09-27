@@ -77,6 +77,17 @@ describe('api/town — web pages', () => {
     expect(f).not.toHaveBeenCalled()
   })
 
+  it('world cities come from the shipped world table: no geocoder call, no redirect', async () => {
+    const f = vi.fn()
+    const h = createHandler({ proxy: proxy(), fetchImpl: f, gate, ticketmaster: noEvents })
+    for (const [slug, name] of [['paris', 'Paris'], ['london-ontario', 'London'], ['new-york', 'New York']]) {
+      const res = await run(h, { slug })
+      expect(res.statusCode, slug).toBe(200)
+      expect(res.body).toContain(`<h1>${name}</h1>`)
+    }
+    expect(f).not.toHaveBeenCalled()
+  })
+
   it('lists this weekend\'s events end to end, from the Ticketmaster proxy\'s real response shape (regression)', async () => {
     const { from } = weekendWindow(new Date())
     const ticketmaster = vi.fn(async (req, res) => res.status(200).json({
@@ -96,6 +107,18 @@ describe('api/town — web pages', () => {
     const res = await run(h, { slug: 'hatfield' })
     expect(res.statusCode).toBe(200)
     expect(res.headers['cache-control']).toBe('public, s-maxage=10800, stale-while-revalidate=3600')
+  })
+
+  it('search crawlers never spend Ticketmaster quota; people still get events', async () => {
+    const ticketmaster = vi.fn(async (req, res) => res.status(200).json({ events: [] }))
+    const h = createHandler({ proxy: px, fetchImpl, gate, ticketmaster })
+    for (const ua of ['Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'Mozilla/5.0 (compatible; bingbot/2.0)', 'GPTBot/1.1', 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0)', 'Mozilla/5.0 (compatible; YandexBot/3.0)', 'Mozilla/5.0 (compatible; YandexImages; +http://yandex.com/bots)', 'Mozilla/5.0 (Macintosh) Safari/605.1.15 (Applebot; +http://www.apple.com/go/applebot)']) {
+      const res = await run(h, { slug: 'hatfield' }, { 'user-agent': ua })
+      expect(res.statusCode, ua).toBe(200)
+    }
+    expect(ticketmaster).not.toHaveBeenCalled()
+    await run(h, { slug: 'hatfield' }, { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1' })
+    expect(ticketmaster).toHaveBeenCalledTimes(1)
   })
 
   it('passes the visitor IP to the proxy so its per-IP rate limit still applies', async () => {
@@ -142,8 +165,8 @@ describe('api/town — web pages', () => {
 
   it('503s (uncached, noindex, says so) when the geocoder is down', async () => {
     handler = createHandler({ proxy: px, fetchImpl: nominatim({ down: true }), gate })
-    // a town outside the shipped UK table, so it needs the geocoder
-    const res = await run(handler, { slug: 'lyon' })
+    // a town outside the shipped UK and world tables, so it needs the geocoder
+    const res = await run(handler, { slug: 'rennes' })
     expect(res.statusCode).toBe(503)
     expect(res.headers['cache-control']).toBe('no-store')
     expect(res.body).toContain('Town search is busy')
@@ -170,10 +193,10 @@ describe('api/town — web pages', () => {
 
   it('falls back to the requested URL if the canonical check fails, instead of 503', async () => {
     let calls = 0
-    // towns outside the shipped UK table, so both lookups go to the geocoder
-    const f = vi.fn(async () => (++calls === 1 ? jsonResponse([{ name: 'Saint-Tropez', lat: '43.27', lon: '6.64', address: {} }]) : { ok: false, status: 503 }))
+    // towns outside the shipped UK and world tables, so both lookups go to the geocoder
+    const f = vi.fn(async () => (++calls === 1 ? jsonResponse([{ name: 'Sainte-Maxime', lat: '43.31', lon: '6.64', address: {} }]) : { ok: false, status: 503 }))
     const h = createHandler({ proxy: proxy(), fetchImpl: f, gate })
-    const res = await run(h, { slug: 'st-tropez-var' })
+    const res = await run(h, { slug: 'ste-maxime-var' })
     expect(res.statusCode).toBe(200)
   })
 

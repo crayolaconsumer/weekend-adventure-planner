@@ -71,7 +71,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
           {...dismissDrag}
         >
           <div className="contribution-prompt-header">
-            <h2>Share Your Experience</h2>
+            <h2>Share your experience</h2>
           </div>
 
           <p className="contribution-prompt-description">
@@ -80,7 +80,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
 
           <div className="contribution-prompt-actions">
             <button className="contribution-btn-skip" onClick={onClose}>
-              Maybe Later
+              Maybe later
             </button>
             <button
               className="contribution-btn-primary"
@@ -90,7 +90,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
                 window.dispatchEvent(new CustomEvent('openAuthModal', { detail: { mode: 'register' } }))
               }}
             >
-              Sign Up Free
+              Sign up free
             </button>
           </div>
         </motion.div>
@@ -129,7 +129,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
           <textarea
             id="contribution-input"
             className={`contribution-prompt-input ${isOverLimit ? 'error' : ''}`}
-            placeholder="Share a tip, favorite dish, best time to visit, or what surprised you..."
+            placeholder="Share a tip, favourite dish, best time to visit, or what surprised you..."
             value={content}
             onChange={e => setContent(e.target.value)}
             maxLength={MAX_CHARS + 50} // Allow typing over to show error
@@ -167,7 +167,7 @@ export default function ContributionPrompt({ place, onClose, onSuccess }) {
             {loading ? (
               <span className="contribution-loading-spinner" />
             ) : (
-              'Share Tip'
+              'Share tip'
             )}
           </button>
         </div>

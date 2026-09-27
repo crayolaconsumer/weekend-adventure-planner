@@ -14,7 +14,7 @@ export default function MonthlyTrends({ places }) {
   if (totalVisits === 0) {
     return (
       <div className="stats-card monthly-trends empty">
-        <h3 className="stats-card-title">Monthly Activity</h3>
+        <h3 className="stats-card-title">Monthly activity</h3>
         <p className="stats-empty">Your activity history will appear here</p>
       </div>
     )
@@ -26,7 +26,7 @@ export default function MonthlyTrends({ places }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      <h3 className="stats-card-title">Monthly Activity</h3>
+      <h3 className="stats-card-title">Monthly activity</h3>
 
       <div className="monthly-chart">
         <div className="monthly-bars">

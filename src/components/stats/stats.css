@@ -22,8 +22,6 @@
   font-weight: 600;
   color: var(--roam-ink-muted);
   margin: 0 0 var(--space-md);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .stats-empty {
@@ -82,8 +80,6 @@
 .donut-label {
   font-size: 0.625rem;
   color: var(--roam-ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   margin-top: 2px;
 }
 
@@ -161,8 +157,8 @@
 }
 
 .distance-stat-item.primary .distance-stat-icon {
-  background: var(--roam-forest);
-  color: var(--roam-cream);
+  background: #1a3a2f;
+  color: #ffffff;
 }
 
 .distance-stat-item.primary .distance-stat-value {
@@ -197,8 +193,6 @@
 .distance-stat-label {
   font-size: var(--text-xs);
   color: var(--roam-ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -256,8 +250,6 @@
   transform: translateX(-50%);
   font-size: 0.6875rem;
   color: var(--roam-ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   font-weight: 500;
 }
 

@@ -437,22 +437,22 @@ function NotificationItem({ notification, onClose }) {
       case 'follow':
         return {
           link: notification.actor?.username ? `/user/${notification.actor.username}` : null,
-          actionText: 'View Profile'
+          actionText: 'View profile'
         }
       case 'follow_request_approved':
         return {
           link: notification.actor?.username ? `/user/${notification.actor.username}` : null,
-          actionText: 'View Profile'
+          actionText: 'View profile'
         }
       case 'contribution_upvote':
         return {
           link: notification.referenceId ? `/place/${notification.referenceId}` : null,
-          actionText: 'See Place'
+          actionText: 'See place'
         }
       case 'plan_shared':
         return {
           link: notification.referenceId ? `/plan/share/${notification.referenceId}` : null,
-          actionText: 'View Plan'
+          actionText: 'View plan'
         }
       default:
         return { link: null, actionText: null }

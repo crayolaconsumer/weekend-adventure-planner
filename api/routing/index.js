@@ -9,6 +9,7 @@
 import { validateCoordinates } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { haversineKm } from '../../shared/geo.mjs'
 
 const ORS_BASE_URL = 'https://api.openrouteservice.org/v2/directions'
 
@@ -25,25 +26,10 @@ const FALLBACK_SPEEDS = {
 }
 
 /**
- * Calculate distance between two points (Haversine formula)
- */
-function calcDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371 // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLng = (lng2 - lng1) * Math.PI / 180
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
-
-/**
  * Calculate fallback travel time based on distance
  */
 function calculateFallback(from, to, mode) {
-  const distance = calcDistance(from.lat, from.lng, to.lat, to.lng)
+  const distance = haversineKm(from.lat, from.lng, to.lat, to.lng)
   const speed = FALLBACK_SPEEDS[mode] || FALLBACK_SPEEDS.walk
   const duration = Math.round((distance / speed) * 60)
 

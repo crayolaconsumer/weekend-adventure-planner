@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { isNative } from '../utils/nativeBridge'
 import { isPremiumUser, isAdFree } from '../utils/adEligibility'
+import { getAuthToken } from '../utils/authToken'
 
 /**
  * Hook for managing user subscription state and premium features
@@ -12,11 +13,6 @@ export function useSubscription() {
   const { user, checkAuth } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-
-  // Get stored auth token (same logic as AuthContext)
-  const getStoredToken = () => {
-    return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  }
 
   // Determine if user has premium access
   const isPremium = useMemo(() => isPremiumUser(user), [user])
@@ -69,7 +65,7 @@ export function useSubscription() {
     setError(null)
 
     try {
-      const token = getStoredToken()
+      const token = getAuthToken()
       const response = await fetch('/api/payments/create-checkout', {
         method: 'POST',
         headers: {
@@ -120,7 +116,7 @@ export function useSubscription() {
     setError(null)
 
     try {
-      const token = getStoredToken()
+      const token = getAuthToken()
       const response = await fetch('/api/payments/create-portal', {
         method: 'POST',
         headers: {

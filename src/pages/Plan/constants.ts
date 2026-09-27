@@ -37,8 +37,8 @@ export const VIBES: Vibe[] = [
 
 export const DURATIONS: Duration[] = [
   { hours: 2, label: '2h', stops: 2 },
-  { hours: 4, label: 'Half Day', stops: 3 },
-  { hours: 6, label: 'Full Day', stops: 4 },
+  { hours: 4, label: 'Half day', stops: 3 },
+  { hours: 6, label: 'Full day', stops: 4 },
   { hours: 8, label: 'Epic', stops: 5 },
 ]
 
@@ -52,6 +52,6 @@ export const RADIUS_OPTIONS: RadiusOption[] = [
   { key: 'nearby', label: 'Nearby', radius: 5000, description: '5km' },
   { key: 'local', label: 'Local', radius: 10000, description: '10km' },
   { key: 'area', label: 'Area', radius: 25000, description: '25km' },
-  { key: 'daytrip', label: 'Day Trip', radius: 50000, description: '50km' },
+  { key: 'daytrip', label: 'Day trip', radius: 50000, description: '50km' },
 ]
 

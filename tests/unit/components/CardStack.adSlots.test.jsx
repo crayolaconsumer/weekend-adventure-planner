@@ -56,7 +56,6 @@ vi.mock('../../../src/utils/apiClient', () => ({ enrichPlace: () => Promise.reso
 vi.mock('../../../src/utils/placeImage', () => ({ resolvePlaceImageWithMeta: () => Promise.resolve(null) }))
 vi.mock('../../../src/utils/imageCache', () => ({ fetchAndCacheImage: () => Promise.resolve(null) }))
 vi.mock('../../../src/utils/navigation', () => ({ openDirections: (...a) => openDirections(...a) }))
-vi.mock('../../../src/utils/apiProtection', () => ({ getCircuitStatus: () => ({ state: 'closed' }) }))
 vi.mock('../../../src/utils/analytics', () => ({ track: (...a) => track(...a) }))
 vi.mock('../../../src/utils/nativeBridge', () => ({ isNative: () => state.native, getPlatform: () => (state.native ? 'ios' : 'web') }))
 vi.mock('../../../src/utils/nativeAd', () => ({

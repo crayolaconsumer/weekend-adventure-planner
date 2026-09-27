@@ -117,7 +117,8 @@ describe('townFromResult', () => {
 describe('resolveTown', () => {
   it('asks Nominatim for a settlement with the slug words', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse([PARIS]))
-    const town = await resolveTown('paris', { fetchImpl, gate })
+    // Not a shipped slug (paris itself now comes from shared/worldTowns.mjs)
+    const town = await resolveTown('paris-texas', { fetchImpl, gate })
     expect(town.name).toBe('Paris')
     const url = fetchImpl.mock.calls[0][0]
     expect(url).toContain('/search?q=paris')
@@ -128,7 +129,7 @@ describe('resolveTown', () => {
     expect(await resolveTown('asdfqwer', { fetchImpl: async () => jsonResponse([]), gate })).toBe(null)
   })
   it('throws on geocoder errors so they are not cached as "not found"', async () => {
-    await expect(resolveTown('paris', { fetchImpl: async () => ({ ok: false, status: 503 }), gate })).rejects.toThrow(/503/)
+    await expect(resolveTown('paris-texas', { fetchImpl: async () => ({ ok: false, status: 503 }), gate })).rejects.toThrow(/503/)
   })
 })
 
@@ -149,7 +150,7 @@ describe('bad geocoder results', () => {
     expect(townFromResult('york', { name: 'York', lat: '53.96', lon: '-1.07', addresstype: 'county' })).not.toBe(null)
   })
   it('treats a non-array response as no match', async () => {
-    expect(await resolveTown('paris', { fetchImpl: async () => jsonResponse({ error: 'x' }), gate })).toBe(null)
+    expect(await resolveTown('paris-texas', { fetchImpl: async () => jsonResponse({ error: 'x' }), gate })).toBe(null)
   })
 })
 
@@ -469,5 +470,128 @@ describe('escapeHtml', () => {
   it('escapes the five characters that matter', () => {
     expect(escapeHtml(`<a href="x">&'`)).toBe('&lt;a href=&quot;x&quot;&gt;&amp;\'')
     expect(escapeHtml(null)).toBe('')
+  })
+})
+
+describe('nearby towns (internal links so every town page is reachable)', () => {
+  it('links a town to its closest neighbours, nearest first, never itself', async () => {
+    const { nearbyTowns, renderTownPage } = await import('../../../api/lib/towns.js')
+    const { UK_TOWNS } = await import('../../../shared/ukTowns.mjs')
+    const york = UK_TOWNS.find(t => t.slug === 'york')
+    const near = nearbyTowns(york)
+    expect(near).toHaveLength(8)
+    expect(near.map(t => t.slug)).not.toContain('york')
+    expect(near.every(t => t.countryCode === 'gb')).toBe(true)
+    // Leeds is ~35km from York; Penzance is not a neighbour
+    expect(near.map(t => t.slug)).not.toContain('penzance')
+    const html = renderTownPage(york, { groups: [], total: 0 }, [])
+    expect(html).toContain('<h2>Nearby towns</h2>')
+    expect(html).toContain(`href="/town/${near[0].slug}"`)
+  })
+
+  it('renders no section for a town without coordinates', async () => {
+    const { nearbyTowns } = await import('../../../api/lib/towns.js')
+    expect(nearbyTowns({ slug: 'x', name: 'X' })).toEqual([])
+  })
+})
+
+describe('world towns (shared/worldTowns.mjs)', () => {
+  it('every record is a canonical, valid slug that never shadows a UK town', async () => {
+    const { WORLD_TOWNS } = await import('../../../shared/worldTowns.mjs')
+    const { UK_TOWN_SLUGS } = await import('../../../shared/ukTowns.mjs')
+    const uk = new Set(UK_TOWN_SLUGS)
+    expect(WORLD_TOWNS.length).toBeGreaterThan(300)
+    expect(new Set(WORLD_TOWNS.map(t => t.slug)).size).toBe(WORLD_TOWNS.length)
+    for (const t of WORLD_TOWNS) {
+      expect(uk.has(t.slug), t.slug).toBe(false)
+      expect(isValidSlug(t.slug), t.slug).toBe(true)
+      // api/town.js canonicalSlug keeps these as-is, so it never calls the geocoder for them
+      const base = slugify(t.name)
+      expect(t.slug === base || t.slug.startsWith(`${base}-`), t.slug).toBe(true)
+      expect(t.countryCode).toMatch(/^[a-z]{2}$/)
+      expect(t.countryCode).not.toBe('gb')
+      expect(Math.abs(t.lat) <= 90 && Math.abs(t.lng) <= 180, t.slug).toBe(true)
+    }
+    // A UK town that owns the bare slug keeps it; the world city is qualified
+    expect(WORLD_TOWNS.find(t => t.slug === 'london-ontario')?.countryCode).toBe('ca')
+    expect(WORLD_TOWNS.find(t => t.slug === 'hamilton-new-zealand')?.countryCode).toBe('nz')
+    // Bare "newcastle" means Newcastle upon Tyne to UK searchers; the table must not take it
+    expect(WORLD_TOWNS.find(t => t.slug === 'newcastle')).toBeUndefined()
+  })
+
+  it('a world slug resolves from the shipped table without calling the geocoder', async () => {
+    const fetchImpl = vi.fn()
+    const paris = await resolveTown('paris', { fetchImpl, gate })
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(paris).toMatchObject({ slug: 'paris', name: 'Paris', countryCode: 'fr', blurb: null })
+    expect(distanceKm(paris, { lat: 48.8566, lng: 2.3522 })).toBeLessThan(5)
+    // The UK table still wins its own slugs
+    expect((await resolveTown('london', { fetchImpl, gate })).countryCode).toBe('gb')
+    // Scotland's Perth was already qualified (bare "perth" geocodes to Australia), so the world table takes it
+    expect((await resolveTown('perth-perth-and-kinross', { fetchImpl, gate })).countryCode).toBe('gb')
+    expect((await resolveTown('perth', { fetchImpl, gate })).countryCode).toBe('au')
+  })
+
+  it('a world city links to neighbours in its own country', async () => {
+    const { nearbyTowns } = await import('../../../api/lib/towns.js')
+    const sydney = await resolveTown('sydney', { fetchImpl: vi.fn(), gate })
+    const near = nearbyTowns(sydney)
+    // Within 300km: Newcastle and Canberra, never Melbourne (710km)
+    expect(near.map(t => t.slug)).toEqual(['newcastle-australia', 'canberra'])
+    expect(near.every(t => t.countryCode === 'au')).toBe(true)
+    expect(near.map(t => t.slug)).not.toContain('sydney')
+    expect(near[0].slug).toBe('newcastle-australia')
+  })
+
+  it('a city with no shipped compatriot falls back to world cities within 300km', async () => {
+    const { nearbyTowns } = await import('../../../api/lib/towns.js')
+    const monaco = await resolveTown('monaco', { fetchImpl: vi.fn(), gate })
+    const near = nearbyTowns(monaco)
+    expect(near.map(t => t.slug)).toContain('nice')
+    for (const t of near) expect(distanceKm(monaco, t)).toBeLessThanOrEqual(300)
+    // Nothing shipped within 300km of the middle of the Pacific
+    expect(nearbyTowns({ slug: 'x', countryCode: 'ki', lat: 1.87, lng: -157.4 })).toEqual([])
+  })
+
+  it('never calls a city 1,000km away "nearby" (regression: Hong Kong linked to Beijing)', async () => {
+    const { nearbyTowns } = await import('../../../api/lib/towns.js')
+    const hk = await resolveTown('hong-kong', { fetchImpl: vi.fn(), gate })
+    expect(hk).toMatchObject({ countryCode: 'hk', country: 'Hong Kong' })
+    expect(nearbyTowns(hk)).toEqual([])
+    const denver = await resolveTown('denver', { fetchImpl: vi.fn(), gate })
+    for (const t of nearbyTowns(denver)) expect(distanceKm(denver, t), t.slug).toBeLessThanOrEqual(300)
+  })
+
+  it('a world city sharing a UK town\'s name points UK visitors at theirs (regression: bare perth now opens Australia)', async () => {
+    const perth = await resolveTown('perth', { fetchImpl: vi.fn(), gate })
+    expect(perth.countryCode).toBe('au')
+    const html = renderTownPage(perth, { groups: [], total: 0 }, [])
+    expect(html).toContain('<p class="where">Looking for <a href="/town/perth-perth-and-kinross">Perth, Perth and Kinross</a>?</p>')
+    // Only on world pages, and only for a real namesake
+    expect(renderTownPage(await resolveTown('perth-perth-and-kinross', { fetchImpl: vi.fn(), gate }), { groups: [], total: 0 }, [])).not.toContain('Looking for')
+    expect(renderTownPage(await resolveTown('sydney', { fetchImpl: vi.fn(), gate }), { groups: [], total: 0 }, [])).not.toContain('Looking for')
+  })
+
+  it('world pages say nothing UK-specific', async () => {
+    const tokyo = await resolveTown('tokyo', { fetchImpl: vi.fn(), gate })
+    const grouped = groupPlaces([{ type: 'node', id: 1, lat: tokyo.lat, lon: tokyo.lng, tags: { name: 'Ueno Park', leisure: 'park' } }])
+    const html = renderTownPage(tokyo, grouped, [])
+    expect(html).toContain('<title>Things to do in Tokyo: best places for a weekend | ROAM</title>')
+    expect(describeTown(tokyo, grouped)).toBe('1 park or green space in Tokyo.')
+    const text = html.replace(/<[^>]+>/g, ' ')
+    // The "Popular towns" chips are UK towns by name; everything else must be place-neutral
+    const beforePopular = text.slice(0, text.indexOf('Popular towns'))
+    expect(beforePopular).not.toMatch(/\bUK\b|United Kingdom|England|Britain/)
+  })
+
+  it('the hub lists ~24 headline world cities under "Around the world"', async () => {
+    const { WORLD_HEADLINE_SLUGS } = await import('../../../api/lib/towns.js')
+    const html = renderHub()
+    const section = html.slice(html.indexOf('<h2>Around the world</h2>'), html.indexOf('<section class="get">'))
+    expect(html.indexOf('<h2>Popular towns</h2>')).toBeLessThan(html.indexOf('<h2>Around the world</h2>'))
+    const links = [...section.matchAll(/href="\/town\/([^"]+)"/g)].map(m => m[1])
+    // Every headline slug is a shipped world town (a typo would silently drop a chip)
+    expect(links).toEqual(WORLD_HEADLINE_SLUGS)
+    expect(links).toHaveLength(24)
   })
 })

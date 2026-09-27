@@ -267,7 +267,7 @@ button:focus-visible {
   position: absolute;
   top: -40px;
   left: 0;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   padding: var(--space-sm) var(--space-md);
   z-index: 9999;
@@ -331,8 +331,6 @@ p {
   font-family: var(--font-body);
   font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
@@ -379,18 +377,24 @@ p {
   align-items: center;
   justify-content: center;
   gap: var(--space-sm);
-  padding: var(--space-md) var(--space-xl);
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-lg);
   font-family: var(--font-body);
   font-size: var(--text-sm);
-  font-weight: 500;
-  line-height: 1;
+  font-weight: 600;
+  line-height: 1.2;
   text-decoration: none;
-  border: none;
+  text-align: center;
+  border: 1.5px solid transparent;
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out-expo);
+  transition: background-color var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.btn svg {
+  flex-shrink: 0;
 }
 
 .btn:active {
@@ -398,61 +402,61 @@ p {
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--roam-forest);
+  outline: 2px solid var(--roam-gold);
   outline-offset: 2px;
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary: literal forest under white text in both themes, because
+   --roam-forest lightens in dark mode and white on it fails contrast
+   (2.8:1). The dark-theme border keeps the pill visible on the dark page. */
 .btn-primary {
-  background: var(--roam-forest);
-  color: var(--roam-cream);
-  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,0.1);
+  background: #1a3a2f;
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
-  background: var(--roam-forest-light);
-  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.1);
-  transform: translateY(-1px);
+  background: #2d5246;
+}
+
+[data-theme="dark"] .btn-primary {
+  border-color: var(--roam-forest);
+}
+
+.btn-secondary {
+  background: var(--color-surface-elevated);
+  color: var(--roam-forest);
+  border-color: var(--roam-parchment-dark);
+}
+
+.btn-secondary:hover {
+  background: var(--roam-paper);
+  border-color: var(--roam-forest);
 }
 
 .btn-accent {
   background: var(--roam-terracotta);
-  color: white;
-  box-shadow: var(--shadow-md);
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-accent:hover {
-  background: var(--roam-terracotta-light);
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-1px);
+  background: var(--roam-terracotta-dark);
 }
 
-.btn-ghost {
-  background: transparent;
-  color: var(--color-text-primary);
-  border: 1.5px solid var(--roam-stone);
-}
-
-.btn-ghost:hover {
-  background: var(--roam-paper);
-  border-color: var(--roam-ink-muted);
-}
-
-.btn-icon {
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  border-radius: var(--radius-full);
+.btn-block {
+  width: 100%;
 }
 
 .btn-lg {
-  padding: var(--space-lg) var(--space-2xl);
+  min-height: 52px;
+  padding: var(--space-md) var(--space-xl);
   font-size: var(--text-base);
-}
-
-.btn-huge {
-  padding: var(--space-xl) var(--space-3xl);
-  font-size: var(--text-lg);
-  font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -534,6 +538,23 @@ p {
    showing, so dismissed/granted states get their space back. */
 body.has-location-banner main {
   padding-top: 64px;
+}
+
+/* Desktop: the nav bar is fixed at the top too, so the banner covered it and
+   swallowed its clicks. Give the banner a fixed height and sit the nav (and
+   the page) below it. */
+@media (min-width: 1024px) {
+  .location-banner {
+    height: 48px;
+  }
+
+  body.has-location-banner .nav-bar {
+    top: 48px;
+  }
+
+  body.has-location-banner main {
+    padding-top: 48px;
+  }
 }
 
 .location-banner svg {
@@ -658,9 +679,13 @@ body.has-location-banner main {
 }
 
 .chip.selected {
-  background: var(--roam-forest);
+  background: #1a3a2f;
+  border-color: #1a3a2f;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .chip.selected {
   border-color: var(--roam-forest);
-  color: white;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -696,8 +721,6 @@ body.has-location-banner main {
   font-size: var(--text-xs);
   font-weight: 500;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   margin-top: var(--space-xs);
 }
 
@@ -835,7 +858,7 @@ body.has-location-banner main {
 
 .card-action-btn.go:hover {
   background: var(--roam-gold);
-  color: white;
+  color: #1a3a2f;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -956,17 +979,77 @@ body.has-location-banner main {
   }
 }
 
+/* Brand lockup in the nav: desktop only */
+.nav-brand {
+  display: none;
+}
+
+/* Desktop: a compact website header (compass + wordmark on the left, text
+   links on the right) inside the same 1100px column as the content,
+   instead of the phone tab bar stretched across the screen. */
 @media (min-width: 1024px) {
   .nav-bar {
     top: 0;
     bottom: auto;
+    height: 64px;
+    justify-content: flex-start;
+    gap: var(--space-xs);
+    padding: 0 max(var(--space-lg), calc((100vw - 1100px) / 2));
     border-top: none;
     border-bottom: 1px solid var(--roam-parchment);
-    box-shadow: 0 4px 20px rgba(44, 40, 36, 0.08);
+    box-shadow: none;
+  }
+
+  .nav-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: auto;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    font-weight: 400;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--roam-forest);
+    text-decoration: none;
+  }
+
+  .nav-brand img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .nav-item {
+    flex-direction: row;
+    gap: var(--space-sm);
+    min-height: 40px;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .nav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-item.active svg {
+    transform: none;
+  }
+
+  .nav-item:hover {
+    background: var(--roam-paper);
+  }
+
+  .nav-item.active {
+    background: color-mix(in srgb, var(--roam-forest) 10%, transparent);
+    color: var(--roam-forest);
+    font-weight: 600;
   }
 
   .page {
-    padding-top: 80px;
+    padding-top: 64px;
     padding-bottom: var(--space-xl);
   }
 }

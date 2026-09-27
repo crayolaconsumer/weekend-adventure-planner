@@ -19,7 +19,7 @@ import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { useSubscription } from '../hooks/useSubscription'
 import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
-import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, cancelOverpassRequest, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
+import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
 import { filterPlaces, enhancePlace } from '../utils/placeFilter'
 import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
@@ -76,8 +76,12 @@ export default function Discover({ location }) {
   const [weather, setWeather] = useState(null)
   const [selectedCategories, setSelectedCategories] = useState(() => {
     // Load saved interests from onboarding
-    const saved = localStorage.getItem('roam_interests')
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = JSON.parse(localStorage.getItem('roam_interests') || '[]')
+      return Array.isArray(saved) ? saved : []
+    } catch {
+      return []
+    }
   })
 
   const [showFilterModal, setShowFilterModal] = useState(false)
@@ -585,9 +589,6 @@ export default function Discover({ location }) {
       return newSelection
     })
 
-    // Cancel any pending API request from previous toggle
-    cancelOverpassRequest()
-
     // Debounce the API call - wait for user to finish toggling
     clearTimeout(categoryDebounceRef.current)
     categoryDebounceRef.current = setTimeout(() => {
@@ -679,27 +680,11 @@ export default function Discover({ location }) {
 
     // Track negative signals for "not interested" personalization
     if (action === 'nope') {
-      // Sync to API when authenticated
-      recordSwipe(place.id, 'skip')
-
-      const notInterested = JSON.parse(localStorage.getItem('roam_not_interested') || '[]')
-      const categoryKey = place.category?.key || place.categoryKey
-      const placeType = place.type
-
-      // Track the skip with timestamp (keep last 50)
-      notInterested.push({
-        placeId: place.id,
-        categoryKey,
-        placeType,
-        timestamp: Date.now()
+      // Stores the skip locally (capped) and syncs to API when authenticated
+      recordSwipe(place.id, 'skip', {
+        categoryKey: place.category?.key || place.categoryKey,
+        placeType: place.type
       })
-
-      // Keep only last 50 to avoid localStorage bloat
-      if (notInterested.length > 50) {
-        notInterested.shift()
-      }
-
-      localStorage.setItem('roam_not_interested', JSON.stringify(notInterested))
     }
 
     // Sync likes to API when authenticated
@@ -775,13 +760,13 @@ export default function Discover({ location }) {
                 className="discover-error-retry"
                 onClick={handleRetryLocation}
               >
-                Retry Location
+                Retry location
               </button>
               <button
                 className="discover-error-settings"
                 onClick={handleUseDefaultLocation}
               >
-                Use Default Location
+                Use default location
               </button>
             </div>
           </div>

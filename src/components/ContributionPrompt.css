@@ -107,7 +107,7 @@
 }
 
 .contribution-char-count.warning {
-  color: var(--roam-gold);
+  color: var(--roam-forest);
 }
 
 .contribution-char-count.error {
@@ -155,7 +155,7 @@
   justify-content: center;
   gap: var(--space-sm);
   padding: var(--space-md) var(--space-lg);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: var(--radius-full);
   color: white;
@@ -166,7 +166,7 @@
 }
 
 .contribution-btn-primary:hover:not(:disabled) {
-  background: var(--roam-forest-light);
+  background: #2d5246;
 }
 
 .contribution-btn-primary:disabled {

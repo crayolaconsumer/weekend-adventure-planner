@@ -259,6 +259,17 @@ async function handleGet(req, res) {
     }
   }
 
+  // Anonymous views are the same for everyone, so the CDN can absorb them.
+  // Signed-in views carry the viewer's votes and pending posts: never shared.
+  // Vary keeps a cached anonymous copy from being served to a request that
+  // carries a token (Bearer on native, roam_token cookie on web).
+  if (currentUser) {
+    res.setHeader('Cache-Control', 'private, no-store')
+  } else {
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+    const vary = res.getHeader?.('Vary')
+    res.setHeader('Vary', [vary, 'Authorization', 'Cookie'].filter(Boolean).join(', '))
+  }
   return res.status(200).json({ contributions: formatted })
 }
 

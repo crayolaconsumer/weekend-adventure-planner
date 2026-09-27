@@ -12,6 +12,8 @@ import {
   getCategoryForType
 } from './categories'
 import { getPersonalizationBoost } from './tasteProfile'
+import { isChainPlace, CHAIN_PENALTY } from './badges'
+import { haversineKm } from '../../shared/geo.mjs'
 
 // Session storage key for tracking shown places
 const SHOWN_PLACES_KEY = 'roam_shown_places'
@@ -56,6 +58,20 @@ const WEATHER_BOOSTS = {
  * @returns {number} Score from 0-100
  */
 export function scorePlace(place, context = {}) {
+  return applyChainPenalty(place, scorePlaceBase(place, context))
+}
+
+/**
+ * Chains are demoted in ORDER only. The penalty applies after the 0-100
+ * clamp (so two maxed-out places still order indie first) and is not used
+ * for the minScore gate in filterPlaces, so a chain is never dropped just
+ * for being a chain.
+ */
+function applyChainPenalty(place, baseScore) {
+  return isChainPlace(place) ? Math.max(0, baseScore - CHAIN_PENALTY) : baseScore
+}
+
+function scorePlaceBase(place, context = {}) {
   let score = 0
   const { timeContext = getTimeContext(), weather = null } = context
 
@@ -244,6 +260,19 @@ function isGoodWeather(weather) {
 }
 
 /**
+ * Plain-language weather verdict for copy such as "Great indoor option
+ * today". Returns null when weather is unknown so callers say nothing
+ * rather than guess.
+ * @returns {'wet'|'cold'|'fine'|null}
+ */
+export function weatherVerdict(weather) {
+  if (!weather || typeof weather.weatherCode !== 'number') return null
+  if (!isGoodWeather(weather)) return 'wet'
+  if (typeof weather.temperature === 'number' && weather.temperature < 8) return 'cold'
+  return 'fine'
+}
+
+/**
  * Filter and score places with smart selection
  * @param {Array} places - Array of place objects
  * @param {Object} options - Filter options
@@ -288,13 +317,15 @@ export function filterPlaces(places, options = {}) {
       if (!categories || categories.length === 0) return true
       return place.category && categories.includes(place.category.key)
     })
-    // Add scores with context
-    .map(place => ({
-      ...place,
-      score: scorePlace(place, context)
-    }))
+    // Add scores with context. The quality gate uses the base score;
+    // the chain penalty only affects ordering (see applyChainPenalty).
+    .map(place => {
+      const baseScore = scorePlaceBase(place, context)
+      return { ...place, baseScore, score: applyChainPenalty(place, baseScore) }
+    })
     // Filter by minimum score
-    .filter(place => place.score >= minScore)
+    .filter(place => place.baseScore >= minScore)
+    .map(({ baseScore: _baseScore, ...place }) => place)
 
   // SMART SELECTION: Always ensure category diversity for varied itineraries
   if (sortBy === 'smart' && ensureDiversity) {
@@ -376,7 +407,13 @@ function selectWithDiversity(places, maxResults) {
       }
     }
 
-    byCategory[catKey] = zoneSorted
+    // Zone round-robin takes each zone's best place first, so a zone that
+    // only holds a Starbucks could still lead the category. Chains go
+    // after every independent in their category (order otherwise kept).
+    byCategory[catKey] = [
+      ...zoneSorted.filter(p => !isChainPlace(p)),
+      ...zoneSorted.filter(p => isChainPlace(p)),
+    ]
   }
 
   // Round-robin selection from categories
@@ -581,14 +618,4 @@ export function enhancePlace(place, userLocation, context = {}) {
 /**
  * Calculate distance between two coordinates in km
  */
-export function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371 // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon/2) * Math.sin(dLon/2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-  return R * c
-}
+export const calculateDistance = haversineKm

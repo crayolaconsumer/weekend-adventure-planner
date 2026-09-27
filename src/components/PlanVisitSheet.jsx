@@ -40,11 +40,18 @@ const CheckIcon = () => (
   </svg>
 )
 
+// Date inputs speak 'YYYY-MM-DD' in local time. new Date('YYYY-MM-DD') and
+// toISOString() are UTC, which is a day off either side of midnight west/east of UTC.
+// eslint-disable-next-line react-refresh/only-export-components -- exported for tests
+export const parseLocalDate = (ymd) => new Date(`${ymd}T00:00`)
+// eslint-disable-next-line react-refresh/only-export-components -- exported for tests
+export const localISODate = (d = new Date()) => d.toLocaleDateString('en-CA')
+
 /**
  * Get formatted date options relative to today
  */
-function getDateOptions() {
-  const today = new Date()
+// eslint-disable-next-line react-refresh/only-export-components -- exported for tests
+export function getDateOptions(today = new Date()) {
   const dayOfWeek = today.getDay() // 0 = Sunday
 
   // Tomorrow
@@ -53,7 +60,8 @@ function getDateOptions() {
 
   // This weekend (Saturday)
   const thisWeekend = new Date(today)
-  const daysUntilSaturday = (6 - dayOfWeek + 7) % 7 || 7
+  // 0 on a Saturday: "this weekend" is today
+  const daysUntilSaturday = (6 - dayOfWeek + 7) % 7
   thisWeekend.setDate(thisWeekend.getDate() + daysUntilSaturday)
 
   // Next weekend (Saturday after this one)
@@ -69,13 +77,13 @@ function getDateOptions() {
     },
     {
       id: 'this-weekend',
-      label: dayOfWeek === 6 ? 'Today' : dayOfWeek === 0 ? 'Next Saturday' : 'This Weekend',
+      label: dayOfWeek === 6 ? 'Today' : dayOfWeek === 0 ? 'Next Saturday' : 'This weekend',
       sublabel: formatDateShort(thisWeekend),
       date: thisWeekend
     },
     {
       id: 'next-weekend',
-      label: 'Next Weekend',
+      label: 'Next weekend',
       sublabel: formatDateShort(nextWeekend),
       date: nextWeekend
     }
@@ -200,7 +208,7 @@ export default function PlanVisitSheet({
   const handleCustomDate = () => {
     if (!customDate) return
 
-    const date = new Date(customDate)
+    const date = parseLocalDate(customDate)
     setSelectedDate(date)
     setShowConfirmation(true)
     hapticSuccess()
@@ -299,7 +307,7 @@ export default function PlanVisitSheet({
                       className="plan-visit-date-input"
                       value={customDate}
                       onChange={(e) => setCustomDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={localISODate()}
                     />
                     <button
                       className="plan-visit-confirm-date"

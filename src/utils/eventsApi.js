@@ -11,6 +11,7 @@
 import { fetchTicketmasterEvents } from './ticketmasterApi'
 import { fetchSkiddleEvents } from './skiddleApi'
 import { fetchPromotedEvents } from './promotedEventsApi'
+import { haversineKm } from '../../shared/geo.mjs'
 
 const COMBINED_CACHE_TTL = 15 * 60 * 1000 // 15 minutes
 const PAST_EVENT_GRACE_HOURS = 6
@@ -32,10 +33,10 @@ let combinedCache = {
  * @returns {Promise<{events: RoamEvent[], hasMore: boolean, totalAvailable: number, currentPage: number}>}
  */
 export async function fetchAllEvents(lat, lng, radiusKm = 30, options = {}) {
-  const { pagesToFetch = 3, startPage = 0 } = options
+  const { pagesToFetch = 3, startPage = 0, from, to } = options
 
   // Check cache validity (only for initial load)
-  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm}`
+  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm},${from || ''},${to || ''}`
   if (
     startPage === 0 &&
     combinedCache.data &&
@@ -53,7 +54,7 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30, options = {}) {
 
   // Fetch from all sources in parallel
   const [ticketmasterResult, skiddleResult, promotedResult] = await Promise.allSettled([
-    fetchTicketmasterEvents(lat, lng, radiusKm, { pagesToFetch, startPage }),
+    fetchTicketmasterEvents(lat, lng, radiusKm, { pagesToFetch, startPage, from, to }),
     fetchSkiddleEvents(lat, lng, Math.round(radiusKm * 0.621371)), // Convert to miles
     promotedPromise
   ])
@@ -112,10 +113,11 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30, options = {}) {
  * @param {number} radiusKm - Search radius in km
  * @param {number} startPage - Page to start fetching from
  * @param {number} pagesToFetch - Number of pages to fetch
+ * @param {{from: string, to: string}|null} range - UK date range from eventsDateRange
  * @returns {Promise<{events: RoamEvent[], hasMore: boolean, totalAvailable: number, currentPage: number}>}
  */
-export async function fetchMoreEvents(lat, lng, radiusKm, startPage, pagesToFetch = 3) {
-  return fetchAllEvents(lat, lng, radiusKm, { pagesToFetch, startPage })
+export async function fetchMoreEvents(lat, lng, radiusKm, startPage, pagesToFetch = 3, range = null) {
+  return fetchAllEvents(lat, lng, radiusKm, { pagesToFetch, startPage, ...range })
 }
 
 /**
@@ -305,14 +307,7 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (typeof lat1 !== 'number' || typeof lon1 !== 'number' || typeof lat2 !== 'number' || typeof lon2 !== 'number') {
     return null
   }
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
+  return haversineKm(lat1, lon1, lat2, lon2)
 }
 
 /**
@@ -374,25 +369,49 @@ export function getTodayEvents(events) {
   return events.filter(e => e.datetime?.start?.toDateString() === today)
 }
 
+// UK calendar helpers. Mirrors api/lib/townEvents.js so the Events page and
+// the town pages agree on what "this weekend" means.
+const ukDate = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+const ukWeekday = d => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'short' }).format(d)
+const DAY = 86400000
+// Noon anchor keeps DST changes from shifting the date
+const ukDatePlus = (now, days) => ukDate(new Date(new Date(`${ukDate(now)}T12:00:00Z`).getTime() + days * DAY))
+
 /**
- * Get events happening this weekend
+ * This weekend as UK calendar dates { from, to } ('YYYY-MM-DD').
+ * Mon-Thu: the coming Fri-Sun. Fri-Sun: today until Sunday.
  */
-export function getWeekendEvents(events) {
-  const now = new Date()
-  const dayOfWeek = now.getDay()
+export function weekendWindow(now = new Date()) {
+  const dow = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(ukWeekday(now))
+  return { from: ukDatePlus(now, Math.max(0, 4 - dow)), to: ukDatePlus(now, 6 - dow) }
+}
 
-  // Get Saturday and Sunday of this week
-  const saturday = new Date(now)
-  saturday.setDate(now.getDate() + (6 - dayOfWeek))
-  saturday.setHours(0, 0, 0, 0)
+/**
+ * The UK date range { from, to } for a time filter chip, sent to the server
+ * so a filter searches every matching event, not just the first page loaded.
+ * null for filters that aren't date based ('all', 'free').
+ */
+export function eventsDateRange(filter, now = new Date()) {
+  switch (filter) {
+    case 'today': return { from: ukDate(now), to: ukDate(now) }
+    case 'tomorrow': return { from: ukDatePlus(now, 1), to: ukDatePlus(now, 1) }
+    case 'weekend': return weekendWindow(now)
+    case 'week': return { from: ukDate(now), to: ukDatePlus(now, 6) }
+    case 'month': return { from: ukDate(now), to: ukDatePlus(now, 29) }
+    default: return null
+  }
+}
 
-  const mondayAfter = new Date(saturday)
-  mondayAfter.setDate(saturday.getDate() + 2)
-  mondayAfter.setHours(0, 0, 0, 0)
-
+/**
+ * Get events happening this weekend (see weekendWindow)
+ */
+export function getWeekendEvents(events, now = new Date()) {
+  const { from, to } = weekendWindow(now)
   return events.filter(e => {
     const start = e.datetime?.start
-    return start && start >= saturday && start < mondayAfter
+    if (!start || isNaN(start)) return false
+    const day = ukDate(start)
+    return day >= from && day <= to
   })
 }
 

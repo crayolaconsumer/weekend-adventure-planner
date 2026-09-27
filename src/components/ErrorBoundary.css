@@ -109,13 +109,13 @@
 }
 
 .error-boundary-btn.primary {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   box-shadow: var(--shadow-md);
 }
 
 .error-boundary-btn.primary:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
 }

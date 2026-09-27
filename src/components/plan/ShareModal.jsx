@@ -147,7 +147,7 @@ export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode
           {...dismissDrag}
         >
           <div className="share-modal-header">
-            <h2 id="share-modal-title" className="share-modal-title">Share Adventure</h2>
+            <h2 id="share-modal-title" className="share-modal-title">Share adventure</h2>
             <button className="share-modal-close" onClick={onClose} aria-label="Close">
               <CloseIcon />
             </button>
@@ -166,7 +166,7 @@ export default function ShareModal({ isOpen, onClose, itinerary, vibe, shareCode
                 </span>
                 <span className="share-option-text">
                   <span className="share-option-label">
-                    {copied ? 'Copied!' : 'Copy Link'}
+                    {copied ? 'Copied!' : 'Copy link'}
                   </span>
                   <span className="share-option-desc">Share via any app</span>
                 </span>

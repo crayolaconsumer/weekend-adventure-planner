@@ -12,21 +12,18 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useToast } from '../hooks/useToast'
 import AdminLayout from '../components/AdminLayout'
+import AdminStatus from '../components/AdminStatus'
+import { timeAgo, formatDateTime } from '../components/adminFormat'
 import './AdminAds.css'
+import { authHeaders } from '../utils/authToken'
 
 const RANGES = [
-  { value: '24h', label: 'Last 24h' },
+  { value: '24h', label: 'Last 24 hours' },
   { value: '7d', label: 'Last 7 days' },
   { value: '30d', label: 'Last 30 days' },
   { value: 'all', label: 'All time' },
 ]
-
-function authHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 function formatNumber(n) {
   if (typeof n !== 'number' || Number.isNaN(n)) return '0'
@@ -47,27 +44,15 @@ function formatDate(iso) {
   }
 }
 
-function formatDateTime(iso) {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('en-GB', {
-      day: 'numeric', month: 'short',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch {
-    return ''
-  }
-}
-
 export default function AdminAds() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const toast = useToast()
   const initialRange = RANGES.some(r => r.value === searchParams.get('range'))
     ? searchParams.get('range')
     : '7d'
   const [range, setRange] = useState(initialRange)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     // Write-only URL sync: must use the prev-callback form and exclude
@@ -84,20 +69,20 @@ export default function AdminAds() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(`/api/admin/ads?range=${range}`, {
         credentials: 'include',
         headers: authHeaders(),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      setData(json)
+      if (!res.ok) throw new Error(`The server answered ${res.status}`)
+      setData(await res.json())
     } catch (err) {
-      toast.error(`Failed to load ad analytics: ${err.message}`)
+      setError(err.message || 'Network error')
     } finally {
       setLoading(false)
     }
-  }, [range, toast])
+  }, [range])
 
   useEffect(() => { load() }, [load])
 
@@ -117,12 +102,13 @@ export default function AdminAds() {
       title="Ad analytics"
       subtitle={`Sponsored card performance · ${RANGES.find(r => r.value === range)?.label || ''}`}
       actions={
-        <div className="admin-ads-rangepicker">
+        <div className="admin-chips" role="group" aria-label="Time range">
           {RANGES.map(r => (
             <button
               key={r.value}
               type="button"
-              className={`admin-ads-range ${range === r.value ? 'active' : ''}`}
+              className={`chip${range === r.value ? ' selected' : ''}`}
+              aria-pressed={range === r.value}
               onClick={() => setRange(r.value)}
             >
               {r.label}
@@ -131,10 +117,9 @@ export default function AdminAds() {
         </div>
       }
     >
+      <AdminStatus loading={loading && !data} error={!data && error} onRetry={load}>
       <div className="admin-ads">
-        {loading && !data ? (
-          <p className="admin-ads-loading">Loading…</p>
-        ) : isEmpty ? (
+        {isEmpty ? (
           <EmptyState />
         ) : (
           <>
@@ -142,9 +127,9 @@ export default function AdminAds() {
               <SummaryTile label="Impressions" value={formatNumber(summary?.impressions)} />
               <SummaryTile label="Unique users" value={formatNumber(summary?.unique_users)} />
               <SummaryTile label="Clicks" value={formatNumber(summary?.clicks)} />
-              <SummaryTile label="CTR" value={formatPercent(summary?.ctr)} hint="click-through rate" />
-              <SummaryTile label="Saves" value={formatNumber(summary?.saves)} hint="conversions" />
-              <SummaryTile label="CVR" value={formatPercent(summary?.cvr)} hint="saves ÷ clicks" />
+              <SummaryTile label="CTR" value={formatPercent(summary?.ctr)} hint="Click-through rate" />
+              <SummaryTile label="Saves" value={formatNumber(summary?.saves)} hint="Conversions" />
+              <SummaryTile label="CVR" value={formatPercent(summary?.cvr)} hint="Saves ÷ clicks" />
             </section>
 
             <section className="admin-ads-section">
@@ -157,23 +142,23 @@ export default function AdminAds() {
               {campaigns.length === 0 ? (
                 <p className="admin-ads-empty-mini">No campaign activity in this range.</p>
               ) : (
-                <div className="admin-ads-tablewrap">
-                  <table className="admin-ads-table">
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Campaign</th>
-                        <th>Place</th>
-                        <th>Business</th>
-                        <th className="num">Impressions</th>
-                        <th className="num">Clicks</th>
-                        <th className="num">CTR</th>
-                        <th className="num">Saves</th>
+                        <th scope="col">Campaign</th>
+                        <th scope="col">Place</th>
+                        <th scope="col">Business</th>
+                        <th scope="col" className="num">Impressions</th>
+                        <th scope="col" className="num">Clicks</th>
+                        <th scope="col" className="num">CTR</th>
+                        <th scope="col" className="num">Saves</th>
                       </tr>
                     </thead>
                     <tbody>
                       {campaigns.map(c => (
                         <tr key={c.sponsored_place_id}>
-                          <td>{c.campaign_name || <em>untitled</em>}</td>
+                          <td>{c.campaign_name || <em>Untitled</em>}</td>
                           <td>{c.place_name || c.place_id}</td>
                           <td>{c.business_name || '—'}</td>
                           <td className="num">{formatNumber(c.impressions)}</td>
@@ -196,19 +181,19 @@ export default function AdminAds() {
                 <ul className="admin-ads-eventlist">
                   {events.map(e => (
                     <li key={e.id} className="admin-ads-event">
-                      <span className="admin-ads-event-time">{formatDateTime(e.impressed_at)}</span>
+                      <span className="admin-ads-event-time" title={formatDateTime(e.impressed_at)}>{timeAgo(e.impressed_at)}</span>
                       <span className="admin-ads-event-text">
-                        Impression — <strong>{e.campaign_name || 'untitled'}</strong>
+                        Impression: <strong>{e.campaign_name || 'Untitled'}</strong>
                         {e.place_name && <> · {e.place_name}</>}
                         {e.business_name && <> · {e.business_name}</>}
                       </span>
                       <span className="admin-ads-event-tags">
-                        {e.clicked && <span className="admin-ads-tag admin-ads-tag-click">clicked</span>}
-                        {e.saved && <span className="admin-ads-tag admin-ads-tag-save">saved</span>}
+                        {e.clicked && <span className="admin-badge admin-badge-ok">Clicked</span>}
+                        {e.saved && <span className="admin-badge admin-badge-brand">Saved</span>}
                         {e.user_id ? (
-                          <span className="admin-ads-tag">user #{e.user_id}</span>
+                          <span className="admin-badge">User #{e.user_id}</span>
                         ) : (
-                          <span className="admin-ads-tag admin-ads-tag-anon">anonymous</span>
+                          <span className="admin-badge">Anonymous</span>
                         )}
                       </span>
                     </li>
@@ -219,6 +204,7 @@ export default function AdminAds() {
           </>
         )}
       </div>
+      </AdminStatus>
     </AdminLayout>
   )
 }
@@ -240,8 +226,8 @@ function EmptyState() {
       <p>
         Sponsored-place cards only render once you've created at least one active campaign.
       </p>
-      <Link to="/admin/campaigns" className="admin-ads-emptystate-cta">
-        Create a campaign →
+      <Link to="/admin/campaigns" className="btn btn-primary">
+        Create a campaign
       </Link>
     </div>
   )

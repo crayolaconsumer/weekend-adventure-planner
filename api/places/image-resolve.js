@@ -422,6 +422,8 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Per instance only: this runs once per card image, so a shared KV limiter
+  // here would multiply Upstash commands; responses are CDN-cached anyway
   const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'places:image-resolve')
   if (rateLimitError) {
     return res.status(rateLimitError.status).json(rateLimitError)

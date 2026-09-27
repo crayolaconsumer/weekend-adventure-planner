@@ -74,7 +74,7 @@ export default function PrivacySettings() {
           <LockIcon locked={currentSettings?.isPrivateAccount} />
         </span>
         <span className="toggle-text">
-          <span className="toggle-label">Private Account</span>
+          <span className="toggle-label">Private account</span>
           <span className="toggle-desc">
             Only approved followers can see your activity
           </span>
@@ -97,7 +97,7 @@ export default function PrivacySettings() {
             <UsersIcon />
           </span>
           <span className="link-text">
-            <span className="link-label">Follow Requests</span>
+            <span className="link-label">Follow requests</span>
             {pendingRequestCount > 0 && (
               <span className="link-badge">{pendingRequestCount}</span>
             )}
@@ -138,7 +138,7 @@ export default function PrivacySettings() {
           <EyeOffIcon />
         </span>
         <span className="toggle-text">
-          <span className="toggle-label">Hide Followers</span>
+          <span className="toggle-label">Hide followers</span>
           <span className="toggle-desc">
             Others can't see who follows you
           </span>
@@ -159,7 +159,7 @@ export default function PrivacySettings() {
           <EyeOffIcon />
         </span>
         <span className="toggle-text">
-          <span className="toggle-label">Hide Following</span>
+          <span className="toggle-label">Hide following</span>
           <span className="toggle-desc">
             Others can't see who you follow
           </span>
@@ -180,7 +180,7 @@ export default function PrivacySettings() {
           <MapPinIcon />
         </span>
         <span className="toggle-text">
-          <span className="toggle-label">Public Visited Map</span>
+          <span className="toggle-label">Public visited map</span>
           <span className="toggle-desc">
             Anyone can view your map at <code>go-roam.uk/user/.../map</code>. Off by default — only followers see your map.
           </span>
@@ -199,7 +199,7 @@ export default function PrivacySettings() {
           <BlockIcon />
         </span>
         <span className="link-text">
-          <span className="link-label">Blocked Users</span>
+          <span className="link-label">Blocked users</span>
         </span>
         <ChevronIcon />
       </button>

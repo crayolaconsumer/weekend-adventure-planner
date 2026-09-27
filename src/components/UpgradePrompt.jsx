@@ -27,37 +27,37 @@ const PROMPT_CONFIGS = {
   saves: {
     title: 'Save limit reached',
     description: "You've saved 10 places! Upgrade to ROAM+ for unlimited saves.",
-    cta: 'Unlock Unlimited Saves',
+    cta: 'Unlock unlimited saves',
     benefit: 'Never lose a discovery again'
   },
   collections: {
     title: 'Collection limit reached',
     description: "You've created 3 collections. Upgrade to organize unlimited adventures.",
-    cta: 'Unlock Unlimited Collections',
+    cta: 'Unlock unlimited collections',
     benefit: 'Organize your world, your way'
   },
   offline: {
     title: 'Offline maps are a premium feature',
     description: 'Download maps to explore without internet. Perfect for adventures off the beaten path.',
-    cta: 'Get Offline Maps',
+    cta: 'Get offline maps',
     benefit: 'Explore anywhere, anytime'
   },
   export: {
     title: 'Poster export is a premium feature',
     description: 'Export your visited map as a high-res printable poster.',
-    cta: 'Unlock Poster Export',
+    cta: 'Unlock poster export',
     benefit: 'Print your year of adventures'
   },
   filters: {
     title: 'Premium filters',
-    description: "Unlock Locals' picks and Off-peak filters to find exactly what you want.",
-    cta: 'Unlock Premium Filters',
+    description: "Unlock locals' picks and Off-peak filters to find exactly what you want.",
+    cta: 'Unlock premium filters',
     benefit: 'Find your perfect spot'
   },
   radius: {
     title: 'Explore further with ROAM+',
-    description: 'Unlock Day Trip (75km) and Explorer (150km) modes for grand tours and weekend adventures.',
-    cta: 'Unlock Extended Range',
+    description: 'Unlock day trip (75km) and Explorer (150km) modes for grand tours and weekend adventures.',
+    cta: 'Unlock extended range',
     benefit: 'Discover places worth the drive'
   },
   ad_free: {

@@ -4,8 +4,8 @@
  * UNIFIED VIEW matching the exact spec:
  * - VIBE: [chips] inline
  * - DURATION: [chips] inline
- * - FROM YOUR WISHLIST section with drag indicators
- * - YOUR ITINERARY with Share/Save buttons
+ * - From your wishlist section with drag indicators
+ * - Your itinerary with Share/Save buttons
  * - Timeline with time column, drag handles, travel times
  */
 
@@ -41,7 +41,10 @@ import {
   MapIcon,
 } from './Plan/icons'
 import { selectDiverseStops } from './Plan/selectDiverseStops'
-import { getAuthToken, parseScheduledTime } from './Plan/utils'
+import { parseScheduledTime } from './Plan/utils'
+import { appendStops } from './Plan/appendStops'
+import { getAuthToken } from '../utils/authToken'
+import { haversineKm } from '../../shared/geo.mjs'
 import './Plan.css'
 
 export default function Plan({ location }) {
@@ -74,17 +77,19 @@ export default function Plan({ location }) {
   const [showSettings, setShowSettings] = useState(false)
   const [initialSettings, setInitialSettings] = useState(null) // Track settings when sheet opens
 
-  // Check for pending places from Discover
+  // Add places queued from Discover's "Plan adventure" prompt, then clear the queue
   useEffect(() => {
-    const pending = localStorage.getItem('roam_pending_plan_place')
-    if (pending) {
-      const places = JSON.parse(pending)
-      if (places.length > 0) {
-        toast.info(`${places[0].name} ready to add!`)
-        localStorage.removeItem('roam_pending_plan_place')
-      }
+    let places = []
+    try {
+      places = JSON.parse(localStorage.getItem('roam_pending_plan_place') || '[]')
+    } catch {
+      // Corrupt queue: drop it below
     }
-  }, [toast])
+    localStorage.removeItem('roam_pending_plan_place')
+    if (!Array.isArray(places) || places.length === 0) return
+    setItinerary(prev => appendStops(prev, places, location))
+    toast.success(places.length === 1 ? `Added ${places[0].name}` : `Added ${places.length} places`)
+  }, [toast, location])
 
   // Reopen a saved plan when navigated to /plan?planId=N. Hydrates the
   // editor state (vibe / duration / transport / title / stops) from
@@ -138,15 +143,6 @@ export default function Plan({ location }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the planId at mount
   }, [])
 
-  // Calculate distance
-  const calcDist = useCallback((lat1, lon1, lat2, lon2) => {
-    const R = 6371
-    const dLat = (lat2 - lat1) * Math.PI / 180
-    const dLon = (lon2 - lon1) * Math.PI / 180
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-  }, [])
-
   // Optimize route
   const optimizeRoute = useCallback((places, start) => {
     if (places.length <= 1) return places
@@ -156,7 +152,7 @@ export default function Plan({ location }) {
     while (remaining.length) {
       let best = 0, bestDist = Infinity
       remaining.forEach((p, i) => {
-        const d = calcDist(current.lat, current.lng, p.lat, p.lng)
+        const d = haversineKm(current.lat, current.lng, p.lat, p.lng)
         if (d < bestDist) { bestDist = d; best = i }
       })
       const nearest = remaining.splice(best, 1)[0]
@@ -164,7 +160,7 @@ export default function Plan({ location }) {
       current = nearest
     }
     return result
-  }, [calcDist])
+  }, [])
 
   // Generate itinerary with timeout handling and retry
   const generate = async (retryCount = 0) => {
@@ -211,7 +207,7 @@ export default function Plan({ location }) {
               ...place,
               scheduledTime: time.toISOString(),
               duration: 90,
-              distance: calcDist(location.lat, location.lng, place.lat, place.lng)
+              distance: haversineKm(location.lat, location.lng, place.lat, place.lng)
             }
           })
 
@@ -254,7 +250,7 @@ export default function Plan({ location }) {
           ...stop,
           scheduledTime: time.toISOString(),
           duration: 90, // 1.5 hours at each place by default
-          distance: calcDist(location.lat, location.lng, stop.lat, stop.lng)
+          distance: haversineKm(location.lat, location.lng, stop.lat, stop.lng)
         }
       })
 
@@ -289,7 +285,7 @@ export default function Plan({ location }) {
                 ...place,
                 scheduledTime: time.toISOString(),
                 duration: 90,
-                distance: calcDist(location.lat, location.lng, place.lat, place.lng)
+                distance: haversineKm(location.lat, location.lng, place.lat, place.lng)
               }
             })
           if (wishlistStops.length > 0) {
@@ -316,23 +312,9 @@ export default function Plan({ location }) {
       return
     }
 
-    const last = itinerary[itinerary.length - 1]
-    let time = new Date()
-    if (last) {
-      time = new Date(last.scheduledTime)
-      time.setMinutes(time.getMinutes() + 150) // 2.5 hours after previous stop
-    } else {
-      time.setHours(10, 0, 0, 0)
-    }
-
-    setItinerary(prev => [...prev, {
-      ...place,
-      scheduledTime: time.toISOString(),
-      duration: 90, // 1.5 hours at the place
-      distance: location ? calcDist(location.lat, location.lng, place.lat, place.lng) : null
-    }])
+    setItinerary(prev => appendStops(prev, [place], location))
     toast.success(`Added ${place.name}`)
-  }, [itinerary, location, calcDist, toast])
+  }, [itinerary, location, toast])
 
   // Remove stop
   const removeStop = useCallback((index) => {
@@ -372,9 +354,9 @@ export default function Plan({ location }) {
       ...replacement,
       scheduledTime: s.scheduledTime,
       duration: s.duration,
-      distance: location ? calcDist(location.lat, location.lng, replacement.lat, replacement.lng) : null
+      distance: location ? haversineKm(location.lat, location.lng, replacement.lat, replacement.lng) : null
     } : s))
-  }, [itinerary, availablePlaces, location, calcDist, toast])
+  }, [itinerary, availablePlaces, location, toast])
 
   // Reorder
   const handleReorder = useCallback((newOrder) => {
@@ -516,14 +498,14 @@ export default function Plan({ location }) {
     }
 
     // Calculate fallback while waiting for API
-    const dist = calcDist(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng)
+    const dist = haversineKm(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng)
     const speed = TRANSPORT_MODES.find(m => m.key === mode)?.speed || 5
     return {
       duration: Math.round((dist / speed) * 60),
       mode,
       source: 'fallback'
     }
-  }, [travelTimes, getLegMode, calcDist])
+  }, [travelTimes, getLegMode])
 
   // Fetch travel time from API and cache it
   const updateTravelTime = useCallback(async (fromStop, toStop, mode) => {
@@ -669,13 +651,7 @@ export default function Plan({ location }) {
       if (t?.duration) travelMinutes += t.duration
       // Crow-flies distance between consecutive stops as a floor.
       if (stop.lat && stop.lng && next.lat && next.lng) {
-        const R = 6371
-        const dLat = (next.lat - stop.lat) * Math.PI / 180
-        const dLng = (next.lng - stop.lng) * Math.PI / 180
-        const a = Math.sin(dLat / 2) ** 2 +
-          Math.cos(stop.lat * Math.PI / 180) * Math.cos(next.lat * Math.PI / 180) *
-          Math.sin(dLng / 2) ** 2
-        distanceKm += 2 * R * Math.asin(Math.sqrt(a))
+        distanceKm += haversineKm(stop.lat, stop.lng, next.lat, next.lng)
       }
     })
     return {
@@ -688,6 +664,9 @@ export default function Plan({ location }) {
 
   return (
     <div className="plan-page">
+      <header className="page-header">
+        <h1 className="page-title">Plan</h1>
+      </header>
       {/* Share Modal */}
       <ShareModal
         isOpen={showShareModal}
@@ -726,7 +705,7 @@ export default function Plan({ location }) {
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             >
               <div className="plan-settings-handle" />
-              <h3 className="plan-settings-title">Adventure Settings</h3>
+              <h3 className="plan-settings-title">Adventure settings</h3>
 
               <div className="plan-settings-section">
                 <span className="plan-settings-label">Vibe</span>
@@ -762,7 +741,7 @@ export default function Plan({ location }) {
               </div>
 
               <div className="plan-settings-section">
-                <span className="plan-settings-label">Travel By</span>
+                <span className="plan-settings-label">Travel by</span>
                 <div className="plan-settings-options">
                   {TRANSPORT_MODES.map(t => (
                     <button
@@ -780,7 +759,7 @@ export default function Plan({ location }) {
               </div>
 
               <div className="plan-settings-section">
-                <span className="plan-settings-label">Search Radius</span>
+                <span className="plan-settings-label">Search radius</span>
                 <div className="plan-settings-options">
                   {RADIUS_OPTIONS.map(r => (
                     <button
@@ -835,7 +814,7 @@ export default function Plan({ location }) {
         {/* Adventure Summary Card — gradient tracks time-of-day for
             the first stop, and the title becomes an inline editable
             input on tap so the user can name the day ("Weekend in
-            Hertfordshire") instead of the auto "Mix Adventure". */}
+            Hertfordshire") instead of the auto "Mix adventure". */}
         <div
           className={`plan-adventure-card plan-adventure-card--tod-${tod.label}`}
           style={{ '--plan-adventure-bg': tod.gradient }}
@@ -899,7 +878,7 @@ export default function Plan({ location }) {
               Finding places...
             </>
           ) : (
-            'Generate Itinerary'
+            'Generate itinerary'
           )}
         </button>
 
@@ -919,10 +898,10 @@ export default function Plan({ location }) {
           />
         )}
 
-        {/* YOUR ITINERARY - Main content */}
+        {/* Your itinerary - Main content */}
         <section className="plan-section plan-itinerary-section">
           <div className="plan-section-header">
-            <span className="plan-section-title">YOUR ITINERARY</span>
+            <span className="plan-section-title">Your itinerary</span>
             {itinerary.length > 0 && (
               <div className="plan-itinerary-actions">
                 <button
@@ -1210,7 +1189,7 @@ export default function Plan({ location }) {
 
             {itinerary.length > 0 && availableWishlist.length > 0 && (() => {
               // Pick the wishlist item nearest the user's last stop so
-              // "+ Add Stop" stops being a random gamble and instead
+              // "+ Add stop" stops being a random gamble and instead
               // proposes the one most likely to fit the route.
               const last = itinerary[itinerary.length - 1]
               let nearest = availableWishlist[0]
@@ -1218,12 +1197,7 @@ export default function Plan({ location }) {
                 let bestDist = Infinity
                 for (const w of availableWishlist) {
                   if (!w.lat || !w.lng) continue
-                  const dLat = (w.lat - last.lat) * Math.PI / 180
-                  const dLng = (w.lng - last.lng) * Math.PI / 180
-                  const a = Math.sin(dLat / 2) ** 2 +
-                    Math.cos(last.lat * Math.PI / 180) * Math.cos(w.lat * Math.PI / 180) *
-                    Math.sin(dLng / 2) ** 2
-                  const km = 2 * 6371 * Math.asin(Math.sqrt(a))
+                  const km = haversineKm(last.lat, last.lng, w.lat, w.lng)
                   if (km < bestDist) { bestDist = km; nearest = w }
                 }
               }
@@ -1231,7 +1205,7 @@ export default function Plan({ location }) {
                 <button className="plan-add-stop" onClick={() => { hapticTap('light'); addStop(nearest) }}>
                   <PlusIcon />
                   <span className="plan-add-stop-label">
-                    Add Stop
+                    Add stop
                     <span className="plan-add-stop-count">
                       {availableWishlist.length} nearby
                     </span>
@@ -1242,13 +1216,13 @@ export default function Plan({ location }) {
           </div>
         </section>
 
-        {/* FROM YOUR WISHLIST - Quick-add section */}
+        {/* From your wishlist - Quick-add section */}
         <section className="plan-section plan-wishlist-section">
           <div className="plan-section-header">
-            <span className="plan-section-title">FROM YOUR WISHLIST</span>
+            <span className="plan-section-title">From your wishlist</span>
             {wishlist.length > 0 && (
               <button className="plan-section-link" onClick={() => navigate('/wishlist')}>
-                View All ({wishlist.length}) <ChevronIcon />
+                View all ({wishlist.length}) <ChevronIcon />
               </button>
             )}
           </div>
@@ -1295,8 +1269,8 @@ export default function Plan({ location }) {
                 </svg>
               </span>
               <p>Save places while exploring to add them here</p>
-              <button className="plan-wishlist-cta" onClick={() => navigate('/')}>
-                Discover Places
+              <button className="btn btn-primary plan-wishlist-cta" onClick={() => navigate('/')}>
+                Discover places
               </button>
             </div>
           )}

@@ -13,18 +13,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { isNative, getPlatform } from '../utils/nativeBridge'
+import { authHeaders } from '../utils/authToken'
 
 export const PUSH_OPT_IN_KEY = 'roam_push_opted_in'
-
-// Get auth token from storage
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
-
-function getAuthHeaders() {
-  const token = getAuthToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 function markPushOptedIn() {
   try {
@@ -56,7 +47,7 @@ async function fetchWithTimeout(url, options, ms = 3000) {
 }
 
 export async function bestEffortUnsubscribePushNotifications(subscription = null) {
-  const authHeaders = getAuthHeaders()
+  const headers = authHeaders()
 
   try {
     let endpoint = subscription?.endpoint || null
@@ -81,7 +72,7 @@ export async function bestEffortUnsubscribePushNotifications(subscription = null
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...authHeaders
+        ...headers
       },
       credentials: 'include',
       body: JSON.stringify(endpoint ? { endpoint } : { platform })
@@ -130,7 +121,7 @@ export function usePushNotifications() {
               const platform = getPlatform() === 'ios' ? 'ios' : 'android'
               const res = await fetch(`/api/push/subscribe?platform=${platform}`, {
                 credentials: 'include',
-                headers: getAuthHeaders()
+                headers: authHeaders()
               })
               if (res.ok) {
                 const data = await res.json()
@@ -255,7 +246,7 @@ export function usePushNotifications() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders()
+            ...authHeaders()
           },
           body: JSON.stringify({ platform, token: deviceToken })
         })
@@ -306,7 +297,7 @@ export function usePushNotifications() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify(newSubscription.toJSON())

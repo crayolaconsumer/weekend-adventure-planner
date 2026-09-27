@@ -6,7 +6,9 @@
         "components": [
           { "/": "/plan/share/*", "comment": "shared itinerary" },
           { "/": "/place/*", "comment": "individual place page" },
-          { "/": "/user/*", "comment": "user profile + visited map" }
+          { "/": "/user/*", "comment": "user profile + visited map" },
+          { "/": "/town", "comment": "town hub" },
+          { "/": "/town/*", "comment": "town page, matches Android which opens every path" }
         ]
       }
     ]

@@ -16,47 +16,17 @@
  *   PATCH → set moderation_status (live | flagged | removed) for one event
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update, insert } from '../lib/db.js'
-import { withCors, ALLOWED_ORIGINS } from '../lib/cors.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
+import { RATE_LIMITS } from '../lib/rateLimit.js'
+import { guardAdmin, NOT_FOUND, requireFreshLogin } from '../lib/adminGuard.js'
 import { validateId } from '../lib/validation.js'
 
 const VALID_MODERATION = new Set(['live', 'flagged', 'removed'])
-const NOT_FOUND = (res) => res.status(404).json({ error: 'Not found' })
-
-function clientIp(req) {
-  const fwd = req.headers?.['x-forwarded-for']
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim()
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown'
-}
-
-function isOriginAllowed(req) {
-  const candidate = req.headers?.origin || req.headers?.referer
-  if (!candidate) return false
-  for (const allowed of ALLOWED_ORIGINS) {
-    if (candidate === allowed || candidate.startsWith(allowed + '/')) return true
-  }
-  return false
-}
-
-async function requireFreshLogin(userId) {
-  const fresh = await queryOne('SELECT last_login_at FROM users WHERE id = ?', [userId])
-  const ageMin = fresh?.last_login_at
-    ? (Date.now() - new Date(fresh.last_login_at).getTime()) / 60000
-    : Infinity
-  return ageMin <= 30
-}
-
 async function handler(req, res) {
-  const ipKey = clientIp(req)
-  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, `admin-pe-ip:${ipKey}`)
-  if (rateLimitError) return NOT_FOUND(res)
-
-  if (!isOriginAllowed(req)) return NOT_FOUND(res)
-
-  const user = await getUserFromRequest(req)
-  if (!user || !user.is_admin) return NOT_FOUND(res)
+  const gate = await guardAdmin(req, res, { key: 'admin-pe-ip', limit: RATE_LIMITS.API_WRITE })
+  if (!gate) return
+  const { user, ip: ipKey } = gate
 
   if (req.method === 'GET') return handleList(req, res)
   if (req.method === 'PATCH') return handleModerate(req, res, user, ipKey)

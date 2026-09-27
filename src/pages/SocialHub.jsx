@@ -156,7 +156,7 @@ function DiscoverUsers() {
   if (loading) {
     return (
       <div className="social-hub-discover">
-        <h3 className="social-hub-discover-title">People Like You</h3>
+        <h3 className="social-hub-discover-title">People like you</h3>
         <div className="social-hub-discover-loading">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="social-hub-discover-skeleton" />
@@ -181,7 +181,7 @@ function DiscoverUsers() {
 
   return (
     <div className="social-hub-discover">
-      <h3 className="social-hub-discover-title">People Like You</h3>
+      <h3 className="social-hub-discover-title">People like you</h3>
       <div className="social-hub-discover-list">
         {users.slice(0, 5).map(user => (
           <Link
@@ -233,13 +233,13 @@ function AuthPrompt({ message }) {
           className="social-hub-auth-prompt-btn primary"
           onClick={() => openAuthModal('login')}
         >
-          Sign In
+          Sign in
         </button>
         <button
           className="social-hub-auth-prompt-btn secondary"
           onClick={() => openAuthModal('register')}
         >
-          Sign Up
+          Sign up
         </button>
       </div>
     </div>
@@ -345,7 +345,7 @@ export default function SocialHub({ location }) {
         {isAuthenticated && user && (
           <Link to={`/user/${user.username}`} className="social-hub-profile-link">
             <Avatar user={user} size={36} className="social-hub-profile-link-avatar" alt="" />
-            <span className="social-hub-profile-link-text">My Profile</span>
+            <span className="social-hub-profile-link-text">My profile</span>
             <ChevronRightIcon />
           </Link>
         )}
@@ -364,7 +364,7 @@ export default function SocialHub({ location }) {
             role="tab"
             aria-selected={activeTab === 'feed'}
           >
-            Near You
+            Near you
           </button>
           <button
             className={`social-hub-tab ${activeTab === 'discover' ? 'active' : ''}`}
@@ -372,7 +372,7 @@ export default function SocialHub({ location }) {
             role="tab"
             aria-selected={activeTab === 'discover'}
           >
-            Find People
+            Find people
           </button>
         </div>
       )}

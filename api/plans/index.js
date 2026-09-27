@@ -7,7 +7,7 @@
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert } from '../lib/db.js'
 import { generateShareCode } from '../lib/crypto.js'
-import { validatePlanTitle, validatePagination } from '../lib/validation.js'
+import { validatePlanTitle, validatePlanStops, validatePagination } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { evaluateBadges } from '../users/badges.js'
@@ -134,18 +134,9 @@ async function handlePost(req, res) {
     return res.status(400).json({ error: 'At least one stop is required' })
   }
 
-  if (stops.length > 20) {
-    return res.status(400).json({ error: 'Maximum 20 stops allowed' })
-  }
-
-  // Validate stop data sizes (10KB max per stop)
-  const MAX_JSON_SIZE = 10 * 1024
-  for (const stop of stops) {
-    const stopData = stop.placeData || stop
-    const stopDataJson = JSON.stringify(stopData)
-    if (stopDataJson.length > MAX_JSON_SIZE) {
-      return res.status(400).json({ error: 'Stop data too large (max 10KB per stop)' })
-    }
+  const stopsValidation = validatePlanStops(stops)
+  if (!stopsValidation.valid) {
+    return res.status(400).json({ error: stopsValidation.message })
   }
 
   // Validate transport mode

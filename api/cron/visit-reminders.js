@@ -10,16 +10,10 @@
 
 import { notifyPlannedVisit, getPlannedVisitsForToday } from '../lib/pushNotifications.js'
 import { recordCronRun, VISIT_REMINDERS_JOB } from '../lib/cronRuns.js'
+import { isAuthorizedCron } from '../lib/cronAuth.js'
 
 export default async function handler(req, res) {
-  // Verify cron secret or Vercel cron header
-  const authHeader = req.headers.authorization
-  const cronSecret = process.env.CRON_SECRET
-
-  // Vercel cron jobs send this header
-  const isVercelCron = req.headers['x-vercel-cron'] === '1'
-
-  if (!isVercelCron && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCron(req)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 

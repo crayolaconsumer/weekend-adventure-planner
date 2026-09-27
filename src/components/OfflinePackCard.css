@@ -42,9 +42,7 @@
 .offline-pack-card-eyebrow {
   font-family: 'Outfit', sans-serif;
   font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--roam-gold);
+  color: var(--roam-forest);
   font-weight: 600;
 }
 .offline-pack-card-headline {
@@ -100,7 +98,7 @@
   border-left: 3px solid var(--roam-gold);
   border-radius: 0 8px 8px 0;
   font-size: 0.85rem;
-  color: var(--roam-gold);
+  color: var(--roam-forest);
 }
 .offline-pack-card-error {
   margin: 4px 0;

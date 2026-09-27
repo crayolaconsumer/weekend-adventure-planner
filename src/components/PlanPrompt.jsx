@@ -176,14 +176,14 @@ export default function PlanPrompt({ place, onClose, onAddToPlan }) {
               <span className="plan-prompt-btn-icon">
                 <CompassIcon />
               </span>
-              Plan Adventure
+              Plan adventure
             </button>
             <SharePlaceButton place={place} source="saved" className="plan-prompt-btn ghost" />
             <button
               className="plan-prompt-btn ghost"
               onClick={handleDismiss}
             >
-              Maybe Later
+              Maybe later
             </button>
           </motion.div>
         </motion.div>

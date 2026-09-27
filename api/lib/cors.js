@@ -34,7 +34,7 @@ export const ALLOWED_ORIGINS = new Set([
   'https://www.go-roam.uk',    // production web (www variant)
 ])
 
-const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Roam-Remember'
 const ALLOWED_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
 
 /**

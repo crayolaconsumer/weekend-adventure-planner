@@ -21,6 +21,7 @@ import { openDirections } from '../utils/navigation'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import { calculateDistance } from '../utils/placeFilter'
 import { getCurrentPosition as nativeGetCurrentPosition } from '../utils/nativePlugins'
+import { haversineKm } from '../../shared/geo.mjs'
 import './Wishlist.css'
 
 // Icons
@@ -515,10 +516,10 @@ export default function Wishlist() {
               <h3>No saved places yet</h3>
               <p>Swipe right on places you want to visit later, and they'll appear here.</p>
               <button
-                className="wishlist-empty-cta"
+                className="btn btn-primary wishlist-empty-cta"
                 onClick={() => navigate('/')}
               >
-                Discover Places
+                Discover places
               </button>
             </div>
           )
@@ -554,7 +555,7 @@ export default function Wishlist() {
                             className="wishlist-event-btn tickets"
                           >
                             <TicketIcon />
-                            Get Tickets
+                            Get tickets
                           </a>
                         )}
                         <button
@@ -587,10 +588,10 @@ export default function Wishlist() {
               <h3>No saved events yet</h3>
               <p>Swipe right on events you're interested in to save them here.</p>
               <button
-                className="wishlist-empty-cta"
+                className="btn btn-primary wishlist-empty-cta"
                 onClick={() => navigate('/events')}
               >
-                Discover Events
+                Discover events
               </button>
             </div>
           )
@@ -612,7 +613,7 @@ export default function Wishlist() {
                 </div>
                 <h3>No saved adventures</h3>
                 <p>Create an itinerary on the Plan page and save it!</p>
-                <Link to="/plan" className="wishlist-empty-cta">
+                <Link to="/plan" className="btn btn-primary wishlist-empty-cta">
                   Plan an Adventure
                 </Link>
               </div>
@@ -725,21 +726,11 @@ function NearbyVisitedNudge({ wishlist }) {
     const wishlistCoords = wishlist.map(coordOf).filter(Boolean)
     if (wishlistCoords.length === 0) return []
 
-    const haversineKm = (a, b) => {
-      const R = 6371
-      const dLat = (b.lat - a.lat) * Math.PI / 180
-      const dLng = (b.lng - a.lng) * Math.PI / 180
-      const aa = Math.sin(dLat / 2) ** 2 +
-        Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) *
-        Math.sin(dLng / 2) ** 2
-      return 2 * R * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa))
-    }
-
     return visitedPlaces
       .filter(v => coordOf(v))
       .filter(v => {
         const c = coordOf(v)
-        return wishlistCoords.some(w => haversineKm(c, w) < 10)
+        return wishlistCoords.some(w => haversineKm(c.lat, c.lng, w.lat, w.lng) < 10)
       })
       .slice(0, 6)
   })()

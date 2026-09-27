@@ -8,14 +8,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from './AuthContext'
 import { formatDistance as formatDistanceUtil } from '../utils/distanceUtils'
+import { getAuthToken } from '../utils/authToken'
 
 const DistanceContext = createContext(null)
 
 const STORAGE_KEY = 'roam_distance_unit'
-
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
 
 export function DistanceProvider({ children }) {
   const { isAuthenticated, loading: authLoading } = useAuth()

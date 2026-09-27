@@ -447,7 +447,7 @@ export function FilterModal({
               {/* Premium Filters */}
               <div className="filter-modal-premium">
                 <div className="filter-premium-header">
-                  <span>Premium Filters</span>
+                  <span>Premium filters</span>
                 </div>
                 <button
                   className={`filter-extra-item ${showLocalsPicks ? 'selected' : ''} ${!isPremium ? 'locked' : ''}`}

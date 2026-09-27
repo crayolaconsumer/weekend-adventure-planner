@@ -6,14 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-
-/**
- * Get auth headers for API requests
- */
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 export function useBlockedUsers() {
   const { isAuthenticated } = useAuth()
@@ -36,7 +29,7 @@ export function useBlockedUsers() {
         `/api/social/block?limit=50&offset=${offset}`,
         {
           credentials: 'include',
-          headers: getAuthHeaders()
+          headers: authHeaders()
         }
       )
 
@@ -73,7 +66,7 @@ export function useBlockedUsers() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ userId, action: 'block' })
@@ -110,7 +103,7 @@ export function useBlockedUsers() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ userId, action: 'unblock' })

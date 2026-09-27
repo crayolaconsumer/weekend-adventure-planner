@@ -154,8 +154,8 @@ export default function Collections() {
         {selectedCollection.places.length === 0 ? (
           <div className="collections-empty">
             <p>No places in this collection yet</p>
-            <Link to="/" className="collections-discover-btn">
-              Discover Places
+            <Link to="/" className="btn btn-primary">
+              Discover places
             </Link>
           </div>
         ) : (
@@ -194,7 +194,7 @@ export default function Collections() {
                 className="collections-load-more"
                 onClick={() => setPlacesDisplayLimit(prev => prev + PAGE_SIZE)}
               >
-                Load More ({selectedCollection.places.length - placesDisplayLimit} remaining)
+                Load more ({selectedCollection.places.length - placesDisplayLimit} remaining)
               </button>
             )}
           </>
@@ -251,7 +251,7 @@ export default function Collections() {
           <BackIcon />
         </button>
         <div className="collections-title-row">
-          <h1 className="collections-title">My Collections</h1>
+          <h1 className="collections-title">My collections</h1>
           {!isPremium && (
             <Link
               to="/pricing"
@@ -273,13 +273,13 @@ export default function Collections() {
         <div className="collections-empty">
           <EmptyStateIllustration variant="empty-journal" size="md" />
           <h3>No collections yet</h3>
-          <p>Create a collection to organize your favorite places</p>
+          <p>Create a collection to organise your favourite places</p>
           <button
-            className="collections-create-btn"
+            className="btn btn-primary"
             onClick={handleCreateClick}
           >
             <PlusIcon />
-            Create Collection
+            Create collection
           </button>
         </div>
       ) : (
@@ -323,7 +323,7 @@ export default function Collections() {
             whileTap={{ scale: 0.98 }}
           >
             <PlusIcon />
-            <span>New Collection</span>
+            <span>New collection</span>
           </motion.button>
         </div>
       )}

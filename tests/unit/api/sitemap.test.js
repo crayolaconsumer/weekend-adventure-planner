@@ -34,7 +34,18 @@ describe('sitemap', () => {
     expect(TOWNS.map(t => t.slug).filter(slug => !UK_TOWN_SLUGS.includes(slug))).toEqual([])
   })
 
-  it('stays well under the 50,000-URL sitemap limit', () => {
-    expect(UK_TOWN_SLUGS.length).toBeLessThan(45000)
+  it('lists every shipped world city too', async () => {
+    const { WORLD_TOWN_SLUGS } = await import('../../../shared/worldTowns.mjs')
+    const { body } = await sitemap()
+    for (const slug of WORLD_TOWN_SLUGS) expect(body).toContain(`<loc>https://www.go-roam.uk/town/${slug}</loc>`)
+    for (const slug of ['paris', 'new-york', 'perth', 'london-ontario']) expect(WORLD_TOWN_SLUGS).toContain(slug)
+  })
+
+  it('stays well under the 50,000-URL sitemap limit, with places at their cap, and keeps its CDN cache', async () => {
+    const { body, headers } = await sitemap()
+    const towns = (body.match(/<loc>/g) || []).length
+    // + MAX_PLACES (5,000) place pages when the database answers
+    expect(towns + 5000).toBeLessThan(45000)
+    expect(headers['Cache-Control']).toBe('public, s-maxage=3600, stale-while-revalidate=86400')
   })
 })

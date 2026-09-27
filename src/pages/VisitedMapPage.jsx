@@ -27,6 +27,7 @@ import Avatar from '../components/Avatar'
 import { getPublicShareUrl } from '../utils/nativeBridge'
 import { saveOrShareBlob } from '../utils/nativePlugins'
 import './VisitedMapPage.css'
+import { authHeaders } from '../utils/authToken'
 
 const ArrowLeftIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -53,11 +54,6 @@ const PosterIcon = () => (
     <path d="M9 15h4"/>
   </svg>
 )
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 export default function VisitedMapPage() {
   const { username } = useParams()
@@ -93,7 +89,7 @@ export default function VisitedMapPage() {
       setError(null)
       try {
         const res = await fetch(`/api/users/${encodeURIComponent(username)}/visited`, {
-          headers: getAuthHeaders(),
+          headers: authHeaders(),
           credentials: 'include'
         })
         if (cancelled) return
@@ -129,7 +125,7 @@ export default function VisitedMapPage() {
     setExporting(true)
     try {
       const res = await fetch(`/api/og/user-map-poster/${encodeURIComponent(username)}`, {
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         credentials: 'include'
       })
       if (res.status === 402) {

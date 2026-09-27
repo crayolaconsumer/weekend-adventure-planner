@@ -13,7 +13,8 @@
 
 import { OAuth2Client } from 'google-auth-library'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { queryOne, insert, update, transaction } from '../lib/db.js'
+import { queryOne, insert, update } from '../lib/db.js'
+import { deleteUserAccount } from '../lib/accounts.js'
 import {
   hashPassword,
   comparePassword,
@@ -23,7 +24,9 @@ import {
   isValidEmail,
   validatePassword,
   generateUsername,
-  getUserFromRequest
+  getUserFromRequest,
+  extractToken,
+  verifyToken
 } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
@@ -72,6 +75,35 @@ function safeBody(req) {
     return req.body ?? null
   } catch {
     return null
+  }
+}
+
+// A Google access token is only proof of identity if it was issued to OUR
+// OAuth client. The userinfo endpoint accepts a token from any Google app, so
+// without this audience check a token minted for some other site would log in
+// as that user here. tokeninfo returns aud/azp for the token.
+async function verifyGoogleAccessTokenAudience(accessToken) {
+  const response = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
+  )
+  if (!response.ok) return null
+  const info = await response.json()
+  if (!info?.sub) return null
+  if (info.aud !== GOOGLE_CLIENT_ID && info.azp !== GOOGLE_CLIENT_ID) return null
+  return info
+}
+
+// Linking a verified social login to an existing email/password account.
+// Registration never verifies the email, so anyone can pre-register a victim's
+// address with a password they know, wait for the victim to sign in with
+// Google/Apple, and keep a working password on the merged account. When the
+// account's password was never proven by a verified login, drop it.
+// Existing JWTs stay valid until expiry: there is no session/token-version
+// column to revoke them with.
+async function dropUnverifiedPassword(user, provider) {
+  if (user.password_hash && !user.email_verified && !user.google_id && !user.apple_id) {
+    await update('UPDATE users SET password_hash = NULL WHERE id = ?', [user.id])
+    console.warn(`[auth] ${provider} link cleared unverified password on user ${user.id}`)
   }
 }
 
@@ -137,6 +169,11 @@ async function handler(req, res) {
 /**
  * GET - Get current authenticated user
  */
+// Sliding session: a token older than this is swapped for a fresh one on the
+// next auth check, so people who keep using ROAM are never signed out by the
+// 30-day expiry (only people away for 30+ days are).
+const TOKEN_RENEW_AFTER_SEC = 24 * 60 * 60
+
 async function handleGetMe(req, res) {
   const user = await getUserFromRequest(req)
 
@@ -146,7 +183,19 @@ async function handleGetMe(req, res) {
     })
   }
 
+  const issuedAt = verifyToken(extractToken(req))?.iat
+  let renewedToken
+  if (!issuedAt || Date.now() / 1000 - issuedAt > TOKEN_RENEW_AFTER_SEC) {
+    renewedToken = generateToken(user)
+    // Web keeps the cookie in step, with the lifetime the login chose
+    // (no header = cookie-only session: stay short rather than upgrade it)
+    if (req.headers?.cookie?.includes('roam_token=')) {
+      setAuthCookie(req, res, renewedToken, req.headers['x-roam-remember'] === '1')
+    }
+  }
+
   return res.status(200).json({
+    ...(renewedToken ? { token: renewedToken } : {}),
     user: {
       id: user.id,
       email: user.email,
@@ -373,6 +422,11 @@ async function handleGoogle(req, res) {
     // Access Token flow - MUST validate with Google's userinfo API
     // NEVER trust client-provided userInfo
     try {
+      const tokenInfo = await verifyGoogleAccessTokenAudience(accessToken)
+      if (!tokenInfo) {
+        return res.status(401).json({ error: 'Invalid Google access token' })
+      }
+
       const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` }
       })
@@ -383,7 +437,7 @@ async function handleGoogle(req, res) {
 
       const userInfo = await response.json()
 
-      if (!userInfo.sub || !userInfo.email) {
+      if (!userInfo.sub || !userInfo.email || userInfo.sub !== tokenInfo.sub) {
         return res.status(401).json({ error: 'Invalid Google user info' })
       }
 
@@ -406,11 +460,16 @@ async function handleGoogle(req, res) {
 
   if (!user) {
     user = await queryOne(
-      'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
+      'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
       [email.toLowerCase()]
     )
 
     if (user) {
+      // Only a provider-verified email proves ownership of the existing account
+      if (emailVerified !== true && emailVerified !== 'true') {
+        return res.status(409).json({ error: 'An account with this email already exists. Please sign in with your password.' })
+      }
+      await dropUnverifiedPassword(user, 'google')
       await update(
         `UPDATE users SET
           google_id = ?,
@@ -589,13 +648,17 @@ async function handleApple(req, res) {
     // is verified so this is safe to auto-link.
     if (email) {
       user = await queryOne(
-        'SELECT id, email, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
+        'SELECT id, email, password_hash, username, display_name, avatar_url, email_verified, google_id, apple_id, tier, subscription_id, subscription_expires_at, subscription_cancelled_at, subscription_source, stripe_customer_id FROM users WHERE email = ?',
         [email]
       )
     }
 
     if (user) {
-      // Existing account — link Apple ID to it
+      // Existing account — link Apple ID to it, only on a verified email
+      if (!emailVerified && !isPrivateEmail) {
+        return res.status(409).json({ error: 'An account with this email already exists. Please sign in with your password.' })
+      }
+      await dropUnverifiedPassword(user, 'apple')
       await update(
         `UPDATE users SET
           apple_id = ?,
@@ -723,35 +786,9 @@ async function handleDeleteAccount(req, res) {
     })
   }
 
-  // Cancel any active Stripe subscription so the user isn't billed after
-  // deletion. Best-effort — never block deletion if Stripe call fails.
-  // Note: `user.stripe_subscription_id` was a typo — the column is
-  // `subscription_id`. The corrected check covers either source.
-  if (fresh?.stripe_customer_id || fresh?.subscription_id || user.subscription_id) {
-    try {
-      const subRow = await queryOne(
-        'SELECT subscription_id FROM users WHERE id = ?',
-        [user.id]
-      )
-      if (subRow?.subscription_id) {
-        const { default: Stripe } = await import('stripe')
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-        await stripe.subscriptions.cancel(subRow.subscription_id).catch(() => {})
-      }
-    } catch (err) {
-      console.warn('Stripe cancel during delete failed (continuing):', err?.message)
-    }
-  }
-
-  // Hard delete in a single transaction. All dependent rows cascade via FK.
+  // Stripe cancel + transactional delete + photo blob cleanup.
   try {
-    await transaction(async (conn) => {
-      // Belt-and-braces explicit deletes for tables that may lack FK cascade
-      // (e.g. content_reports, swiped_places). Safe to no-op if rows absent.
-      await conn.query('DELETE FROM swiped_places WHERE user_id = ?', [user.id])
-      await conn.query('DELETE FROM content_reports WHERE reporter_id = ? OR reported_user_id = ?', [user.id, user.id]).catch(() => {})
-      await conn.query('DELETE FROM users WHERE id = ?', [user.id])
-    })
+    await deleteUserAccount(user.id)
   } catch (err) {
     console.error('Account deletion failed:', err)
     return res.status(500).json({ error: 'Account deletion failed. Please contact hello@go-roam.uk' })

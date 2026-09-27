@@ -185,7 +185,7 @@ export default function CollectionManager({ place, isOpen, onClose }) {
                 }}
               >
                 <PlusIcon />
-                <span>Create New Collection</span>
+                <span>Create new collection</span>
                 {!canCreateCollection && (
                   <span className="collection-limit-badge">PRO</span>
                 )}

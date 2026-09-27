@@ -129,7 +129,7 @@
   gap: var(--space-sm);
   width: 100%;
   padding: var(--space-md) var(--space-xl);
-  background: var(--roam-forest, #1a3a2f);
+  background: #1a3a2f;
   border: 2px solid var(--roam-forest, #1a3a2f);
   border-radius: var(--radius-full);
   color: #fdfcf8;
@@ -146,11 +146,12 @@
 .onboarding-signin-link {
   background: none;
   border: none;
-  color: var(--roam-stone, #6b6b6b);
+  color: var(--roam-ink-light);
   font-family: var(--font-body, 'Outfit', sans-serif);
   font-size: var(--text-sm);
   cursor: pointer;
   padding: var(--space-sm);
+  min-height: 44px;
 }
 .onboarding-signin-link strong {
   color: var(--roam-forest, #1a3a2f);
@@ -193,8 +194,6 @@
   font-size: var(--text-xs);
   font-weight: 500;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 /* Location Button */
@@ -279,7 +278,7 @@
   justify-content: center;
   width: 18px;
   height: 18px;
-  background: var(--chip-color, var(--roam-forest));
+  background: var(--chip-color, #1a3a2f);
   border-radius: var(--radius-full);
   color: white;
 }
@@ -412,7 +411,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-md) var(--space-xl);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: var(--radius-full);
   color: white;
@@ -426,7 +425,7 @@
 
 .onboarding-next:hover,
 .onboarding-complete:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
   box-shadow: var(--shadow-lg);
 }
 

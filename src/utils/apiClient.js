@@ -47,9 +47,6 @@ const WIKIPEDIA_ACTION_API = 'https://en.wikipedia.org/w/api.php'
 // OpenTripMap is now proxied through our API routes for security
 // See /api/places/opentripmap/nearby.js and /api/places/opentripmap/details.js
 
-// Active request controller for cancellation
-let activeOverpassController = null
-
 // Overpass proxy endpoint for edge caching
 const OVERPASS_PROXY = '/api/places/overpass/nearby'
 
@@ -361,6 +358,7 @@ function parseOverpassResponse(data) {
       // Tags for premium filters
       tourism: tags.tourism,
       brand: tags.brand,
+      brandWikidata: tags['brand:wikidata'],
       fee: tags.fee,
       qualityScore
     }
@@ -415,29 +413,6 @@ export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null
   }, { ttl: 10 * 60 * 1000 }) // 10 minute cache
 
   return result || []
-}
-
-/**
- * Cancel any active Overpass request
- * Call this before starting a new request to prevent stale responses
- */
-export function cancelOverpassRequest() {
-  if (activeOverpassController) {
-    activeOverpassController.abort()
-    activeOverpassController = null
-  }
-}
-
-/**
- * Create a new AbortController for Overpass requests
- * Automatically cancels any previous active request
- *
- * @returns {AbortController} New controller for the request
- */
-export function createOverpassController() {
-  cancelOverpassRequest()
-  activeOverpassController = new AbortController()
-  return activeOverpassController
 }
 
 // ═══════════════════════════════════════════════════════
@@ -681,6 +656,10 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
 
   // For large radii, fetch Wikipedia from multiple sample points
   // to better cover the search area (since Wiki max radius is 10km)
+  // Count live-source failures so a total outage (offline, every API down)
+  // surfaces as an error instead of a misleading "No places nearby".
+  let failedSources = 0
+  const wikiFail = () => { failedSources++; return [] }
   const wikiPromises = []
   if (isLargeRadius) {
     // Sample center + 2 cardinal directions at 60% of radius.
@@ -691,13 +670,13 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     const wikiRadius = 10000 // Max wiki radius
 
     wikiPromises.push(
-      fetchWikipediaPlaces(lat, lng, wikiRadius).catch(() => []),
-      fetchWikipediaPlaces(lat + sampleDistance, lng, wikiRadius).catch(() => []),
-      fetchWikipediaPlaces(lat - sampleDistance, lng, wikiRadius).catch(() => [])
+      fetchWikipediaPlaces(lat, lng, wikiRadius).catch(wikiFail),
+      fetchWikipediaPlaces(lat + sampleDistance, lng, wikiRadius).catch(wikiFail),
+      fetchWikipediaPlaces(lat - sampleDistance, lng, wikiRadius).catch(wikiFail)
     )
   } else {
     wikiPromises.push(
-      fetchWikipediaPlaces(lat, lng, Math.min(radius, 10000)).catch(() => [])
+      fetchWikipediaPlaces(lat, lng, Math.min(radius, 10000)).catch(wikiFail)
     )
   }
 
@@ -722,10 +701,12 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
         onProgress?.(newPlaces)
       }).catch(err => {
         console.warn('OSM progressive fetch failed:', err)
+        failedSources++
         return []
       })
     : fetchNearbyPlaces(lat, lng, radius, category).catch(err => {
         console.warn('OSM fetch failed:', err)
+        failedSources++
         return []
       })
 
@@ -733,10 +714,12 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   // For Day Trip (75km) and Explorer (150km), skip OTM entirely rather than waste
   // the round-trip + log noise. OSM tiling already covers the area, and OTM has
   // been winding down with silently-revoked keys anyway (see the proxy comment).
-  const otmFetcher = radius > 50000
+  const otmSkipped = radius > 50000
+  const otmFetcher = otmSkipped
     ? Promise.resolve([])
     : fetchOpenTripMapPlaces(lat, lng, radius).catch(err => {
         console.warn('OpenTripMap fetch failed:', err)
+        failedSources++
         return []
       })
 
@@ -757,6 +740,9 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   // Merge and deduplicate all sources
   let merged = mergeAndDedupe(osmPlacesForMerge, otmPlaces, wikiPlaces)
 
+  const liveSources = 1 + (otmSkipped ? 0 : 1) + wikiPromises.length
+  const allSourcesFailed = failedSources >= liveSources
+
   // Never-empty floor: if the live sources + caches yielded fewer than the
   // floor (e.g. a brand-new tile during a total Overpass outage, or offline),
   // top up with the nearest bundled seed landmarks so the deck is never empty.
@@ -768,6 +754,13 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     const topup = nearestSeed(lat, lng, SEED_FLOOR - merged.length)
       .filter(s => !have.has(`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`))
     if (topup.length) merged = [...merged, ...topup]
+  }
+
+  // Nothing live answered and there is no bundled seed nearby: this is a
+  // network failure, not an empty area. Throw so Discover shows the
+  // connection error with a retry instead of "No places nearby".
+  if (allSourcesFailed && merged.length === 0) {
+    throw new Error('Network error: could not reach any place source')
   }
 
   onProgressiveCommit?.(merged)

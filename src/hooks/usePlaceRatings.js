@@ -9,10 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getAllRatings, saveRating as saveLocalRating, deleteRating as deleteLocalRating } from '../utils/ratingsStorage'
-
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
+import { getAuthToken } from '../utils/authToken'
 
 export function usePlaceRatings() {
   const { isAuthenticated, loading: authLoading } = useAuth()

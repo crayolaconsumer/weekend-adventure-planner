@@ -9,6 +9,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getAuthToken } from '../utils/authToken'
 
 const LAST_SENT_KEY = 'roam_loc_sent_at'
 const MIN_INTERVAL_MS = 12 * 60 * 60 * 1000
@@ -30,7 +31,7 @@ export default function LocationSync({ location }) {
     } catch { /* ignore storage errors */ }
 
     sentRef.current = true
-    const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+    const token = getAuthToken()
     fetch('/api/users/location', {
       method: 'POST',
       credentials: 'include',

@@ -63,7 +63,7 @@
 
 .location-aware-feed-empty-action {
   padding: 10px 20px;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: 20px;
   color: white;
@@ -74,7 +74,7 @@
 }
 
 .location-aware-feed-empty-action:hover {
-  background: var(--roam-forest-dark);
+  background: #142d24;
 }
 
 /* Error state */
@@ -90,7 +90,7 @@
 
 .location-aware-feed-error button {
   padding: 8px 16px;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: 20px;
   color: white;

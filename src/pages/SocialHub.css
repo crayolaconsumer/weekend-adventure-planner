@@ -199,7 +199,7 @@
 }
 
 .social-hub-tab.active {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border-color: var(--roam-forest);
   color: white;
 }
@@ -300,13 +300,13 @@
 }
 
 .social-hub-auth-prompt-btn.primary {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: 2px solid var(--roam-forest);
   color: white;
 }
 
 .social-hub-auth-prompt-btn.primary:hover {
-  background: var(--roam-forest-dark);
+  background: #142d24;
   border-color: var(--roam-forest-dark);
 }
 
@@ -421,7 +421,7 @@
 
 .social-hub-discover-error button {
   padding: 8px 16px;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: 20px;
   color: white;

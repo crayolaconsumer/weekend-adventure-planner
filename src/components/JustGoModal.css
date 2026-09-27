@@ -237,7 +237,7 @@
 }
 
 .just-go-btn-secondary:hover:not(:disabled) {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
 }
 

@@ -1,20 +1,19 @@
 /**
- * AdminPromotedEvents — operator moderation for self-serve promoted events.
+ * AdminPromotedEvents: operator moderation for self-serve promoted events.
  *
- * The safety net for the auto-publish model: lists every promoted event with
- * partner + stats, and lets an operator remove (or restore) one. Removal sets
- * moderation_status='removed' so it immediately stops serving in the app.
+ * The safety net for the auto-publish model: lists promoted events with
+ * partner and stats, and lets an operator remove (or restore) one.
+ * Removal sets moderation_status='removed' so it stops serving at once.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../hooks/useToast'
 import AdminLayout from '../components/AdminLayout'
+import AdminStatus from '../components/AdminStatus'
+import ConfirmModal from '../components/ConfirmModal'
+import { formatDate, timeAgo } from '../components/adminFormat'
 import './AdminPromotedEvents.css'
-
-function authHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 const FILTERS = [
   { value: '', label: 'All' },
@@ -23,124 +22,167 @@ const FILTERS = [
   { value: 'removed', label: 'Removed' },
 ]
 
+const MOD_TONE = { live: 'ok', flagged: 'warn', removed: 'danger' }
+const PAY_TONE = { paid: 'ok', unpaid: 'warn', refunded: 'danger' }
+const sentence = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : '')
+
 function formatPence(p) {
   return `£${((Number(p) || 0) / 100).toFixed(2)}`
 }
-function fmtDate(iso) {
-  if (!iso) return '—'
-  try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }
-  catch { return '—' }
-}
 
 export default function AdminPromotedEvents() {
-  const { showToast } = useToast()
+  const toast = useToast()
   const [events, setEvents] = useState([])
   const [filter, setFilter] = useState('')
-  const [state, setState] = useState('loading')
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [pending, setPending] = useState(null) // { ev, moderation_status }
 
   const load = useCallback(async () => {
-    setState('loading')
+    setLoading(true)
+    setError(null)
     try {
       const qs = filter ? `?moderation=${filter}` : ''
-      const res = await fetch(`/api/admin/promoted-events${qs}`, {
-        credentials: 'include',
-        headers: authHeaders(),
-      })
-      if (!res.ok) throw new Error(String(res.status))
+      const res = await fetch(`/api/admin/promoted-events${qs}`, { credentials: 'include', headers: authHeaders() })
+      if (!res.ok) throw new Error(`The server answered ${res.status}`)
       const data = await res.json()
       setEvents(data.events || [])
-      setState('ready')
-    } catch {
-      setState('error')
+    } catch (err) {
+      setError(err.message || 'Network error')
+    } finally {
+      setLoading(false)
     }
   }, [filter])
 
   useEffect(() => { load() }, [load])
 
-  const moderate = async (id, moderation_status) => {
-    const verb = moderation_status === 'removed' ? 'Remove' : 'Restore'
-    if (!confirm(`${verb} this event?`)) return
-    setBusyId(id)
+  const moderate = async () => {
+    if (!pending) return
+    const { ev, moderation_status } = pending
+    setPending(null)
+    setBusyId(ev.id)
     try {
       const res = await fetch('/api/admin/promoted-events', {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ id, moderation_status }),
+        body: JSON.stringify({ id: ev.id, moderation_status }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (data?.code === 'FRESH_LOGIN_REQUIRED') {
-          showToast('Please sign in again to moderate', 'error')
-        } else {
-          showToast(data?.error || 'Action failed', 'error')
-        }
+        toast.error(data?.code === 'FRESH_LOGIN_REQUIRED'
+          ? 'Sign in again, then retry. Moderation needs a login from the last 30 minutes.'
+          : data?.error || 'That didn\'t work. Try again.')
         return
       }
-      showToast(`Event ${moderation_status === 'removed' ? 'removed' : 'restored'}`, 'success')
+      toast.success(`Event ${moderation_status === 'removed' ? 'removed' : 'restored'}`)
       await load()
     } catch {
-      showToast('Action failed', 'error')
+      toast.error('That didn\'t work. Check your connection and try again.')
     } finally {
       setBusyId(null)
     }
   }
 
-  const filterActions = (
-    <div className="ape-filters">
-      {FILTERS.map((f) => (
-        <button
-          key={f.value || 'all'}
-          className={`ape-filter ${filter === f.value ? 'active' : ''}`}
-          onClick={() => setFilter(f.value)}
-        >{f.label}</button>
-      ))}
-    </div>
-  )
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return events
+    return events.filter((ev) => [ev.title, ev.org_name, ev.contact_email, ev.venue_name].some((v) => String(v || '').toLowerCase().includes(q)))
+  }, [events, query])
 
   return (
-    <AdminLayout
-      title="Promoted Events"
-      subtitle="Self-serve Featured events — moderate or remove"
-      actions={filterActions}
-    >
-      {state === 'loading' && <p className="ape-muted">Loading…</p>}
-      {state === 'error' && <p className="ape-error">Couldn’t load events. <button className="ape-link" onClick={load}>Retry</button></p>}
-      {state === 'ready' && events.length === 0 && <p className="ape-muted">No promoted events{filter ? ` (${filter})` : ''} yet.</p>}
-
-      {state === 'ready' && events.length > 0 && (
-        <div className="ape-list">
-          {events.map((ev) => (
-            <div key={ev.id} className={`ape-row ${ev.moderation_status === 'removed' ? 'is-removed' : ''}`}>
-              <div className="ape-row-main">
-                <div className="ape-badges">
-                  <span className={`ape-badge mod-${ev.moderation_status}`}>{ev.moderation_status}</span>
-                  <span className="ape-badge stat">{ev.status}</span>
-                  <span className={`ape-badge pay-${ev.payment_status}`}>{ev.payment_status}</span>
-                </div>
-                <h3 className="ape-title">{ev.title}</h3>
-                <p className="ape-meta">
-                  {ev.org_name} · {ev.contact_email} · {fmtDate(ev.starts_at)} · {ev.promo_radius_km}km · {formatPence(ev.price_paid_pence)}
-                </p>
-                <p className="ape-stats">{Number(ev.impressions || 0)} views · {Number(ev.clicks || 0)} clicks · {Number(ev.saves || 0)} saves</p>
-                {ev.info_url && <a className="ape-link" href={ev.info_url} target="_blank" rel="noreferrer">Info link ↗</a>}
-              </div>
-              <div className="ape-actions">
-                {ev.moderation_status !== 'removed' ? (
-                  <button className="ape-btn danger" disabled={busyId === ev.id} onClick={() => moderate(ev.id, 'removed')}>
-                    {busyId === ev.id ? '…' : 'Remove'}
-                  </button>
-                ) : (
-                  <button className="ape-btn" disabled={busyId === ev.id} onClick={() => moderate(ev.id, 'live')}>
-                    {busyId === ev.id ? '…' : 'Restore'}
-                  </button>
-                )}
-              </div>
-            </div>
+    <AdminLayout title="Promoted events" subtitle="Self-serve featured events from venues and organisers. Remove anything that breaks the rules.">
+      <div className="admin-toolbar">
+        <div className="admin-chips" role="group" aria-label="Filter by moderation status">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value || 'all'}
+              type="button"
+              className={`chip${filter === f.value ? ' selected' : ''}`}
+              aria-pressed={filter === f.value}
+              onClick={() => setFilter(f.value)}
+            >{f.label}</button>
           ))}
         </div>
-      )}
+        <div className="admin-search" role="search">
+          <input type="search" placeholder="Search title, organiser or email" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search promoted events" />
+        </div>
+      </div>
+
+      <AdminStatus
+        loading={loading}
+        error={error}
+        onRetry={load}
+        empty={visible.length === 0}
+        emptyTitle={query ? 'No events match' : 'No promoted events'}
+        emptyText={query ? 'Try a shorter search.' : 'Events that venues and organisers promote will appear here.'}
+      >
+        <div className="admin-table-wrap">
+          <table className="admin-table ape-table">
+            <thead>
+              <tr>
+                <th scope="col">Event</th>
+                <th scope="col">Status</th>
+                <th scope="col">Date</th>
+                <th scope="col" className="num">Paid</th>
+                <th scope="col" className="num">Views</th>
+                <th scope="col" className="num">Clicks</th>
+                <th scope="col" className="num">Saves</th>
+                <th scope="col"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((ev) => (
+                <tr key={ev.id} className={ev.moderation_status === 'removed' ? 'is-removed' : ''}>
+                  <td className="ape-event">
+                    <strong>{ev.title}</strong>
+                    <span className="admin-muted">{ev.org_name} · {ev.contact_email}</span>
+                    <span className="admin-muted">{ev.promo_radius_km} km radius · created {timeAgo(ev.created_at)}{ev.info_url && <> · <a href={ev.info_url} target="_blank" rel="noreferrer">Info link ↗</a></>}</span>
+                  </td>
+                  <td>
+                    <div className="ape-badges">
+                      <span className={`admin-badge admin-badge-${MOD_TONE[ev.moderation_status] || 'warn'}`}>{sentence(ev.moderation_status)}</span>
+                      <span className="admin-badge">{sentence(ev.status)}</span>
+                      <span className={`admin-badge admin-badge-${PAY_TONE[ev.payment_status] || 'warn'}`}>{sentence(ev.payment_status)}</span>
+                    </div>
+                  </td>
+                  <td>{formatDate(ev.starts_at)}</td>
+                  <td className="num">{formatPence(ev.price_paid_pence)}</td>
+                  <td className="num">{Number(ev.impressions || 0).toLocaleString('en-GB')}</td>
+                  <td className="num">{Number(ev.clicks || 0).toLocaleString('en-GB')}</td>
+                  <td className="num">{Number(ev.saves || 0).toLocaleString('en-GB')}</td>
+                  <td>
+                    {ev.moderation_status !== 'removed' ? (
+                      <button type="button" className="btn btn-danger btn-sm" disabled={busyId === ev.id} onClick={() => setPending({ ev, moderation_status: 'removed' })}>
+                        {busyId === ev.id ? 'Removing…' : 'Remove'}
+                      </button>
+                    ) : (
+                      <button type="button" className="btn btn-secondary btn-sm" disabled={busyId === ev.id} onClick={() => setPending({ ev, moderation_status: 'live' })}>
+                        {busyId === ev.id ? 'Restoring…' : 'Restore'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="admin-pager"><span>Showing {visible.length.toLocaleString('en-GB')} of {events.length.toLocaleString('en-GB')} (newest 200)</span></div>
+      </AdminStatus>
+
+      <ConfirmModal
+        isOpen={!!pending}
+        title={pending?.moderation_status === 'removed' ? 'Remove this event?' : 'Restore this event?'}
+        message={pending?.moderation_status === 'removed'
+          ? `"${pending?.ev.title}" stops showing in the app straight away. You can restore it later.`
+          : `"${pending?.ev.title}" starts showing in the app again.`}
+        confirmLabel={pending?.moderation_status === 'removed' ? 'Remove event' : 'Restore event'}
+        destructive={pending?.moderation_status === 'removed'}
+        onConfirm={moderate}
+        onCancel={() => setPending(null)}
+      />
     </AdminLayout>
   )
 }

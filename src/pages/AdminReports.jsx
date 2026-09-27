@@ -15,7 +15,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../hooks/useToast'
 import ConfirmModal from '../components/ConfirmModal'
 import AdminLayout from '../components/AdminLayout'
+import AdminStatus from '../components/AdminStatus'
+import { timeAgo, formatDateTime } from '../components/adminFormat'
 import './AdminReports.css'
+import { authHeaders } from '../utils/authToken'
 
 const STATUS_FILTERS = [
   { value: 'open', label: 'Open' },
@@ -32,37 +35,37 @@ const SEVERITY_FILTERS = [
   { value: 'low', label: 'Low' },
 ]
 
-function authHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 export default function AdminReports() {
   const toast = useToast()
   const [status, setStatus] = useState('open')
   const [severity, setSeverity] = useState(null)
   const [reports, setReports] = useState([])
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState(null)
   const [acting, setActing] = useState(null)
 
-  const fetchReports = useCallback(async () => {
-    setLoading(true)
+  const fetchReports = useCallback(async ({ offset = 0 } = {}) => {
+    if (offset) setLoadingMore(true)
+    else { setLoading(true); setError(null) }
     try {
-      const params = new URLSearchParams({ status, limit: '50' })
+      const params = new URLSearchParams({ status, limit: '50', offset: String(offset) })
       if (severity) params.set('severity', severity)
       const res = await fetch(`/api/admin/reports?${params}`, {
         credentials: 'include',
         headers: authHeaders(),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) throw new Error(`The server answered ${res.status}`)
       const data = await res.json()
-      setReports(data.reports || [])
+      setReports(prev => offset ? [...prev, ...(data.reports || [])] : (data.reports || []))
       setTotal(data.total || 0)
     } catch (err) {
-      toast.error(`Failed to load reports: ${err.message}`)
+      if (offset) toast.error(`Couldn't load more reports: ${err.message}`)
+      else setError(err.message || 'Network error')
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }, [status, severity, toast])
 
@@ -80,12 +83,13 @@ export default function AdminReports() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (data.code === 'STALE_SESSION') {
-          throw new Error('Please sign in again before taking that action.')
+          throw new Error('Sign in again, then retry. Moderation needs a login from the last 30 minutes.')
         }
         throw new Error(data.error || `HTTP ${res.status}`)
       }
-      toast.success(`Report #${reportId} → ${data.status}`)
+      toast.success(`Report #${reportId} marked ${data.status}`)
       setReports(prev => prev.filter(r => r.id !== reportId))
+      setTotal(t => Math.max(0, t - 1))
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -98,54 +102,52 @@ export default function AdminReports() {
       title="Reports"
       subtitle={`${total} ${status}${severity ? ` · ${severity}` : ''} report${total === 1 ? '' : 's'}`}
     >
-      <div className="admin-reports">
-
-      <div className="admin-reports-filters">
-        <div className="admin-reports-filter-group">
+      <div className="admin-toolbar admin-reports-filters">
+        <div className="admin-chips" role="group" aria-label="Filter by status">
           {STATUS_FILTERS.map(f => (
-            <button
-              key={f.value}
-              className={`admin-reports-chip ${status === f.value ? 'active' : ''}`}
-              onClick={() => setStatus(f.value)}
-            >
+            <button key={f.value} type="button" className={`chip${status === f.value ? ' selected' : ''}`} aria-pressed={status === f.value} onClick={() => setStatus(f.value)}>
               {f.label}
             </button>
           ))}
         </div>
-        <div className="admin-reports-filter-group">
+        <div className="admin-chips" role="group" aria-label="Filter by severity">
           {SEVERITY_FILTERS.map(f => (
-            <button
-              key={f.value ?? 'all'}
-              className={`admin-reports-chip ${severity === f.value ? 'active' : ''}`}
-              onClick={() => setSeverity(f.value)}
-            >
+            <button key={f.value ?? 'all'} type="button" className={`chip${severity === f.value ? ' selected' : ''}`} aria-pressed={severity === f.value} onClick={() => setSeverity(f.value)}>
               {f.label}
             </button>
           ))}
         </div>
       </div>
 
-      {loading ? (
-        <div className="admin-reports-loading">Loading reports…</div>
-      ) : reports.length === 0 ? (
-        <div className="admin-reports-empty">
-          <p>Inbox zero. {status === 'open' ? "Nothing needs your attention." : 'No reports match this filter.'}</p>
-        </div>
-      ) : (
+      <AdminStatus
+        loading={loading}
+        error={error}
+        onRetry={() => fetchReports()}
+        empty={reports.length === 0}
+        emptyTitle={status === 'open' ? 'Inbox zero' : 'No reports here'}
+        emptyText={status === 'open' ? 'Nothing needs your attention right now.' : 'No reports match this filter.'}
+      >
         <ul className="admin-reports-list">
           {reports.map(r => (
             <ReportRow key={r.id} report={r} acting={acting === r.id} onDecide={decide} />
           ))}
         </ul>
-      )}
-      </div>
+        <div className="admin-pager">
+          <span>Showing {reports.length} of {total}</span>
+          {reports.length < total && (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => fetchReports({ offset: reports.length })} disabled={loadingMore}>
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
+          )}
+        </div>
+      </AdminStatus>
     </AdminLayout>
   )
 }
 
 function ReportRow({ report, acting, onDecide }) {
   const severity = report.ai_severity || 'untriaged'
-  const created = report.created_at ? new Date(report.created_at).toLocaleString() : ''
+  const sevLabel = severity.charAt(0).toUpperCase() + severity.slice(1)
   const [showBanConfirm, setShowBanConfirm] = useState(false)
   const banLabel = `@${report.reported_username || `user ${report.reported_user_id}`}`
 
@@ -174,12 +176,12 @@ function ReportRow({ report, acting, onDecide }) {
   return (
     <li className={`admin-report admin-report-sev-${severity}`}>
       <div className="admin-report-row1">
-        <span className={`admin-report-sev-badge sev-${severity}`}>{severity.toUpperCase()}</span>
+        <span className={`admin-report-sev-badge sev-${severity}`}>{sevLabel}</span>
         <span className="admin-report-entity">
           {entityTypeLabel} <strong>#{report.entity_id}</strong>
         </span>
         <span className="admin-report-reason">{report.reason}</span>
-        <span className="admin-report-time">{created}</span>
+        <span className="admin-report-time" title={formatDateTime(report.created_at)}>{timeAgo(report.created_at)}</span>
       </div>
 
       <div className="admin-report-row2">
@@ -238,7 +240,7 @@ function ReportRow({ report, acting, onDecide }) {
           </p>
         )}
         {report.reported_content_status === 'rejected' && (
-          <span className="admin-report-content-flag">⨯ already hidden</span>
+          <span className="admin-badge admin-badge-danger admin-report-content-flag">Already hidden</span>
         )}
       </div>
 
@@ -255,21 +257,23 @@ function ReportRow({ report, acting, onDecide }) {
         <div className="admin-report-ai">
           <span className="admin-report-ai-label">AI:</span> {report.ai_reason}
           {report.ai_action_taken && report.ai_action_taken !== 'none' && (
-            <span className="admin-report-ai-action"> · auto: {report.ai_action_taken}</span>
+            <span className="admin-report-ai-action"> · auto action: {report.ai_action_taken}</span>
           )}
         </div>
       )}
 
       <div className="admin-report-actions">
         <button
-          className="admin-report-btn admin-report-btn-secondary"
+          type="button"
+          className="btn btn-secondary btn-sm"
           disabled={acting}
           onClick={() => onDecide(report.id, 'dismiss', 'none')}
         >
           Dismiss
         </button>
         <button
-          className="admin-report-btn admin-report-btn-secondary"
+          type="button"
+          className="btn btn-secondary btn-sm"
           disabled={acting}
           onClick={() => onDecide(report.id, 'review', 'none')}
         >
@@ -277,7 +281,8 @@ function ReportRow({ report, acting, onDecide }) {
         </button>
         {isContribution && report.reported_content_status !== 'rejected' && (
           <button
-            className="admin-report-btn admin-report-btn-destructive"
+            type="button"
+            className="btn btn-danger btn-sm"
             disabled={acting}
             onClick={() => onDecide(report.id, 'action', 'hide_content')}
           >
@@ -286,7 +291,8 @@ function ReportRow({ report, acting, onDecide }) {
         )}
         {isReview && hasContent && (
           <button
-            className="admin-report-btn admin-report-btn-destructive"
+            type="button"
+            className="btn btn-danger btn-sm"
             disabled={acting}
             onClick={() => onDecide(report.id, 'action', 'hide_review')}
           >
@@ -295,7 +301,8 @@ function ReportRow({ report, acting, onDecide }) {
         )}
         {report.reported_user_id && (
           <button
-            className="admin-report-btn admin-report-btn-destructive"
+            type="button"
+            className="btn btn-danger btn-sm"
             disabled={acting}
             onClick={() => setShowBanConfirm(true)}
           >
@@ -307,7 +314,7 @@ function ReportRow({ report, acting, onDecide }) {
       <ConfirmModal
         isOpen={showBanConfirm}
         title={`Ban ${banLabel}?`}
-        message="They will not be able to sign in. This action can be reversed manually in the database."
+        message="They will not be able to sign in. You can unban them from the Users page."
         confirmLabel="Ban user"
         destructive
         onConfirm={() => {

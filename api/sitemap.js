@@ -10,12 +10,13 @@
 import { query } from './lib/db.js'
 import { TOWNS } from '../shared/towns.mjs'
 import { UK_TOWN_SLUGS } from '../shared/ukTowns.mjs'
+import { WORLD_TOWN_SLUGS } from '../shared/worldTowns.mjs'
 
 const SITE = 'https://www.go-roam.uk'
 const STATIC_PATHS = [
   '/', '/events', '/pricing', '/partners', '/get-roam', '/support', '/privacy', '/terms', '/town',
-  // Every UK city and town gets a live page; listing them is how search finds them
-  ...new Set([...TOWNS.map(t => t.slug), ...UK_TOWN_SLUGS].map(slug => `/town/${slug}`))
+  // Every UK city and town, and ~400 world cities, get a live page; listing them is how search finds them
+  ...new Set([...TOWNS.map(t => t.slug), ...UK_TOWN_SLUGS, ...WORLD_TOWN_SLUGS].map(slug => `/town/${slug}`))
 ]
 const MAX_PLACES = 5000
 

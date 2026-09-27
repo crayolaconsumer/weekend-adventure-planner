@@ -26,7 +26,6 @@ const KV_FLAGS_KEY = 'roam:flags'
 // which flag names exist; the KV blob is merged OVER it, so unknown keys in
 // KV are ignored and missing keys keep their default.
 const DEFAULTS = Object.freeze({
-  discover: true,
   overpassProxy: true,
   contributionsUpload: true,
   pushNudges: true,

@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto'
 let cachedClient = null
 let initAttempted = false
 
-function getClient() {
+export function getClient() {
   if (initAttempted) return cachedClient
   initAttempted = true
 

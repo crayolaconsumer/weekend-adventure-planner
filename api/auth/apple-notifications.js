@@ -35,7 +35,8 @@
  */
 
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { queryOne, transaction } from '../lib/db.js'
+import { queryOne } from '../lib/db.js'
+import { deleteUserAccount } from '../lib/accounts.js'
 
 const APPLE_JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
 const APPLE_SERVICES_ID = process.env.APPLE_SIGNIN_SERVICES_ID
@@ -93,7 +94,7 @@ export default async function handler(req, res) {
   // Look up the local user by apple_id. May be null if they already
   // deleted in-app (Apple still sends notifications post-deletion).
   const user = await queryOne(
-    'SELECT id, username, subscription_id, stripe_customer_id FROM users WHERE apple_id = ?',
+    'SELECT id, username FROM users WHERE apple_id = ?',
     [appleId]
   )
 
@@ -103,23 +104,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true })
     }
 
-    // Cancel Stripe subscription if any — best-effort.
-    if (user.subscription_id) {
-      try {
-        const { default: Stripe } = await import('stripe')
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-        await stripe.subscriptions.cancel(user.subscription_id).catch(() => {})
-      } catch (err) {
-        console.warn('apple-notifications: Stripe cancel failed (continuing):', err?.message)
-      }
-    }
-
     try {
-      await transaction(async (conn) => {
-        await conn.query('DELETE FROM swiped_places WHERE user_id = ?', [user.id])
-        await conn.query('DELETE FROM content_reports WHERE reporter_id = ? OR reported_user_id = ?', [user.id, user.id]).catch(() => {})
-        await conn.query('DELETE FROM users WHERE id = ?', [user.id])
-      })
+      await deleteUserAccount(user.id)
       console.log(`apple-notifications: deleted user ${user.id} (${user.username}) on ${eventType}`)
     } catch (err) {
       console.error('apple-notifications: deletion failed:', err)

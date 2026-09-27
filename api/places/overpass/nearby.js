@@ -25,7 +25,8 @@ export const config = {
 
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
 import { isFeatureEnabled } from '../../lib/flags.js'
-import { applyRateLimit } from '../../lib/rateLimit.js'
+import { applyRateLimit, applySharedRateLimit } from '../../lib/rateLimit.js'
+import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
 
 // Per-IP rate limit for the proxy. The proxy itself is the only thing
@@ -39,6 +40,10 @@ const OVERPASS_RATE_LIMIT = {
   max: 120,
   blockDurationMs: 10 * 60 * 1000,
 }
+// Same idea across every instance (the limit above is per instance)
+// Per IP across instances; generous because carrier NAT and campus Wi-Fi
+// put many real users behind one address
+const OVERPASS_SHARED_LIMIT = { max: 300, windowSec: 60 }
 
 // KV TTL for cached Overpass responses. OSM data changes at the day
 // scale at fastest (new POIs added by mappers), so 24h is a safe
@@ -237,7 +242,8 @@ export default async function handler(req, res) {
   // Rate limit by IP. Rejects abusive callers before we spend any
   // server time on validation or upstream fetches. Honest users won't
   // see this — the limit is set well above app-driven usage patterns.
-  const rateLimitError = applyRateLimit(req, res, OVERPASS_RATE_LIMIT, 'overpass_proxy')
+  const rateLimitError = applyRateLimit(req, res, OVERPASS_RATE_LIMIT, 'overpass_proxy') ||
+    await applySharedRateLimit(req, res, OVERPASS_SHARED_LIMIT, 'overpass')
   if (rateLimitError) {
     return res.status(rateLimitError.status).json(rateLimitError)
   }
@@ -270,7 +276,23 @@ export default async function handler(req, res) {
   // FIRST caller per unique bbox+types combination pays the 15-25s
   // cold-cache cost. This is the load-bearing protection against OSM
   // IP-banning us as we scale.
-  const cacheKey = `overpass:${hashKey(query)}`
+  //
+  // The bbox is snapped to a ~1 km grid first (see bboxSnap.js): raw GPS
+  // coordinates made every user's key unique, so real traffic never hit.
+  // The snapped query is also what goes upstream, so the cached body always
+  // matches its key. Non-canonical bboxes pass through unchanged.
+  const upstreamQuery = snapQueryBbox(query)
+  const cacheKey = `overpass:${hashKey(upstreamQuery)}`
+  const staleKey = `overpass:stale:${hashKey(upstreamQuery)}`
+  // Outage fallback: stale copies saved before grid snapping live under the
+  // raw-query key; read those too until the snapped layer refills (30 days)
+  const legacyStaleKey = upstreamQuery === query ? null : `overpass:stale:${hashKey(query)}`
+  const readStale = async () => {
+    const hasPlaces = d => d && Array.isArray(d.elements) && d.elements.length > 0
+    const snapped = await cacheGet(staleKey)
+    if (hasPlaces(snapped) || !legacyStaleKey) return snapped
+    return cacheGet(legacyStaleKey)
+  }
   if (isCacheEnabled()) {
     const cached = await cacheGet(cacheKey)
     // Only serve a cached entry that actually has places. A degraded
@@ -299,7 +321,7 @@ export default async function handler(req, res) {
   // no-op and the proxy works normally.
   if (!(await isFeatureEnabled('overpassProxy'))) {
     if (isCacheEnabled()) {
-      const staleData = await cacheGet(`overpass:stale:${hashKey(query)}`)
+      const staleData = await readStale()
       if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
         res.setHeader('Cache-Control', 'no-store')
         res.setHeader('X-Overpass-Cache', 'STALE')
@@ -329,7 +351,7 @@ export default async function handler(req, res) {
           // can (and have) blocked anonymous traffic at the IP range.
           'User-Agent': 'ROAM/1.0 (+https://www.go-roam.uk; support@extrastaff.com)'
         },
-        body: `data=${encodeURIComponent(query)}`,
+        body: `data=${encodeURIComponent(upstreamQuery)}`,
         signal: controller.signal
       })
 
@@ -367,7 +389,7 @@ export default async function handler(req, res) {
       // cache a degraded-empty response.
       if (isCacheEnabled()) {
         waitUntil(cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {}))
-        waitUntil(cacheSet(`overpass:stale:${hashKey(query)}`, data, 30 * 24 * 60 * 60).catch(() => {}))
+        waitUntil(cacheSet(staleKey, data, 30 * 24 * 60 * 60).catch(() => {}))
       }
 
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
@@ -400,7 +422,7 @@ export default async function handler(req, res) {
   // fetched before still 503 — that gap is covered by the planned
   // on-device seed floor.
   if (isCacheEnabled()) {
-    const staleData = await cacheGet(`overpass:stale:${hashKey(query)}`)
+    const staleData = await readStale()
     if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Overpass-Cache', 'STALE')

@@ -8,12 +8,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getAuthToken } from '../utils/authToken'
 
 const STORAGE_KEY = 'roam_badges'
-
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
 
 function loadLocalBadges() {
   try {

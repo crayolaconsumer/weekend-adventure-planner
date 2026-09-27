@@ -17,6 +17,8 @@
  * codebase Just Works on native without per-callsite migration.
  */
 
+import { getAuthToken } from './authToken'
+
 interface CapacitorGlobal {
   isNativePlatform?: () => boolean
   getPlatform?: () => string
@@ -41,8 +43,6 @@ const API_ORIGIN = 'https://www.go-roam.uk'
 // and from preview deploys (window.location.origin === 'https://my-pr-...vercel.app')
 // always point at production where the share is actually viewable.
 const PUBLIC_WEB_ORIGIN = 'https://www.go-roam.uk'
-const TOKEN_STORAGE_KEY = 'roam_auth_token'
-const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 
 let installed = false
 
@@ -95,7 +95,7 @@ export function getPublicShareUrl(path: string = ''): string {
 
 function getStoredToken(): string | null {
   if (typeof localStorage === 'undefined') return null
-  return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY) || null
+  return getAuthToken() || null
 }
 
 /**

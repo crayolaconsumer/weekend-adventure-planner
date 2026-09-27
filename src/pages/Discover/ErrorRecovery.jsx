@@ -21,8 +21,8 @@ export function classifyLoadError(loadError) {
   if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
     return {
       kind: 'network',
-      title: 'Connection issue',
-      message: "Check your internet connection and try again. Make sure you're not in airplane mode.",
+      title: "Can't reach the internet",
+      message: 'Check your connection and try again.',
     }
   }
 
@@ -38,15 +38,15 @@ export function classifyLoadError(loadError) {
     return {
       kind: 'rate_limit',
       title: 'Too many requests',
-      message: "You've been exploring a lot! Please wait a moment before trying again.",
+      message: 'Wait a moment, then try again.',
     }
   }
 
   if (lower.includes('500') || lower.includes('502') || lower.includes('503') || lower.includes('server')) {
     return {
       kind: 'server',
-      title: 'Service temporarily unavailable',
-      message: 'Our servers are having a moment. This usually resolves itself quickly.',
+      title: 'Places are unavailable right now',
+      message: 'Our servers are busy. Try again in a minute.',
     }
   }
 
@@ -67,20 +67,20 @@ function actionsForError({ kind }, { onRetry, onOpenFilters }) {
   const primary = (() => {
     switch (kind) {
       case 'network':
-        return { label: 'Retry Connection', onClick: onRetry }
+        return { label: 'Try again', onClick: onRetry }
       case 'rate_limit':
-        return { label: 'Wait & Retry', onClick: () => setTimeout(onRetry, 3000) }
+        return { label: 'Wait and try again', onClick: () => setTimeout(onRetry, 3000) }
       default:
-        return { label: 'Try Again', onClick: onRetry }
+        return { label: 'Try again', onClick: onRetry }
     }
   })()
 
   const secondary = (() => {
     switch (kind) {
       case 'generic':
-        return { label: 'Check Filters', onClick: onOpenFilters }
+        return { label: 'Check filters', onClick: onOpenFilters }
       case 'timeout':
-        return { label: 'Reduce Radius', onClick: onOpenFilters }
+        return { label: 'Reduce radius', onClick: onOpenFilters }
       default:
         return null
     }

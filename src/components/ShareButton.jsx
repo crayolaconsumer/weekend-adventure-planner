@@ -174,7 +174,7 @@ export default function ShareButton({ place, variant = 'icon' }) {
                   disabled={loading}
                 >
                   <DownloadIcon />
-                  <span>Download Image</span>
+                  <span>Download image</span>
                 </button>
 
                 {/* Copy link */}
@@ -184,7 +184,7 @@ export default function ShareButton({ place, variant = 'icon' }) {
                   disabled={loading}
                 >
                   {copied ? <CheckIcon /> : <CopyIcon />}
-                  <span>{copied ? 'Copied!' : 'Copy Link'}</span>
+                  <span>{copied ? 'Copied!' : 'Copy link'}</span>
                 </button>
               </div>
 

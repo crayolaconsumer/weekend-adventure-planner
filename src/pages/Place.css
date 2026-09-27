@@ -5,19 +5,63 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  background: var(--roam-cream);
+}
+
+.place-page-body {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-lg);
-  background: var(--roam-cream);
+  padding: var(--space-lg) var(--space-md);
+}
+
+/* Compass + wordmark lockup, as on the town pages (api/lib/towns.js .brand) */
+.place-page-header {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+.place-page-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--roam-forest);
+  text-decoration: none;
+}
+
+.place-page-brand img {
+  width: 34px;
+  height: 34px;
 }
 
 .place-page-error {
   text-align: center;
   max-width: 400px;
-  padding: var(--space-xl);
-  background: var(--color-surface, white);
+  width: 100%;
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
+}
+
+.place-page-error-mark {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--space-md);
 }
 
 .place-page-error-icon {
@@ -28,9 +72,10 @@
 
 .place-page-error h2 {
   margin: 0 0 var(--space-sm);
+  font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: 600;
-  color: var(--roam-forest);
+  font-weight: 500;
+  color: var(--roam-ink);
 }
 
 .place-page-error p {
@@ -66,4 +111,16 @@
 .place-page-error-btn:focus-visible {
   outline: 2px solid var(--roam-forest);
   outline-offset: 2px;
+}
+
+/* Desktop: the app's top bar already carries the compass + wordmark and
+   the way back in, so the page's own header would be a second copy. */
+@media (min-width: 1024px) {
+  .place-page {
+    padding-top: 88px;
+  }
+
+  .place-page-header {
+    display: none;
+  }
 }

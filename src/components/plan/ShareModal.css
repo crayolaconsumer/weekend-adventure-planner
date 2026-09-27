@@ -141,7 +141,7 @@
 }
 
 .share-option:hover .share-option-icon {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
 }
 
@@ -181,8 +181,6 @@
 .share-modal-divider span {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--roam-ink-muted);
 }
 

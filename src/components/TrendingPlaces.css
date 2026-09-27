@@ -70,10 +70,8 @@
   color: #f5f0e6;
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
   border-radius: 999px;
   backdrop-filter: blur(4px);
-  text-transform: uppercase;
 }
 
 .trending-card-body {

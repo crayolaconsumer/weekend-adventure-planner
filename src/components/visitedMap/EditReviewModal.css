@@ -134,7 +134,7 @@
   color: var(--color-text-primary);
 }
 .edit-review-save {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: #f5f0e6;
   border-color: var(--roam-forest);
 }

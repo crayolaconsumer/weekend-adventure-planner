@@ -48,7 +48,7 @@ export default function FollowRequestsModal({ onClose }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="follow-requests-modal-header">
-          <h3>Follow Requests</h3>
+          <h3>Follow requests</h3>
           {total > 0 && <span className="request-count">{total} pending</span>}
           <button className="follow-requests-modal-close" onClick={onClose} aria-label="Close">
             <CloseIcon />

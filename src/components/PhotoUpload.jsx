@@ -11,6 +11,7 @@ import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { compressImage } from '../utils/compressImage'
 import './PhotoUpload.css'
+import { getAuthToken } from '../utils/authToken'
 
 // True when running inside Capacitor's WebView (iOS / Android shells),
 // false in a normal browser. The native path uses the @capacitor/camera
@@ -21,11 +22,6 @@ import './PhotoUpload.css'
 // Android system picker — neither requires runtime prompts on those
 // platforms, by design.
 const IS_NATIVE = Capacitor.isNativePlatform()
-
-// Get auth token for upload
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
 
 export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }) {
   const [uploading, setUploading] = useState(false)
@@ -152,7 +148,7 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
         // Take Photo / From Library / Cancel actions.
         promptLabelHeader: 'Add a photo',
         promptLabelPhoto: 'Choose from Library',
-        promptLabelPicture: 'Take Photo'
+        promptLabelPicture: 'Take photo'
       })
 
       if (!photo?.webPath) return
@@ -272,7 +268,7 @@ export default function PhotoUpload({ onUpload, onRemove, currentUrl, disabled }
                 <circle cx="12" cy="13" r="3.5"/>
               </svg>
             </span>
-            <span className="photo-upload-text">Add Photo</span>
+            <span className="photo-upload-text">Add photo</span>
             <span className="photo-upload-hint">Tap or drag to upload</span>
           </motion.div>
         )}

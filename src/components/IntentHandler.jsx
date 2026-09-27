@@ -25,16 +25,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 async function resolveUsernameToId(username) {
   try {
     const res = await fetch(`/api/users/${encodeURIComponent(username)}`, {
-      headers: getAuthHeaders(),
+      headers: authHeaders(),
       credentials: 'include'
     })
     if (!res.ok) return null
@@ -49,7 +45,7 @@ async function postFollow(targetUserId) {
   try {
     await fetch('/api/social', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       credentials: 'include',
       body: JSON.stringify({ action: 'follow', userId: targetUserId })
     })

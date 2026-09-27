@@ -1,27 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { computeLevel, getAuthToken } from '../../../src/pages/UnifiedProfile/utils.js'
-
-describe('UnifiedProfile/utils.getAuthToken', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    sessionStorage.clear()
-  })
-
-  it('returns null when nothing stored', () => {
-    expect(getAuthToken()).toBe(null)
-  })
-
-  it('prefers localStorage', () => {
-    localStorage.setItem('roam_auth_token', 'A')
-    sessionStorage.setItem('roam_auth_token_session', 'B')
-    expect(getAuthToken()).toBe('A')
-  })
-
-  it('falls back to sessionStorage', () => {
-    sessionStorage.setItem('roam_auth_token_session', 'B')
-    expect(getAuthToken()).toBe('B')
-  })
-})
+import { describe, it, expect } from 'vitest'
+import { computeLevel } from '../../../src/pages/UnifiedProfile/utils.js'
 
 describe('UnifiedProfile/utils.computeLevel', () => {
   it('returns level 1 defaults when stats are missing', () => {

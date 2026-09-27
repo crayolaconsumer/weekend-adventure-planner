@@ -13,12 +13,7 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import ActivityItem, { ActivityItemSkeleton } from './ActivityItem'
 import './LocationAwareFeed.css'
-
-// Get auth headers for API requests
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 // Distance thresholds in meters
 const NEAR_THRESHOLD = 5000     // 5km
@@ -75,7 +70,7 @@ export default function LocationAwareFeed({ location, locationReady = true }) {
 
       const response = await fetch(url, {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (!response.ok) {
@@ -175,7 +170,7 @@ export default function LocationAwareFeed({ location, locationReady = true }) {
     return (
       <div className="location-aware-feed">
         <div className="location-aware-feed-section">
-          <h3 className="location-aware-feed-section-title">Near You</h3>
+          <h3 className="location-aware-feed-section-title">Near you</h3>
           {[...Array(3)].map((_, i) => (
             <ActivityItemSkeleton key={i} />
           ))}
@@ -217,7 +212,7 @@ export default function LocationAwareFeed({ location, locationReady = true }) {
       {/* Near You section */}
       {hasNear && (
         <section className="location-aware-feed-section">
-          <h3 className="location-aware-feed-section-title">Near You</h3>
+          <h3 className="location-aware-feed-section-title">Near you</h3>
           {groupedActivities.near.map((activity, index) => (
             <ActivityItem
               key={activity.id}
@@ -233,7 +228,7 @@ export default function LocationAwareFeed({ location, locationReady = true }) {
       {/* Further Away section */}
       {hasFurther && (
         <section className="location-aware-feed-section">
-          <h3 className="location-aware-feed-section-title">Further Away</h3>
+          <h3 className="location-aware-feed-section-title">Further away</h3>
           {groupedActivities.further.map((activity, index) => (
             <ActivityItem
               key={activity.id}
@@ -250,7 +245,7 @@ export default function LocationAwareFeed({ location, locationReady = true }) {
       {hasEverywhere && (
         <section className="location-aware-feed-section">
           <h3 className="location-aware-feed-section-title">
-            {hasNear || hasFurther ? 'Everywhere Else' : 'Recent Activity'}
+            {hasNear || hasFurther ? 'Everywhere else' : 'Recent activity'}
           </h3>
           {groupedActivities.everywhere.map((activity, index) => (
             <ActivityItem

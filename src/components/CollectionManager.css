@@ -179,8 +179,6 @@
 .collection-limit-badge {
   font-size: var(--text-xs, 10px);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   padding: 2px 6px;
   background: linear-gradient(135deg, #c45c3e 0%, #d47f66 100%);
   color: white;
@@ -302,13 +300,13 @@
 }
 
 .collection-form-submit {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   color: white;
 }
 
 .collection-form-submit:hover:not(:disabled) {
-  background: var(--roam-forest-light);
+  background: #2d5246;
 }
 
 .collection-form-submit:disabled {
@@ -325,7 +323,7 @@
 .collection-manager-done {
   width: 100%;
   padding: var(--space-md);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -336,5 +334,5 @@
 }
 
 .collection-manager-done:hover {
-  background: var(--roam-forest-light);
+  background: #2d5246;
 }

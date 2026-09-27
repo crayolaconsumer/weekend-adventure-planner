@@ -118,6 +118,11 @@ describe('extractToken', () => {
     expect(extractToken(req)).toBe('def456')
   })
 
+  it('reads cookie token when it is not the first cookie (leading space)', () => {
+    const req = { headers: { cookie: 'other=1; roam_token=abc.def=; x=y' } }
+    expect(extractToken(req)).toBe('abc.def=')
+  })
+
   it("prefers Authorization header over cookie", () => {
     const req = {
       headers: {

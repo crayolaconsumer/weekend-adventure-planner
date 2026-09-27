@@ -7,6 +7,8 @@
  * API key is stored server-side only - never exposed to client.
  */
 
+import { haversineKm } from '../../shared/geo.mjs'
+
 // Fallback speeds (km/h) for client-side estimation when offline
 const FALLBACK_SPEEDS = {
   walk: 5,
@@ -60,7 +62,7 @@ export async function getRoute(from, to, mode = 'walk') {
  * Used as fallback when API is unavailable or offline
  */
 function calculateFallback(from, to, mode) {
-  const distance = haversineDistance(from.lat, from.lng, to.lat, to.lng)
+  const distance = haversineKm(from.lat, from.lng, to.lat, to.lng)
   const speed = FALLBACK_SPEEDS[mode] || FALLBACK_SPEEDS.walk
   const duration = Math.round((distance / speed) * 60) // Convert hours to minutes
 
@@ -69,24 +71,6 @@ function calculateFallback(from, to, mode) {
     distance,
     source: 'fallback',
   }
-}
-
-/**
- * Haversine formula to calculate distance between two points
- * @returns {number} Distance in kilometers
- */
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371 // Earth's radius in km
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-function toRad(deg) {
-  return deg * (Math.PI / 180)
 }
 
 /**

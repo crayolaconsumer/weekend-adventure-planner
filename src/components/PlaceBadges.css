@@ -90,7 +90,7 @@
 }
 
 .place-badges-filter .place-badge.selected {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border-color: var(--roam-forest);
   color: white;
 }

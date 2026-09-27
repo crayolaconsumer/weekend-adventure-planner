@@ -12,17 +12,7 @@
  * sort below real results and the UI can visually de-emphasise them.
  */
 import seedData from '../data/seedPlaces.json'
-
-const EARTH_KM = 6371
-
-function haversineKm(aLat, aLng, bLat, bLng) {
-  const dLat = ((bLat - aLat) * Math.PI) / 180
-  const dLng = ((bLng - aLng) * Math.PI) / 180
-  const la1 = (aLat * Math.PI) / 180
-  const la2 = (bLat * Math.PI) / 180
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2
-  return 2 * EARTH_KM * Math.asin(Math.min(1, Math.sqrt(h)))
-}
+import { haversineKm } from '../../shared/geo.mjs'
 
 /**
  * Nearest `n` seed POIs to (lat,lng) within `maxKm`, as place objects that

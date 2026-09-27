@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { RATE_LIMITS, checkRateLimit, getRateLimitKey, applyRateLimit } from '../../../api/lib/rateLimit.js'
+import { RATE_LIMITS, checkRateLimit, getRateLimitKey, applyRateLimit, applySharedRateLimit } from '../../../api/lib/rateLimit.js'
 
 // The rate limiter uses a module-level Map. To keep tests isolated we
 // use a fresh unique key per test (timestamp + random) so windows don't
@@ -157,5 +157,68 @@ describe('rateLimit.RATE_LIMITS presets', () => {
   it('auth-write presets are tighter than general API', () => {
     expect(RATE_LIMITS.AUTH_LOGIN.max).toBeLessThan(RATE_LIMITS.API_GENERAL.max)
     expect(RATE_LIMITS.AUTH_REGISTER.max).toBeLessThan(RATE_LIMITS.AUTH_LOGIN.max)
+  })
+})
+
+describe('rateLimit.applySharedRateLimit (KV, across instances)', () => {
+  // Minimal Upstash stand-in: pipeline().incr().expire().exec()
+  function fakeKv() {
+    const counts = new Map()
+    const ttls = new Map()
+    return {
+      counts, ttls,
+      pipeline() {
+        const ops = []
+        const p = {
+          incr(k) { ops.push(() => { counts.set(k, (counts.get(k) || 0) + 1); return counts.get(k) }); return p },
+          expire(k, s) { ops.push(() => { ttls.set(k, s); return 1 }); return p },
+          exec: async () => ops.map(op => op())
+        }
+        return p
+      }
+    }
+  }
+  const reqFrom = ip => ({ headers: { 'x-forwarded-for': ip } })
+  const fakeRes = () => ({ headers: {}, setHeader(k, v) { this.headers[k] = v } })
+
+  it('allows up to max per window per IP, then 429s with Retry-After', async () => {
+    const kv = fakeKv()
+    const cfg = { max: 3, windowSec: 60 }
+    for (let i = 0; i < 3; i++) expect(await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), cfg, 't', kv)).toBe(null)
+    const res = fakeRes()
+    const limited = await applySharedRateLimit(reqFrom('1.1.1.1'), res, cfg, 't', kv)
+    expect(limited).toMatchObject({ status: 429 })
+    expect(res.headers['Retry-After']).toBeGreaterThan(0)
+    expect(res.headers['Retry-After']).toBeLessThanOrEqual(60)
+    // another IP is unaffected
+    expect(await applySharedRateLimit(reqFrom('2.2.2.2'), fakeRes(), cfg, 't', kv)).toBe(null)
+  })
+
+  it('always sets a TTL so window keys expire', async () => {
+    const kv = fakeKv()
+    await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), { max: 5, windowSec: 60 }, 'ttl', kv)
+    expect([...kv.ttls.values()]).toEqual([60])
+    expect([...kv.ttls.keys()][0]).toMatch(/^rl:ttl:1\.1\.1\.1:\d+$/)
+  })
+
+  it('starts a fresh count in the next window', async () => {
+    vi.useFakeTimers()
+    try {
+      const kv = fakeKv()
+      const cfg = { max: 1, windowSec: 60 }
+      vi.setSystemTime(new Date('2026-09-27T10:00:05Z'))
+      await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), cfg, 'w', kv)
+      expect(await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), cfg, 'w', kv)).not.toBe(null)
+      vi.setSystemTime(new Date('2026-09-27T10:01:01Z'))
+      expect(await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), cfg, 'w', kv)).toBe(null)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fails open when KV errors or is not configured', async () => {
+    const broken = { pipeline: () => ({ incr() { return this }, expire() { return this }, exec: async () => { throw new Error('down') } }) }
+    expect(await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), { max: 0, windowSec: 60 }, 'x', broken)).toBe(null)
+    expect(await applySharedRateLimit(reqFrom('1.1.1.1'), fakeRes(), { max: 0, windowSec: 60 }, 'x', null)).toBe(null)
   })
 })

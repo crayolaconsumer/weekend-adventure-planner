@@ -42,6 +42,13 @@ import {
 import { sendPushToUser, sendPushToUserWithStats } from '../lib/pushNotifications.js'
 import { isFeatureEnabled } from '../lib/flags.js'
 import { waitUntil } from '@vercel/functions'
+import { readCursor, writeCursor } from '../lib/cronCursor.js'
+import { isAuthorizedCron } from '../lib/cronAuth.js'
+
+// A run sends to at most this many users, oldest id first, and leaves a KV
+// cursor; the next slot that day (vercel.json runs it every 15 min for an
+// hour) resumes from it, so the job never outgrows the function timeout.
+export const MAX_USERS_PER_RUN = 1000
 
 // Friday-evening copy register. Lighter than Saturday's
 // "fancy a wander?" — these lean into the dopamine of clocking off
@@ -64,11 +71,7 @@ function pickNudge() {
 
 export default async function handler(req, res) {
   // Verify cron auth — same pattern as re-engagement-nudge.
-  const authHeader = req.headers.authorization
-  const cronSecret = process.env.CRON_SECRET
-  const isVercelCron = req.headers['x-vercel-cron'] === '1'
-
-  if (!isVercelCron && authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCron(req)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
@@ -77,6 +80,17 @@ export default async function handler(req, res) {
   if (!(await isFeatureEnabled('pushNudges'))) {
     await recordCronRun({ jobName: WEEKEND_PLANS_NUDGE_JOB, eligibleCount: 0, sentCount: 0, failedCount: 0, perPlatform: createPlatformBreakdown(), errorMessage: 'pushNudges flag off — skipped' }).catch(() => {})
     return res.status(200).json({ success: true, message: 'pushNudges disabled', skipped: true })
+  }
+
+  const day = new Date().toISOString().slice(0, 10)
+  const cursor = await readCursor(WEEKEND_PLANS_NUDGE_JOB, day)
+  if (!cursor) {
+    // Without a cursor we can't tell who already got today's push; skip rather than resend
+    await recordCronRun({ jobName: WEEKEND_PLANS_NUDGE_JOB, eligibleCount: 0, sentCount: 0, failedCount: 0, perPlatform: createPlatformBreakdown(), errorMessage: 'cron cursor unavailable (KV), skipped' }).catch(() => {})
+    return res.status(503).json({ success: false, message: 'cron cursor unavailable' })
+  }
+  if (cursor.done) {
+    return res.status(200).json({ success: true, message: 'already finished today', skipped: true })
   }
 
   let eligibleCount = 0
@@ -100,8 +114,19 @@ export default async function handler(req, res) {
         AND (np.weekly_digest IS NULL OR np.weekly_digest = 1)
         AND (us.last_activity_at IS NULL
              OR us.last_activity_at < DATE_SUB(NOW(), INTERVAL 72 HOUR))
-    `)
+        AND u.id > ?
+      ORDER BY u.id
+      LIMIT ${MAX_USERS_PER_RUN}
+    `, [cursor.after])
     eligibleCount = users.length
+
+    // Claim this batch BEFORE sending: if the run dies midway some users miss
+    // one nudge, which beats the next slot pushing them a second time
+    const done = users.length < MAX_USERS_PER_RUN
+    const after = users.length ? users[users.length - 1].id : cursor.after
+    if (!(await writeCursor(WEEKEND_PLANS_NUDGE_JOB, day, { after, done }))) {
+      throw new Error('cron cursor write failed, skipped to avoid double sends')
+    }
 
     if (users.length === 0) {
       await recordCronRun({

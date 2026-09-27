@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getAuthToken } from '../utils/authToken'
 
 const STORAGE_KEY = 'roam_stats'
 const MIGRATION_PREFIX = 'roam_stats_migrated_'
@@ -17,10 +18,6 @@ const MIGRATION_PREFIX = 'roam_stats_migrated_'
 // value but localStorage has one, push it up.
 const MIGRATE_NUMERIC = ['timesWentOut', 'boredomBusts', 'currentStreak', 'bestStreak']
 const MIGRATE_DATE = ['lastStreakDate', 'lastActivityAt']
-
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
 
 function loadLocalStats() {
   try {

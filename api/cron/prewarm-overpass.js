@@ -15,6 +15,7 @@ import { waitUntil } from '@vercel/functions'
 import { recordCronRun } from '../lib/cronRuns.js'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 import { appOrigin } from '../lib/origin.js'
+import { isAuthorizedCron } from '../lib/cronAuth.js'
 
 const JOB_NAME = 'overpass-prewarm'
 // 4s between chained warm calls (was 1s). Warming 48 cities × 5 radii = 240
@@ -110,16 +111,6 @@ const TARGETS = CITIES.flatMap(city =>
 )
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-function isAuthorized(req) {
-  const authHeader = req.headers.authorization
-  const cronSecret = process.env.CRON_SECRET
-  const isVercelCron = req.headers['x-vercel-cron'] === '1'
-
-  if (isVercelCron) return true
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true
-  return false
-}
 
 
 function getIntParam(value, fallback = 0) {
@@ -236,7 +227,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  if (!isAuthorized(req)) {
+  if (!isAuthorizedCron(req)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 

@@ -13,6 +13,7 @@
  */
 
 import { GOOD_CATEGORIES } from './categories'
+import { isChainPlace, CHAIN_PENALTY } from './badges'
 
 // Default profile for users with no data
 const DEFAULT_PROFILE = {
@@ -602,6 +603,7 @@ function scorePlaceForUserWithProfile(place, profile) {
 
   let score = 50
   score += getPersonalizationBoost(place, profile)
+  if (isChainPlace(place)) score -= CHAIN_PENALTY
 
   // Boost for higher ratings (with type validation)
   const rating = typeof place.rating === 'number' ? place.rating : parseFloat(place.rating)

@@ -15,6 +15,7 @@ import { Redis } from '@upstash/redis'
 import { cacheGet, cacheSet, isCacheEnabled } from './kvCache.js'
 import { TOWNS } from '../../shared/towns.mjs'
 import { UK_TOWNS } from '../../shared/ukTowns.mjs'
+import { WORLD_TOWNS } from '../../shared/worldTowns.mjs'
 import { CATEGORY_SVGS } from './brandSvgs.js'
 import { eventWhen } from './townEvents.js'
 import { haversineKm } from './promotedEventPush.js'
@@ -146,6 +147,7 @@ export function townFromResult(slug, r) {
 }
 
 const UK_TOWN_BY_SLUG = new Map(UK_TOWNS.map(t => [t.slug, t]))
+const WORLD_TOWN_BY_SLUG = new Map(WORLD_TOWNS.map(t => [t.slug, t]))
 
 // Curated name/blurb for featured towns, applied on read so editing the
 // featured list takes effect immediately (it used to be baked into the cache)
@@ -166,7 +168,7 @@ async function searchSettlement(text, fetchImpl, gate) {
 export async function resolveTown(slug, { fetchImpl = fetch, gate, raw = false } = {}) {
   // Sitemap towns ship with their geocoded record: crawlers never wait on Nominatim.
   // raw: geocoder only, no shipped table or featured text (the generator verifies with it)
-  const known = !raw && UK_TOWN_BY_SLUG.get(slug)
+  const known = !raw && (UK_TOWN_BY_SLUG.get(slug) || WORLD_TOWN_BY_SLUG.get(slug))
   if (known) return withFeatured({ ...known, blurb: null })
   const town = await cached(`town:geo:v2:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
     const r = await searchSettlement(slug.replace(/-/g, ' '), fetchImpl, gate)
@@ -536,6 +538,63 @@ ${TOWNS.filter(t => t.slug !== excludeSlug).map(t => `      <li><a class="chip" 
     </ul>`
 }
 
+// World cities link to shipped cities within this distance: their own
+// country's first, else any country's (Monaco → Nice). Beyond it isn't "nearby"
+// (Hong Kong was linking to Beijing, 1,900km away)
+const WORLD_NEARBY_KM = 300
+
+// The 8 closest shipped towns in the same country, so every town page links
+// to its neighbours and crawlers can reach them all (the popular list alone
+// left most towns with no inbound links)
+export function nearbyTowns(town, count = 8) {
+  if (town.lat == null || town.lng == null) return []
+  const byDistance = list => list
+    .filter(t => t.slug !== town.slug)
+    .map(t => ({ t, km: haversineKm(town.lat, town.lng, t.lat, t.lng) }))
+    .sort((a, b) => a.km - b.km)
+  if (!town.countryCode || town.countryCode === 'gb') return byDistance(UK_TOWNS).slice(0, count).map(x => x.t)
+  const sameCountry = byDistance(WORLD_TOWNS.filter(t => t.countryCode === town.countryCode)).filter(x => x.km <= WORLD_NEARBY_KM)
+  const near = sameCountry.length ? sameCountry : byDistance(WORLD_TOWNS).filter(x => x.km <= WORLD_NEARBY_KM)
+  return near.slice(0, count).map(x => x.t)
+}
+
+// Headline cities for the hub's "Around the world" row, in this order
+export const WORLD_HEADLINE_SLUGS = [
+  'paris', 'barcelona', 'rome', 'amsterdam', 'new-york', 'dublin', 'lisbon', 'berlin',
+  'prague', 'vienna', 'madrid', 'florence', 'venice', 'copenhagen', 'reykjavik', 'dubai',
+  'tokyo', 'singapore', 'bangkok', 'sydney', 'toronto', 'los-angeles', 'cape-town', 'auckland'
+]
+
+function worldList() {
+  return `    <ul class="towns">
+${WORLD_HEADLINE_SLUGS.map(slug => WORLD_TOWN_BY_SLUG.get(slug)).filter(Boolean).map(t => `      <li><a class="chip" href="/town/${t.slug}">${escapeHtml(t.name)}</a></li>`).join('\n')}
+    </ul>`
+}
+
+// A bare slug the world table owns can be a UK town's name too (perth, boston,
+// halifax): point UK visitors at theirs
+export function ukNamesake(town) {
+  if (!town.countryCode || town.countryCode === 'gb') return null
+  return UK_TOWNS.find(t => t.name === town.name) || null
+}
+
+function namesakeLine(town) {
+  const uk = ukNamesake(town)
+  if (!uk) return ''
+  const label = [uk.name, uk.region && uk.region !== uk.name ? uk.region : null].filter(Boolean).join(', ')
+  return `    <p class="where">Looking for <a href="/town/${uk.slug}">${escapeHtml(label)}</a>?</p>\n`
+}
+
+function nearbyList(town) {
+  const near = nearbyTowns(town)
+  if (!near.length) return ''
+  return `    <h2>Nearby towns</h2>
+    <ul class="towns">
+${near.map(t => `      <li><a class="chip" href="/town/${t.slug}">${escapeHtml(t.name)}</a></li>`).join('\n')}
+    </ul>
+`
+}
+
 export function renderTownPage(town, grouped, events = []) {
   const url = `${SITE}/town/${town.slug}`
   const description = describeTown(town, grouped)
@@ -580,7 +639,7 @@ ${g.places.map(p => `      <li><a href="/place/${encodeURIComponent(p.id)}">${th
 
   const body = `    <h1>${escapeHtml(town.name)}</h1>
     ${where ? `<p class="where">${escapeHtml(where)}</p>` : ''}
-    <p class="lead">${escapeHtml(description)}</p>
+${namesakeLine(town)}    <p class="lead">${escapeHtml(description)}</p>
 ${jump}${sections || '    <p class="lead">Places didn\'t load this time. Refresh in a minute, or open ROAM to explore what\'s around.</p>'}
 ${events.length ? `    <h2 id="weekend">${CATEGORY_SVGS.entertainment}This weekend in ${escapeHtml(town.name)}</h2>
     <ul class="places">
@@ -588,7 +647,7 @@ ${events.map(e => `      <li><a href="${escapeHtml(e.url)}" target="_blank" rel=
     </ul>
     <p class="more">Tickets and times from Ticketmaster.</p>
 ` : ''}${getAppBlock(town.slug, town.name)}
-    <h2>Explore another town</h2>
+${nearbyList(town)}    <h2>Explore another town</h2>
 ${searchForm()}
     <h2>Popular towns</h2>
 ${featuredList(town.slug)}`
@@ -619,6 +678,8 @@ ${searchForm(query)}
     <a class="near" href="/town/near-me" rel="nofollow"><span class="near-icon">${PIN_SVG}</span><span class="near-text"><strong>Near you</strong><span>What's around where you are now</span></span></a>
     <h2>Popular towns</h2>
 ${featuredList()}
+    <h2>Around the world</h2>
+${worldList()}
 ${getAppBlock('hub', null)}`
   return shell({
     title: unavailable ? 'Try again shortly | ROAM' : notFound ? 'Town not found | ROAM' : 'Explore any town: things to do near you | ROAM',

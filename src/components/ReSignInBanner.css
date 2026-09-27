@@ -81,7 +81,7 @@
   flex: 0 0 auto;
   font-size: 13px;
   font-weight: 600;
-  color: var(--roam-gold);
+  color: var(--roam-forest);
   padding: 6px 10px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--roam-gold) 12%, transparent);

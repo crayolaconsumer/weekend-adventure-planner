@@ -144,7 +144,6 @@
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--roam-forest);
   box-shadow: var(--shadow-md);
   z-index: 10;
@@ -226,7 +225,7 @@
 
 .event-detail-pill.price {
   background: rgba(212, 168, 85, 0.15);
-  color: var(--roam-gold);
+  color: var(--roam-forest);
 }
 
 .event-detail-pill.age {
@@ -246,7 +245,6 @@
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--roam-forest);
 }
 
@@ -315,8 +313,6 @@
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--roam-forest);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   opacity: 0.7;
   margin: 0;
 }

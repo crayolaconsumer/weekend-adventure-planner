@@ -10,7 +10,7 @@ import { getAllRatings } from './ratingsStorage'
 /**
  * Known chain names to exclude from "independent" badge
  */
-const KNOWN_CHAINS = [
+export const KNOWN_CHAINS = [
   // Coffee & Cafes
   'starbucks', 'costa', 'costa coffee', 'caffe nero', 'pret', 'pret a manger',
   'greggs', 'nero', 'coffee#1', 'caffe ritazza', 'caffè nero',
@@ -41,6 +41,24 @@ const KNOWN_CHAINS = [
   'premier inn', 'travelodge', 'holiday inn', 'ibis', 'novotel',
   'hilton', 'marriott', 'best western', 'doubletree'
 ]
+
+/**
+ * Chain / brand detection. OSM marks chain branches with brand or
+ * brand:wikidata; untagged branches are caught by name against the known
+ * chain list (whole name or name starting with the chain, so "Costa
+ * Coffee Rugby" matches but "Leonardo's" does not match "leon").
+ */
+export function isChainPlace(place) {
+  if (!place) return false
+  if (place.brand || place.brandWikidata || place['brand:wikidata']) return true
+  const name = String(place.name || '').toLowerCase().trim()
+  if (!name) return false
+  return KNOWN_CHAINS.some(chain => name === chain || name.startsWith(chain + ' '))
+}
+
+// Chains are never hidden gems. Demoted, not removed: sometimes the only
+// cafe nearby is a Costa and that is still better than an empty deck.
+export const CHAIN_PENALTY = 30
 
 /**
  * Badge definitions with detection logic

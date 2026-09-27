@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import ToggleIcon from '../../components/icons/SettingsIcon'
 import { PUSH_OPT_IN_KEY, usePushNotifications } from '../../hooks/usePushNotifications'
-import { getAuthToken } from './utils'
+import { getAuthToken } from '../../utils/authToken'
 
 /**
  * Push notification settings — master subscribe toggle plus granular
@@ -169,7 +169,7 @@ export default function NotificationsSection({ user }) {
   const diagnosticsPanel = (
     <div className="unified-profile-push-diagnostics">
       <div className="unified-profile-settings-item">
-        <span className="unified-profile-settings-label">Push Status</span>
+        <span className="unified-profile-settings-label">Push status</span>
         <span className="unified-profile-settings-value">
           {permissionLabel} · {diagnosticsLoading ? 'loading subscriptions' : `${subscriptionCount} registered`}
         </span>
@@ -249,7 +249,7 @@ export default function NotificationsSection({ user }) {
         >
           <span className="toggle-icon"><ToggleIcon name="bell" size={20} /></span>
           <span className="toggle-text">
-            <span className="toggle-label">Push Notifications</span>
+            <span className="toggle-label">Push notifications</span>
             <span className="toggle-desc">
               {isSubscribed
                 ? 'Receiving notifications'
@@ -276,7 +276,7 @@ export default function NotificationsSection({ user }) {
               aria-pressed={prefs.newFollower}
             >
               <span className="toggle-text">
-                <span className="toggle-label">New Followers</span>
+                <span className="toggle-label">New followers</span>
                 <span className="toggle-desc">When someone follows you</span>
               </span>
               <span className={`toggle-switch ${prefs.newFollower ? 'on' : ''}`}>
@@ -291,7 +291,7 @@ export default function NotificationsSection({ user }) {
             >
               <span className="toggle-icon"><ToggleIcon name="upvote" size={20} /></span>
               <span className="toggle-text">
-                <span className="toggle-label">Tip Upvotes</span>
+                <span className="toggle-label">Tip upvotes</span>
                 <span className="toggle-desc">When your tips get upvoted</span>
               </span>
               <span className={`toggle-switch ${prefs.newContribution ? 'on' : ''}`}>
@@ -306,7 +306,7 @@ export default function NotificationsSection({ user }) {
             >
               <span className="toggle-icon"><ToggleIcon name="map" size={20} /></span>
               <span className="toggle-text">
-                <span className="toggle-label">Shared Plans</span>
+                <span className="toggle-label">Shared plans</span>
                 <span className="toggle-desc">When someone shares a plan with you</span>
               </span>
               <span className={`toggle-switch ${prefs.planShared ? 'on' : ''}`}>
@@ -321,7 +321,7 @@ export default function NotificationsSection({ user }) {
             >
               <span className="toggle-icon"><ToggleIcon name="digest" size={20} /></span>
               <span className="toggle-text">
-                <span className="toggle-label">Weekly Digest</span>
+                <span className="toggle-label">Weekly digest</span>
                 <span className="toggle-desc">Weekly summary of activity</span>
               </span>
               <span className={`toggle-switch ${prefs.weeklyDigest ? 'on' : ''}`}>
@@ -336,7 +336,7 @@ export default function NotificationsSection({ user }) {
             >
               <span className="toggle-icon"><ToggleIcon name="calendar" size={20} /></span>
               <span className="toggle-text">
-                <span className="toggle-label">Visit Reminders</span>
+                <span className="toggle-label">Visit reminders</span>
                 <span className="toggle-desc">Reminder on your planned visit day</span>
               </span>
               <span className={`toggle-switch ${prefs.visitReminder ? 'on' : ''}`}>
@@ -351,7 +351,7 @@ export default function NotificationsSection({ user }) {
             >
               <span className="toggle-icon"><ToggleIcon name="map" size={20} /></span>
               <span className="toggle-text">
-                <span className="toggle-label">Local Events Near You</span>
+                <span className="toggle-label">Local events near you</span>
                 <span className="toggle-desc">Featured events happening close by</span>
               </span>
               <span className={`toggle-switch ${prefs.localEvents ? 'on' : ''}`}>

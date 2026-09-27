@@ -448,7 +448,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
               whileTap={{ scale: 0.98 }}
             >
               <TicketIcon />
-              <span>{event.isSoldOut ? 'Check Availability' : 'Get Tickets'}</span>
+              <span>{event.isSoldOut ? 'Check availability' : 'Get tickets'}</span>
               <ExternalLinkIcon />
             </motion.a>
           </div>

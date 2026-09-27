@@ -203,7 +203,7 @@
 
 .plan-visit-confirm-date {
   padding: var(--space-sm) var(--space-md);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border: none;
   border-radius: var(--radius-md);

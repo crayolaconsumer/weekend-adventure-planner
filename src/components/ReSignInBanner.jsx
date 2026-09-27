@@ -27,13 +27,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { tap as hapticTap } from '../utils/haptics'
+import { getAuthToken } from '../utils/authToken'
 import './ReSignInBanner.css'
 
 const HAS_SIGNED_IN_KEY = 'roam_has_signed_in'
 const DISMISSED_UNTIL_KEY = 'roam_signin_nudge_dismissed_until'
 const SNOOZE_DURATION_MS = 7 * 24 * 60 * 60 * 1000
-const TOKEN_STORAGE_KEY = 'roam_auth_token'
-const SESSION_TOKEN_STORAGE_KEY = 'roam_auth_token_session'
 
 function readDismissedUntil() {
   try {
@@ -58,10 +57,7 @@ function hasSignedInBefore() {
 // lapsed, the server is just briefly unreachable.
 function hasStoredToken() {
   try {
-    return Boolean(
-      localStorage.getItem(TOKEN_STORAGE_KEY) ||
-      sessionStorage.getItem(SESSION_TOKEN_STORAGE_KEY)
-    )
+    return Boolean(getAuthToken())
   } catch { return false }
 }
 

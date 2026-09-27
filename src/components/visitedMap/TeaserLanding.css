@@ -63,7 +63,7 @@
   margin-bottom: 8px;
 }
 .teaser-landing-cta-primary {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: #f5f0e6;
   border: none;
 }
@@ -82,8 +82,6 @@
   margin: 0 0 8px;
   color: color-mix(in srgb, var(--color-text-primary) 70%, transparent);
   font-size: 0.9rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 .teaser-landing-roam-blurb {
   max-width: 380px;

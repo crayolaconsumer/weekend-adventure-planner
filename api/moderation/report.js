@@ -31,6 +31,11 @@ import { withCors } from '../lib/cors.js'
 import { triageReport } from '../lib/moderation-ai.js'
 import { sendModerationAlert, shouldAlert } from '../lib/moderation-alerts.js'
 
+// An AI 'hide' verdict only auto-rejects content once this many distinct
+// signed-in users have reported it. Anonymous reports, and a single account,
+// can steer the model with their free text, so they only queue for a human.
+export const AUTO_HIDE_MIN_REPORTERS = 2
+
 const VALID_ENTITY_TYPES = new Set(['contribution', 'user', 'photo', 'review', 'place'])
 const VALID_REASONS = new Set([
   'spam', 'harassment', 'hate', 'sexual',
@@ -80,6 +85,7 @@ async function handler(req, res) {
     waitUntil(
       processBackground({
         reportId,
+        reporterId,
         report: {
           id: reportId,
           entity_type: entityType,
@@ -104,7 +110,7 @@ async function handler(req, res) {
  * Background pipeline: hydrate content → triage → auto-hide → alert.
  * Always best-effort. Never throws to the caller.
  */
-async function processBackground({ reportId, report }) {
+export async function processBackground({ reportId, reporterId, report }) {
   if (!reportId) return
 
   // Hydrate the reported content for the AI — only contributions and
@@ -146,10 +152,12 @@ async function processBackground({ reportId, report }) {
     // explicitly confident. We never auto-action on user reports — those
     // need a human to call a ban.
     if (
+      reporterId &&
       triage.severity === 'critical' &&
       triage.suggestedAction === 'hide' &&
       triage.confidence >= 0.85 &&
-      (report.entity_type === 'contribution' || report.entity_type === 'photo')
+      (report.entity_type === 'contribution' || report.entity_type === 'photo') &&
+      await countAuthenticatedReporters(report) >= AUTO_HIDE_MIN_REPORTERS
     ) {
       try {
         await update(
@@ -181,6 +189,15 @@ async function processBackground({ reportId, report }) {
       reportedContent,
     })
   }
+}
+
+async function countAuthenticatedReporters(report) {
+  const row = await queryOne(
+    `SELECT COUNT(DISTINCT reporter_id) AS n FROM content_reports
+      WHERE entity_type = ? AND entity_id = ? AND reporter_id IS NOT NULL`,
+    [report.entity_type, report.entity_id]
+  ).catch(() => null)
+  return Number(row?.n) || 0
 }
 
 export default withCors(handler)

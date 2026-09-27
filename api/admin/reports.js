@@ -28,61 +28,21 @@
  *           (hide_content | ban_user | none)
  */
 
-import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, update, insert } from '../lib/db.js'
-import { withCors, ALLOWED_ORIGINS } from '../lib/cors.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { withCors } from '../lib/cors.js'
+import { RATE_LIMITS } from '../lib/rateLimit.js'
+import { guardAdmin, NOT_FOUND } from '../lib/adminGuard.js'
 
 const VALID_STATUSES = new Set(['open', 'reviewed', 'dismissed', 'actioned'])
 const VALID_SEVERITIES = new Set(['critical', 'high', 'medium', 'low'])
 const VALID_DECISIONS = new Set(['dismiss', 'review', 'action'])
 const VALID_ACTIONS = new Set(['hide_content', 'hide_review', 'ban_user', 'none'])
 
-// Uniform "this route does not exist" response. Used for EVERY reject
-// path — anonymous, non-admin, banned admin, bad origin, rate-limited.
-// The body shape is intentionally identical to a Vercel-default 404.
-const NOT_FOUND = (res) => res.status(404).json({ error: 'Not found' })
-
-// Pull a stable client IP. Vercel sets x-forwarded-for; first hop is
-// the real client. Fall back to socket address for local dev.
-function clientIp(req) {
-  const fwd = req.headers?.['x-forwarded-for']
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0].trim()
-  return req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown'
-}
-
-function isOriginAllowed(req) {
-  // Browser-issued requests carry Origin; native (Capacitor) and same-
-  // origin server fetches may set Referer instead. Treat both as
-  // assertions about where the request came from. No header at all =
-  // unknown caller = reject.
-  const origin = req.headers?.origin
-  const referer = req.headers?.referer
-  const candidate = origin || referer
-  if (!candidate) return false
-
-  for (const allowed of ALLOWED_ORIGINS) {
-    if (candidate === allowed || candidate.startsWith(allowed + '/')) return true
-  }
-  return false
-}
-
 async function handler(req, res) {
-  // IP-keyed rate limit BEFORE auth — stops anonymous attackers from
-  // burning admin endpoint compute looking for timing oracles or
-  // probing for route existence.
-  const ipKey = clientIp(req)
-  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_WRITE, `admin-ip:${ipKey}`)
-  if (rateLimitError) return NOT_FOUND(res)
-
-  // Origin/Referer gate. CSRF defence + extra layer of "this should
-  // only ever be called from our own frontend".
-  if (!isOriginAllowed(req)) return NOT_FOUND(res)
-
-  // Auth + admin role. Banned admins also fail here because
-  // getUserFromRequest returns null when is_banned.
-  const user = await getUserFromRequest(req)
-  if (!user || !user.is_admin) return NOT_FOUND(res)
+  // Rate limit, origin gate and is_admin, 404 on every reject.
+  const gate = await guardAdmin(req, res, { key: 'admin-ip', limit: RATE_LIMITS.API_WRITE })
+  if (!gate) return
+  const { user, ip: ipKey } = gate
 
   if (req.method === 'GET') return handleList(req, res)
   if (req.method === 'POST') return handleAction(req, res, user, ipKey)

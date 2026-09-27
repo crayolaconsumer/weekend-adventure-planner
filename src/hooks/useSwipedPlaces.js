@@ -10,13 +10,36 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getAuthToken } from '../utils/authToken'
 
 const STORAGE_KEY = 'roam_not_interested'
 const BATCH_SIZE = 50 // API limit per request
 const DEBOUNCE_DELAY = 2000 // 2 seconds debounce for real-time swipes
+const MAX_LOCAL_SKIPS = 50 // Keep localStorage small
 
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
+/**
+ * Record a skip in the local "not interested" list, the one writer for
+ * STORAGE_KEY. Entries are { placeId, categoryKey, placeType, timestamp }
+ * (tasteProfile reads categoryKey + timestamp). Re-skipping moves the place
+ * to the end; only the newest MAX_LOCAL_SKIPS are kept.
+ */
+export function recordLocalSkip(placeId, details = {}) {
+  let existing = []
+  try {
+    existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    if (!Array.isArray(existing)) existing = []
+  } catch {
+    // Corrupt value: start fresh
+  }
+  const next = existing
+    .filter(item => item && item.placeId !== placeId)
+    .concat({ placeId, categoryKey: details.categoryKey, placeType: details.placeType, timestamp: Date.now() })
+    .slice(-MAX_LOCAL_SKIPS)
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  } catch (err) {
+    console.error('Error updating local swipes:', err)
+  }
 }
 
 export function useSwipedPlaces() {
@@ -118,20 +141,10 @@ export function useSwipedPlaces() {
     }
   }, [])
 
-  const recordSwipe = useCallback(async (placeId, action) => {
+  const recordSwipe = useCallback(async (placeId, action, details) => {
     // Always update localStorage for skip/not interested (for personalization)
     // This is kept regardless of auth state for local recommendations
-    if (action === 'skip') {
-      try {
-        const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-        if (!existing.some(item => item.placeId === placeId)) {
-          existing.push({ placeId, skippedAt: Date.now() })
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
-        }
-      } catch (err) {
-        console.error('Error updating local swipes:', err)
-      }
-    }
+    if (action === 'skip') recordLocalSkip(placeId, details)
 
     // Queue swipe for batched API sync if authenticated
     if (isAuthenticated) {

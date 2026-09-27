@@ -93,7 +93,7 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="create-collection-header">
-            <h2>Create Collection</h2>
+            <h2>Create collection</h2>
             <button className="create-collection-close" onClick={handleClose} aria-label="Close form">
               <CloseIcon />
             </button>
@@ -153,10 +153,10 @@ export default function CreateCollectionForm({ isOpen, onClose, onCreated }) {
 
             <button
               type="submit"
-              className="create-collection-submit"
+              className="btn btn-primary btn-lg btn-block create-collection-submit"
               disabled={submitting}
             >
-              {submitting ? 'Creating…' : 'Create Collection'}
+              {submitting ? 'Creating…' : 'Create collection'}
             </button>
           </form>
         </motion.div>

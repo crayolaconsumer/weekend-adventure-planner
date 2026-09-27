@@ -87,7 +87,7 @@
 .toast-action {
   padding: var(--space-xs) var(--space-md);
   border: none;
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
@@ -99,7 +99,7 @@
 }
 
 .toast-action:hover {
-  background: var(--roam-forest-dark, #143028);
+  background: #142d24;
 }
 
 .toast-action:active {

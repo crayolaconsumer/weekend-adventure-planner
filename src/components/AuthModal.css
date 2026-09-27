@@ -297,7 +297,7 @@
 .auth-submit-btn {
   width: 100%;
   padding: var(--space-md) var(--space-lg);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border: none;
   border-radius: var(--radius-lg);
   font-size: var(--text-base);
@@ -312,7 +312,7 @@
 }
 
 .auth-submit-btn:hover:not(:disabled) {
-  background: var(--roam-forest-dark);
+  background: #142d24;
   transform: translateY(-1px);
 }
 

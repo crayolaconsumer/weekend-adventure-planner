@@ -57,14 +57,6 @@ export interface ProfileStats {
   [key: string]: unknown
 }
 
-/**
- * Read the auth token from local/session storage. Matches the storage
- * keys used everywhere else in the app.
- */
-export function getAuthToken(): string | null {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
-
 // loadStatsFromStorage removed — use the useUserStats hook instead,
 // which reads from /api/users/stats for authenticated users (server
 // source of truth) and applies streak-reset logic in one place.

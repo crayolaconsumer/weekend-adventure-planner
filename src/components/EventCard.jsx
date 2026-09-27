@@ -10,6 +10,7 @@ import { formatEventDate, formatPriceRange } from '../utils/eventsApi'
 import { trackPromotedEvent } from '../utils/promotedEventsApi'
 // Shared with EventDetail so card and detail show the SAME fallback image.
 import { getEventPlaceholderImage } from '../pages/Events/placeholderImage'
+import { isTicketSmallPrint } from '../pages/Events/ticketSmallPrint'
 import './EventCard.css'
 
 // Icons
@@ -81,9 +82,9 @@ export default function EventCard({ event, variant = 'compact' }) {
       : ticketType === 'free' ? 'Free entry'
         : null
   const hasLink = !!event.ticketUrl
-  const ctaText = sellsOnline ? 'Get Tickets'
+  const ctaText = sellsOnline ? 'Get tickets'
     : ticketType ? 'More info'  // door / free that still has an info link
-      : 'Get Tickets'           // aggregator events — same Title Case as Wishlist
+      : 'Get tickets'           // aggregator events, same wording as Wishlist
   // A Featured card only gets a clickable CTA when there's actually a link;
   // otherwise it shows a static label so it can never read as a dead button.
   const showButton = hasLink || !event.isFeatured
@@ -156,7 +157,7 @@ export default function EventCard({ event, variant = 'compact' }) {
         </div>
 
         {event.isSoldOut && (
-          <div className="event-card-sold-out">Sold Out</div>
+          <div className="event-card-sold-out">Sold out</div>
         )}
       </motion.div>
     )
@@ -175,7 +176,7 @@ export default function EventCard({ event, variant = 'compact' }) {
         )}
         <img src={imageUrl} alt={event.name} loading="lazy" referrerPolicy="no-referrer" />
         {event.isSoldOut && (
-          <div className="event-card-sold-out-badge">Sold Out</div>
+          <div className="event-card-sold-out-badge">Sold out</div>
         )}
       </div>
 
@@ -201,7 +202,7 @@ export default function EventCard({ event, variant = 'compact' }) {
           <p className="event-card-org">Featured by {event.orgName}</p>
         )}
 
-        {event.description && (
+        {event.description && !isTicketSmallPrint(event.description) && (
           <p className="event-card-description">{event.description}</p>
         )}
 
@@ -216,7 +217,7 @@ export default function EventCard({ event, variant = 'compact' }) {
         </div>
 
         {event.isSoldOut ? (
-          <button className="event-card-cta" disabled>Sold Out</button>
+          <button className="event-card-cta" disabled>Sold out</button>
         ) : showButton ? (
           <motion.button
             className="event-card-cta"

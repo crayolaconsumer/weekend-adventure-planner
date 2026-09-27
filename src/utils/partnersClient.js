@@ -3,10 +3,7 @@
  * Mirrors the auth-header convention used by the admin pages.
  */
 
-function authHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from './authToken'
 
 async function req(path, { method = 'GET', body } = {}) {
   const res = await fetch(path, {

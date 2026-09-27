@@ -140,7 +140,7 @@
 
 /* The rule above outranks the global .chip.selected, so restate it */
 .town-chips .chip.selected {
-  background: var(--roam-forest);
+  background: #1a3a2f;
   border-color: var(--roam-forest);
   color: #fdfcf8;
 }

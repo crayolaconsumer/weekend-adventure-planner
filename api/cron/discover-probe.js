@@ -1,16 +1,15 @@
 /**
  * Cron: Discover Probe (synthetic monitor)
  *
- * Every ~30 min, hits the LIVE Discover path (the Overpass proxy) for a few
- * known-busy cities and checks it returns real places. If any city comes
+ * Every 2 hours, hits the LIVE Discover path (the Overpass proxy) for a few
+ * known-busy cities (2 per run, rotating) and checks it returns real places. If any city comes
  * back EMPTY or errors, it emails the operator — this auto-detects the exact
  * "Discover is empty" failure (degraded Overpass mirrors returning 200+empty,
  * poisoned cache, total outage) BEFORE paying users hit it. Every run is
  * recorded in cron_runs so the health history is visible.
  *
- * Auth mirrors the other crons: Vercel attaches `Authorization: Bearer
- * <CRON_SECRET>` to scheduled invocations; we also accept the x-vercel-cron
- * header. Side benefit: the probe warms the cache for these cities.
+ * Auth: the Bearer CRON_SECRET Vercel attaches to scheduled runs
+ * (lib/cronAuth.js). Side benefit: the probe warms the cache for these cities.
  */
 
 export const config = { runtime: 'nodejs' }
@@ -20,6 +19,7 @@ import { sendEmail } from '../lib/email.js'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 import { appOrigin } from '../lib/origin.js'
 import { cacheGet, cacheSet } from '../lib/kvCache.js'
+import { isAuthorizedCron } from '../lib/cronAuth.js'
 
 const ALERT_THROTTLE_KEY = 'alert:discover-probe'
 
@@ -37,11 +37,13 @@ const PROBE_CITIES = [
   { name: 'Tokyo', lat: 35.6895, lng: 139.6917 },
 ]
 
-function isAuthorized(req) {
-  if (req.headers['x-vercel-cron'] === '1') return true
-  const secret = process.env.CRON_SECRET
-  if (secret && req.headers.authorization === `Bearer ${secret}`) return true
-  return false
+// Two cities per run, rotating by 2-hour slot, so each city is still probed
+// every 4 hours at half the Overpass load of probing all four every run
+export const CITIES_PER_RUN = 2
+export function citiesForRun(now = Date.now()) {
+  const slot = Math.floor(now / (2 * 60 * 60 * 1000))
+  const start = (slot * CITIES_PER_RUN) % PROBE_CITIES.length
+  return PROBE_CITIES.slice(start, start + CITIES_PER_RUN)
 }
 
 
@@ -70,20 +72,19 @@ async function probeCity(origin, city) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-  if (!isAuthorized(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (!isAuthorizedCron(req)) return res.status(401).json({ error: 'Unauthorized' })
 
   // Probe all cities in parallel so total time ~= the slowest single call,
   // staying well inside the function budget.
-  const results = await Promise.all(PROBE_CITIES.map(c => probeCity(appOrigin(req), c)))
+  const results = await Promise.all(citiesForRun().map(c => probeCity(appOrigin(req), c)))
   const failures = results.filter(r => !r.ok)
   const healthy = results.length - failures.length
 
-  // Only EMAIL when >=2 of the 4 probe cities fail — a single-city blip is
+  // Only EMAIL when both of this run's probe cities fail: a single-city blip is
   // usually a transient Overpass wobble that self-heals, and paging on every
   // one is noise (especially during a launch). Every run is still recorded in
   // cron_runs below, so the full health history is preserved either way.
-  // At most one email per 6h: this runs every 30 min, and an outage would
-  // otherwise send 12 a day (the alerts had never actually been delivered)
+  // At most one email per 6h, or a long outage would email every run
   const recentlyAlerted = failures.length >= 2 && await cacheGet(ALERT_THROTTLE_KEY).catch(() => null)
   if (failures.length >= 2 && !recentlyAlerted) {
     const detail = results

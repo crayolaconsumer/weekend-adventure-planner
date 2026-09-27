@@ -19,7 +19,8 @@
 import overpassProxy from './places/overpass/nearby.js'
 import ticketmasterProxy from './events/ticketmaster.js'
 import { weekendEvents } from './lib/townEvents.js'
-import { applyRateLimit, getRateLimitKey } from './lib/rateLimit.js'
+import { isPreviewBot } from './lib/bots.js'
+import { applyRateLimit, applySharedRateLimit, getRateLimitKey } from './lib/rateLimit.js'
 import {
   slugify, isValidSlug, resolveTown, resolveNear, slugForQuery, townOverpassQuery, groupPlaces,
   renderTownPage, renderHub, distanceKm
@@ -33,6 +34,8 @@ const TOWN_RATE_LIMIT = { windowMs: 5 * 60 * 1000, max: 60, blockDurationMs: 10 
 // Near-me costs up to 4 geocoder calls and can't be CDN-cached (it's personal),
 // so one client gets far fewer of them than of named towns
 const NEAR_RATE_LIMIT = { windowMs: 5 * 60 * 1000, max: 10, blockDurationMs: 10 * 60 * 1000 }
+// Ceiling across every instance (the two above are per instance)
+const TOWN_SHARED_LIMIT = { max: 120, windowSec: 5 * 60 }
 
 // A day at the CDN: places change slowly, and ~1,650 sitemap towns being crawled
 // must not turn into ~1,650 Overpass queries an hour
@@ -157,7 +160,8 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, 
 
     const isNear = Boolean(near) || rawSlug === 'near-me'
     const limited = applyRateLimit(req, res, TOWN_RATE_LIMIT, 'town') ||
-      (isNear ? applyRateLimit(req, res, NEAR_RATE_LIMIT, 'town_near') : null)
+      (isNear ? applyRateLimit(req, res, NEAR_RATE_LIMIT, 'town_near') : null) ||
+      await applySharedRateLimit(req, res, TOWN_SHARED_LIMIT, 'town')
     if (limited) {
       if (json) return res.status(429).json(limited)
       return sendHtml(res, 429, renderHub({ unavailable: true }), 'no-store')
@@ -218,7 +222,7 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, 
       // Events are extra: fetched alongside places, never allowed to hold the page up
       const [{ grouped, ok }, events] = await Promise.all([
         fetchGroupedPlaces(town, ip, proxy, deadline),
-        weekendEvents(town, ip, ticketmaster)
+        weekendEvents(town, ip, ticketmaster, { bot: isPreviewBot(req) })
       ])
       console.log(`[town] render ${slug} places=${grouped.total}${ok ? '' : ' (upstream failed)'}`)
       // A failed fetch reflects this moment (or this visitor's rate limit), never share it

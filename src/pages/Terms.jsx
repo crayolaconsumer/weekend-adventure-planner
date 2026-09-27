@@ -44,7 +44,7 @@ export default function Terms() {
         <ul>
           <li><strong>Free trial:</strong> 7 days. Cancel before it ends to avoid charges.</li>
           <li><strong>Auto-renewal:</strong> Subscriptions auto-renew at the same plan and price until canceled at least 24 hours before the end of the current period.</li>
-          <li><strong>Web purchases:</strong> Processed by Stripe. Manage or cancel via Settings → Manage Subscription, or directly with Stripe.</li>
+          <li><strong>Web purchases:</strong> Processed by Stripe. Manage or cancel via Settings → Manage subscription, or directly with Stripe.</li>
           <li><strong>iOS purchases:</strong> Processed by Apple. Manage or cancel in your Apple ID settings under Subscriptions.</li>
           <li><strong>Android purchases:</strong> Processed by Google Play. Manage or cancel in the Play Store under Subscriptions.</li>
           <li><strong>Refunds:</strong> Handled by the platform that processed the payment (Stripe / Apple / Google).</li>

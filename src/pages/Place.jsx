@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { enrichPlace, fetchPlaceById } from '../utils/apiClient'
 import PlaceDetail from '../components/PlaceDetail'
@@ -15,7 +15,22 @@ import { isNative } from '../utils/nativeBridge'
 import LoadingState from '../components/LoadingState'
 import { useSEO } from '../hooks/useSEO'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
+import { getCategoryForType } from '../utils/categories'
 import './Place.css'
+
+// Compass + wordmark lockup, the same header as the town pages. Links back
+// into the app so a visitor from a shared link has somewhere to go.
+function PlacePageHeader() {
+  return (
+    <header className="place-page-header">
+      <Link to="/" className="place-page-brand" aria-label="ROAM home">
+        <img src="/icons/icon.svg" alt="" width="34" height="34" />
+        <span>ROAM</span>
+      </Link>
+      <Link to="/" className="btn btn-secondary place-page-header-cta">Discover places</Link>
+    </header>
+  )
+}
 
 export default function Place() {
   const { id } = useParams()
@@ -27,7 +42,7 @@ export default function Place() {
 
   // Dynamic SEO for place pages
   useSEO({
-    title: place?.name || 'Place Details',
+    title: place?.name || 'Place details',
     description: place?.description || (place?.name ? `Discover ${place.name} on ROAM` : 'View place details on ROAM'),
     image: place?.photo,
     url: `https://www.go-roam.uk/place/${id}`
@@ -62,7 +77,10 @@ export default function Place() {
 
         // Enrich the place with additional details
         const enriched = await enrichPlace(foundPlace)
-        setPlace({ ...foundPlace, ...enriched })
+        const merged = { ...foundPlace, ...enriched }
+        // Places fetched by id carry only the OSM type; derive the category
+        // so the page shows its badge and branded image fallback.
+        setPlace({ ...merged, category: merged.category || getCategoryForType(merged.type) })
       } catch (err) {
         console.error('Failed to load place:', err)
         // Set specific error messages based on error type
@@ -99,10 +117,15 @@ export default function Place() {
     import('../utils/nativePlugins').then(m => m.openExternalUrl(mapsUrl))
   }
 
+  const web = !isNative()
+
   if (loading) {
     return (
       <div className="place-page">
-        <LoadingState variant="spinner" message="Loading place details..." size="large" />
+        {web && <PlacePageHeader />}
+        <div className="place-page-body">
+          <LoadingState variant="spinner" message="Loading place details..." size="large" />
+        </div>
       </div>
     )
   }
@@ -114,7 +137,7 @@ export default function Place() {
         return {
           title: 'Place not found',
           description: 'This place may have been removed or the link is incorrect.',
-          buttonText: 'Discover Places',
+          buttonText: 'Discover places',
           buttonAction: () => navigate('/')
         }
       }
@@ -124,28 +147,28 @@ export default function Place() {
           return {
             title: 'Place not found',
             description: 'This place may have been removed or the link is incorrect.',
-            buttonText: 'Discover Places',
+            buttonText: 'Discover places',
             buttonAction: () => navigate('/')
           }
         case 'network':
           return {
-            title: 'Connection error',
-            description: 'Unable to connect. Please check your internet connection and try again.',
-            buttonText: 'Try Again',
+            title: "Can't reach the internet",
+            description: 'Check your connection and try again.',
+            buttonText: 'Try again',
             buttonAction: () => window.location.reload()
           }
         case 'rate_limit':
           return {
             title: 'Too many requests',
-            description: 'Please wait a moment before trying again.',
-            buttonText: 'Try Again',
+            description: 'Wait a moment, then try again.',
+            buttonText: 'Try again',
             buttonAction: () => window.location.reload()
           }
         default:
           return {
             title: error.message || 'Something went wrong',
-            description: 'An unexpected error occurred. Please try again later.',
-            buttonText: 'Go Home',
+            description: 'Something went wrong loading this place. Try again later.',
+            buttonText: 'Go home',
             buttonAction: () => navigate('/')
           }
       }
@@ -155,28 +178,41 @@ export default function Place() {
 
     return (
       <div className="place-page">
-        <motion.div
-          className="place-page-error"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h2>{errorDetails.title}</h2>
-          <p>{errorDetails.description}</p>
-          <button className="place-page-error-btn" onClick={errorDetails.buttonAction}>
-            {errorDetails.buttonText}
-          </button>
-        </motion.div>
+        {web && <PlacePageHeader />}
+        <div className="place-page-body">
+          <motion.div
+            className="place-page-error"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <img className="place-page-error-mark" src="/icons/icon.svg" alt="" width="64" height="64" />
+            <h2>{errorDetails.title}</h2>
+            <p>{errorDetails.description}</p>
+            <button className="btn btn-primary" onClick={errorDetails.buttonAction}>
+              {errorDetails.buttonText}
+            </button>
+          </motion.div>
+        </div>
       </div>
     )
   }
 
+  // In the app a shared link opens the usual sheet; on the web it is a
+  // standalone page with the brand header and the get-the-app card.
+  if (!web) {
+    return <PlaceDetail place={place} onClose={handleClose} onGo={handleGo} />
+  }
+
   return (
-    <PlaceDetail
-      place={place}
-      onClose={handleClose}
-      onGo={handleGo}
-      // Shared place links land here on the web; give visitors the app
-      footer={isNative() ? null : <GetAppCard source="place" />}
-    />
+    <div className="place-page place-page--detail">
+      <PlacePageHeader />
+      <PlaceDetail
+        place={place}
+        onClose={handleClose}
+        onGo={handleGo}
+        variant="page"
+        footer={<GetAppCard source="place" />}
+      />
+    </div>
   )
 }

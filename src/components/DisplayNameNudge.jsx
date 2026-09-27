@@ -15,13 +15,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { needsDisplayName } from '../utils/displayName'
 import './DisplayNameNudge.css'
+import { authHeaders } from '../utils/authToken'
 
 const DISMISS_KEY = 'roam_display_name_nudge_dismissed_v1'
-
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
 export default function DisplayNameNudge() {
   const { user, isAuthenticated, checkAuth } = useAuth()
@@ -67,7 +63,7 @@ export default function DisplayNameNudge() {
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         credentials: 'include',
         body: JSON.stringify({ action: 'update', displayName: name })
       })

@@ -147,7 +147,6 @@
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--cat-color, var(--roam-forest));
-  text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
@@ -168,7 +167,7 @@
 .map-popup-btn {
   margin-top: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background: var(--roam-forest);
+  background: #1a3a2f;
   color: white;
   border: none;
   border-radius: var(--radius-md);
@@ -180,7 +179,7 @@
 }
 
 .map-popup-btn:hover {
-  background: var(--roam-forest-dark);
+  background: #142d24;
   transform: translateY(-1px);
 }
 

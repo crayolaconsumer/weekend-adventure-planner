@@ -62,7 +62,7 @@ export function ContributionBadge({ contribution, onClick, variant = 'default' }
       <span className="contribution-badge-meta">
         — @{contribution.user?.username || 'user'}
         {isTrusted && (
-          <span className="contribution-badge-trusted" title="Trusted Explorer">
+          <span className="contribution-badge-trusted" title="Trusted explorer">
             <VerifiedIcon />
           </span>
         )}
@@ -128,19 +128,6 @@ export function ContributionCard({ contribution, onVoteChange }) {
       // Revert on error
       setLocalContribution(contribution)
     }
-  }
-
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 0) return 'today'
-    if (diffDays === 1) return 'yesterday'
-    if (diffDays < 7) return `${diffDays}d ago`
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
-    return `${Math.floor(diffDays / 365)}y ago`
   }
 
   return (
@@ -218,6 +205,20 @@ export function ContributionCard({ contribution, onVoteChange }) {
 
 // Helper — pretty thumb badge for "Recommended" / "Not recommended"
 // derived from the rating value.
+// Day-granularity relative date ("today", "yesterday", "3d ago", "2w ago").
+// Deliberately coarser than utils/dateUtils formatDistanceToNow, which
+// shows minutes and hours.
+function formatDate(ts) {
+  if (!ts) return ''
+  const diffDays = Math.floor((Date.now() - new Date(ts)) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
+  return `${Math.floor(diffDays / 365)}y ago`
+}
+
 function recommendationLabel(rating) {
   if (rating == null) return null
   return rating > 3 ? 'Recommended' : 'Not recommended'
@@ -311,18 +312,6 @@ export function UserFeedbackCard({ entries, onVoteChange }) {
     const t = new Date(e.createdAt).getTime()
     return Number.isFinite(t) && t > latest ? t : latest
   }, 0)
-  const formatDate = (ts) => {
-    if (!ts) return ''
-    const date = new Date(ts)
-    const now = new Date()
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24))
-    if (diffDays === 0) return 'today'
-    if (diffDays === 1) return 'yesterday'
-    if (diffDays < 7) return `${diffDays}d ago`
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
-    return `${Math.floor(diffDays / 365)}y ago`
-  }
 
   // The "default" placeholder content the older photo-upload flow
   // saved when the user uploaded an image without writing a caption.

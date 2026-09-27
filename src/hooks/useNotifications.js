@@ -6,14 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-
-/**
- * Get auth headers for API requests
- */
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 /**
  * Hook for fetching and managing notifications
@@ -42,7 +35,7 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
 
       const response = await fetch(`/api/notifications?${params}`, {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (!response.ok) {
@@ -79,7 +72,7 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -110,7 +103,7 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ action: 'mark_all_read' })
@@ -204,7 +197,7 @@ export function useNotifications({ pollInterval = 60000 } = {}) {
 
       fetch('/api/notifications?limit=1&unread_only=true', {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
         .then(res => res.ok ? res.json() : null)
         .then(data => {

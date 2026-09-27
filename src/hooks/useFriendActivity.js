@@ -7,12 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-
-// Get auth headers for API requests
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 // Cache for friend activity data
 const activityCache = new Map()
@@ -124,7 +119,7 @@ export function useFriendPlaceActivity(placeIds) {
           `/api/places/friend-activity?placeIds=${encodeURIComponent(batchIds.join(','))}`,
           {
             credentials: 'include',
-            headers: getAuthHeaders()
+            headers: authHeaders()
           }
         )
 

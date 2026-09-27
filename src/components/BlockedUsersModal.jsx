@@ -42,7 +42,7 @@ export default function BlockedUsersModal({ onClose }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="blocked-users-modal-header">
-          <h3>Blocked Users</h3>
+          <h3>Blocked users</h3>
           {total > 0 && <span className="blocked-count">{total} blocked</span>}
           <button className="blocked-users-modal-close" onClick={onClose} aria-label="Close">
             <CloseIcon />

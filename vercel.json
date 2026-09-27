@@ -1,4 +1,5 @@
 {
+  "regions": ["lhr1"],
   "crons": [
     {
       "path": "/api/cron/visit-reminders",
@@ -6,11 +7,11 @@
     },
     {
       "path": "/api/cron/re-engagement-nudge",
-      "schedule": "0 10 * * 6"
+      "schedule": "0,15,30,45 10 * * 6"
     },
     {
       "path": "/api/cron/weekend-plans-nudge",
-      "schedule": "0 16 * * 5"
+      "schedule": "0,15,30,45 16 * * 5"
     },
     {
       "path": "/api/cron/prewarm-overpass",
@@ -18,7 +19,7 @@
     },
     {
       "path": "/api/cron/discover-probe",
-      "schedule": "13,43 * * * *"
+      "schedule": "13 */2 * * *"
     },
     {
       "path": "/api/cron/promoted-event-push",
@@ -47,6 +48,12 @@
       "maxDuration": 300
     },
     "api/cron/local-events-digest.js": {
+      "maxDuration": 300
+    },
+    "api/cron/re-engagement-nudge.js": {
+      "maxDuration": 300
+    },
+    "api/cron/weekend-plans-nudge.js": {
       "maxDuration": 300
     }
   },

@@ -59,3 +59,6 @@ ios/App/build/
 !public/**/*.png
 !icons/**/*.png
 
+
+# Playwright MCP browser logs from local audits
+.playwright-mcp/

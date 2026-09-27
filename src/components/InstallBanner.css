@@ -3,7 +3,7 @@
   bottom: calc(var(--nav-height, 60px) + env(safe-area-inset-bottom, 0px) + 12px);
   left: 12px;
   right: 12px;
-  background: var(--roam-forest, #1a3a2f);
+  background: #1a3a2f;
   border-radius: 16px;
   padding: 12px 16px;
   display: flex;
@@ -87,7 +87,7 @@
 .install-banner-install {
   padding: 8px 16px;
   background: var(--roam-gold, #d4a855);
-  color: var(--roam-forest, #1a3a2f);
+  color: #1a3a2f;
   border: none;
   border-radius: 8px;
   font-size: 13px;

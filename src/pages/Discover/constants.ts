@@ -19,7 +19,7 @@ export const TRAVEL_MODES: Record<string, TravelMode> = {
   driving: { label: 'Driving', icon: '🚗', maxRadius: 30000, speed: 40 },
   transit: { label: 'Transit', icon: '🚌', maxRadius: 15000, speed: 20 },
   // Premium modes (ROAM+ only)
-  dayTrip: { label: 'Day Trip', icon: '🗺️', maxRadius: 75000, speed: 60, premium: true },
+  dayTrip: { label: 'Day trip', icon: '🗺️', maxRadius: 75000, speed: 60, premium: true },
   explorer: { label: 'Explorer', icon: '🧭', maxRadius: 150000, speed: 80, premium: true },
 }
 

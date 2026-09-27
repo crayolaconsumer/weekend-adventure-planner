@@ -165,7 +165,7 @@ export default function SubscriptionSuccessModal({ isOpen, onClose }) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              Start Exploring
+              Start exploring
             </motion.button>
           </motion.div>
 

@@ -6,14 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-
-/**
- * Get auth headers for API requests
- */
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 export function useFollowRequests() {
   const { isAuthenticated } = useAuth()
@@ -36,7 +29,7 @@ export function useFollowRequests() {
         `/api/social/requests?status=${status}&limit=20&offset=${offset}`,
         {
           credentials: 'include',
-          headers: getAuthHeaders()
+          headers: authHeaders()
         }
       )
 
@@ -73,7 +66,7 @@ export function useFollowRequests() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ requestId, action: 'approve' })
@@ -111,7 +104,7 @@ export function useFollowRequests() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ requestId, action: 'reject' })

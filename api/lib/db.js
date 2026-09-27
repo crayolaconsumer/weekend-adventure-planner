@@ -16,19 +16,18 @@ let pool = null
  */
 export function getPool() {
   if (!pool) {
-    // Pool sizing is constrained by Aurora, not by this instance alone.
-    // Verified 2026-06: the cluster (Aurora MySQL, eu-west-2) has
-    // max_connections=250, all-time peak 122. Vercel functions run in
-    // MULTIPLE regions (iad1/lhr1/gru1/hkg1), so the real ceiling is
-    // connectionLimit × (peak warm instances across all regions) < 250.
-    // We keep connectionLimit modest and rely on a BOUNDED queue so a
-    // sudden influx fails fast (a thrown "Queue limit reached" → handled
-    // 5xx) instead of the previous queueLimit:0 behaviour, which queued
-    // unbounded and turned overload into silent 30s hangs / blank screens.
-    // maxIdle + idleTimeout release spare connections between spikes so
-    // idle warm instances across regions don't hoard the 250 budget.
-    // The durable fix for serverless↔Aurora connection scaling is RDS
-    // Proxy (multiplexes connections) — needs AWS access to the cluster.
+    // Pool sizing is constrained by the database, not by this instance alone:
+    // the real ceiling is connectionLimit x (peak warm instances) and must stay
+    // under the server's max_connections. Every function now runs in lhr1 only
+    // (vercel.json "regions"), next to the eu-west-2 database, and Fluid
+    // instances serve many requests each, so 3 connections per instance is
+    // plenty. The BOUNDED queue makes a sudden influx fail fast (a thrown
+    // "Queue limit reached" -> handled 5xx) instead of silent 30s hangs.
+    // idleTimeout releases every connection idle for 10s (mysql2 reaps idle
+    // connections whenever maxIdle < connectionLimit), so a quiet warm
+    // instance doesn't hold slots. connectTimeout stops a sick database from
+    // pinning requests for mysql2's default 10s.
+    // The durable fix for serverless connection scaling is RDS Proxy.
     pool = mysql.createPool({
       host: process.env.MYSQL_HOST,
       port: parseInt(process.env.MYSQL_PORT || '3306', 10),
@@ -36,10 +35,11 @@ export function getPool() {
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
       waitForConnections: true,
-      connectionLimit: 8,
-      queueLimit: 30,        // was 0 (unbounded) — fail fast under load
-      maxIdle: 2,
-      idleTimeout: 30000,
+      connectionLimit: 3,
+      queueLimit: 100,       // bounded, but deep enough for cron push bursts and admin dashboards
+      maxIdle: 1,
+      idleTimeout: 10000,
+      connectTimeout: 5000,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0
     })

@@ -108,7 +108,7 @@ export default function DiscoverHeader({
                 <circle cx="16" cy="16" r="1.6" fill="currentColor" />
               </svg>
             </motion.span>
-            <span className="boredom-btn-text">I'm Bored</span>
+            <span className="boredom-btn-text">I'm bored</span>
           </div>
         </motion.button>
         {/* Tooltip explaining disabled state */}

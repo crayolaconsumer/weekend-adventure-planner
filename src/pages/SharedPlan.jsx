@@ -136,7 +136,7 @@ export default function SharedPlan() {
   }, [code, isAuthenticated, plan, pendingVoteStop, appToast])
 
   // Dynamic SEO for shared plans
-  const planTitle = plan?.name || 'Shared Adventure'
+  const planTitle = plan?.name || 'Shared adventure'
   const placeCount = plan?.places?.length || 0
   const vibeLabel = plan?.vibe ? VIBE_LABELS[plan.vibe] || '' : ''
   useSEO({
@@ -246,9 +246,9 @@ export default function SharedPlan() {
     return (
       <div className="shared-plan-page">
         <div className="shared-plan-error">
-          <h2>Adventure Not Found</h2>
+          <h2>Adventure not found</h2>
           <p>{error}</p>
-          <Link to="/" className="shared-plan-cta">Discover Places</Link>
+          <Link to="/" className="btn btn-primary shared-plan-cta">Discover places</Link>
         </div>
       </div>
     )
@@ -356,9 +356,9 @@ export default function SharedPlan() {
 
         <div className="shared-plan-footer">
           <p>Want to create your own adventure?</p>
-          <Link to="/plan" className="shared-plan-cta">
+          <Link to="/plan" className="btn btn-primary shared-plan-cta">
             <MapIcon />
-            Plan Your Adventure
+            Plan your adventure
           </Link>
         </div>
       </div>

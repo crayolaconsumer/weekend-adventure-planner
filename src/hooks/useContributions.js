@@ -6,14 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-
-/**
- * Get auth headers for API requests
- */
-function getAuthHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 /**
  * Hook for fetching contributions for a place
@@ -42,7 +35,7 @@ export function useContributions(placeId) {
     try {
       const response = await fetch(`/api/contributions?placeId=${encodeURIComponent(placeId)}`, {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (fetchId !== fetchIdRef.current) return
@@ -98,7 +91,7 @@ export function useUserContributions(userId) {
     try {
       const response = await fetch(`/api/contributions?userId=${userId}`, {
         credentials: 'include',
-        headers: getAuthHeaders()
+        headers: authHeaders()
       })
 
       if (fetchId !== fetchIdRef.current) return
@@ -151,7 +144,7 @@ export function useCreateContribution() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -207,7 +200,7 @@ export function useVote() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          ...authHeaders()
         },
         credentials: 'include',
         body: JSON.stringify({ action: 'vote', contributionId, voteType })

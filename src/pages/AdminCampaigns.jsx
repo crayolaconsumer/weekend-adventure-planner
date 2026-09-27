@@ -18,15 +18,14 @@
  * discovery feed serves the card.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useToast } from '../hooks/useToast'
 import AdminLayout from '../components/AdminLayout'
+import AdminStatus from '../components/AdminStatus'
+import ConfirmModal from '../components/ConfirmModal'
+import { formatDate } from '../components/adminFormat'
 import './AdminCampaigns.css'
-
-function authHeaders() {
-  const token = localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { authHeaders } from '../utils/authToken'
 
 const STATUS_LABELS = {
   draft: 'Draft',
@@ -40,13 +39,22 @@ const STATUS_LABELS = {
 // target_categories array is matched against these via JSON_CONTAINS in
 // the /api/ads/sponsored query.
 const TARGET_CATEGORY_OPTIONS = [
-  { key: 'food_drink', label: 'Food & Drink' },
-  { key: 'nature', label: 'Nature & Outdoors' },
-  { key: 'culture', label: 'Culture & History' },
+  { key: 'food_drink', label: 'Food and drink' },
+  { key: 'nature', label: 'Nature and outdoors' },
+  { key: 'culture', label: 'Culture and history' },
   { key: 'shopping', label: 'Shopping' },
   { key: 'entertainment', label: 'Entertainment' },
-  { key: 'sports', label: 'Sports & Activity' },
+  { key: 'sports', label: 'Sports and activity' },
   { key: 'family', label: 'Family-friendly' },
+]
+
+const STATUS_TONE = { active: 'ok', paused: 'warn', draft: '', completed: '', cancelled: 'danger' }
+const STATUS_FILTERS = [
+  { value: 'live', label: 'Not cancelled' },
+  { value: 'active', label: 'Active' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'all', label: 'All' },
 ]
 
 const EMPTY_FORM = {
@@ -72,26 +80,32 @@ const EMPTY_FORM = {
 export default function AdminCampaigns() {
   const toast = useToast()
   const [campaigns, setCampaigns] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [showForm, setShowForm] = useState(false)
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('live')
+  const [query, setQuery] = useState('')
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch('/api/admin/campaigns', {
         credentials: 'include',
         headers: authHeaders(),
       })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) throw new Error(`The server answered ${res.status}`)
       const data = await res.json()
       setCampaigns(data.campaigns || [])
     } catch (err) {
-      toast.error(`Failed to load campaigns: ${err.message}`)
+      setError(err.message || 'Network error')
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => { fetchCampaigns() }, [fetchCampaigns])
 
@@ -142,6 +156,7 @@ export default function AdminCampaigns() {
       }
       toast.success(`Campaign #${data.id} created (${data.status})`)
       setForm(EMPTY_FORM)
+      setShowForm(false)
       fetchCampaigns()
     } catch (err) {
       toast.error(err.message)
@@ -163,15 +178,17 @@ export default function AdminCampaigns() {
         if (data.code === 'STALE_SESSION') throw new Error('Sign in again to change status.')
         throw new Error(data.error || `HTTP ${res.status}`)
       }
-      toast.success(`Campaign #${id} → ${status}`)
+      toast.success(`Campaign #${id} is now ${STATUS_LABELS[status]?.toLowerCase() || status}`)
       fetchCampaigns()
     } catch (err) {
       toast.error(err.message)
     }
   }
 
-  const cancel = async (id) => {
-    if (!window.confirm(`Cancel campaign #${id}? This stops impressions immediately.`)) return
+  const cancel = async () => {
+    if (!cancelTarget) return
+    const id = cancelTarget.id
+    setCancelTarget(null)
     try {
       const res = await fetch('/api/admin/campaigns', {
         method: 'DELETE',
@@ -191,15 +208,34 @@ export default function AdminCampaigns() {
     }
   }
 
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return campaigns.filter((c) => {
+      if (statusFilter === 'live' && c.status === 'cancelled') return false
+      if (!['live', 'all'].includes(statusFilter) && c.status !== statusFilter) return false
+      if (!q) return true
+      const name = placeName(c)
+      return [name, c.business_name, c.campaign_name, c.place_id].some((v) => String(v || '').toLowerCase().includes(q))
+    })
+  }, [campaigns, statusFilter, query])
+
+  const newButton = (
+    <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowForm((v) => !v)} aria-expanded={showForm}>
+      {showForm ? 'Close form' : 'New campaign'}
+    </button>
+  )
+
   return (
     <AdminLayout
       title="Sponsored campaigns"
-      subtitle="Promote a local business in the discovery feed. Free users see these every 8 cards; ROAM+ users never see them."
+      subtitle="Promote a local business in the Discover feed. Free users see one every 8 cards; ROAM+ members never do."
+      actions={newButton}
     >
       <div className="admin-campaigns">
 
+      {showForm && (
       <section className="admin-campaigns-section">
-        <h2>Create campaign</h2>
+        <h2>New campaign</h2>
         <form className="admin-campaigns-form" onSubmit={submit}>
           <fieldset>
             <legend>Place</legend>
@@ -388,42 +424,86 @@ export default function AdminCampaigns() {
             </label>
           </fieldset>
 
-          <button type="submit" className="admin-campaigns-submit" disabled={submitting}>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Creating…' : 'Create campaign'}
           </button>
         </form>
       </section>
+      )}
 
-      <section className="admin-campaigns-section">
-        <h2>Existing campaigns {campaigns.length > 0 && <span className="count">({campaigns.length})</span>}</h2>
-        {loading ? (
-          <p>Loading…</p>
-        ) : campaigns.length === 0 ? (
-          <p className="empty">No campaigns yet. Create one above.</p>
-        ) : (
-          <ul className="campaigns-list">
-            {campaigns.map(c => (
-              <CampaignRow
-                key={c.id}
-                campaign={c}
-                onActivate={() => updateStatus(c.id, 'active')}
-                onPause={() => updateStatus(c.id, 'paused')}
-                onResume={() => updateStatus(c.id, 'active')}
-                onCancel={() => cancel(c.id)}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="admin-toolbar">
+        <div className="admin-chips" role="group" aria-label="Filter campaigns by status">
+          {STATUS_FILTERS.map((f) => (
+            <button key={f.value} type="button" className={`chip${statusFilter === f.value ? ' selected' : ''}`} aria-pressed={statusFilter === f.value} onClick={() => setStatusFilter(f.value)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="admin-search" role="search">
+          <input type="search" placeholder="Search place or business" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search campaigns" />
+        </div>
+      </div>
+
+      <AdminStatus
+        loading={loading}
+        error={error}
+        onRetry={fetchCampaigns}
+        empty={visible.length === 0}
+        emptyTitle={campaigns.length === 0 ? 'No campaigns yet' : 'No campaigns match'}
+        emptyText={campaigns.length === 0 ? 'Create one with New campaign when a business signs up.' : 'Try another filter or search.'}
+      >
+        <div className="admin-table-wrap">
+          <table className="admin-table campaigns-table">
+            <thead>
+              <tr>
+                <th scope="col">Campaign</th>
+                <th scope="col">Status</th>
+                <th scope="col">Runs</th>
+                <th scope="col" className="num">Spend</th>
+                <th scope="col" className="num">Impressions</th>
+                <th scope="col" className="num">Clicks</th>
+                <th scope="col" className="num">Saves</th>
+                <th scope="col"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map(c => (
+                <CampaignRow
+                  key={c.id}
+                  campaign={c}
+                  onActivate={() => updateStatus(c.id, 'active')}
+                  onPause={() => updateStatus(c.id, 'paused')}
+                  onResume={() => updateStatus(c.id, 'active')}
+                  onCancel={() => setCancelTarget(c)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="admin-pager"><span>Showing {visible.length} of {campaigns.length} (newest 200)</span></div>
+      </AdminStatus>
+
+      <ConfirmModal
+        isOpen={!!cancelTarget}
+        title="Cancel this campaign?"
+        message={`${cancelTarget ? placeName(cancelTarget) : ''} stops getting impressions straight away. The campaign stays on record for the audit log.`}
+        confirmLabel="Cancel campaign"
+        cancelLabel="Keep it"
+        destructive
+        onConfirm={cancel}
+        onCancel={() => setCancelTarget(null)}
+      />
       </div>
     </AdminLayout>
   )
 }
 
+function placeName(campaign) {
+  const placeData = typeof campaign.place_data === 'string' ? safeJson(campaign.place_data) : campaign.place_data
+  return placeData?.name || campaign.place_id
+}
+
 function CampaignRow({ campaign, onActivate, onPause, onResume, onCancel }) {
-  const placeData = typeof campaign.place_data === 'string'
-    ? safeJson(campaign.place_data)
-    : campaign.place_data
   const targetCategories = typeof campaign.target_categories === 'string'
     ? safeJson(campaign.target_categories)
     : campaign.target_categories
@@ -431,53 +511,37 @@ function CampaignRow({ campaign, onActivate, onPause, onResume, onCancel }) {
   const budgetSpent = (campaign.budget_spent_pence / 100).toFixed(2)
   const isUnlimited = campaign.budget_total_pence === 0
   const isCancelled = campaign.status === 'cancelled'
+  const tone = STATUS_TONE[campaign.status]
 
   return (
-    <li className={`campaign-row campaign-row-${campaign.status}`}>
-      <div className="campaign-row-head">
-        <span className={`status-badge status-${campaign.status}`}>
-          {STATUS_LABELS[campaign.status] || campaign.status}
+    <tr className={isCancelled ? 'is-cancelled' : ''}>
+      <td className="campaign-cell">
+        <strong>{placeName(campaign)}</strong>
+        <span className="admin-muted">{campaign.business_name}{campaign.campaign_name ? ` · ${campaign.campaign_name}` : ''}</span>
+        <span className="admin-muted">
+          CPM £{(campaign.cpm_pence / 100).toFixed(2)} · {campaign.target_radius_km} km
+          {targetCategories?.length > 0 ? ` · ${targetCategories.join(', ')}` : ''}
         </span>
-        <div className="campaign-row-title">
-          <strong>{placeData?.name || campaign.place_id}</strong>
-          <span className="muted">· {campaign.business_name}</span>
-        </div>
-        <div className="campaign-row-budget">
-          £{budgetSpent} / {isUnlimited ? '∞' : `£${budgetTotal}`}
-        </div>
-      </div>
-
-      <div className="campaign-row-stats">
-        <span><strong>{campaign.impression_count}</strong> impressions</span>
-        <span><strong>{campaign.click_count}</strong> clicks</span>
-        <span><strong>{campaign.save_count}</strong> saves</span>
-        <span className="muted">CPM £{(campaign.cpm_pence / 100).toFixed(2)}</span>
-        <span className="muted">{campaign.target_radius_km}km radius</span>
-      </div>
-
-      <div className="campaign-row-meta">
-        <span>{campaign.start_date} → {campaign.end_date}</span>
-        {targetCategories?.length > 0 && (
-          <span className="muted">Targeting: {targetCategories.join(', ')}</span>
+      </td>
+      <td><span className={`admin-badge${tone ? ` admin-badge-${tone}` : ''}`}>{STATUS_LABELS[campaign.status] || campaign.status}</span></td>
+      <td className="campaign-dates">{formatDate(campaign.start_date)}<span className="admin-muted">to {formatDate(campaign.end_date)}</span></td>
+      <td className="num">£{budgetSpent}<span className="admin-muted campaign-of">of {isUnlimited ? 'no cap' : `£${budgetTotal}`}</span></td>
+      <td className="num">{Number(campaign.impression_count || 0).toLocaleString('en-GB')}</td>
+      <td className="num">{Number(campaign.click_count || 0).toLocaleString('en-GB')}</td>
+      <td className="num">{Number(campaign.save_count || 0).toLocaleString('en-GB')}</td>
+      <td>
+        <div className="campaign-actions">
+        {!isCancelled && (
+          <>
+            {campaign.status === 'draft' && <button type="button" onClick={onActivate} className="btn btn-primary btn-sm">Activate</button>}
+            {campaign.status === 'active' && <button type="button" onClick={onPause} className="btn btn-secondary btn-sm">Pause</button>}
+            {campaign.status === 'paused' && <button type="button" onClick={onResume} className="btn btn-primary btn-sm">Resume</button>}
+            <button type="button" onClick={onCancel} className="btn btn-danger btn-sm">Cancel</button>
+          </>
         )}
-        {campaign.campaign_name && <span className="muted">"{campaign.campaign_name}"</span>}
       </div>
-
-      {!isCancelled && (
-        <div className="campaign-row-actions">
-          {campaign.status === 'draft' && (
-            <button onClick={onActivate} className="action-btn action-btn-primary">Activate</button>
-          )}
-          {campaign.status === 'active' && (
-            <button onClick={onPause} className="action-btn">Pause</button>
-          )}
-          {campaign.status === 'paused' && (
-            <button onClick={onResume} className="action-btn action-btn-primary">Resume</button>
-          )}
-          <button onClick={onCancel} className="action-btn action-btn-destructive">Cancel</button>
-        </div>
-      )}
-    </li>
+      </td>
+    </tr>
   )
 }
 

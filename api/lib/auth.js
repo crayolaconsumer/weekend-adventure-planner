@@ -95,10 +95,11 @@ export function extractToken(req) {
   if (cookies) {
     const tokenCookie = cookies
       .split(';')
-      .find(c => c.trim().startsWith('roam_token='))
+      .map(c => c.trim())
+      .find(c => c.startsWith('roam_token='))
     if (tokenCookie) {
       // Use substring to handle JWT tokens with = padding (base64)
-      return tokenCookie.trim().substring(tokenCookie.indexOf('=') + 1)
+      return tokenCookie.substring(tokenCookie.indexOf('=') + 1)
     }
   }
 

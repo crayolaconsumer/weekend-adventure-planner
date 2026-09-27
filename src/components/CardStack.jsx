@@ -18,7 +18,6 @@ import { ADS_REVOKED_EVENT } from '../utils/adMob'
 import { injectAdSenseScript } from '../utils/adSense'
 import { track } from '../utils/analytics'
 import { openDirections } from '../utils/navigation'
-import { getCircuitStatus } from '../utils/apiProtection'
 import './CardStack.css'
 
 // Native ads are valid for an hour; collapse unshown ones a little before
@@ -404,14 +403,6 @@ export default function CardStack({
     }
   }, [currentIndex, mergedPlaces, loading, fetchPlaceImage])
 
-  // Debug: Check circuit breaker state on mount
-  useEffect(() => {
-    const otmStatus = getCircuitStatus('opentripmap')
-    if (otmStatus.state !== 'closed') {
-      console.warn(`[CardStack] OpenTripMap circuit breaker is ${otmStatus.state.toUpperCase()} - images may be disabled. Failures: ${otmStatus.failures}`)
-    }
-  }, [])
-
   // Track places we've already tried to prefetch details for
   // Using ref since this doesn't need to trigger re-renders
   const prefetchedDetailIdsRef = useRef(new Set())
@@ -638,8 +629,8 @@ export default function CardStack({
         subtitle: activeFiltersCount > 0
           ? `You've seen all ${activeFiltersCount} filtered result${activeFiltersCount !== 1 ? 's' : ''}. Try removing some filters or expanding your search.`
           : "You've explored all nearby places. Try expanding your travel radius or adjusting filters.",
-        primaryAction: handleRefresh ? { label: 'Discover More', icon: <RefreshIcon />, action: handleRefresh } : null,
-        secondaryAction: onOpenSettings ? { label: 'Adjust Filters', icon: <SettingsIcon />, action: onOpenSettings } : null
+        primaryAction: handleRefresh ? { label: 'Discover more', icon: <RefreshIcon />, action: handleRefresh } : null,
+        secondaryAction: onOpenSettings ? { label: 'Adjust filters', icon: <SettingsIcon />, action: onOpenSettings } : null
       }
     } else if (emptyReason === 'filters') {
       // Filters are too restrictive
@@ -648,7 +639,7 @@ export default function CardStack({
         subtitle: activeFiltersCount > 0
           ? `Your ${activeFiltersCount} active filter${activeFiltersCount !== 1 ? 's are' : ' is'} too restrictive for this area. Try removing some filters to see more places.`
           : "Try adjusting your filters to see more places.",
-        primaryAction: onOpenSettings ? { label: 'Adjust Filters', icon: <SettingsIcon />, action: onOpenSettings } : null,
+        primaryAction: onOpenSettings ? { label: 'Adjust filters', icon: <SettingsIcon />, action: onOpenSettings } : null,
         secondaryAction: handleRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: handleRefresh } : null
       }
     } else if (emptyReason === 'error') {
@@ -658,8 +649,8 @@ export default function CardStack({
         // language (scout-merit-badge style, forest+gold).
         illustration: 'error',
         title: 'Something went wrong',
-        subtitle: "We couldn't load places right now. Check your connection and try again.",
-        primaryAction: handleRefresh ? { label: 'Try Again', icon: <RefreshIcon />, action: handleRefresh } : null,
+        subtitle: 'Check your connection and try again.',
+        primaryAction: handleRefresh ? { label: 'Try again', icon: <RefreshIcon />, action: handleRefresh } : null,
         secondaryAction: null
       }
     } else {
@@ -675,7 +666,7 @@ export default function CardStack({
         illustration: 'no-results',
         title: 'No places nearby',
         subtitle: `We couldn't find adventures in this area. ${radiusHint}`,
-        primaryAction: onOpenSettings ? { label: 'Expand Radius', icon: <SettingsIcon />, action: onOpenSettings } : null,
+        primaryAction: onOpenSettings ? { label: 'Expand radius', icon: <SettingsIcon />, action: onOpenSettings } : null,
         secondaryAction: handleRefresh ? { label: 'Refresh', icon: <RefreshIcon />, action: handleRefresh } : null
       }
     }

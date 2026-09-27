@@ -15,6 +15,7 @@ import CategoryIcon from './icons/CategoryIcon'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
+import { weatherVerdict } from '../utils/placeFilter'
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
 import './JustGoModal.css'
 
@@ -121,12 +122,14 @@ function getRecommendationReasons(place, context, formatDistance) {
     })
   }
 
-  // Weather match
+  // Weather match, only from real weather: indoor copy when it is wet or
+  // cold, outdoor copy when it is fine, nothing when weather is unknown.
   const isOutdoor = ['nature', 'active', 'entertainment'].includes(place.category?.key)
-  if (context.weather?.isGood && isOutdoor) {
-    reasons.push({ icon: <SunIcon />, text: 'Perfect weather for this' })
-  } else if (!context.weather?.isGood && !isOutdoor) {
-    reasons.push({ icon: <HomeIcon />, text: 'Great indoor option today' })
+  const verdict = weatherVerdict(context.weather)
+  if (verdict === 'fine' && isOutdoor) {
+    reasons.push({ icon: <SunIcon />, text: 'Good weather for this' })
+  } else if ((verdict === 'wet' || verdict === 'cold') && !isOutdoor) {
+    reasons.push({ icon: <HomeIcon />, text: verdict === 'wet' ? 'Good indoor option while it rains' : 'Good indoor option on a cold day' })
   }
 
   // Time of day
@@ -382,7 +385,7 @@ export default function JustGoModal({
                   disabled={recommendations.length <= 1}
                 >
                   <ShuffleIcon />
-                  <span>Show Another</span>
+                  <span>Show another</span>
                   <span className="just-go-counter">{currentIndex + 1}/{recommendations.length}</span>
                 </button>
 
@@ -393,7 +396,7 @@ export default function JustGoModal({
                   whileTap={{ scale: 0.98 }}
                 >
                   <NavigationIcon />
-                  <span>Let's Go!</span>
+                  <span>Let's go!</span>
                 </motion.button>
               </div>
             </>

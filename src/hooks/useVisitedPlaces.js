@@ -8,12 +8,10 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { haversineKm } from '../../shared/geo.mjs'
+import { getAuthToken } from '../utils/authToken'
 
 const STORAGE_KEY = 'roam_visited_places'
-
-function getAuthToken() {
-  return localStorage.getItem('roam_auth_token') || sessionStorage.getItem('roam_auth_token_session')
-}
 
 function loadLocalVisited() {
   try {
@@ -81,13 +79,6 @@ export function useVisitedPlaces() {
     }
   }, [isAuthenticated])
 
-  // Reset syncedRef when user logs out so re-sync happens on next login
-  useEffect(() => {
-    if (!isAuthenticated) {
-      syncedRef.current = false
-    }
-  }, [isAuthenticated])
-
   // PRIVACY FIX: do NOT auto-sync local visited cache to the server on
   // login. That logic was designed for offline-first "mark visited while
   // logged out, then sync on login" — but in practice the localStorage
@@ -108,7 +99,9 @@ export function useVisitedPlaces() {
   }, [isAuthenticated, authLoading])
 
   // On logout, clear locally cached visited list so the next user on
-  // this device starts fresh.
+  // this device starts fresh. This effect owns resetting syncedRef: a
+  // separate reset effect ran first in the same commit and cleared the
+  // flag before this check, so the wipe never happened.
   useEffect(() => {
     if (!authLoading && !isAuthenticated && syncedRef.current) {
       localStorage.removeItem(STORAGE_KEY)
@@ -137,15 +130,7 @@ export function useVisitedPlaces() {
     // Calculate distance if user location available
     let distance = null
     if (userLocation?.lat && userLocation?.lng && place.lat && place.lng) {
-      const R = 6371 // Earth's radius in km
-      const dLat = (place.lat - userLocation.lat) * Math.PI / 180
-      const dLon = (place.lng - userLocation.lng) * Math.PI / 180
-      const a =
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(userLocation.lat * Math.PI / 180) * Math.cos(place.lat * Math.PI / 180) *
-        Math.sin(dLon/2) * Math.sin(dLon/2)
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-      distance = R * c
+      distance = haversineKm(userLocation.lat, userLocation.lng, place.lat, place.lng)
     }
 
     // Preserve the original visited_at when this is an edit of an existing

@@ -85,7 +85,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(false)
+  // Remembered by default: a session-only login is wiped whenever the
+  // native app is closed, which signed email users out on every reopen
+  const [remember, setRemember] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [localError, setLocalError] = useState('')
 
@@ -115,7 +117,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
     try {
       let result
       if (mode === 'login') {
-        result = await login(email, password, remember)
+        result = await login(email, password, isNative() || remember)
       } else {
         result = await register(email, password, displayName)
       }
@@ -548,7 +550,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
               )}
             </div>
 
-            {mode === 'login' && (
+            {mode === 'login' && !isNative() && (
               <div className="auth-remember">
                 <label>
                   <input
@@ -556,7 +558,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }) {
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
                   />
-                  <span>Remember me for 30 days</span>
+                  <span>Keep me signed in</span>
                 </label>
               </div>
             )}

@@ -16,11 +16,14 @@
  * just "Ivinghoe Beacon" (defaults to en).
  *
  * Returns a normalised shape consumed by src/utils/placeImage.js:
- *   { thumbnail: string|null, extract: string|null, title: string,
+ *   { thumbnail: string|null, thumbnailWidth: number|null,
+ *     thumbnailHeight: number|null, extract: string|null, title: string,
  *     contentUrl: string|null }
+ * thumbnailWidth/Height are the dimensions of whichever image `thumbnail`
+ * points at; enrichPlace feeds them into image quality scoring.
  */
 
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, applySharedRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
 // In-memory function-instance cache. Vercel reuses warm functions, so
@@ -39,6 +42,18 @@ function parseTag(tag) {
   return { lang: 'en', title: tag }
 }
 
+// Width/height of the same image pickFirstUrl chose, or nulls.
+function pickDimensions(...candidates) {
+  for (const c of candidates) {
+    if (pickFirstUrl(c)) {
+      const width = Number.isFinite(c?.width) ? c.width : null
+      const height = Number.isFinite(c?.height) ? c.height : null
+      return { width, height }
+    }
+  }
+  return { width: null, height: null }
+}
+
 function pickFirstUrl(...candidates) {
   for (const c of candidates) {
     if (typeof c === 'string' && c.trim().length > 0) return c.trim()
@@ -55,7 +70,9 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'wikipedia:summary')
+  // Per instance first, then a ceiling across instances
+  const rateLimitError = applyRateLimit(req, res, RATE_LIMITS.API_GENERAL, 'wikipedia:summary') ||
+    await applySharedRateLimit(req, res, { max: 300, windowSec: 60 }, 'wikipedia-summary')
   if (rateLimitError) {
     return res.status(rateLimitError.status).json(rateLimitError)
   }
@@ -97,7 +114,7 @@ async function handler(req, res) {
     })
 
     if (upstream.status === 404) {
-      const value = { thumbnail: null, extract: null, title: parsed.title, contentUrl: null }
+      const value = { thumbnail: null, thumbnailWidth: null, thumbnailHeight: null, extract: null, title: parsed.title, contentUrl: null }
       inMemory.set(tag, { value, ts: Date.now() })
       // Cache 'not found' for an hour — wiki entries rarely appear out of nowhere
       res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
@@ -111,8 +128,11 @@ async function handler(req, res) {
     }
 
     const data = await upstream.json()
+    const dims = pickDimensions(data.thumbnail, data.originalimage)
     const value = {
       thumbnail: pickFirstUrl(data.thumbnail, data.originalimage),
+      thumbnailWidth: dims.width,
+      thumbnailHeight: dims.height,
       extract: typeof data.extract === 'string' ? data.extract : null,
       title: typeof data.title === 'string' ? data.title : parsed.title,
       contentUrl: data.content_urls?.desktop?.page || null

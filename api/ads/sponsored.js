@@ -9,6 +9,7 @@ import { query } from '../lib/db.js'
 import { parseCoordinates, validatePagination } from '../lib/validation.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { haversineKm } from '../../shared/geo.mjs'
 
 async function handler(req, res) {
   // Rate limit ad requests
@@ -106,19 +107,7 @@ async function handler(req, res) {
  * Calculate distance between two coordinates in km (Haversine formula)
  */
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371 // Earth's radius in km
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return Math.round(R * c * 10) / 10 // Round to 1 decimal place
-}
-
-function toRad(deg) {
-  return deg * (Math.PI / 180)
+  return Math.round(haversineKm(lat1, lon1, lat2, lon2) * 10) / 10 // Round to 1 decimal place
 }
 
 export default withCors(handler)

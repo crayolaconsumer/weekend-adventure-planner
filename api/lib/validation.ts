@@ -125,6 +125,35 @@ export function validatePlanTitle(title: unknown): ValidationResult {
 }
 
 /** Validate content text (tips, stories, etc.) */
+/**
+ * Validate a plan's stops array (shared by plan create and plan edit).
+ * Max 20 stops, max 10KB of JSON per stop. Emptiness is left to the caller.
+ */
+export const MAX_PLAN_STOPS = 20
+const MAX_STOP_JSON_SIZE = 10 * 1024
+
+export function validatePlanStops(stops: unknown): ValidationResult {
+  if (!Array.isArray(stops)) {
+    return { valid: false, message: 'stops must be an array' }
+  }
+
+  if (stops.length > MAX_PLAN_STOPS) {
+    return { valid: false, message: `Maximum ${MAX_PLAN_STOPS} stops allowed` }
+  }
+
+  for (const stop of stops) {
+    if (!stop || typeof stop !== 'object') {
+      return { valid: false, message: 'Invalid stop' }
+    }
+    const stopData = (stop as Record<string, unknown>).placeData || stop
+    if (JSON.stringify(stopData).length > MAX_STOP_JSON_SIZE) {
+      return { valid: false, message: 'Stop data too large (max 10KB per stop)' }
+    }
+  }
+
+  return { valid: true }
+}
+
 export function validateContent(content: unknown, maxLength: number = 280): ValidationResult {
   if (!content || typeof content !== 'string') {
     return { valid: false, message: 'Content is required' }
@@ -247,6 +276,7 @@ export default {
   validateEmoji,
   validatePlaceId,
   validatePlanTitle,
+  validatePlanStops,
   validateContent,
   validateShareCode,
   validatePagination,

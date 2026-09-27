@@ -4,9 +4,12 @@
  * In-memory rate limiter for serverless functions.
  * Uses a sliding window algorithm with TTL-based cleanup.
  *
- * NOTE: For production at scale, replace with Redis-based rate limiting.
- * In-memory works for moderate traffic on Vercel due to warm lambda reuse.
+ * In-memory limits are per instance, so they are the cheap first layer.
+ * applySharedRateLimit() below adds a cross-instance ceiling in KV for the
+ * routes that cost real money or upstream quota.
  */
+
+import { getClient as getKvClient } from './kvCache.js'
 
 // Store: Map of key -> { count, windowStart, blocked, blockedUntil }
 const store = new Map()
@@ -167,9 +170,37 @@ export function applyRateLimit(req, res, config, keySuffix = '') {
   return null
 }
 
+/**
+ * Cross-instance limit in KV (Upstash): fixed window, one INCR + EXPIRE
+ * round trip. Fails OPEN: no KV, or any KV error, allows the request, so a
+ * KV outage can never take the routes down with it.
+ * @param {{ max: number, windowSec: number }} config
+ * @param {string} name - route namespace for the key
+ * @returns {Promise<Object|null>} 429 payload, or null if allowed
+ */
+export async function applySharedRateLimit(req, res, { max, windowSec }, name, client = getKvClient()) {
+  if (!client) return null
+  const nowSec = Math.floor(Date.now() / 1000)
+  const window = Math.floor(nowSec / windowSec)
+  const key = `rl:${name}:${getRateLimitKey(req)}:${window}`
+  let count
+  try {
+    const results = await client.pipeline().incr(key).expire(key, windowSec).exec()
+    count = results[0]
+  } catch (err) {
+    console.warn(`[rateLimit] shared ${name} failed open:`, err.message)
+    return null
+  }
+  if (!(Number(count) > max)) return null
+  const retryAfter = (window + 1) * windowSec - nowSec
+  res.setHeader('Retry-After', retryAfter)
+  return { status: 429, error: 'Too many requests. Please try again later.', retryAfter }
+}
+
 export default {
   RATE_LIMITS,
   checkRateLimit,
   getRateLimitKey,
-  applyRateLimit
+  applyRateLimit,
+  applySharedRateLimit
 }
