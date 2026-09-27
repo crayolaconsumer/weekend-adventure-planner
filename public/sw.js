@@ -303,6 +303,13 @@ async function defaultFetchStrategy(request) {
     return fetch(request)
   }
 
+  // Google Maps Platform (Places UI Kit on place pages): straight to the
+  // network. Google's terms forbid us caching Places content, and its
+  // .js / photo URLs would otherwise land in the static and image caches.
+  if (isGoogleMapsRequest(url)) {
+    return fetch(request)
+  }
+
   // Handle different request types
   if (isMapTileRequest(url)) {
     // Map tiles: Cache first with LRU eviction
@@ -334,6 +341,19 @@ self.addEventListener('fetch', (event) => {
     return await defaultFetchStrategy(event.request)
   })())
 })
+
+// Not fonts.googleapis.com / fonts.gstatic.com: web fonts keep their cache.
+const GOOGLE_MAPS_HOST = /^(maps\.googleapis\.com|places\.googleapis\.com|maps\.gstatic\.com)$/
+// Place photos come from lh3.googleusercontent.com (seen: /grass-cs/...),
+// the same host as Google sign-in avatars (/a/..., /a-/...). Avatars keep
+// their image caching; everything else there is Places content.
+const GOOGLE_AVATAR_PATH = /^\/a-?\//
+
+// Maps JS, Places API, their static assets and place photos
+function isGoogleMapsRequest(url) {
+  if (GOOGLE_MAPS_HOST.test(url.hostname)) return true
+  return url.hostname.endsWith('.googleusercontent.com') && !GOOGLE_AVATAR_PATH.test(url.pathname)
+}
 
 // Check if request is an API call
 function isApiRequest(url) {

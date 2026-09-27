@@ -25,6 +25,7 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
+import GooglePlaceCard from './GooglePlaceCard'
 import { fetchWikipediaSummary, isWikiExcerpt } from '../utils/placeImage'
 import { getWeeklySchedule } from '../utils/openingHours'
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
@@ -527,7 +528,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                     {formatDistance(liveDistance, { withSuffix: true })}
                   </span>
                 )}
-                {enrichedPlace.isOpen !== null && (
+                {enrichedPlace.isOpen != null && (
                   <span className={`place-detail-pill ${enrichedPlace.isOpen ? 'open' : 'closed'}`}>
                     <ClockIcon />
                     {enrichedPlace.isOpen ? 'Open now' : 'Closed'}
@@ -687,6 +688,12 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 <span>Plan visit</span>
               </button>
             </motion.div>
+
+            {/* Google rating, reviews, photo and live hours via Google's
+                UI Kit element. Loads only when scrolled near; hidden on any
+                failure. Below the actions so its late arrival never moves a
+                button the user is about to tap. Keyed so each place gets a fresh lookup. */}
+            <GooglePlaceCard key={enrichedPlace.id} place={enrichedPlace} />
 
             {/* Mini Map Preview: after the photo, title and key info so the
                 photo leads and the map never pushes the essentials down */}

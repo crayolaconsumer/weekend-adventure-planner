@@ -10,7 +10,7 @@ export default function Privacy() {
     <div className="legal-page">
       <article className="legal-article">
         <h1>Privacy Policy</h1>
-        <p className="legal-meta">Last updated: 28 May 2026</p>
+        <p className="legal-meta">Last updated: 27 September 2026</p>
 
         <p>
           ROAM ("we", "us") respects your privacy. This policy describes what
@@ -45,6 +45,7 @@ export default function Privacy() {
         <ul>
           <li><strong>Processors that run the service:</strong> Vercel (hosting + storage), AWS RDS (database, EU region), Stripe (payments — web only), Apple/Google (sign-in providers, push notification gateways, iOS subscription billing), Sentry (crash reporting), PostHog (product analytics).</li>
           <li><strong>Advertising partners (free tier only):</strong> Google AdMob (mobile), Google AdSense (web), and businesses whose sponsored places appear in your discovery feed. Google's advertising data practices are described at <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">policies.google.com/technologies/ads</a>. You can opt out of personalised Google ads at <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">adssettings.google.com</a>.</li>
+          <li><strong>Google Maps Platform:</strong> place pages load Google Maps content (Google's rating, reviews, photos and opening hours for that place). To find the right place, the app sends the place's name and location to Google, and your device then loads the content straight from Google, which sees your IP address and browser details as with any website. Google's handling of this data is covered by the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>. We don't store the content Google shows, only Google's ID for the place.</li>
           <li><strong>Other ROAM users:</strong> only the data you've explicitly chosen to make public — your username, display name, place tips/reviews, and (if your privacy settings allow) your visited-places map. Your email and exact location are never shown to other users.</li>
         </ul>
 

@@ -1,0 +1,46 @@
+/* Collapsed until Google's element reports gmp-load, so a slow, failed or
+   unmatched lookup never leaves an empty box on the page. The negative
+   margin cancels the place-detail-content flex gap it would otherwise add. */
+.google-place-card {
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  margin-bottom: calc(-1 * var(--space-lg));
+  transition: opacity 0.25s ease;
+}
+
+@media (max-width: 380px) {
+  .google-place-card { margin-bottom: calc(-1 * var(--space-md)); }
+}
+
+.google-place-card.is-loaded {
+  height: auto;
+  overflow: visible;
+  opacity: 1;
+  margin-bottom: 0;
+}
+
+/* Theme hooks Google documents for PlaceDetailsCompactElement. Only
+   colours, font and radius: layout, logos and attribution stay Google's. */
+.google-place-card gmp-place-details-compact {
+  display: block;
+  width: 100%;
+  color-scheme: light;
+  border-radius: var(--radius-lg);
+  --gmp-mat-font-family: var(--font-body);
+  --gmp-mat-color-surface: var(--color-surface-elevated);
+  --gmp-mat-color-on-surface: var(--color-text-primary);
+  --gmp-mat-color-on-surface-variant: var(--color-text-secondary);
+  --gmp-mat-color-outline-decorative: var(--color-border);
+  --gmp-mat-color-primary: var(--roam-forest);
+  --gmp-mat-color-secondary-container: var(--color-surface);
+  --gmp-mat-color-on-secondary-container: var(--color-text-primary);
+  --gmp-mat-color-neutral-container: var(--color-surface);
+  --gmp-star-rating-color: var(--roam-gold);
+  --gmp-thumbnail-border-radius: var(--radius-md);
+  --gmp-button-border-radius: var(--radius-full);
+}
+
+[data-theme="dark"] .google-place-card gmp-place-details-compact {
+  color-scheme: dark;
+}

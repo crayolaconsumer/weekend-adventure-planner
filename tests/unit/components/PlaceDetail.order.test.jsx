@@ -14,6 +14,7 @@ vi.mock('../../../src/hooks/useVisitedPlaces', () => ({ useVisitedPlaces: () => 
 vi.mock('../../../src/utils/imageCache', () => ({
   fetchAndCacheImage: vi.fn(async () => null), getCachedImage: vi.fn(async () => null), invalidateCachedImage: vi.fn(async () => {})
 }))
+vi.mock('../../../src/components/GooglePlaceCard', () => ({ default: () => <div className="google-card-stub" /> }))
 vi.mock('../../../src/components/PlaceReviews', () => ({ default: () => null }))
 vi.mock('../../../src/components/SocialProof', () => ({ default: () => null }))
 vi.mock('../../../src/components/PlaceBadges', () => ({ default: () => null }))
@@ -49,7 +50,27 @@ describe.each(['modal', 'page'])('PlaceDetail %s: the photo leads, the map follo
     expect(follows(title, map)).toBe(true)
     expect(follows(hours, map)).toBe(true)
     expect(follows(actions, map)).toBe(true)
+    // Google's card arrives late: below the actions so it never moves a
+    // button the user is about to tap
+    const google = container.querySelector('.google-card-stub')
+    expect(follows(actions, google)).toBe(true)
+    expect(follows(google, map)).toBe(true)
     // Lazy mount kept: no Leaflet until the box is near the viewport
     expect(container.querySelector('.place-detail-map-leaflet')).toBeNull()
+  })
+})
+
+// Regression: unknown hours (isOpen undefined) showed a red "Closed" pill,
+// contradicting Google's live "Open" just below it
+describe('PlaceDetail open/closed pill', () => {
+  const noHours = { ...place, openingHours: undefined }
+  it('shows nothing when the hours are unknown', () => {
+    render(<MemoryRouter><PlaceDetail place={noHours} onClose={() => {}} variant="page" /></MemoryRouter>)
+    expect(screen.queryByText('Closed')).toBeNull()
+    expect(screen.queryByText('Open now')).toBeNull()
+  })
+  it('still shows Closed when we know it is closed', () => {
+    render(<MemoryRouter><PlaceDetail place={{ ...noHours, isOpen: false }} onClose={() => {}} variant="page" /></MemoryRouter>)
+    expect(screen.getByText('Closed')).toBeInTheDocument()
   })
 })
