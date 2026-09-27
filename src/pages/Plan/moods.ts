@@ -25,6 +25,10 @@ export interface MoodOverride {
   radius: 'nearby' | 'local' | 'area' | 'daytrip'
   /** Recommended transport mode (matches TRANSPORT_MODES.key). */
   transport: 'walk' | 'transit' | 'drive'
+  /** Category boost for moods the vibe picker can't express (overrides the vibe's). */
+  categories?: string[]
+  /** Place types that never suit this mood. */
+  avoidTypes?: string[]
 }
 
 export const MOODS: MoodOverride[] = [
@@ -33,6 +37,8 @@ export const MOODS: MoodOverride[] = [
     label: 'Cosy',
     blurb: 'Bookshops, cafés, quiet corners',
     vibe: 'mixed',
+    categories: ['food', 'shopping', 'culture'],
+    avoidTypes: ['grave_yard', 'cemetery'],
     durationHours: 4,
     radius: 'nearby',
     transport: 'walk',
@@ -83,3 +89,12 @@ export const MOODS: MoodOverride[] = [
     transport: 'walk',
   },
 ]
+
+/**
+ * The mood still shaping a plan: only while the vibe it set is unchanged,
+ * so picking a vibe by hand afterwards wins.
+ */
+export function activeMood(moodKey: MoodKey | null, vibeKey: string): MoodOverride | null {
+  const mood = MOODS.find(m => m.key === moodKey)
+  return mood && mood.vibe === vibeKey ? mood : null
+}

@@ -27,7 +27,7 @@ import VibeIcon from '../components/icons/VibeIcon'
 import { tap as hapticTap, selectionTick } from '../utils/haptics'
 import { openMapsDirections } from '../utils/navigation'
 import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS, effectiveRadius } from './Plan/constants'
-import { MOODS } from './Plan/moods'
+import { MOODS, activeMood } from './Plan/moods'
 import {
   DragIcon,
   ShuffleIcon,
@@ -263,8 +263,9 @@ export default function Plan({ location }) {
 
       // Filter places - vibe categories applied as BOOST (not hard filter)
       // Places matching vibe rank higher, but variety is preserved
-      const filtered = filterPlaces(enhanced, {
-        categories: vibe.categories,
+      const mood = activeMood(selectedMood, selectedVibe)
+      const filtered = filterPlaces(enhanced.filter(p => !mood?.avoidTypes?.includes(p.type)), {
+        categories: mood?.categories || vibe.categories,
         minScore: 20,
         maxResults: 50,
         ensureDiversity: true
