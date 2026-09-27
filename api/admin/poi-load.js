@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/poi-load?build=<id>&step=begin|chunk|photos|finalize[&i=N][&force=1]
+ * POST /api/admin/poi-load?build=<id>&step=begin|chunk|photos|finalize[&i=N][&offset=N][&force=1]
  * GET  /api/admin/poi-load?step=status  -> { active_build_id, active_release_tag, previous_release_tag, latest }
  *
  * Loads one nightly POI build (database/phase11-pois.sql) from OUR GitHub
@@ -382,7 +382,7 @@ export function toPoiRow(o, n = 0) {
 const PHOTO_SOURCES = new Set(['wikidata', 'commons-osm', 'geograph'])
 const httpsUrl = (v, max) => typeof v === 'string' && v.length <= max && v.startsWith('https://')
 
-function toPhotoRow(o, n = 0) {
+export function toPhotoRow(o, n = 0) {
   const bad = why => { throw new LoadError(422, `Bad photo row ${n}: ${why}`) }
   if (!o || typeof o !== 'object') bad('not an object')
   if (!strOrNull(o.photo_key, 64) || o.photo_key === null) bad('photo_key')
@@ -479,15 +479,29 @@ async function chunk(build, i) {
   })
 }
 
-async function photos(build) {
+// Rows per photos call: like a chunk (10k in ~2 s), so ~60k photos never
+// ride one 120 s function. Every call re-verifies the whole file.
+const PHOTO_PAGE = 10000
+
+async function photos(build, offset) {
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new LoadError(400, 'Bad photos offset')
   return withPoiLock(async () => {
-    await pinnedManifest(build, await ownedRow(build, ['loading']))
-    // Photos arrive in Phase 5; until then the file is simply absent
+    const manifest = await pinnedManifest(build, await ownedRow(build, ['loading']))
+    // A release without photos (photo step failed with no previous file) just has none
     const gz = await fetchRelease(build, 'photos.ndjson.gz', { optional: true })
-    if (!gz) return { build, photos: 0, skipped: 'no photos.ndjson.gz in this release' }
+    if (!gz) {
+      if (manifest.photos_sha256) throw new LoadError(422, 'The manifest lists photos but photos.ndjson.gz is missing from the release')
+      return { build, photos: 0, next: null, skipped: 'no photos.ndjson.gz in this release' }
+    }
+    // Pinned like the chunks: the manifest (itself sha-pinned at begin) vouches for the file
+    if (!/^[0-9a-f]{64}$/.test(manifest.photos_sha256 || '')) throw new LoadError(422, 'photos.ndjson.gz present but the manifest has no photos_sha256')
+    if (sha256(gz) !== manifest.photos_sha256) throw new LoadError(422, 'sha256 mismatch for photos.ndjson.gz')
     const rows = ndjson(gz).map(toPhotoRow)
-    await upsertBatches(INSERT_PHOTOS, rows)
-    return { build, photos: rows.length }
+    if (rows.length !== manifest.photo_count) throw new LoadError(422, `photos.ndjson.gz has ${rows.length} rows, manifest says ${manifest.photo_count}`)
+    const page = rows.slice(offset, offset + PHOTO_PAGE)
+    await upsertBatches(INSERT_PHOTOS, page)
+    const end = offset + page.length
+    return { build, photos: page.length, total: rows.length, next: end < rows.length ? end : null }
   })
 }
 
@@ -631,7 +645,10 @@ async function runGates(build, row, manifest, requestDeadline = Infinity) {
 
   const photoStaging = await gateCount('poi_photos_staging')
   const photoActive = active ? Number(active.photo_count ?? await gateCount('poi_photos')) : 0
-  gate('G7', 'photos', photoActive === 0 || photoStaging >= PHOTO_MIN * photoActive, { staging: photoStaging, active: photoActive })
+  // Complete (every page of the pinned file loaded) and not a collapse vs live
+  const photoManifest = Number(manifest.photo_count) || 0
+  gate('G7', 'photos', photoStaging === photoManifest && (photoActive === 0 || photoStaging >= PHOTO_MIN * photoActive),
+    { staging: photoStaging, manifest: photoManifest, active: photoActive })
 
   // Every wide element must be in the LARGE bucket, or queries near its edges miss it (cheap: cell leads the PK)
   const largeStaging = Number((await gateOne('SELECT COUNT(*) AS n FROM pois_staging WHERE cell = ?', [LARGE_CELL], scan))?.n || 0)
@@ -771,7 +788,7 @@ async function handler(req, res) {
     let out
     if (step === 'begin') out = await begin(build)
     else if (step === 'chunk') out = await chunk(build, /^\d{1,4}$/.test(req.query?.i) ? Number(req.query.i) : NaN)
-    else if (step === 'photos') out = await photos(build)
+    else if (step === 'photos') out = await photos(build, /^\d{1,7}$/.test(req.query?.offset ?? '0') ? Number(req.query?.offset ?? 0) : NaN)
     else if (step === 'finalize') out = await finalize(build, force ? admin : null, deadline)
     else return res.status(400).json({ error: 'step must be begin, chunk, photos or finalize' })
     return res.status(200).json(out)

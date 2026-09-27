@@ -462,15 +462,64 @@ describe('loading', () => {
     expect(statusOf(OLDER)).toBe('failed')
   })
 
-  it('photos: loads the file when present and skips cleanly when absent', async () => {
+  const PHOTO = { photo_key: 'Q42', url: 'https://commons.wikimedia.org/x.jpg', width: 800, height: 600, source: 'wikidata',
+    artist: 'A'.repeat(300), license: 'CC BY-SA 4.0', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    page_url: 'https://commons.wikimedia.org/wiki/File:X.jpg', checked_on: '2026-10-01' }
+  // The manifest is sha-pinned at begin, so the release is built whole first
+  const photoRelease = (patch = f => ({ photos_sha256: sha(f), photo_count: 1 })) => {
+    const file = gz([PHOTO])
+    release(CHUNKS, patch(file))
+    files.set('photos.ndjson.gz', file)
+  }
+
+  it('photos: skips cleanly when the release has none', async () => {
     await load()
     expect((await call({ step: 'photos' })).body.skipped).toMatch(/no photos/)
-    const photo = { photo_key: 'Q42', url: 'https://commons.wikimedia.org/x.jpg', width: 800, height: 600, source: 'wikidata',
-      artist: 'A'.repeat(300), license: 'CC BY-SA 4.0', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/',
-      page_url: 'https://commons.wikimedia.org/wiki/File:X.jpg', checked_on: '2026-10-01' }
-    files.set('photos.ndjson.gz', gz([photo]))
+  })
+
+  it('photos: a manifest that lists photos with no file in the release is refused', async () => {
+    release(CHUNKS, { photos_sha256: 'a'.repeat(64), photo_count: 3 })
+    await load()
+    const res = await call({ step: 'photos' })
+    expect(res.statusCode).toBe(422)
+    expect(res.body.error).toMatch(/photos\.ndjson\.gz is missing/)
+  })
+
+  it('photos: pages 10k rows per call (never one 60k-row request); a bad offset is refused', async () => {
+    const many = Array.from({ length: 25001 }, (_, i) => ({ ...PHOTO, photo_key: `Q${i + 1}`, artist: 'Jo' }))
+    const file = gz(many)
+    release(CHUNKS, { photos_sha256: sha(file), photo_count: many.length })
+    files.set('photos.ndjson.gz', file)
+    await load()
+    const pages = []
+    for (let offset = 0; offset != null;) {
+      const { body } = await call({ step: 'photos', offset: String(offset) })
+      pages.push([body.photos, body.next])
+      offset = body.next
+    }
+    expect(pages).toEqual([[10000, 10000], [10000, 20000], [5001, null]])
+    expect(db.tables.poi_photos_staging.rows.size).toBe(25001)
+    for (const offset of ['-1', 'x', '1.5']) expect((await call({ step: 'photos', offset })).statusCode).toBe(400)
+  })
+
+  it('photos: loads a file the manifest vouches for', async () => {
+    photoRelease()
+    await load()
     expect((await call({ step: 'photos' })).body.photos).toBe(1)
     expect(db.tables.poi_photos_staging.rows.get('Q42').artist).toHaveLength(255)
+  })
+
+  it.each([
+    ['no photos_sha256', () => ({ photo_count: 1 }), /no photos_sha256/],
+    ['a different sha256', () => ({ photos_sha256: 'a'.repeat(64), photo_count: 1 }), /sha256 mismatch/],
+    ['a different row count', f => ({ photos_sha256: sha(f), photo_count: 2 }), /manifest says 2/],
+  ])('photos: refuses a file with %s and writes nothing', async (_, patch, err) => {
+    photoRelease(patch)
+    await load()
+    const res = await call({ step: 'photos' })
+    expect(res.statusCode).toBe(422)
+    expect(res.body.error).toMatch(err)
+    expect(db.tables.poi_photos_staging.rows.size).toBe(0)
   })
 })
 
@@ -601,6 +650,18 @@ describe('finalize', () => {
     expect(db.tables.pois_prev.comment).toBe(OLDER)
     expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ subject: expect.stringMatching(/POI build .* failed/) }))
     expect(recordCronRun).toHaveBeenCalledWith(expect.objectContaining({ jobName: 'poi-load', failedCount: failed.length }))
+  })
+
+  it('G7 fails a partial photo load: every page of the pinned file must be in staging', async () => {
+    const file = gz([{ photo_key: 'Q42', url: 'https://commons.wikimedia.org/x.jpg', source: 'wikidata', artist: 'Jo',
+      license: 'CC BY-SA 4.0', page_url: 'https://commons.wikimedia.org/wiki/File:X.jpg', checked_on: '2026-10-01' }])
+    release(CHUNKS, { photos_sha256: sha(file), photo_count: 1 })
+    files.set('photos.ndjson.gz', file)
+    withActive({ prev: true })
+    await load() // no photos step: staging has 0 of the manifest's 1
+    const res = await call({ step: 'finalize' })
+    expect(res.statusCode).toBe(422)
+    expect(res.body.report.gates.find(g => g.id === 'G7')).toMatchObject({ pass: false, detail: { staging: 0, manifest: 1, active: 0 } })
   })
 
   it.each(['G1', 'G2', 'G8'])('%s cannot be forced, even by an admin', async id => {
@@ -868,6 +929,22 @@ describe('scripts/poi/load.mjs', () => {
     expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBe('Bearer s')
   })
 
+  it('pages photos until the server says done, retrying a page', async () => {
+    const { run } = await import('../../../scripts/poi/load.mjs')
+    const calls = []
+    let blip = 0
+    const fetchImpl = vi.fn(async url => {
+      const q = Object.fromEntries(new URL(url).searchParams)
+      calls.push(q.step + (q.offset ?? ''))
+      if (q.step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0 })
+      if (q.step === 'photos' && q.offset === '10000' && blip++ === 0) return json(503, { error: 'blip', retry: true })
+      if (q.step === 'photos') return json(200, { photos: 10000, total: 25000, next: q.offset === '20000' ? null : Number(q.offset) + 10000 })
+      return json(200, { status: 'active', report: { gates: [] } })
+    })
+    expect(await run({ build: BUILD, secret: 's', fetchImpl, sleep: async () => {}, log: () => {} })).toBe(0)
+    expect(calls).toEqual(['begin', 'photos0', 'photos10000', 'photos10000', 'photos20000', 'finalize'])
+  })
+
   it('stops on a verdict (gates failed) without retrying', async () => {
     const { run } = await import('../../../scripts/poi/load.mjs')
     const fetchImpl = vi.fn(async url => {
@@ -979,5 +1056,29 @@ describe('database/phase11-pois.sql', () => {
   it('schema.sql carries the same three tables', () => {
     const schema = parseDdl(readFileSync(join(ROOT, 'database', 'schema.sql'), 'utf8'))
     for (const t of ['pois', 'poi_photos', 'poi_builds']) expect(schema[t]).toEqual(tables[t])
+  })
+})
+
+describe('photos.mjs rows always pass the loader (one bad row fails the whole load)', () => {
+  it('every row photoRow builds, across the edge cases, survives toPhotoRow', async () => {
+    const { photoRow } = await import('../../../scripts/poi/photos.mjs')
+    const ii = (extmetadata, over = {}) => ({ thumbwidth: 70000, thumbheight: 600, extmetadata, ...over })
+    const lic = { LicenseShortName: { value: 'CC BY-SA 4.0' } }
+    const cases = [
+      ['X.jpg', ii({ ...lic, Artist: { value: 'a'.repeat(400) }, LicenseUrl: { value: '//creativecommons.org/x' } })],
+      ['X.jpg', ii({ ...lic, Artist: { value: '<a>Jo</a>' }, LicenseUrl: { value: 'mailto:x' } })],
+      ['ŵ'.repeat(60) + '.jpg', ii({ ...lic, Artist: { value: 'Jo' } })],
+      ['ŵ'.repeat(236) + '.jpg', ii({ ...lic, Artist: { value: 'Jo' } })],
+      ['X.jpg', ii({ LicenseShortName: { value: 'x'.repeat(100) }, AttributionRequired: { value: 'false' } })],
+      ['X.jpg', ii({ ...lic, Artist: { value: 'Jo' } }, { descriptionurl: 'https://commons.wikimedia.org/wiki/File:' + 'y'.repeat(600) })],
+    ]
+    let built = 0
+    for (const [file, info] of cases) {
+      const r = photoRow('Q1', file, info, 'wikidata', '2026-09-27')
+      if (!r) continue
+      built++
+      expect(() => mod.toPhotoRow(r)).not.toThrow()
+    }
+    expect(built).toBe(4)
   })
 })

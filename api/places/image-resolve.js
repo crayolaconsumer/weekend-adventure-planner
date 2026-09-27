@@ -28,14 +28,18 @@ import { refuseBotUpstream } from '../lib/bots.js'
  *   {
  *     url: string | null,
  *     source: 'wikipedia' | 'wikidata' | 'commons-geo' | null,
- *     attribution: { name, url, source } | null
+ *     attribution: { name, url, source, artist, license, license_url } | null
  *   }
+ * artist/license/license_url are null unless known (today only the
+ * poi_photos tier knows them; see tryPhotoDb).
  */
 
 import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { haversineKm } from '../../shared/geo.mjs'
 import { isDistressingImage, isEventArticle, isEventEntity, sharesMeaningfulWord } from '../../shared/placeTopic.mjs'
+import { query } from '../lib/db.js'
+import { getFlags, peekFlags } from '../lib/flags.js'
 
 const MEMORY_TTL_MS = 60 * 60 * 1000
 const memCache = new Map()
@@ -170,6 +174,55 @@ async function tryWikidata(qid) {
       }
     }
   } catch { return null }
+}
+
+// ─── poi_photos: the nightly build's resolved Wikidata photos ─────────
+// Same answer as tryWikidata (the build uses the same P18 pick, event and
+// distressing filters) plus the artist and licence, without the live call.
+// Fails open: any error or a slow database falls through to the live chain,
+// then the tier sits out a while so a missing table (not loaded yet) or a
+// sick database costs nothing and logs at most once per window. It rides the
+// place-database rollout (poiDbPct): each call is a DB connection's worth of
+// work on the micro instance, so it grows with that flag, never ahead of it.
+// Cold instance (flags not cached yet): skip, and warm them for next time.
+const PHOTO_DB_TIMEOUT_MS = 500
+const PHOTO_DB_BACKOFF_MS = 60 * 1000
+let photoDbOffUntil = 0
+
+async function tryPhotoDb(qid) {
+  if (!qid || !/^Q[1-9]\d{0,9}$/.test(qid) || !process.env.MYSQL_HOST || Date.now() < photoDbOffUntil) return null
+  const flags = peekFlags()
+  if (!flags) { getFlags().catch(() => {}); return null }
+  if (!(Math.random() * 100 < flags.poiDbPct)) return null
+  let timer
+  try {
+    const rows = await Promise.race([
+      query('SELECT /*+ MAX_EXECUTION_TIME(300) */ url, source, artist, license, license_url, page_url FROM poi_photos WHERE photo_key = ? LIMIT 1', [qid]),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('poi_photos timeout')), PHOTO_DB_TIMEOUT_MS) })
+    ])
+    const r = rows?.[0]
+    if (!r?.url) return null
+    let file = r.page_url
+    try { file = decodeURIComponent(r.page_url) } catch { /* keep raw */ }
+    return {
+      url: r.url,
+      source: r.source,
+      attribution: {
+        name: file.split('File:').pop().replace(/_/g, ' '),
+        url: r.page_url,
+        source: 'Wikimedia Commons',
+        artist: r.artist || null,
+        license: r.license,
+        license_url: r.license_url || null
+      }
+    }
+  } catch (err) {
+    photoDbOffUntil = Date.now() + PHOTO_DB_BACKOFF_MS
+    if (err?.code !== 'ER_NO_SUCH_TABLE') console.warn('[image-resolve] poi_photos skipped for 60s:', err?.code || err?.message)
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -556,7 +609,11 @@ async function handler(req, res) {
   const firstHit = results => results.find(r => r && r.url && !isDistressingImage(r.url)) || null
   // The item's own P18 beats the article's lead image; an event item vetoes
   // the Wikipedia article paired with it (tagged together by the mapper).
+  // The nightly build's copy of the P18 photo is the same pick, so it wins
+  // exactly where the live P18 would, and saves both live calls.
   const curated = async () => {
+    const db = await tryPhotoDb(wikidata)
+    if (db && !isDistressingImage(db.url)) return [db]
     const [wd, wp] = await Promise.all([tryWikidata(wikidata), tryWikipedia(wikipedia, name)])
     return wd?.event ? [] : [wd, wp]
   }
@@ -602,6 +659,8 @@ async function handler(req, res) {
   }
 
   if (!value) value = { url: null, source: null, attribution: null }
+  // One attribution shape for every tier (old builds read name/url/source)
+  if (value.attribution) value.attribution = { artist: null, license: null, license_url: null, ...value.attribution }
 
   memCache.set(key, { value, ts: Date.now() })
   // Bound the memCache size so a long-running function instance doesn't

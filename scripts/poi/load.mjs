@@ -5,7 +5,7 @@
  * begin resumes from chunks_loaded and re-sent chunks are idempotent.
  *
  *   POI_LOAD_SECRET=... node scripts/poi/load.mjs --build uk-20261001T0215Z
- *   [--base https://www.go-roam.uk] [--skip-photos]
+ *   [--base https://www.go-roam.uk] [--skip-photos: only for a release without photos; G7 fails otherwise]
  *
  * Forcing past failed gates needs an admin session, never the secret:
  *   ROAM_ADMIN_TOKEN=<admin JWT> node scripts/poi/load.mjs --build <id> --force
@@ -61,9 +61,13 @@ export async function run({ build, base = BASE, secret, adminToken, force = fals
       log(`  chunk ${i + 1}/${b.chunks_total}: ${c.rows} rows`)
     }
     if (!skipPhotos) {
-      const p = await step({ step: 'photos' })
-      if (p.failed) { log(`photos failed: ${p.status} ${p.error}`); return 1 }
-      log(`  photos: ${p.skipped || p.photos}`)
+      // Paged like the chunks; each page is an idempotent upsert, safe to retry
+      for (let offset = 0; offset != null;) {
+        const p = await step({ step: 'photos', offset: String(offset) })
+        if (p.failed) { log(`photos failed at ${offset}: ${p.status} ${p.error}`); return 1 }
+        log(`  photos: ${p.skipped || `${offset + p.photos}/${p.total}`}`)
+        offset = p.next ?? null
+      }
     }
   }
 

@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
+import { createHash } from 'node:crypto'
 
 const yml = readFileSync(new URL('../../../.github/workflows/poi-build.yml', import.meta.url), 'utf8')
 
@@ -67,7 +68,12 @@ case "$1 $2" in
       *assets*) echo "$FAKE_ASSETS" ;;
     esac ;;
   "release download")
-    while [ $# -gt 0 ]; do [ "$1" = --output ] && cp "$FAKE_DIR/published.json" "$2"; shift; done ;;
+    [ -n "$FAKE_DL_FAIL" ] && exit 1
+    while [ $# -gt 0 ]; do
+      [ "$1" = --output ] && cp "$FAKE_DIR/published.json" "$2"
+      [ "$1" = --dir ] && [ -d "$FAKE_DIR/prev-photos" ] && cp "$FAKE_DIR"/prev-photos/* "$2"/
+      shift
+    done ;;
   "release list") echo "$FAKE_NEWEST" ;;
 esac
 exit 0
@@ -87,11 +93,11 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
 
   const exec = (name, env = {}, responses = []) => {
     writeFileSync(join(dir, 'responses'), responses.join('\n') + '\n')
-    for (const f of ['calls', 'out', 'gh.log']) writeFileSync(join(dir, f), '')
+    for (const f of ['calls', 'out', 'env', 'gh.log']) writeFileSync(join(dir, f), '')
     const r = spawnSync('bash', ['-e', '-c', runScript(step(name))], {
       encoding: 'utf8',
       env: {
-        PATH: `${dir}:${process.env.PATH}`, FAKE_DIR: dir, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'out'),
+        PATH: `${dir}:${process.env.PATH}`, FAKE_DIR: dir, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'out'), GITHUB_ENV: join(dir, 'env'),
         WORK: join(dir, 'work'), ...env,
       },
     })
@@ -101,6 +107,7 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       calls: read('calls').trim().split('\n').filter(Boolean).map(u => u.split('?')[1].split('&').filter(p => !p.startsWith('build=')).join('&')),
       gh: read('gh.log').trim().split('\n').filter(Boolean),
       out: read('out'),
+      env: read('env'),
       all: r.stdout + r.stderr,
     }
   }
@@ -117,7 +124,7 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
 
     it('only runs when scheduled or load is requested (load=false publishes only), via load.mjs', () => {
       expect(step('Load into the database')).toMatch(/if: \$\{\{ github\.event_name == 'schedule' \|\| inputs\.load \}\}/)
-      expect(runScript(step('Load into the database'))).toMatch(/node scripts\/poi\/load\.mjs --build "\$BUILD_ID" --skip-photos && echo active=true >> "\$GITHUB_OUTPUT"/)
+      expect(runScript(step('Load into the database'))).toMatch(/node scripts\/poi\/load\.mjs --build "\$BUILD_ID" && echo active=true >> "\$GITHUB_OUTPUT"/)
     })
   })
 
@@ -137,6 +144,15 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       expect(r.gh[1]).toMatch(/--draft/)
       expect(r.gh[4]).toMatch(/--draft=false/)
       expect(r.out).toBe('build_id=uk-20260926T2022Z\n')
+    })
+
+    it('uploads the photo files when present and counts them', () => {
+      mkdirSync(join(dir, 'work', 'out'), { recursive: true })
+      for (const f of ['photos.ndjson.gz', 'photo-misses.json.gz']) writeFileSync(join(dir, 'work', 'out', f), 'x')
+      expect(publish({ FAKE_DRAFT: 'none', FAKE_ASSETS: '5' }).code).not.toBe(0)
+      const r = publish({ FAKE_DRAFT: 'none', FAKE_ASSETS: '6' })
+      expect(r.code).toBe(0)
+      expect(r.gh.find(c => c.startsWith('release upload'))).toMatch(/photos\.ndjson\.gz .*photo-misses\.json\.gz$/)
     })
 
     it('asset count short: stays a draft, job fails', () => {
@@ -164,6 +180,74 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       const r = publish({ FAKE_DRAFT: 'false' }, ['aa', 'bb'], ['aa', 'cc', 'dd'])
       expect(r.code).not.toBe(0)
       expect(r.all).toMatch(/refusing to load a mix/)
+    })
+  })
+
+  describe('Photos', () => {
+    // A fake node standing in for photos.mjs: FAKE_PHOTOS=ok writes its outputs, else fails
+    const FAKE_NODE = `#!/bin/bash
+[ "$FAKE_PHOTOS" = ok ] || exit 1
+while [ $# -gt 0 ]; do [ "$1" = --out ] && out=$2; shift; done
+printf 'new' | gzip > "$out/photos.ndjson.gz"
+echo '{"photo_count":7,"photos_sha256":"${'a'.repeat(64)}","requests":9}' > "$out/photos-manifest.json"
+`
+    const photos = (env, prev = false) => {
+      writeFileSync(join(dir, 'node'), FAKE_NODE)
+      writeFileSync(join(dir, 'timeout'), '#!/bin/bash\nshift\nexec "$@"\n')
+      writeFileSync(join(dir, 'sleep'), '#!/bin/bash\necho "sleep $*" >> "$FAKE_DIR/gh.log"\n')
+      chmodSync(join(dir, 'sleep'), 0o755)
+      chmodSync(join(dir, 'node'), 0o755)
+      chmodSync(join(dir, 'timeout'), 0o755)
+      mkdirSync(join(dir, 'work', 'out'), { recursive: true })
+      writeFileSync(join(dir, 'work', 'out', 'manifest.json'), JSON.stringify({ build_id: 'uk-20260926T2022Z', photo_count: 0 }))
+      let sha = null
+      if (prev) {
+        mkdirSync(join(dir, 'prev-photos'), { recursive: true })
+        spawnSync('bash', ['-c', `printf '{"a":1}\n{"a":2}\n' | gzip > "${dir}/prev-photos/photos.ndjson.gz"; echo '[]' | gzip > "${dir}/prev-photos/photo-misses.json.gz"`])
+        sha = createHash('sha256').update(readFileSync(join(dir, 'prev-photos', 'photos.ndjson.gz'))).digest('hex')
+      }
+      writeFileSync(join(dir, 'work', 'prev-manifest.json'), JSON.stringify({ photos_sha256: prev === 'corrupt' ? 'b'.repeat(64) : sha }))
+      const r = exec('Photos', { PREV_TAG: 'poi-uk-20260925T0215Z', FAKE_ASSETS: prev ? 'true' : 'false', ...env })
+      return { ...r, manifest: JSON.parse(readFileSync(join(dir, 'work', 'out', 'manifest.json'), 'utf8')), has: f => existsSync(join(dir, 'work', 'out', f)) }
+    }
+
+    it('merges the photo count and sha into the manifest, from yesterday\'s photos', () => {
+      const r = photos({ FAKE_PHOTOS: 'ok' }, true)
+      expect(r.code).toBe(0)
+      expect(r.gh[0]).toBe(`release download poi-uk-20260925T0215Z --pattern photos.ndjson.gz --pattern photo-misses.json.gz --dir ${dir}/work/prev-photos --clobber`)
+      expect(r.manifest).toEqual({ build_id: 'uk-20260926T2022Z', photo_count: 7, photos_sha256: 'a'.repeat(64) })
+    })
+
+    it('lookup failed: ships yesterday\'s photos unchanged, with their real count and sha', () => {
+      const r = photos({ FAKE_PHOTOS: 'fail' }, true)
+      expect(r.code).toBe(0)
+      expect(r.all).toMatch(/shipping the previous photos unchanged/)
+      const sha = createHash('sha256').update(readFileSync(join(dir, 'prev-photos', 'photos.ndjson.gz'))).digest('hex')
+      expect(r.manifest).toMatchObject({ photo_count: 2, photos_sha256: sha })
+      expect(r.has('photo-misses.json.gz')).toBe(true)
+    })
+
+    it('yesterday shipped photos but the download fails: the run stops (never a silent cold start)', () => {
+      const r = photos({ FAKE_PHOTOS: 'ok', FAKE_DL_FAIL: '1' }, true)
+      expect(r.code).not.toBe(0)
+      expect(r.gh.filter(c => c.startsWith('release download'))).toHaveLength(3) // retried twice first
+      expect(r.gh.filter(c => c.startsWith('sleep'))).toEqual(['sleep 20', 'sleep 40'])
+      expect(r.has('photos.ndjson.gz')).toBe(false)
+    })
+
+    it('previous photos that don\'t match their manifest stop the run before any lookup', () => {
+      const r = photos({ FAKE_PHOTOS: 'ok' }, 'corrupt')
+      expect(r.code).not.toBe(0)
+      expect(r.all).toMatch(/does not match its manifest/)
+      expect(r.has('photos.ndjson.gz')).toBe(false)
+    })
+
+    it('lookup failed and no previous photos: ships none, manifest untouched', () => {
+      const r = photos({ FAKE_PHOTOS: 'fail' })
+      expect(r.code).toBe(0)
+      expect(r.gh.some(c => c.startsWith('release download'))).toBe(false)
+      expect(r.has('photos.ndjson.gz')).toBe(false)
+      expect(r.manifest).toEqual({ build_id: 'uk-20260926T2022Z', photo_count: 0 })
     })
   })
 
@@ -210,6 +294,8 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       expect(r.gh).toEqual([expect.stringMatching(/^release download poi-uk-20260920T2011Z /)])
       expect(existsSync(join(dir, 'work', 'prev-manifest.json'))).toBe(true)
       expect(r.all).toMatch(/Drift baseline: active release poi-uk-20260920T2011Z/)
+      // The photos step starts from the same release's photos
+      expect(r.env).toBe('PREV_TAG=poi-uk-20260920T2011Z\n')
     })
 
     it('falls back to the newest published release when status is unavailable or junk', () => {

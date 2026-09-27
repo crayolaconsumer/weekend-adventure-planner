@@ -22,10 +22,15 @@ concurrency:
   group: poi-build
   cancel-in-progress: false
 
+# bash -eo pipefail: a failed gunzip or sha256sum in a pipe fails the step
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       WORK: /tmp/poi  # runner.temp is not available at job level
       NODE_OPTIONS: --max-old-space-size=12000
@@ -68,10 +73,60 @@ jobs:
           if [ -n "$prev" ]; then
             gh release download "$prev" --pattern manifest.json --output "$WORK/prev-manifest.json" --clobber
             echo "Previous build: $prev"
+            echo "PREV_TAG=$prev" >> "$GITHUB_ENV"
           fi
 
       - name: Build (download, md5, filter, export, build.mjs, local gates)
         run: PREV_MANIFEST="$WORK/prev-manifest.json" scripts/poi/build.sh
+
+      # Wikidata/Commons photos, incremental from the previous release (new keys
+      # plus a rotating 1/30; at most 40k lookups a run). If the lookup fails,
+      # yesterday's photos ship unchanged: Wikimedia trouble never holds back
+      # the places, and G7 (photos >= 90% of live) still passes.
+      - name: Photos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out="$WORK/out"; prevdir="$WORK/prev-photos"
+          mkdir -p "$prevdir"
+          # Yesterday's photos are the incremental base. Losing them would turn a
+          # capped cold start into a G7 failure, so when yesterday's (pinned)
+          # manifest says it shipped photos, a failed download or a file that
+          # doesn't match stops the run (tomorrow retries).
+          want=
+          if [ -n "${PREV_TAG:-}" ] && [ -f "$WORK/prev-manifest.json" ]; then
+            want=$(jq -r '.photos_sha256 // ""' "$WORK/prev-manifest.json")
+          fi
+          if [ -n "$want" ]; then
+            for try in 1 2 3; do
+              gh release download "$PREV_TAG" --pattern photos.ndjson.gz --pattern photo-misses.json.gz --dir "$prevdir" --clobber && break
+              [ "$try" = 3 ] && exit 1
+              sleep $((try * 20))
+            done
+            got=$(sha256sum "$prevdir/photos.ndjson.gz" | cut -d' ' -f1)
+            if [ "$want" != "$got" ]; then
+              echo "$PREV_TAG photos.ndjson.gz does not match its manifest: refusing to build on it" >&2
+              exit 1
+            fi
+          fi
+          if ! timeout 50m node scripts/poi/photos.mjs --in "$out" --out "$out" --prev "$prevdir"; then
+            echo "::warning::Photo lookup failed: shipping the previous photos unchanged"
+            rm -f "$out/photos.ndjson.gz" "$out/photo-misses.json.gz" "$out/photos-manifest.json"
+            for f in photos.ndjson.gz photo-misses.json.gz; do
+              if [ -f "$prevdir/$f" ]; then cp "$prevdir/$f" "$out/"; fi
+            done
+            if [ -f "$out/photos.ndjson.gz" ]; then
+              n=$(gunzip -c "$out/photos.ndjson.gz" | awk 'NF' | wc -l)
+              sha=$(sha256sum "$out/photos.ndjson.gz" | cut -d' ' -f1)
+              jq -n --arg sha "$sha" --argjson n "$n" '{photos_sha256: $sha, photo_count: $n}' > "$out/photos-manifest.json"
+            fi
+          fi
+          if [ -f "$out/photos-manifest.json" ]; then
+            jq -s '.[0] + {photo_count: .[1].photo_count, photos_sha256: .[1].photos_sha256}' \
+              "$out/manifest.json" "$out/photos-manifest.json" > "$out/manifest.tmp"
+            mv "$out/manifest.tmp" "$out/manifest.json"
+            jq -c '{photo_count, photos_sha256}' "$out/manifest.json"
+          fi
 
       # Draft first, every asset uploaded and counted, then published: the
       # loader only ever sees a complete release. A leftover draft from a
@@ -100,8 +155,12 @@ jobs:
           if [ "$draft" = true ]; then gh release delete "$tag" --yes; fi
           gh release create "$tag" --draft --title "POI build $id" \
             --notes "Place data derived from OpenStreetMap. © OpenStreetMap contributors, available under the Open Database Licence (ODbL 1.0): https://www.openstreetmap.org/copyright"
-          gh release upload "$tag" "$WORK"/out/chunk-*.ndjson.gz "$WORK/out/manifest.json" "$WORK/out/coverage.json"
-          want=$(( $(jq '.chunks | length' "$WORK/out/manifest.json") + 2 ))
+          extra=()
+          for f in photos.ndjson.gz photo-misses.json.gz; do
+            if [ -f "$WORK/out/$f" ]; then extra+=("$WORK/out/$f"); fi
+          done
+          gh release upload "$tag" "$WORK"/out/chunk-*.ndjson.gz "$WORK/out/manifest.json" "$WORK/out/coverage.json" "${extra[@]}"
+          want=$(( $(jq '.chunks | length' "$WORK/out/manifest.json") + 2 + ${#extra[@]} ))
           got=$(gh release view "$tag" --json assets --jq '.assets | length')
           if [ "$got" != "$want" ]; then
             echo "Release $tag has $got assets, expected $want" >&2
@@ -110,7 +169,7 @@ jobs:
           gh release edit "$tag" --draft=false
 
       # scripts/poi/load.mjs: begin (noop when this build is already active,
-      # resumes from chunks_loaded), every chunk, finalize. Retries network
+      # resumes from chunks_loaded), every chunk, photos, finalize. Retries network
       # errors, 5xx, 429 and a busy lock (409 {"retry":true}) with backoff; any
       # other 4xx (bad build, 422 gate) stops. Exit 0 only when the build is live.
       - name: Load into the database
@@ -124,7 +183,7 @@ jobs:
             echo "POI_LOAD_SECRET is not set but a load was requested. Add the secret, or run workflow_dispatch with load=false to publish only." >&2
             exit 1
           fi
-          node scripts/poi/load.mjs --build "$BUILD_ID" --skip-photos && echo active=true >> "$GITHUB_OUTPUT"
+          node scripts/poi/load.mjs --build "$BUILD_ID" && echo active=true >> "$GITHUB_OUTPUT"
 
       # Only after this run's build went live. Keeps the newest 7 plus whatever
       # the database says is active and previous (a rollback can make an old
