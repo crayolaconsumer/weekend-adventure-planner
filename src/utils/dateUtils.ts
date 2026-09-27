@@ -79,3 +79,12 @@ export function startOfDay(date: Date): Date {
   result.setHours(0, 0, 0, 0)
   return result
 }
+
+/**
+ * 'YYYY-MM-DD' as local midnight. new Date('YYYY-MM-DD') is UTC midnight,
+ * which shows as 1 am in BST.
+ */
+export function localDay(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}

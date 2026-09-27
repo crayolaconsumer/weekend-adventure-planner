@@ -173,7 +173,6 @@ export default function SharedPlan() {
   useEffect(() => {
     if (!plan) return
 
-    const originalTitle = document.title
     const stopCount = plan.stops?.length || 0
     const description = `${plan.title} - ${stopCount} stop adventure by @${plan.user?.username || 'explorer'}. Check out this ROAM adventure plan!`
     const ogImageUrl = `${window.location.origin}/api/og/plan?code=${code}`
@@ -199,10 +198,8 @@ export default function SharedPlan() {
     setMeta('twitter:title', plan.title)
     setMeta('twitter:description', description)
     setMeta('twitter:image', ogImageUrl)
-
-    return () => {
-      document.title = originalTitle
-    }
+    // No title restore here: useSEO resets it on unmount, and restoring the
+    // captured one (useSEO's own) afterwards left it stuck on later routes.
   }, [plan, code])
 
   const formatTime = (timeStr) => {

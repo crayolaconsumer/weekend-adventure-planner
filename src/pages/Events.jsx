@@ -26,6 +26,7 @@ import {
   getThisMonthEvents,
   getFreeEvents,
   sortEvents,
+  isEventOver,
   getSourceInfo,
 } from '../utils/eventsApi'
 import { useSavedEvents } from '../hooks/useSavedEvents'
@@ -251,6 +252,11 @@ export default function Events({ location }) {
       return true
     })
 
+    // Drop events that finished since they were fetched (the list can sit
+    // in memory for a while, e.g. past midnight).
+    const now = new Date()
+    result = result.filter(event => !isEventOver(event, now))
+
     // Apply time filter
     switch (activeFilter) {
       case 'today':
@@ -305,7 +311,8 @@ export default function Events({ location }) {
       result = result.filter(event => !seenEventIds.has(event.id))
     }
 
-    const sorted = sortEvents(result, sortBy)
+    // 'All' with the default sort reads as a timeline, so soonest first.
+    const sorted = sortEvents(result, activeFilter === 'all' && sortBy === 'recommended' ? 'soonest' : sortBy)
     return {
       allFilteredEvents: sorted,
       filteredEvents: sorted.slice(0, displayLimit),

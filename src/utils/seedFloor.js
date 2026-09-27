@@ -3,10 +3,11 @@
  *
  * A small, bundled set of high-confidence worldwide landmarks (generated
  * from Overture Places — see scripts that write src/data/seedPlaces.json).
- * When the live sources (Overpass / OpenTripMap / Wikipedia) and all caches
- * fail or return too few results, Discover tops up from this so a paying
- * user NEVER sees an empty deck — even offline or during a total upstream
- * outage. It is purely local array math: no network, cannot fail.
+ * When the live sources (Overpass / OpenTripMap / Wikipedia) return too few
+ * results, Discover tops up from this so a thin area never shows an empty
+ * deck. A total outage (every real place source down) shows the connection
+ * error with retry instead. It is purely local array math: no network,
+ * cannot fail.
  *
  * Seed places are tagged `source: 'seed'` with a low qualityScore so they
  * sort below real results and the UI can visually de-emphasise them.

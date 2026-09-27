@@ -13,6 +13,7 @@ import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { openDirections, openExternalLink } from '../utils/navigation'
 // Shared with EventCard so card and detail show the SAME fallback image.
 import { getEventPlaceholderImage } from '../pages/Events/placeholderImage'
+import { isTicketSmallPrint } from '../pages/Events/ticketSmallPrint'
 import './EventDetail.css'
 
 // Icons
@@ -278,7 +279,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
               <div className="event-detail-pills">
                 <span className="event-detail-pill date">
                   <CalendarIcon />
-                  {formatEventDate(event.datetime?.start)}
+                  {formatEventDate(event.datetime?.start, !event.datetime?.allDay)}
                 </span>
                 {event.pricing?.isFree && (
                   <span className="event-detail-pill free">FREE</span>
@@ -361,7 +362,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
               <p className="event-detail-datetime">
                 {formatFullDate(event.datetime?.start)}
               </p>
-              {event.datetime?.start && (
+              {event.datetime?.start && !event.datetime.allDay && (
                 <p className="event-detail-time">
                   {formatTime(event.datetime.start)}
                   {event.datetime?.doorsOpen && ` · Doors: ${event.datetime.doorsOpen}`}
@@ -370,7 +371,7 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
             </motion.div>
 
             {/* Description */}
-            {event.description && (
+            {event.description && !isTicketSmallPrint(event.description) && (
               <motion.div
                 className="event-detail-section"
                 initial={{ opacity: 0, y: 20 }}

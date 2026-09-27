@@ -191,7 +191,9 @@
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--roam-forest);
+  /* Fixed dark forest: the pill stays white in dark mode, where
+     --roam-forest turns light green (2.8:1 on white). */
+  color: #1a3a2f;
   box-shadow: var(--shadow-md);
 }
 

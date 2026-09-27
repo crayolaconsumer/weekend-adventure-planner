@@ -113,7 +113,9 @@ async function handler(req, res) {
       }
     })
 
-    if (upstream.status === 404) {
+    // 404 and other permanent 4xx (400 for a title Wikipedia rejects) are a
+    // miss: cacheable empty answer. Only 429 and 5xx are transient.
+    if (upstream.status >= 400 && upstream.status < 500 && upstream.status !== 429) {
       const value = { thumbnail: null, thumbnailWidth: null, thumbnailHeight: null, extract: null, title: parsed.title, contentUrl: null }
       inMemory.set(tag, { value, ts: Date.now() })
       // Cache 'not found' for an hour — wiki entries rarely appear out of nowhere
@@ -122,7 +124,9 @@ async function handler(req, res) {
     }
 
     if (!upstream.ok) {
-      // Don't cache transient upstream failures
+      // Don't cache transient upstream failures. Log the status: the
+      // bare 502 in the runtime logs couldn't say which it was.
+      console.warn('Wikipedia summary upstream failed', upstream.status, tag)
       res.setHeader('Cache-Control', 'no-store')
       return res.status(502).json({ error: 'upstream_failed', status: upstream.status })
     }

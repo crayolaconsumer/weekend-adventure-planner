@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fetchEnrichedPlaces } from '../../../src/utils/apiClient.js'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+// Fresh module per test: a failed proxy call puts it on a one-minute
+// cooldown (module state), which would change what the next test exercises.
+let fetchEnrichedPlaces
+beforeEach(async () => {
+  vi.resetModules()
+  ;({ fetchEnrichedPlaces } = await import('../../../src/utils/apiClient.js'))
+})
 
 // A total outage used to resolve to [] and Discover showed "No places
 // nearby", telling the user their area was empty when it was the network.

@@ -14,6 +14,9 @@ import { fetchPromotedEvents } from './promotedEventsApi'
 import { haversineKm } from '../../shared/geo.mjs'
 
 const COMBINED_CACHE_TTL = 15 * 60 * 1000 // 15 minutes
+// A timed event with no end time counts as over this long after it starts
+// (6h: Ticketmaster rarely sends end times, and all-day shows, festivals and
+// exhibitions must not vanish a few hours after opening)
 const PAST_EVENT_GRACE_HOURS = 6
 
 let combinedCache = {
@@ -223,14 +226,21 @@ function getLocationKey(event) {
 }
 
 /**
- * Filter out events that already ended (with a grace window)
+ * True once an event has finished: its end time, the end of its day for an
+ * all-day event, else a few hours after it started.
  */
+export function isEventOver(event, now = new Date()) {
+  const { start, end, allDay } = event.datetime || {}
+  if (end instanceof Date && !isNaN(end)) return end < now
+  if (!(start instanceof Date) || isNaN(start)) return false
+  const over = new Date(start)
+  if (allDay) over.setDate(over.getDate() + 1)
+  else over.setTime(over.getTime() + PAST_EVENT_GRACE_HOURS * 60 * 60 * 1000)
+  return over <= now
+}
+
 function filterPastEvents(events, now = new Date()) {
-  const cutoff = new Date(now.getTime() - (PAST_EVENT_GRACE_HOURS * 60 * 60 * 1000))
-  return events.filter(event => {
-    const start = event.datetime?.start
-    return !start || start >= cutoff
-  })
+  return events.filter(event => !isEventOver(event, now))
 }
 
 /**
@@ -319,7 +329,7 @@ function scoreEvent(event, { now, radiusKm }) {
 
   if (start && !isNaN(start)) {
     const hoursUntil = (start - now) / (1000 * 60 * 60)
-    if (hoursUntil < -PAST_EVENT_GRACE_HOURS) {
+    if (isEventOver(event, now)) {
       return -9999
     }
     if (hoursUntil <= 6) score += 26

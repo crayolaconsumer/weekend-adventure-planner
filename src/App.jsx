@@ -668,6 +668,7 @@ function App() {
                       <Route path="/events" element={<Events location={location} />} />
                       <Route path="/plan" element={<Plan location={location} />} />
                       <Route path="/wishlist" element={<Wishlist />} />
+                      <Route path="/saved" element={<Navigate to="/wishlist" replace />} />
                       <Route path="/collections" element={<Collections />} />
                       <Route path="/social" element={<SocialHub location={location} />} />
                       <Route path="/profile" element={<Navigate to="/social" replace />} />

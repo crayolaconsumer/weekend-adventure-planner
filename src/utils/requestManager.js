@@ -163,15 +163,17 @@ async function waitForRateLimit(source) {
  * @returns {Promise<any>} - Fetched data or null if circuit is open
  */
 export async function managedFetch(source, cacheKey, fetchFn, options = {}) {
-  const { skipCache = false, ttl } = options
+  // force: the user explicitly asked for fresh data (Refresh / Try again),
+  // so skip both the cache and an open circuit.
+  const { skipCache = false, ttl, force = false } = options
 
   // 1. Check circuit breaker
-  if (isCircuitOpen(source)) {
+  if (!force && isCircuitOpen(source)) {
     return null
   }
 
   // 2. Check cache first (unless skipped)
-  if (!skipCache) {
+  if (!skipCache && !force) {
     const cached = getCache(cacheKey)
     if (cached !== null) {
       return cached

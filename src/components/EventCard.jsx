@@ -69,7 +69,7 @@ export default function EventCard({ event, variant = 'compact' }) {
   }
 
   const priceLabel = formatPriceRange(event.pricing)
-  const dateLabel = formatEventDate(event.datetime.start)
+  const dateLabel = formatEventDate(event.datetime.start, !event.datetime.allDay)
   const imageUrl = event.imageUrl || getEventPlaceholderImage(event.id, event.categories)
 
   // Admission model — only first-party (Featured) events carry ticketType.

@@ -396,8 +396,11 @@ function formatAddress(tags) {
  * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
  * @returns {Promise<Array>} Array of places
  */
-export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null, signal = null) {
-  const cacheKey = makeCacheKey(lat, lng, radius, category)
+export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null, signal = null, { force = false } = {}) {
+  // Own namespace: the bare places_ key belongs to fetchPlacesWithSWR's merged
+  // result. Sharing it let a cached partial merge (Wikipedia only, after an
+  // Overpass failure) come back here as if Overpass had answered.
+  const cacheKey = 'osm_' + makeCacheKey(lat, lng, radius, category)
 
   const result = await managedFetch('overpass', cacheKey, async () => {
     // Check if already cancelled before starting
@@ -410,9 +413,11 @@ export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null
     const data = await fetchFromOverpass(query, signal, { clauseCount, querySize })
 
     return parseOverpassResponse(data)
-  }, { ttl: 10 * 60 * 1000 }) // 10 minute cache
+  }, { ttl: 10 * 60 * 1000, force }) // 10 minute cache
 
-  return result || []
+  // null means the circuit breaker is open: a failure, not an empty area.
+  if (result == null) throw new Error('Network error: Overpass unavailable')
+  return result
 }
 
 // ═══════════════════════════════════════════════════════
@@ -481,7 +486,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  * @param {Function} [onProgress] - Callback with new places as they load
  * @returns {Promise<Array>} Initial places (center tile)
  */
-export async function fetchWithTiling(lat, lng, radius, category = null, signal = null, onProgress = null) {
+export async function fetchWithTiling(lat, lng, radius, category = null, signal = null, onProgress = null, { force = false } = {}) {
   const tiles = sampleLargeRadius(lat, lng, radius)
 
   // Single tile = use normal fetch
@@ -505,13 +510,11 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
   // STEP 1: Fetch CENTER tile immediately and return it
   const centerTile = tiles[0]
   let centerPlaces = []
-  try {
-    centerPlaces = await fetchNearbyPlaces(centerTile.lat, centerTile.lng, centerTile.radius, category, signal)
-    centerPlaces = addUnique(centerPlaces)
-  } catch (err) {
-    if (err.name === 'AbortError') throw err
-    console.warn('Center tile failed:', err)
-  }
+  // A failed centre tile means Overpass is down: rethrow so the caller marks
+  // the load failed (not cached, connection error shown) instead of caching
+  // a deck with no places from the map
+  centerPlaces = await fetchNearbyPlaces(centerTile.lat, centerTile.lng, centerTile.radius, category, signal, { force })
+  centerPlaces = addUnique(centerPlaces)
 
   // STEP 2: Fetch outer tiles in BACKGROUND (don't await)
   if (tiles.length > 1 && !signal?.aborted) {
@@ -652,14 +655,14 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  */
 export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null, onProgress = null, options = {}) {
   const isLargeRadius = radius > 15000
-  const { onProgressiveCommit = null } = options
+  const { onProgressiveCommit = null, onIncomplete = null, force = false } = options
 
   // For large radii, fetch Wikipedia from multiple sample points
   // to better cover the search area (since Wiki max radius is 10km)
-  // Count live-source failures so a total outage (offline, every API down)
-  // surfaces as an error instead of a misleading "No places nearby".
-  let failedSources = 0
-  const wikiFail = () => { failedSources++; return [] }
+  // Overpass is the primary source and OpenTripMap the only other real place
+  // source; Wikipedia alone yields things like "Greater London Built-up Area".
+  let osmFailed = false
+  const wikiFail = () => []
   const wikiPromises = []
   if (isLargeRadius) {
     // Sample center + 2 cardinal directions at 60% of radius.
@@ -689,7 +692,7 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   let canCommitProgress = false
 
   const commitProgressiveMerge = () => {
-    if (!canCommitProgress || !onProgressiveCommit) return
+    if (!canCommitProgress || !onProgressiveCommit || osmFailed) return
     onProgressiveCommit(mergeAndDedupe(osmPlacesForMerge, otmPlacesForMerge, wikiPlacesForMerge))
   }
 
@@ -699,14 +702,14 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
         osmPlacesForMerge = [...osmPlacesForMerge, ...newPlaces]
         commitProgressiveMerge()
         onProgress?.(newPlaces)
-      }).catch(err => {
+      }, { force }).catch(err => {
         console.warn('OSM progressive fetch failed:', err)
-        failedSources++
+        osmFailed = true
         return []
       })
-    : fetchNearbyPlaces(lat, lng, radius, category).catch(err => {
+    : fetchNearbyPlaces(lat, lng, radius, category, null, { force }).catch(err => {
         console.warn('OSM fetch failed:', err)
-        failedSources++
+        osmFailed = true
         return []
       })
 
@@ -719,7 +722,6 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     ? Promise.resolve([])
     : fetchOpenTripMapPlaces(lat, lng, radius).catch(err => {
         console.warn('OpenTripMap fetch failed:', err)
-        failedSources++
         return []
       })
 
@@ -740,11 +742,15 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   // Merge and deduplicate all sources
   let merged = mergeAndDedupe(osmPlacesForMerge, otmPlaces, wikiPlaces)
 
-  const liveSources = 1 + (otmSkipped ? 0 : 1) + wikiPromises.length
-  const allSourcesFailed = failedSources >= liveSources
+  // No real place source answered (OTM failed, skipped, or unconfigured and
+  // empty). Show the connection error with retry rather than a deck of
+  // Wikipedia areas and seed landmarks, which reads as "No places nearby".
+  if (osmFailed && otmPlaces.length === 0) {
+    throw new Error('Network error: could not reach any place source')
+  }
 
   // Never-empty floor: if the live sources + caches yielded fewer than the
-  // floor (e.g. a brand-new tile during a total Overpass outage, or offline),
+  // floor (e.g. a sparse area, or Overpass down while OpenTripMap answers),
   // top up with the nearest bundled seed landmarks so the deck is never empty.
   // Pure local array math — no network, cannot fail. Deduped by coords against
   // what we already have; seed places are tagged source:'seed', low quality.
@@ -756,14 +762,10 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
     if (topup.length) merged = [...merged, ...topup]
   }
 
-  // Nothing live answered and there is no bundled seed nearby: this is a
-  // network failure, not an empty area. Throw so Discover shows the
-  // connection error with a retry instead of "No places nearby".
-  if (allSourcesFailed && merged.length === 0) {
-    throw new Error('Network error: could not reach any place source')
-  }
-
-  onProgressiveCommit?.(merged)
+  // A load without Overpass is partial: show it, but never cache it, or the
+  // gap sticks for the whole cache lifetime after the network recovers.
+  if (osmFailed) onIncomplete?.()
+  else onProgressiveCommit?.(merged)
   return merged
 }
 
@@ -882,15 +884,19 @@ export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = nul
   const cacheKey = makeCacheKey(lat, lng, radius, category)
   const ttl = 10 * 60 * 1000
 
+  let complete = true
   return getWithSWR(
     cacheKey,
     () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress, {
-      onProgressiveCommit: (places) => setCache(cacheKey, places, ttl)
+      onProgressiveCommit: (places) => setCache(cacheKey, places, ttl),
+      onIncomplete: () => { complete = false },
+      force
     }),
     {
       ttl, // 10 minute freshness
       onBackgroundRefresh: onRefresh,
-      force
+      force,
+      cacheable: () => complete
     }
   )
 }

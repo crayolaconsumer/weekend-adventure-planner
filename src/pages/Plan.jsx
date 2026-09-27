@@ -390,7 +390,7 @@ export default function Plan({ location }) {
     try {
       const vibeName = VIBES.find(v => v.key === selectedVibe)?.label || 'Mix'
       const payload = {
-        title: `${vibeName} Adventure`,
+        title: `${vibeName} adventure`,
         vibe: selectedVibe,
         durationHours: selectedDuration,
         defaultTransport: selectedTransport,
@@ -604,10 +604,10 @@ export default function Plan({ location }) {
   const transportData = TRANSPORT_MODES.find(t => t.key === selectedTransport)
   const radiusData = RADIUS_OPTIONS.find(r => r.key === selectedRadius)
 
-  // Editable plan title — defaults to "{Vibe} Adventure" unless the
+  // Editable plan title — defaults to "{Vibe} adventure" unless the
   // user has set a custom one. Kept in state so it survives sub-
   // navigation within the page; persisted only when saved server-side.
-  const planTitle = customTitle || `${vibeName} Adventure`
+  const planTitle = customTitle || `${vibeName} adventure`
 
   // Time-of-day gradient picker for the adventure header — driven by
   // the first stop's scheduledTime (if any) or the current hour
@@ -839,7 +839,7 @@ export default function Plan({ location }) {
                 onClick={(e) => e.stopPropagation()}
                 onBlur={(e) => {
                   const next = e.target.value.trim()
-                  setCustomTitle(next && next !== `${vibeName} Adventure` ? next : null)
+                  setCustomTitle(next && next !== `${vibeName} adventure` ? next : null)
                   setTitleEditing(false)
                 }}
                 onKeyDown={(e) => {

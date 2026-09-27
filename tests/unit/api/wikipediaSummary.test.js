@@ -55,3 +55,30 @@ describe('GET /api/wikipedia/summary image dimensions', () => {
     expect(body).toMatchObject({ thumbnail: null, thumbnailWidth: null, thumbnailHeight: null })
   })
 })
+
+// QA: two 502s for en:Hyde Park, London. Only transient upstream failures
+// may be 502 (uncached); a permanent miss is a cacheable empty answer.
+describe('GET /api/wikipedia/summary upstream errors', () => {
+  it('treats a rejected title (400) as a cacheable miss, not a 502', async () => {
+    upstream({}, 400)
+    const { status, body } = await call('en:Bad|title miss-a')
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ thumbnail: null, extract: null })
+  })
+
+  it.each([429, 503])('keeps %s as an uncached 502', async (code) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    upstream({}, code)
+    const res = await new Promise(resolve => {
+      const r = {
+        statusCode: 200, headers: {},
+        setHeader(k, v) { this.headers[k.toLowerCase()] = v },
+        status(c) { this.statusCode = c; return this },
+        json(body) { resolve({ status: this.statusCode, headers: this.headers, body }); return this },
+      }
+      handler({ method: 'GET', query: { tag: `en:Hyde Park, London ${code}` }, headers: {} }, r)
+    })
+    expect(res.status).toBe(502)
+    expect(res.headers['cache-control']).toBe('no-store')
+  })
+})

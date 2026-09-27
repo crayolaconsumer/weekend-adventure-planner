@@ -46,22 +46,16 @@ export function useSEO({
   type = 'website'
 } = {}) {
   useEffect(() => {
-    // Store original values to restore on unmount
-    const originalTitle = document.title
+    // Only the image is restored from what was there before. Text tags reset
+    // to the defaults: a directly loaded /place/:id arrives with the server's
+    // "Costa | ROAM" title, and restoring that kept it on every later route.
     const getOriginalMeta = (name, isProperty = false) => {
       const attr = isProperty ? 'property' : 'name'
       return document.querySelector(`meta[${attr}="${name}"]`)?.getAttribute('content')
     }
 
     const originals = {
-      description: getOriginalMeta('description'),
-      ogTitle: getOriginalMeta('og:title', true),
-      ogDescription: getOriginalMeta('og:description', true),
       ogImage: getOriginalMeta('og:image', true),
-      ogUrl: getOriginalMeta('og:url', true),
-      ogType: getOriginalMeta('og:type', true),
-      twitterTitle: getOriginalMeta('twitter:title'),
-      twitterDescription: getOriginalMeta('twitter:description'),
       twitterImage: getOriginalMeta('twitter:image')
     }
 
@@ -85,16 +79,16 @@ export function useSEO({
       setMetaTag('twitter:image', image)
     }
 
-    // Cleanup - restore original values
+    // Cleanup - back to the site defaults
     return () => {
-      document.title = originalTitle
-      setMetaTag('description', originals.description || DEFAULT_DESCRIPTION)
-      setMetaTag('og:title', originals.ogTitle || DEFAULT_TITLE, true)
-      setMetaTag('og:description', originals.ogDescription || DEFAULT_DESCRIPTION, true)
-      setMetaTag('og:type', originals.ogType || 'website', true)
-      setMetaTag('og:url', originals.ogUrl || 'https://www.go-roam.uk/', true)
-      setMetaTag('twitter:title', originals.twitterTitle || DEFAULT_TITLE)
-      setMetaTag('twitter:description', originals.twitterDescription || DEFAULT_DESCRIPTION)
+      document.title = DEFAULT_TITLE
+      setMetaTag('description', DEFAULT_DESCRIPTION)
+      setMetaTag('og:title', DEFAULT_TITLE, true)
+      setMetaTag('og:description', DEFAULT_DESCRIPTION, true)
+      setMetaTag('og:type', 'website', true)
+      setMetaTag('og:url', 'https://www.go-roam.uk/', true)
+      setMetaTag('twitter:title', DEFAULT_TITLE)
+      setMetaTag('twitter:description', DEFAULT_DESCRIPTION)
 
       // Only reset image if we set one
       if (image) {

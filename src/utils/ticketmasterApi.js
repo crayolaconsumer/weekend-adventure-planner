@@ -15,6 +15,8 @@ import {
   deduplicateRequest,
   fetchWithTimeout
 } from './apiProtection'
+import { isTicketSmallPrint } from '../pages/Events/ticketSmallPrint'
+import { localDay } from './dateUtils'
 
 const API_NAME = 'ticketmaster'
 const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
@@ -169,13 +171,14 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options =
 /**
  * Normalize Ticketmaster event to ROAM format
  */
-function normalizeTicketmasterEvent(event) {
+export function normalizeTicketmasterEvent(event) {
   if (!event || !event.id) return null
 
   const venue = event._embedded?.venues?.[0] || {}
   const priceRange = event.priceRanges?.[0]
   const startDate = event.dates?.start
   const endDate = event.dates?.end
+  const allDay = Boolean(startDate?.localDate && (!startDate.dateTime || startDate.noSpecificTime || startDate.timeTBA))
 
   // Get image - prefer 16:9 ratio, fallback to any
   const image = event.images?.find(img => img.ratio === '16_9' && img.width >= 640)
@@ -185,7 +188,9 @@ function normalizeTicketmasterEvent(event) {
     id: `tm_${event.id}`,
     source: 'ticketmaster',
     name: event.name || 'Untitled Event',
-    description: truncateText(event.info || event.pleaseNote || '', 150),
+    // pleaseNote is booking/access small print, never a description; info
+    // often is too ("(1) BSL -- Saturday 16th May...").
+    description: isTicketSmallPrint(event.info) ? '' : truncateText(event.info || '', 150),
     imageUrl: image?.url || null,
 
     venue: {
@@ -196,8 +201,11 @@ function normalizeTicketmasterEvent(event) {
     },
 
     datetime: {
-      start: startDate?.dateTime ? new Date(startDate.dateTime) :
-             startDate?.localDate ? new Date(startDate.localDate) : null,
+      // A bare localDate ('2026-05-16') parses as UTC midnight, which showed
+      // as "1 am" in BST. Date-only events are all-day in local time.
+      start: startDate?.dateTime && !allDay ? new Date(startDate.dateTime) :
+             startDate?.localDate ? localDay(startDate.localDate) : null,
+      allDay,
       end: endDate?.dateTime ? new Date(endDate.dateTime) : null,
       timezone: startDate?.timezone || 'Europe/London',
       isMultiDay: false,

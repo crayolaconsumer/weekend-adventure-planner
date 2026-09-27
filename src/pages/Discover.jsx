@@ -853,7 +853,7 @@ export default function Discover({ location }) {
         {loadError && !loading && places.length === 0 && (
           <ErrorRecovery
             loadError={loadError}
-            onRetry={() => loadPlaces(weather)}
+            onRetry={() => loadPlaces(weather, { force: true })}
             onOpenFilters={() => setShowFilterModal(true)}
           />
         )}

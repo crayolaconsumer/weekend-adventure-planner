@@ -15,6 +15,7 @@ import {
   deduplicateRequest,
   fetchWithTimeout
 } from './apiProtection'
+import { localDay } from './dateUtils'
 
 const API_NAME = 'skiddle'
 const CACHE_TTL = 30 * 60 * 1000 // 30 minutes
@@ -117,10 +118,9 @@ function normalizeSkiddleEvent(event) {
   // Parse date and time
   let startDate = null
   if (event.date) {
-    const dateStr = event.openingtimes?.doorsopen
-      ? `${event.date}T${event.openingtimes.doorsopen}`
-      : event.date
-    startDate = new Date(dateStr)
+    startDate = event.openingtimes?.doorsopen
+      ? new Date(`${event.date}T${event.openingtimes.doorsopen}`)
+      : localDay(event.date.slice(0, 10))
   }
 
   let endDate = null
@@ -151,6 +151,7 @@ function normalizeSkiddleEvent(event) {
 
     datetime: {
       start: startDate,
+      allDay: Boolean(startDate && !event.openingtimes?.doorsopen),
       end: endDate,
       timezone: 'Europe/London',
       isMultiDay: false,

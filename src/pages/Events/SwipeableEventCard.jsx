@@ -4,6 +4,7 @@ import { useDrag } from '@use-gesture/react'
 import { formatEventDate, formatPriceRange, getSourceInfo } from '../../utils/eventsApi'
 import { trackPromotedEvent } from '../../utils/promotedEventsApi'
 import { getEventPlaceholderImage } from './placeholderImage'
+import { isTicketSmallPrint } from './ticketSmallPrint'
 import { XIcon, HeartIcon, TicketIcon, CalendarSmallIcon, MapPinIcon } from './icons'
 
 /**
@@ -154,7 +155,7 @@ export default function SwipeableEventCard({ event, onSwipe, onTap, style, isTop
         <div className="event-card-meta">
           <span className="event-card-meta-item">
             <CalendarSmallIcon />
-            {formatEventDate(event.datetime?.start)}
+            {formatEventDate(event.datetime?.start, !event.datetime?.allDay)}
           </span>
           {event.venue?.name && (
             <span className="event-card-meta-item">
@@ -169,7 +170,7 @@ export default function SwipeableEventCard({ event, onSwipe, onTap, style, isTop
           )}
         </div>
 
-        {event.description && (
+        {event.description && !isTicketSmallPrint(event.description) && (
           <p className="event-card-description">"{event.description}"</p>
         )}
 
