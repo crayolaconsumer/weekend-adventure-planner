@@ -1,3 +1,4 @@
+import { isSearchCrawler } from '../lib/bots.js'
 /**
  * GET /api/og/place?id=w123
  * Link-preview image for a shared place without a photo (see api/share-meta.js).
@@ -17,7 +18,7 @@ export default async function handler(req, res) {
   if (limited) return res.status(429).end()
   const id = req.query?.id
   try {
-    const place = isOsmId(id) ? await lookupPlace(id, getRateLimitKey(req)).catch(() => null) : null
+    const place = isOsmId(id) ? await lookupPlace(id, getRateLimitKey(req), { cacheOnly: isSearchCrawler(req) }).catch(() => null) : null
     if (!place) return await sendCard(res, GENERIC, { sMaxAge: 3600 })
     const subtitle = [place.kind, place.where && `in ${place.where}`].filter(Boolean).join(' ')
     return await sendCard(res, { title: place.name, subtitle, icon: place.icon })

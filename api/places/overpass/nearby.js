@@ -1,4 +1,4 @@
-import { isPreviewBot } from '../../lib/bots.js'
+import { isSearchCrawler } from '../../lib/bots.js'
 /**
  * Overpass API Proxy with Edge Caching
  *
@@ -325,7 +325,7 @@ export default async function handler(req, res) {
   // Crawlers rendering /place and /town pages (1 page/s after the sitemap
   // went out) must never spend the public Overpass servers' tiny quota:
   // they get the same cache-only treatment as the kill-switch.
-  if (isPreviewBot(req) || !(await isFeatureEnabled('overpassProxy'))) {
+  if (isSearchCrawler(req) || !(await isFeatureEnabled('overpassProxy'))) {
     if (isCacheEnabled()) {
       const staleData = await readStale()
       if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
@@ -335,6 +335,7 @@ export default async function handler(req, res) {
         return res.status(200).json(staleData)
       }
     }
+    res.setHeader('Cache-Control', 'no-store')
     res.setHeader('Retry-After', '120')
     return res.status(503).json({ error: 'Discover temporarily in cache-only mode' })
   }
