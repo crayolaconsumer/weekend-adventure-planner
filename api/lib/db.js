@@ -18,17 +18,15 @@ let pool = null
 export function getPool() {
   if (!pool) {
     // Pool sizing is constrained by the database, not by this instance alone:
-    // the real ceiling is connectionLimit x (peak warm instances) and must stay
-    // under the server's max_connections. Every function now runs in lhr1 only
-    // (vercel.json "regions"), next to the eu-west-2 database, and Fluid
-    // instances serve many requests each, so 3 connections per instance is
-    // plenty. The BOUNDED queue makes a sudden influx fail fast (a thrown
-    // "Queue limit reached" -> handled 5xx) instead of silent 30s hangs.
-    // idleTimeout releases every connection idle for 10s (mysql2 reaps idle
-    // connections whenever maxIdle < connectionLimit), so a quiet warm
-    // instance doesn't hold slots. connectTimeout stops a sick database from
-    // pinning requests for mysql2's default 10s.
-    // The durable fix for serverless connection scaling is RDS Proxy.
+    // the real ceiling is connectionLimit x (peak warm instances, one set per
+    // endpoint function) and must stay under the server's max_connections.
+    // Every function runs in lhr1 next to the eu-west-2 database. The BOUNDED
+    // queue makes a sudden influx fail fast (a thrown "Queue limit reached" ->
+    // handled 5xx) instead of silent 30s hangs. A busy instance keeps its one
+    // connection; attachDatabasePool (below) frees it before Fluid suspends
+    // the instance. connectTimeout stops a sick database from pinning requests
+    // for mysql2's default 10s. Past this, the next steps are fewer, larger
+    // functions or RDS Proxy.
     pool = mysql.createPool({
       host: process.env.MYSQL_HOST,
       port: parseInt(process.env.MYSQL_PORT || '3306', 10),
@@ -36,7 +34,11 @@ export function getPool() {
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
       waitForConnections: true,
-      connectionLimit: 3,
+      // 1 per instance: a query takes milliseconds, so one connection serves
+      // hundreds a second, while the database's total (connections x warm
+      // instances, across ~80 functions) is what runs out. Safe because no
+      // transaction asks the pool for a second connection (checked 2026-09-27).
+      connectionLimit: 1,
       queueLimit: 100,       // bounded, but deep enough for cron push bursts and admin dashboards
       maxIdle: 1,
       idleTimeout: 10000,
