@@ -501,6 +501,12 @@ p {
   z-index: var(--z-sticky);
 }
 
+/* Android: the native ad banner sits at the bottom and the nav rides on top of it */
+body.native-banner-below-nav .nav-bar {
+  bottom: var(--native-banner-bottom, 0px);
+  padding-bottom: var(--space-sm);
+}
+
 /* Location fallback banner */
 .location-banner {
   position: fixed;

@@ -328,17 +328,23 @@ function navHeight() {
 }
 
 export function bannerMargin() {
-  // Sit the banner directly on ROAM's bottom nav. On Android the plugin's
-  // margin counts from the WebView's bottom (MainActivity pads the system
-  // bars), so the nav's measured height lands it exactly; the old fixed 100
-  // left a 40px dead gap on a Pixel 3a. iOS was verified at 64.
-  if (getPlatform() === 'android') return navHeight() ?? 100
+  // Android: the banner sits at the very bottom (MainActivity pads the
+  // WebView above the gesture bar, so 0 is flush with it) and ROAM's nav
+  // moves up on top of it (reserveBannerSpace). Measuring the nav to park
+  // the banner above it misjudged by ~30px on some phones and covered the
+  // menu. iOS was verified on a device at 64 above the nav.
+  if (getPlatform() === 'android') return 0
   return NAV_HEIGHT
 }
 
 export function reserveBannerSpace(on: boolean) {
   if (typeof document === 'undefined') return
   document.body.classList.toggle('has-native-banner', on)
+  // Android: lift the nav so the banner sits under it, not over it
+  const below = on && getPlatform() === 'android'
+  document.body.classList.toggle('native-banner-below-nav', below)
+  if (below) document.documentElement.style.setProperty('--native-banner-bottom', `${bannerHeight}px`)
+  else document.documentElement.style.removeProperty('--native-banner-bottom')
   // Banner height, plus any gap the margin leaves above our nav
   const space = bannerHeight + Math.max(0, bannerMargin() - (navHeight() ?? NAV_HEIGHT))
   if (on) document.documentElement.style.setProperty('--native-banner-height', `${space}px`)
