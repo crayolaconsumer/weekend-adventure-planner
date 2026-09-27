@@ -6,7 +6,7 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update, transaction } from '../lib/db.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { validateContent, validateId } from '../lib/validation.js'
 import { notifyContributionUpvote, notifyContributionRemoved } from '../lib/pushNotifications.js'
 import { waitUntil } from '@vercel/functions'
@@ -266,6 +266,7 @@ async function handleGet(req, res) {
   if (currentUser) {
     res.setHeader('Cache-Control', 'private, no-store')
   } else {
+    dropRateLimitHeaders(res)
     res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
     const vary = res.getHeader?.('Vary')
     res.setHeader('Vary', [vary, 'Authorization', 'Cookie'].filter(Boolean).join(', '))

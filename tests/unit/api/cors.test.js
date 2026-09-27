@@ -74,15 +74,30 @@ describe('applyCors', () => {
     const { req, res } = mockReqRes({ origin: 'capacitor://localhost' })
     applyCors(req, res)
     expect(res.headers['Access-Control-Max-Age']).toBe('0')
-    expect(res.headers['Cache-Control']).toBe('no-store')
+    expect(res.headers['Cache-Control']).toBe('private, no-store')
   })
 
   it('uses 24h preflight cache for web origin', () => {
     const { req, res } = mockReqRes({ origin: 'https://www.go-roam.uk' })
     applyCors(req, res)
     expect(res.headers['Access-Control-Max-Age']).toBe('86400')
-    expect(res.headers['Cache-Control']).toBeUndefined()
   })
+
+  // Regression: a no-Origin web GET filled the CDN cache without Vary, and
+  // that copy (no Access-Control-Allow-Origin) was served to capacitor://
+  it.each([null, 'capacitor://localhost', 'https://localhost', 'https://www.go-roam.uk', 'https://evil.example.com'])(
+    'always varies on Origin (origin=%s)', origin => {
+      const { req, res } = mockReqRes({ origin })
+      applyCors(req, res)
+      expect(res.headers.Vary).toBe('Origin')
+    })
+
+  it.each([null, 'capacitor://localhost', 'https://www.go-roam.uk'])(
+    'defaults every response to uncacheable until a handler opts in (origin=%s)', origin => {
+      const { req, res } = mockReqRes({ origin })
+      applyCors(req, res)
+      expect(res.headers['Cache-Control']).toBe('private, no-store')
+    })
 })
 
 describe('withCors', () => {

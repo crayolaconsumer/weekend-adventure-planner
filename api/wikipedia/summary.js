@@ -1,3 +1,4 @@
+import { refuseBotUpstream } from '../lib/bots.js'
 /**
  * GET /api/wikipedia/summary?tag=<wikipediaTag>
  *
@@ -23,7 +24,7 @@
  * points at; enrichPlace feeds them into image quality scoring.
  */
 
-import { applyRateLimit, applySharedRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, applySharedRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
 // In-memory function-instance cache. Vercel reuses warm functions, so
@@ -95,10 +96,13 @@ async function handler(req, res) {
   // Function-instance cache lookup
   const memHit = inMemory.get(tag)
   if (memHit && Date.now() - memHit.ts < IN_MEMORY_TTL_MS) {
+    dropRateLimitHeaders(res)
     res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800')
     res.setHeader('X-Roam-Cache', 'function')
     return res.status(200).json(memHit.value)
   }
+
+  if (refuseBotUpstream(req, res)) return
 
   const url = `https://${parsed.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(parsed.title)}`
   try {
@@ -119,6 +123,7 @@ async function handler(req, res) {
       const value = { thumbnail: null, thumbnailWidth: null, thumbnailHeight: null, extract: null, title: parsed.title, contentUrl: null }
       inMemory.set(tag, { value, ts: Date.now() })
       // Cache 'not found' for an hour — wiki entries rarely appear out of nowhere
+      dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
       return res.status(200).json(value)
     }
@@ -151,6 +156,7 @@ async function handler(req, res) {
     // get a hit until the entry is at most 1 day old, then get a stale
     // copy while we revalidate in the background. Wikipedia content
     // changes slowly; this is comfortable.
+    dropRateLimitHeaders(res)
     res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800')
     res.setHeader('X-Roam-Cache', 'edge-or-fresh')
     return res.status(200).json(value)

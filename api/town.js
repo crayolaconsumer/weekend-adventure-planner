@@ -20,7 +20,7 @@ import overpassProxy from './places/overpass/nearby.js'
 import ticketmasterProxy from './events/ticketmaster.js'
 import { weekendEvents } from './lib/townEvents.js'
 import { isPreviewBot } from './lib/bots.js'
-import { applyRateLimit, applySharedRateLimit, getRateLimitKey } from './lib/rateLimit.js'
+import { applyRateLimit, applySharedRateLimit, getRateLimitKey, dropRateLimitHeaders } from './lib/rateLimit.js'
 import {
   slugify, isValidSlug, resolveTown, resolveNear, slugForQuery, townOverpassQuery, groupPlaces,
   renderTownPage, renderHub, distanceKm
@@ -113,7 +113,7 @@ async function canonicalSlug(slug, town, opts) {
 // applyRateLimit sets per-visitor headers; they must not ride along in the shared CDN copy
 function forPublicCache(res, cache) {
   if (cache.startsWith('public')) {
-    for (const h of ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']) res.removeHeader?.(h)
+    dropRateLimitHeaders(res)
   }
 }
 

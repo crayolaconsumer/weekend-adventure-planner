@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 
 vi.mock('../../../api/lib/rateLimit.js', () => ({
   applyRateLimit: () => null,
+  dropRateLimitHeaders: () => {},
   RATE_LIMITS: { API_GENERAL: {} },
 }))
 vi.mock('../../../api/lib/cors.js', () => ({ withCors: h => h }))
@@ -151,5 +152,43 @@ describe('Commons geosearch only for photos of the place', () => {
     geo([{ title: 'File:IMG_1234.jpg', dist: 40 }])
     const { body } = await call({ ...q, name: 'Causton Street Playground', lat: '51.4933' })
     expect(body.source).toBe('commons-geo')
+  })
+})
+
+describe('edge cache headers', () => {
+  function callWithHeaders(query) {
+    return new Promise(resolve => {
+      const res = {
+        statusCode: 200, headers: {},
+        setHeader(k, v) { this.headers[k.toLowerCase()] = v },
+        status(c) { this.statusCode = c; return this },
+        json(body) { resolve({ status: this.statusCode, headers: this.headers, body }); return this },
+      }
+      handler({ method: 'GET', query, headers: {} }, res)
+    })
+  }
+
+  it('caches a found photo for a day', async () => {
+    upstream([['wikipedia.org', { title: 'Clifford\'s Tower', thumbnail: { source: 'https://upload.wikimedia.org/c.jpg', width: 800, height: 600 } }]])
+    const res = await callWithHeaders({ wikipedia: 'en:Clifford\'s Tower cache-hit', name: 'Clifford\'s Tower', category: 'historic' })
+    expect(res.body.url).toBeTruthy()
+    expect(res.headers['cache-control']).toBe('public, s-maxage=86400, stale-while-revalidate=604800')
+  })
+
+  it('caches a no-image verdict (maybe an upstream blip) for an hour only, on first and repeat calls', async () => {
+    upstream([])
+    const q = { name: 'Nowhere cache-miss', category: 'shop' }
+    const first = await callWithHeaders(q)
+    const again = await callWithHeaders(q) // served from the function's memory cache
+    for (const res of [first, again]) {
+      expect(res.body.url).toBeNull()
+      expect(res.headers['cache-control']).toBe('public, s-maxage=3600, stale-while-revalidate=86400')
+    }
+  })
+
+  it('never marks a 400 as publicly cacheable', async () => {
+    const res = await callWithHeaders({})
+    expect(res.status).toBe(400)
+    expect(res.headers['cache-control']).toBeUndefined() // withCors' private, no-store stands
   })
 })

@@ -50,10 +50,20 @@ export function applyCors(req, res) {
   // QA/testing flows.
   const isCapacitorOrigin = origin === 'capacitor://localhost' || origin === 'https://localhost'
 
+  // Always, even with no Origin: Vercel's CDN keys a cached entry by the
+  // Vary of the response that filled it. A same-origin web GET (no Origin)
+  // that filled the cache without Vary was served, CORS headers and all
+  // missing, to capacitor://localhost too (seen live 2026-09-27).
+  res.setHeader('Vary', 'Origin')
+
+  // Nothing is CDN-cacheable unless the handler says so: a route that
+  // wants the edge cache sets its own Cache-Control on success, which
+  // replaces this. Error and degraded paths that forget stay uncached.
+  res.setHeader('Cache-Control', 'private, no-store')
+
   if (origin) {
     if (ALLOWED_ORIGINS.has(origin) || /^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
-      res.setHeader('Vary', 'Origin') // prevent CDN cache poisoning across origins
       // Capacitor native (capacitor://localhost, https://localhost) uses
       // Bearer-token auth, never cookies. Emitting Allow-Credentials:true
       // on those responses triggers WKWebView's cookie-policy abort
@@ -73,12 +83,11 @@ export function applyCors(req, res) {
   // (24h) so an old preflight from before today's CORS changes can pin
   // the app to a stale credentialed/cookie response policy and trip
   // every subsequent POST with the opaque "TypeError: Load failed".
-  // Setting Max-Age=0 + Cache-Control:no-store forces a fresh preflight
+  // Setting Max-Age=0 (plus the no-store above) forces a fresh preflight
   // every time on native so any future server change takes effect on
   // the very next request without waiting for the cache window to age.
   if (isCapacitorOrigin) {
     res.setHeader('Access-Control-Max-Age', '0')
-    res.setHeader('Cache-Control', 'no-store')
   } else {
     res.setHeader('Access-Control-Max-Age', '86400') // 24h cache for preflight
   }

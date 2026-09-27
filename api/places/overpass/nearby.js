@@ -1,3 +1,4 @@
+import { isPreviewBot } from '../../lib/bots.js'
 /**
  * Overpass API Proxy with Edge Caching
  *
@@ -26,7 +27,7 @@ export const config = {
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { isFeatureEnabled } from '../../lib/flags.js'
-import { applyRateLimit, applySharedRateLimit } from '../../lib/rateLimit.js'
+import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
 
@@ -302,6 +303,7 @@ export default async function handler(req, res) {
     // poisoned empty entry self-heals on the next request instead of
     // serving an empty Discover for the full 24h TTL.
     if (cached && Array.isArray(cached.elements) && cached.elements.length > 0) {
+      dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Cache', 'HIT')
       return res.status(200).json(cached)
@@ -320,7 +322,10 @@ export default async function handler(req, res) {
   // Reached only on a cache MISS (cache HITs already returned above), and
   // fails OPEN: if the flag read fails or the flag is absent, this is a
   // no-op and the proxy works normally.
-  if (!(await isFeatureEnabled('overpassProxy'))) {
+  // Crawlers rendering /place and /town pages (1 page/s after the sitemap
+  // went out) must never spend the public Overpass servers' tiny quota:
+  // they get the same cache-only treatment as the kill-switch.
+  if (isPreviewBot(req) || !(await isFeatureEnabled('overpassProxy'))) {
     if (isCacheEnabled()) {
       const staleData = await readStale()
       if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
@@ -396,6 +401,7 @@ export default async function handler(req, res) {
         waitUntil(cacheSet(staleKey, data, 7 * 24 * 60 * 60).catch(() => {}))
       }
 
+      dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
       res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')

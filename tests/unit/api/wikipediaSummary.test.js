@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 
 vi.mock('../../../api/lib/rateLimit.js', () => ({
   applyRateLimit: () => null,
+  dropRateLimitHeaders: () => {},
   applySharedRateLimit: async () => null,
   RATE_LIMITS: { API_GENERAL: {} },
 }))

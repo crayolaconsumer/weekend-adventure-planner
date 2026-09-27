@@ -11,7 +11,7 @@
 
 import { queryOne } from '../../lib/db.js'
 import { formatDisplayName } from '../../lib/displayName.js'
-import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { withCors } from '../../lib/cors.js'
 
 async function handler(req, res) {
@@ -62,6 +62,7 @@ async function handler(req, res) {
     const descEsc = escape(description)
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    dropRateLimitHeaders(res)
     res.setHeader('Cache-Control', 'public, s-maxage=300')
     return res.status(200).send(`<!DOCTYPE html>
 <html lang="en">

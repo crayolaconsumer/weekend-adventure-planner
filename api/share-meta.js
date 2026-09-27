@@ -19,7 +19,7 @@ import { applyPageMeta } from '../shared/pageMeta.mjs'
 import { lookupPlace } from './lib/placeLookup.js'
 import imageResolve from './places/image-resolve.js'
 import { callJson } from './lib/invoke.js'
-import { isPreviewBot } from './lib/bots.js'
+import { isPreviewBot, isSearchCrawler } from './lib/bots.js'
 
 export const config = { runtime: 'nodejs' }
 
@@ -41,17 +41,17 @@ function readTemplate() {
 
 // ─── Per-kind meta ───────────────────────────────────────────────
 
-async function placeMeta(id, ip, { bot, proxy, resolver } = {}) {
+async function placeMeta(id, ip, { bot, crawler, proxy, resolver } = {}) {
   // One deadline for both steps: bots get time for a cold lookup, people get the page fast
   const deadline = Date.now() + (bot ? 7000 : 1500)
-  const place = await lookupPlace(id, ip, { proxy, timeoutMs: deadline - Date.now() })
+  const place = await lookupPlace(id, ip, { proxy, timeoutMs: deadline - Date.now(), cacheOnly: crawler })
   if (!place) return null
   // Only preview bots read og:image, so people don't wait on the photo lookup
   const query = Object.fromEntries(Object.entries({
     ...place.hints, name: place.name, category: place.icon,
     lat: place.lat == null ? undefined : String(place.lat), lng: place.lng == null ? undefined : String(place.lng)
   }).filter(([, v]) => v))
-  const photo = bot ? await withTimeout(callJson(resolver ?? imageResolve, query, ip), Math.max(0, deadline - Date.now()), null) : null
+  const photo = bot && !crawler ? await withTimeout(callJson(resolver ?? imageResolve, query, ip), Math.max(0, deadline - Date.now()), null) : null
   return {
     title: `${place.name} | ROAM`,
     description: `${place.kind || 'A place'}${place.where ? ` in ${place.where}` : ''}. Save it, plan a visit and find more places like it on ROAM.`,
@@ -110,7 +110,7 @@ export function createHandler(deps = {}) {
     let cache = MISS
     const bot = isPreviewBot(req)
     try {
-      const meta = kind === 'place' ? await placeMeta(id, ip, { ...deps, bot })
+      const meta = kind === 'place' ? await placeMeta(id, ip, { ...deps, bot, crawler: isSearchCrawler(req) })
         : kind === 'plan' ? await planMeta(code)
           : kind === 'user' ? await userMeta(username)
             : null
@@ -126,6 +126,9 @@ export function createHandler(deps = {}) {
       cache = 'private, no-store'
       console.warn(`[share-meta] ${kind}: ${err.message}`)
     }
+    // A crawler's copy (cache-only lookup, no photo) must never be served to
+    // the next link-preview bot or person
+    if (kind === 'place' && isSearchCrawler(req)) cache = 'private, no-store'
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.setHeader('Cache-Control', cache)
     return res.status(200).send(html)

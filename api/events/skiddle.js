@@ -122,8 +122,8 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'Skiddle API error' })
     }
 
-    // Set cache headers (5 minutes)
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
+    // Edge cache 15 min, then 30 min stale-while-revalidate: listings change slowly
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=1800')
 
     return res.status(200).json(data)
   } catch (error) {

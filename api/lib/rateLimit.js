@@ -204,3 +204,8 @@ export default {
   applyRateLimit,
   applySharedRateLimit
 }
+
+/** Before a response goes public at the CDN: one visitor's counters must not be shared. */
+export function dropRateLimitHeaders(res) {
+  for (const h of ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']) res.removeHeader?.(h)
+}

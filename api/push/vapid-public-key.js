@@ -4,7 +4,7 @@
  * Returns the VAPID public key for push subscriptions
  */
 
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
 async function handler(req, res) {
@@ -28,6 +28,7 @@ async function handler(req, res) {
   }
 
   // Static public value — safe for shared/CDN caching with long SWR.
+  dropRateLimitHeaders(res)
   res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800')
 
   return res.status(200).json({ publicKey })

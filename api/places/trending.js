@@ -197,17 +197,11 @@ async function handler(req, res) {
     // revalidate. The data is "places trending in last 30 days" — it
     // barely changes minute-to-minute. Edge cache deduplicates the
     // moderately-heavy UNION ALL query across the whole user base.
-    // The top-tip subtitle is filtered by the viewer's blocked-users when
-    // signed in (currentUser above), so an authenticated response is
-    // viewer-specific and must NOT be shared across users at the shared
-    // edge cache. Anonymous responses are identical for everyone, so they
-    // stay edge-cacheable. (Public-caching the authed response leaked one
-    // user's block-filtered tips to another.)
-    if (currentUser) {
-      res.setHeader('Cache-Control', 'private, max-age=120')
-    } else {
-      res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600')
-    }
+    // Never shared at the edge: the top-tip subtitle is filtered by the
+    // viewer's blocked users, and the CDN would serve a cached anonymous copy
+    // to a signed-in web user (cookie auth isn't part of the cache key) before
+    // this code runs, skipping their block list.
+    res.setHeader('Cache-Control', 'private, max-age=120')
     return res.status(200).json({
       trending: result,
       period: `${days} days`

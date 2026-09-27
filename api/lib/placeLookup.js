@@ -1,3 +1,4 @@
+import { cacheGet, isCacheEnabled } from './kvCache.js'
 /**
  * One OSM place by id, for link previews (api/share-meta.js) and their image
  * (api/og/place.tsx). KV-cached, misses included, so previews for the same
@@ -21,9 +22,14 @@ const kindOf = tags => KIND_TAGS.map(k => tags[k]).find(v => v && v !== 'yes') |
 
 // timeoutMs: link-preview bots can wait (they're the only readers of these tags);
 // people shouldn't. A cold Overpass lookup takes 2-10s; once found it's cached.
-export async function lookupPlace(id, ip, { proxy, timeoutMs = 8000 } = {}) {
+export async function lookupPlace(id, ip, { proxy, timeoutMs = 8000, cacheOnly = false } = {}) {
   const m = OSM_ID.exec(id || '')
   if (!m) return null
+  // Crawlers: whatever is cached, never a live Overpass call
+  if (cacheOnly) {
+    const hit = isCacheEnabled() ? await cacheGet(`place:preview:v3:${id}`) : null
+    return hit ? hit.value : null
+  }
   return cached(`place:preview:v3:${id}`, v => (v ? HIT_TTL : MISS_TTL), async () => {
     // Bare numbers are node-or-way (fetchPlaceById's rule); typed ids are exact
     const select = m[1] ? `${TYPES[m[1]]}(${m[2]});` : `(node(${m[3]});way(${m[3]}););`

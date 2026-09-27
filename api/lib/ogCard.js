@@ -1,3 +1,4 @@
+import { dropRateLimitHeaders } from './rateLimit.js'
 /**
  * Link-preview images (1200x630) in ROAM's look (docs/BRAND.md): cream page,
  * Newsreader title in forest, CategoryIcon medallion, compass + wordmark.
@@ -76,7 +77,7 @@ export async function sendCard(res, props, { sMaxAge = 86400 } = {}) {
 export async function forwardImageResponse(imageResponse, res, sMaxAge) {
   const buffer = Buffer.from(await imageResponse.arrayBuffer())
   // CDN-cached for everyone: drop the per-visitor rate-limit headers
-  for (const h of ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset']) res.removeHeader?.(h)
+  dropRateLimitHeaders(res)
   res.setHeader('Content-Type', 'image/png')
   res.setHeader('Cache-Control', `public, s-maxage=${sMaxAge}, stale-while-revalidate=86400`)
   return res.status(200).send(buffer)

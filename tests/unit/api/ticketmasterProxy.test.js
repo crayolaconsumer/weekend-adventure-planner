@@ -7,6 +7,7 @@ async function call(query) {
     statusCode: 200, headers: {},
     setHeader(k, v) { this.headers[k] = v },
     getHeader(k) { return this.headers[k] },
+    removeHeader(k) { delete this.headers[k] },
     status(c) { this.statusCode = c; return this },
     json(b) { this.body = b; return this },
     end() { return this }
@@ -83,5 +84,35 @@ describe('town weekend events through the real proxy (regression: a padded windo
     // Monday morning in the town
     const out = await weekendEvents(town, `10.8.0.${n++}`, proxy, { now: new Date(local('2026-09-28', '09:00')) })
     expect(out.map(e => e.name)).toEqual(['Friday gig', 'Sunday show'])
+  })
+})
+
+describe('Ticketmaster proxy edge caching', () => {
+  beforeEach(() => vi.stubEnv('TICKETMASTER_KEY', 'test-key'))
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
+
+  it('caches a good listing at the edge for 15 minutes, varied on Origin', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ _embedded: { events: [] } }) })))
+    const res = await call({ lat: '53.96', lng: '-1.08' })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['Cache-Control']).toBe('public, s-maxage=900, stale-while-revalidate=1800')
+    expect(res.headers.Vary).toBe('Origin')
+  })
+
+  it.each([
+    ['an upstream 500', { ok: false, status: 500 }, 500],
+    ['an upstream 429', { ok: false, status: 429 }, 429],
+  ])('never caches %s', async (_, upstreamRes, status) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => upstreamRes))
+    const res = await call({ lat: '53.96', lng: '-1.08' })
+    expect(res.statusCode).toBe(status)
+    expect(res.headers['Cache-Control']).toBe('private, no-store')
+  })
+
+  it('never caches a bad request', async () => {
+    const res = await call({ lat: '999', lng: '-1.08' })
+    expect(res.statusCode).toBe(400)
+    expect(res.headers['Cache-Control']).toBe('private, no-store')
   })
 })

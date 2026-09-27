@@ -9,6 +9,11 @@ Disallow:
 # Allow Googlebot / general crawling for the rest of the site.
 User-agent: *
 Allow: /
+# Pages are crawlable (their titles, descriptions and share images are built
+# on the server); the app's data API is not: rendering a page must not fan out
+# into live calls to Overpass / Wikipedia on crawl budgets.
+Allow: /api/og/
+Disallow: /api/
 # Redirects each crawler to wherever its IP geolocates; nothing to index
 Disallow: /town/near-me
 

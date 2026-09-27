@@ -1,3 +1,4 @@
+import { refuseBotUpstream } from '../lib/bots.js'
 /**
  * GET /api/places/image-resolve?wikipedia=&wikidata=&lat=&lng=
  *
@@ -31,7 +32,7 @@
  *   }
  */
 
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { haversineKm } from '../../shared/geo.mjs'
 import { isDistressingImage, isEventArticle, isEventEntity, sharesMeaningfulWord } from '../../shared/placeTopic.mjs'
@@ -453,6 +454,14 @@ async function tryMapillary(lat, lng) {
   }
 }
 
+// A photo is good for a day at the edge. A 'no image' verdict can be an
+// upstream blip (every tier fails soft to null), so it only gets an hour.
+function edgeCache(value) {
+  return value?.url
+    ? 'public, s-maxage=86400, stale-while-revalidate=604800'
+    : 'public, s-maxage=3600, stale-while-revalidate=86400'
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -497,10 +506,12 @@ async function handler(req, res) {
 
   const memHit = memCache.get(key)
   if (memHit && Date.now() - memHit.ts < MEMORY_TTL_MS) {
-    res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800')
+    dropRateLimitHeaders(res)
+    res.setHeader('Cache-Control', edgeCache(memHit.value))
     res.setHeader('X-Roam-Cache', 'function')
     return res.status(200).json(memHit.value)
   }
+  if (refuseBotUpstream(req, res)) return
 
   // ─── Priority-ordered resolution with early exit ──────────────
   // Previously this fired all ~7 sources in parallel for every place
@@ -600,7 +611,8 @@ async function handler(req, res) {
     for (const k of drop) memCache.delete(k)
   }
 
-  res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=604800')
+  dropRateLimitHeaders(res)
+  res.setHeader('Cache-Control', edgeCache(value))
   res.setHeader('X-Roam-Cache', value.url ? 'fresh-hit' : 'fresh-miss')
   return res.status(200).json(value)
 }

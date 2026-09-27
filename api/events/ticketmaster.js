@@ -6,7 +6,7 @@
  */
 
 import { withCors } from '../lib/cors.js'
-import { applySharedRateLimit } from '../lib/rateLimit.js'
+import { applySharedRateLimit, dropRateLimitHeaders } from '../lib/rateLimit.js'
 
 // Simple in-memory rate limiting
 const requestCounts = new Map()
@@ -142,8 +142,9 @@ async function handler(req, res) {
 
     const data = await response.json()
 
-    // Set cache headers (5 minutes)
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
+    // Edge cache 15 min, then 30 min stale-while-revalidate: listings change slowly
+    dropRateLimitHeaders(res)
+    res.setHeader('Cache-Control', 'public, s-maxage=900, stale-while-revalidate=1800')
 
     // Return structured response with events and pagination metadata
     // Ticketmaster page object: { size, totalElements, totalPages, number }

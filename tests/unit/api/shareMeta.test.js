@@ -45,6 +45,16 @@ describe('share-meta: places', () => {
     expect(res.body).toContain('<div id="root"></div>')
   })
 
+  it('a search crawler never triggers a live Overpass or photo lookup, and its copy is never shared (regression: 1 page/s crawl drained Overpass)', async () => {
+    const proxy = proxyWith([park])
+    const resolver = resolverWith('https://upload.wikimedia.org/x.jpg')
+    const res = await run({ kind: 'place', id: 'w815929296' }, { proxy, resolver }, 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)')
+    expect(res.code).toBe(200)
+    expect(proxy).not.toHaveBeenCalled()
+    expect(resolver).not.toHaveBeenCalled()
+    expect(res.h['Cache-Control']).toBe('private, no-store')
+  })
+
   it('falls back to the branded preview card when no photo exists', async () => {
     const res = await run({ kind: 'place', id: '123' }, { proxy: proxyWith([park]), resolver: resolverWith(null) })
     // the card reads the place by id: no free text in the image URL

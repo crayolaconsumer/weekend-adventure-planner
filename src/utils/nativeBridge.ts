@@ -46,6 +46,18 @@ const PUBLIC_WEB_ORIGIN = 'https://www.go-roam.uk'
 
 let installed = false
 
+// Public GETs that never read auth. Sending a Bearer token on them stops
+// Vercel's CDN from serving or storing a cached copy (a request carrying
+// Authorization is never cached), so native would miss the edge cache.
+const PUBLIC_API_PATHS = new Set([
+  '/api/places/image-resolve',
+  '/api/wikipedia/summary',
+  '/api/events/ticketmaster',
+  '/api/events/skiddle',
+  '/api/flags',
+  '/api/push/vapid-public-key',
+])
+
 /**
  * Capacitor sets globalThis.Capacitor when the app runs inside a native
  * shell. window.Capacitor.isNativePlatform() returns true on iOS/Android
@@ -138,7 +150,8 @@ export function installFetchInterceptor(): void {
 
     // Auth header injection — only for our own API. Sanitize first.
     const headers = new Headers(init.headers || {})
-    if (!headers.has('Authorization')) {
+    const isPublic = PUBLIC_API_PATHS.has(url.slice(API_ORIGIN.length).split('?')[0])
+    if (!isPublic && !headers.has('Authorization')) {
       const rawToken = getStoredToken()
       const token = rawToken && rawToken.replace(/[\r\n\s]+/g, '')
       if (token) headers.set('Authorization', `Bearer ${token}`)
