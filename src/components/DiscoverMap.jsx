@@ -17,6 +17,7 @@ import 'leaflet/dist/leaflet.css'
 import './DiscoverMap.css'
 import { useTheme } from '../contexts/ThemeContext'
 import { tileUrlFor, TILE_ATTRIBUTION } from '../utils/mapTiles'
+import { RouteLine, RouteChip } from './map/RouteOverlay'
 
 // Fix Leaflet's default icon path issue with bundlers
 delete L.Icon.Default.prototype._getIconUrl
@@ -106,7 +107,7 @@ function MapController({ center, onBoundsChange, onReady }) {
 }
 
 // Place popup content
-function PlacePopup({ place, onSelect, formatDistance }) {
+function PlacePopup({ place, onSelect, onRoute, formatDistance }) {
   const category = place.category || GOOD_CATEGORIES[place.categoryKey]
 
   return (
@@ -128,9 +129,16 @@ function PlacePopup({ place, onSelect, formatDistance }) {
             {formatDistance(place.distance)}
           </span>
         )}
-        <button className="map-popup-btn" onClick={() => onSelect(place)}>
-          View details
-        </button>
+        <div className="map-popup-actions">
+          <button className="map-popup-btn" onClick={() => onSelect(place)}>
+            View details
+          </button>
+          {onRoute && (
+            <button type="button" className="route-action-btn" onClick={() => onRoute(place)} aria-label={`Route to ${place.name}`}>
+              Route
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -141,7 +149,11 @@ export default function DiscoverMap({
   userLocation,
   selectedPlace,
   onSelectPlace,
-  onBoundsChange
+  onBoundsChange,
+  onRequestRoute,
+  route,
+  onClearRoute,
+  onRetryRoute
 }) {
   const mapRef = useRef(null)
   const markersRef = useRef({})
@@ -238,6 +250,8 @@ export default function DiscoverMap({
           />
         )}
 
+        <RouteLine positions={route?.positions} />
+
         {/* Place markers */}
         {places.map((place) => {
           const category = place.category || GOOD_CATEGORIES[place.categoryKey]
@@ -252,12 +266,14 @@ export default function DiscoverMap({
               }}
             >
               <Popup className="discover-map-popup">
-                <PlacePopup place={place} onSelect={onSelectPlace} formatDistance={formatDistance} />
+                <PlacePopup place={place} onSelect={onSelectPlace} onRoute={onRequestRoute} formatDistance={formatDistance} />
               </Popup>
             </Marker>
           )
         })}
       </MapContainer>
+
+      <RouteChip route={route} onClear={onClearRoute} onRetry={onRetryRoute} className="discover-map-route-chip" />
 
       {/* Map legend */}
       <div className="discover-map-legend">

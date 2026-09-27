@@ -3,39 +3,92 @@
  * Handles opening external links, especially maps/directions
  */
 
+import { isNative, getPlatform } from './nativeBridge'
+
 /**
- * Detect if running on a mobile device
+ * Which maps app a directions link should target.
+ * 'ios' → Apple Maps, 'android' → Google Maps app, 'web' → Google Maps web.
+ * iPadOS Safari reports a Mac UA, so a touch-capable "Mac" counts as iOS.
  */
-function isMobileDevice() {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  )
+export function mapsPlatform() {
+  if (isNative()) return getPlatform() === 'ios' ? 'ios' : 'android'
+  if (typeof navigator === 'undefined') return 'web'
+  const ua = navigator.userAgent || ''
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios'
+  if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return 'ios'
+  if (/Android/i.test(ua)) return 'android'
+  return 'web'
+}
+
+const point = (p) => (typeof p === 'string' ? p : `${p.lat},${p.lng}`)
+const APPLE_DIRFLG = { walk: 'w', drive: 'd', transit: 'r' }
+const GOOGLE_TRAVELMODE = { walk: 'walking', drive: 'driving', transit: 'transit' }
+
+/**
+ * Directions URL for the platform's maps app.
+ *
+ * @param {Object} opts
+ * @param {{lat:number,lng:number}|string} opts.to - destination (coords or address)
+ * @param {{lat:number,lng:number}} [opts.from] - origin; omitted = "here"
+ * @param {Array<{lat:number,lng:number}>} [opts.via] - intermediate stops
+ * @param {'walk'|'drive'|'transit'} [opts.mode] - omitted = the app's default
+ * @param {'ios'|'android'|'web'} [platform]
+ *
+ * Apple Maps (documented Map Links params daddr/saddr/dirflg) takes one
+ * destination only, so multi-stop routes stay on Google Maps everywhere;
+ * on iPhone that universal link opens the Google Maps app if installed,
+ * otherwise Google Maps in Safari.
+ */
+export function directionsUrl({ to, from, via = [], mode } = {}, platform = mapsPlatform()) {
+  if (platform === 'ios' && via.length === 0) {
+    const url = new URL('https://maps.apple.com/')
+    if (from) url.searchParams.set('saddr', point(from))
+    url.searchParams.set('daddr', point(to))
+    if (APPLE_DIRFLG[mode]) url.searchParams.set('dirflg', APPLE_DIRFLG[mode])
+    return url.toString()
+  }
+  const url = new URL('https://www.google.com/maps/dir/')
+  url.searchParams.set('api', '1')
+  if (from) url.searchParams.set('origin', point(from))
+  url.searchParams.set('destination', point(to))
+  if (via.length) url.searchParams.set('waypoints', via.map(point).join('|'))
+  if (GOOGLE_TRAVELMODE[mode]) url.searchParams.set('travelmode', GOOGLE_TRAVELMODE[mode])
+  return url.toString()
 }
 
 /**
- * Open Google Maps directions to a location
- * On mobile: Uses location.href to properly trigger native Maps app
- * On desktop: Opens in new tab
+ * Hand directions off to the platform's maps app.
+ *
+ * Native: a top-level navigation to an outside host is handed to the OS by
+ * Capacitor (iOS UIApplication.open, Android ACTION_VIEW intent), which is
+ * what opens Apple Maps / the Google Maps app, and the app stays loaded.
+ * The in-app Browser plugin would load the web page instead.
+ * Web (phone and desktop): a new tab, never same-window, so an unsaved plan
+ * or any other in-memory state survives. Safari / Chrome still hand the
+ * maps link to the maps app from the new tab.
+ */
+export function openMapsDirections(opts) {
+  const url = directionsUrl(opts)
+  if (isNative()) {
+    window.location.href = url
+  } else {
+    window.open(url, '_blank', 'noopener')
+  }
+  return url
+}
+
+/**
+ * Open directions to a location in the platform's maps app.
+ * Kept for existing callers; `name` is unused (Google's destination_place_id
+ * wants a Google place id, not a name, and Apple has no label param).
  *
  * @param {number} lat - Destination latitude
  * @param {number} lng - Destination longitude
- * @param {string} [name] - Optional place name for better UX
+ * @param {string} [_name]
+ * @param {'walk'|'drive'|'transit'} [mode]
  */
-export function openDirections(lat, lng, name = null) {
-  // Build the URL with optional place name for better display
-  let url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
-  if (name) {
-    url += `&destination_place_id=${encodeURIComponent(name)}`
-  }
-
-  if (isMobileDevice()) {
-    // On mobile, navigate in same window to properly trigger native app
-    // The user will return to our app via browser history/back
-    window.location.href = url
-  } else {
-    // On desktop, open in new tab
-    window.open(url, '_blank')
-  }
+export function openDirections(lat, lng, _name = null, mode) {
+  return openMapsDirections({ to: { lat, lng }, mode })
 }
 
 /**

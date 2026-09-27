@@ -12,7 +12,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { fetchNearbyPlaces } from '../utils/apiClient'
-import { openDirections } from '../utils/navigation'
 import { getCurrentPosition } from '../utils/nativePlugins'
 import { getPublicShareUrl } from '../utils/nativeBridge'
 import { shareContent } from '../utils/shareCard'
@@ -206,7 +205,6 @@ export default function TownPage() {
           <PlaceDetail
             place={selected}
             onClose={() => setSelected(null)}
-            onGo={() => openDirections(selected.lat, selected.lng, selected.name)}
           />
         )}
       </AnimatePresence>

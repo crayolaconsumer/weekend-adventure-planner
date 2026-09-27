@@ -58,6 +58,39 @@ export async function getRoute(from, to, mode = 'walk') {
 }
 
 /**
+ * Route line for drawing on a map: real walking/driving route from our
+ * OpenRouteService proxy, free for everyone.
+ *
+ * Transit has no free routing source, so it asks for the walking route and
+ * says so (`shownMode: 'walk'`); the UI must label it as a walking route.
+ * Seam: a transit provider (e.g. Google, after its terms check) slots in
+ * here and returns the same shape with shownMode 'transit'.
+ *
+ * @returns {Promise<{ positions: Array<[number,number]>|null, duration: number,
+ *   distance: number, source: 'api'|'fallback', shownMode: 'walk'|'drive' }>}
+ *   positions is null when there is no real route (no fake straight lines).
+ */
+export async function getRouteLine(from, to, mode = 'walk') {
+  const shownMode = mode === 'drive' ? 'drive' : 'walk'
+  try {
+    const res = await fetch('/api/routing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, mode: shownMode, geometry: true }),
+    })
+    if (!res.ok) throw new Error(`Routing API error: ${res.status}`)
+    const data = await res.json()
+    const positions = data.source === 'api' && Array.isArray(data.geometry) && data.geometry.length > 1
+      ? data.geometry
+      : null
+    return { positions, duration: data.duration, distance: data.distance, source: positions ? 'api' : 'fallback', shownMode }
+  } catch (error) {
+    console.warn('Route line request failed:', error.message)
+    return { ...calculateFallback(from, to, shownMode), positions: null, shownMode }
+  }
+}
+
+/**
  * Calculate travel time using simple distance-based estimation
  * Used as fallback when API is unavailable or offline
  */

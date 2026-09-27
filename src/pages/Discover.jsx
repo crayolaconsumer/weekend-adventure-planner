@@ -25,6 +25,8 @@ import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
 import { openDirections } from '../utils/navigation'
+import { useRouteLine, routeForPlaces } from '../hooks/useRouteLine'
+import { routeRequest, routeResetKey } from './Discover/routeRequest'
 import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
@@ -192,6 +194,18 @@ export default function Discover({ location }) {
 
   // Effective location: use prop, fallback, or null
   const effectiveLocation = location || fallbackLocation
+
+  // Map route (free for everyone). Starts from the real location only, never
+  // the London fallback; without one the hook asks for the position on tap.
+  // Cleared when the travel mode or origin changes; hidden while the
+  // destination pin is filtered off the map.
+  const { route: rawMapRoute, request: requestMapRoute, clear: clearMapRoute } = useRouteLine(
+    routeResetKey(travelMode, location)
+  )
+  const mapRoute = routeForPlaces(rawMapRoute, places)
+  const handleRequestRoute = useCallback((place) => {
+    requestMapRoute(routeRequest(travelMode, location, place))
+  }, [travelMode, location, requestMapRoute])
 
   // AdMob lifecycle for free users on native: shows a banner while
   // Discover is mounted and fires an interstitial every N swipes.
@@ -945,6 +959,10 @@ export default function Discover({ location }) {
               userLocation={effectiveLocation}
               selectedPlace={selectedPlace}
               onSelectPlace={setSelectedPlace}
+              onRequestRoute={handleRequestRoute}
+              route={mapRoute}
+              onClearRoute={clearMapRoute}
+              onRetryRoute={(r) => handleRequestRoute(r.to)}
             />
           </Suspense>
         )}

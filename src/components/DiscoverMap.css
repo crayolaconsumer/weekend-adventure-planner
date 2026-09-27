@@ -183,6 +183,23 @@
   transform: translateY(-1px);
 }
 
+.map-popup-actions {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+.map-popup-actions .map-popup-btn { margin-top: 0; flex: 1; }
+
+/* Route chip sits above the legend */
+.discover-map-route-chip {
+  position: absolute;
+  left: var(--space-lg);
+  bottom: calc(var(--space-lg) + 52px);
+  z-index: 1000;
+  max-width: min(460px, calc(100% - 2 * var(--space-lg)));
+}
+
 /* Map legend */
 .discover-map-legend {
   position: absolute;
@@ -244,4 +261,12 @@
 
 .leaflet-control-attribution a {
   color: var(--roam-forest) !important;
+}
+
+/* With the ORS credit the strip is longer: let it wrap on the right half so
+   it never runs under the legend or route chip on the left. */
+.discover-map-container .leaflet-control-attribution {
+  max-width: 50%;
+  white-space: normal;
+  line-height: 1.4;
 }

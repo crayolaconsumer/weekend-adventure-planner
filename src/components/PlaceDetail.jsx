@@ -33,6 +33,17 @@ import 'leaflet/dist/leaflet.css'
 import './PlaceDetail.css'
 import { useTheme } from '../contexts/ThemeContext'
 import { tileUrlFor, TILE_ATTRIBUTION } from '../utils/mapTiles'
+import { RouteLine, RouteChip } from './map/RouteOverlay'
+import { useRouteLine, realOrigin } from '../hooks/useRouteLine'
+
+// The place map follows the Discover travel mode (walking / transit / the
+// driving-range modes), read from the same saved preference.
+function savedRouteMode() {
+  let mode = null
+  try { mode = localStorage.getItem('roam_travel_mode') } catch { /* storage blocked */ }
+  if (!mode || mode === 'walking') return 'walk'
+  return mode === 'transit' ? 'transit' : 'drive'
+}
 
 // Brand-coloured map pin — drop-shape with gold dot inside a forest field.
 // Uses divIcon so we don't have to ship a PNG asset; SVG inline = sharp at any DPI.
@@ -360,6 +371,17 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
   // imageUrl can be null — when it is, we render the stylized placeholder instead of an <img>.
   const imageUrl = imageError ? null : (cachedImageUrl || resolvedImageUrl)
   const imageLoaded = imageUrl ? loadedSrc === imageUrl : true
+
+  const { route, request: requestRoute, clear: clearRoute } = useRouteLine(String(enrichedPlace.id))
+  const handleShowRoute = () => {
+    // Only a genuine device fix; the userLocation prop can be Discover's
+    // London fallback, in which case the device is asked on tap.
+    requestRoute({
+      from: realOrigin(userLocation),
+      to: { lat: enrichedPlace.lat, lng: enrichedPlace.lng, name: enrichedPlace.name },
+      mode: savedRouteMode()
+    })
+  }
 
   const handleDirections = () => {
     openDirections(enrichedPlace.lat, enrichedPlace.lng, enrichedPlace.name)
@@ -699,7 +721,17 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                       {/* Static preview: the pin has no action, so keep it out
                           of the tab order (Leaflet gives it an unnamed role=button). */}
                       <Marker position={[enrichedPlace.lat, enrichedPlace.lng]} icon={brandPinIcon} keyboard={false} interactive={false} />
+                      <RouteLine positions={route?.positions} home={[enrichedPlace.lat, enrichedPlace.lng]} homeZoom={15} />
                     </MapContainer>
+                  )}
+                </div>
+                <div className="place-detail-route-bar">
+                  <RouteChip route={route} onClear={clearRoute} onRetry={handleShowRoute} />
+                  {!route && (
+                    <button type="button" className="route-action-btn" onClick={handleShowRoute} aria-label={`Show route to ${enrichedPlace.name} on the map`}>
+                      <NavigationIcon />
+                      <span>Show route</span>
+                    </button>
                   )}
                 </div>
               </motion.div>

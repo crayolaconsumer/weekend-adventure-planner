@@ -17,7 +17,7 @@ import { useSubscription } from '../hooks/useSubscription'
 import { useToast } from '../hooks/useToast'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
-import { openDirections } from '../utils/navigation'
+import { openMapsDirections } from '../utils/navigation'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import { calculateDistance } from '../utils/placeFilter'
 import { getCurrentPosition as nativeGetCurrentPosition } from '../utils/nativePlugins'
@@ -199,7 +199,7 @@ export default function Wishlist() {
   }
 
   const goToPlace = (place) => {
-    openDirections(place.lat, place.lng, place.name)
+    openMapsDirections({ to: place })
   }
 
   const formatSavedDate = (timestamp) => {
@@ -683,7 +683,7 @@ export default function Wishlist() {
           place={detailPlace}
           userLocation={userLoc}
           onClose={() => setDetailPlace(null)}
-          onGo={() => { goToPlace(detailPlace); setDetailPlace(null) }}
+          onGo={() => setDetailPlace(null)}
         />
       )}
 

@@ -111,10 +111,9 @@ export default function Place() {
   }
 
   const handleGo = (place) => {
-    // Mark as visited and open directions in Google Maps
+    // PlaceDetail has already handed directions to the maps app; opening
+    // them again here used to fire a second, Google-only handoff.
     markVisited(place)
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`
-    import('../utils/nativePlugins').then(m => m.openExternalUrl(mapsUrl))
   }
 
   const web = !isNative()

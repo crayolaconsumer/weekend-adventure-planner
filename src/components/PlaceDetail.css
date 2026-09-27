@@ -388,6 +388,15 @@
 }
 [data-theme="dark"] .place-detail-map-leaflet { background: var(--roam-ink); }
 
+.place-detail-route-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: var(--space-sm);
+}
+.place-detail-route-bar .route-chip { width: 100%; box-shadow: none; border: 1px solid var(--color-border); }
+.place-detail-route-bar .route-action-btn svg { width: 16px; height: 16px; }
+
 .place-detail-map::after {
   content: '';
   position: absolute;

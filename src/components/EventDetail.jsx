@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { formatEventDate, formatPriceRange, getSourceInfo } from '../utils/eventsApi'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
-import { openDirections, openExternalLink } from '../utils/navigation'
+import { openDirections, openMapsDirections } from '../utils/navigation'
 // Shared with EventCard so card and detail show the SAME fallback image.
 import { getEventPlaceholderImage } from '../pages/Events/placeholderImage'
 import { isTicketSmallPrint } from '../pages/Events/ticketSmallPrint'
@@ -189,9 +189,8 @@ export default function EventDetail({ event, onClose, onSave, isSaved }) {
     if (event.venue?.lat && event.venue?.lng) {
       openDirections(event.venue.lat, event.venue.lng, event.venue.name)
     } else if (event.venue?.address) {
-      // For address search, use external link since we don't have coordinates
-      const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue.address)}`
-      openExternalLink(url)
+      // No coordinates: both Apple and Google Maps geocode an address destination
+      openMapsDirections({ to: event.venue.address })
     }
   }
 

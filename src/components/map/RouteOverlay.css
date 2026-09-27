@@ -1,0 +1,89 @@
+/* Route line: token strokes override Leaflet's inline colour attributes so
+   the line follows the theme. Casing contrasts with the tiles underneath. */
+.route-line-casing { stroke: var(--roam-cream); stroke-opacity: 0.9; }
+.route-line { stroke: var(--roam-terracotta); stroke-opacity: 0.95; }
+
+.route-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+  background: var(--color-surface-elevated);
+  color: var(--roam-ink);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-sm);
+  max-width: 100%;
+}
+
+.route-chip-swatch {
+  flex-shrink: 0;
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--roam-terracotta);
+  box-shadow: 0 0 0 1.5px var(--roam-cream);
+}
+.route-chip[data-status="error"] .route-chip-swatch { display: none; }
+
+.route-chip-text { flex: 1; min-width: 0; line-height: 1.35; }
+.route-chip-main { font-weight: 700; }
+.route-chip-place { color: var(--roam-ink-light); }
+.route-chip-note { display: block; color: var(--roam-ink-muted); font-size: var(--text-xs, 12px); }
+
+.route-chip-btn,
+.route-chip-clear {
+  flex-shrink: 0;
+  min-height: 36px;
+  border: 1.5px solid var(--roam-stone);
+  background: transparent;
+  color: var(--roam-ink);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.route-chip-btn { padding: 0 var(--space-sm); white-space: nowrap; }
+.route-chip-clear { width: 36px; display: grid; place-items: center; padding: 0; }
+.route-chip-btn:hover,
+.route-chip-clear:hover { background: var(--roam-paper); }
+.route-chip-btn:focus-visible,
+.route-chip-clear:focus-visible { outline: 2px solid var(--roam-terracotta); outline-offset: 2px; }
+
+/* Secondary "Route" action used beside primary map actions */
+.route-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-height: 36px;
+  padding: var(--space-xs) var(--space-md);
+  background: transparent;
+  color: var(--roam-ink);
+  border: 1.5px solid var(--roam-terracotta);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.route-action-btn:hover { background: var(--roam-paper); }
+.route-action-btn:focus-visible { outline: 2px solid var(--roam-terracotta); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  .route-chip { flex-wrap: wrap; }
+  .route-chip-text { flex-basis: calc(100% - 60px); }
+}
+
+/* ORS credit on maps that otherwise hide attribution (place preview) */
+.leaflet-control-attribution.route-attribution {
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+  color: var(--roam-ink-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 1px 6px;
+  max-width: 70%;
+  white-space: normal;
+  border-top-left-radius: var(--radius-sm, 4px);
+}
+.leaflet-control-attribution.route-attribution a { color: var(--roam-ink-light); }

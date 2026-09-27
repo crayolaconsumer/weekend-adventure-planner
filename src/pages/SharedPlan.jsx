@@ -16,6 +16,7 @@ import { useToast } from '../hooks/useToast'
 import VibeIcon from '../components/icons/VibeIcon'
 import CategoryIcon from '../components/icons/CategoryIcon'
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
+import { openMapsDirections } from '../utils/navigation'
 import './SharedPlan.css'
 
 const MapIcon = () => (
@@ -226,8 +227,7 @@ export default function SharedPlan() {
   const openDirections = (stop) => {
     const data = stop.placeData
     if (data?.lat && data?.lng) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`
-      import('../utils/nativePlugins').then(m => m.openExternalUrl(url))
+      openMapsDirections({ to: data })
     }
   }
 

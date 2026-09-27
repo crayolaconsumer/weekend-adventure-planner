@@ -25,6 +25,7 @@ import PlaceImage from '../components/PlaceImage'
 import FilterIcon from '../components/icons/FilterIcon'
 import VibeIcon from '../components/icons/VibeIcon'
 import { tap as hapticTap, selectionTick } from '../utils/haptics'
+import { openMapsDirections } from '../utils/navigation'
 import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS, effectiveRadius } from './Plan/constants'
 import { MOODS } from './Plan/moods'
 import {
@@ -895,36 +896,28 @@ export default function Plan({ location }) {
                 <button
                   className="plan-action"
                   onClick={() => {
-                    // Open the entire itinerary in Google Maps as a
-                    // multi-stop route. Works on web (opens new tab),
-                    // iOS (Capacitor will route via the native handler
-                    // for the maps.google.com URL — Apple users with
-                    // Google Maps installed get a deep-link prompt),
-                    // and Android (handed off to the Google Maps app
-                    // when installed via intent filter on this URL).
+                    // Open the itinerary in the platform's maps app. A single
+                    // stop or a two-stop plan can go to Apple Maps on iPhone;
+                    // three or more stops need waypoints, which only Google
+                    // Maps takes, so directionsUrl keeps those on Google.
+                    const mode = selectedTransport === 'transit' || selectedTransport === 'drive' ? selectedTransport : 'walk'
                     if (itinerary.length < 2) {
                       const only = itinerary[0]
                       if (only?.lat && only?.lng) {
                         hapticTap('medium')
-                        window.open(`https://www.google.com/maps/dir/?api=1&destination=${only.lat},${only.lng}`, '_blank', 'noopener')
+                        openMapsDirections({ to: only, mode })
                       }
                       return
                     }
-                    const origin = itinerary[0]
-                    const destination = itinerary[itinerary.length - 1]
-                    const waypoints = itinerary.slice(1, -1)
-                    const url = new URL('https://www.google.com/maps/dir/')
-                    url.searchParams.set('api', '1')
-                    url.searchParams.set('origin', `${origin.lat},${origin.lng}`)
-                    url.searchParams.set('destination', `${destination.lat},${destination.lng}`)
-                    if (waypoints.length) {
-                      url.searchParams.set('waypoints', waypoints.map(w => `${w.lat},${w.lng}`).join('|'))
-                    }
-                    url.searchParams.set('travelmode', selectedTransport === 'transit' ? 'transit' : selectedTransport === 'drive' ? 'driving' : 'walking')
                     hapticTap('medium')
-                    window.open(url.toString(), '_blank', 'noopener')
+                    openMapsDirections({
+                      from: itinerary[0],
+                      to: itinerary[itinerary.length - 1],
+                      via: itinerary.slice(1, -1),
+                      mode
+                    })
                   }}
-                  aria-label="Open route in Google Maps"
+                  aria-label="Open route in Maps"
                   title="Open route in Maps"
                 >
                   <NavigationIcon /> Maps
@@ -1074,15 +1067,14 @@ export default function Plan({ location }) {
                           const next = itinerary[idx + 1]
                           if (!next?.lat || !next?.lng || !stop.lat || !stop.lng) return null
                           const mode = getLegMode(stop)
-                          const travelmode = mode === 'transit' ? 'transit' : mode === 'drive' ? 'driving' : 'walking'
-                          // Per-leg directions deep-link. Free, no API key —
-                          // Google Maps handles the routing on their side and
-                          // surfaces transit times for transit legs.
-                          const href = `https://www.google.com/maps/dir/?api=1&origin=${stop.lat},${stop.lng}&destination=${next.lat},${next.lng}&travelmode=${travelmode}`
+                          const legMode = mode === 'transit' || mode === 'drive' ? mode : 'walk'
+                          // Per-leg directions deep-link into Apple / Google
+                          // Maps. Free, no API key; the maps app does the
+                          // routing and surfaces transit times for transit legs.
                           return (
                             <button
                               className="plan-travel-link"
-                              onClick={(e) => { e.stopPropagation(); hapticTap('light'); window.open(href, '_blank', 'noopener') }}
+                              onClick={(e) => { e.stopPropagation(); hapticTap('light'); openMapsDirections({ from: stop, to: next, mode: legMode }) }}
                               aria-label={`Open directions for leg ${idx + 1} in Maps`}
                               title="Open in Maps"
                             >
