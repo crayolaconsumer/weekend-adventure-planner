@@ -271,9 +271,14 @@ export function getWeeklySchedule(hoursString, place) {
       if (intervals.length === 0) {
         schedule.push({ day: days[i], hours: 'Closed' })
       } else {
-        const hoursStr = intervals
-          .map(([start, end]) => `${formatTime(start)} - ${formatTime(end)}`)
-          .join(', ')
+        // Intervals are clipped to the day, so an end at 23:59:59 means "until
+        // midnight" and a clipped whole day means open round the clock
+        const toMidnight = end => end.getTime() >= dayEnd.getTime() - 60000
+        const hoursStr = intervals.length === 1 && intervals[0][0].getTime() <= dayStart.getTime() && toMidnight(intervals[0][1])
+          ? 'Open 24 hours'
+          : intervals
+            .map(([start, end]) => `${formatTime(start)} - ${toMidnight(end) ? 'midnight' : formatTime(end)}`)
+            .join(', ')
         schedule.push({ day: days[i], hours: hoursStr })
       }
     }

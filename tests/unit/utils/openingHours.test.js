@@ -94,6 +94,20 @@ describe('openingHours', () => {
   })
 
   describe('getWeeklySchedule', () => {
+    // Regression: all-day places showed "12am - 11:59pm" for every day
+    it('says Open 24 hours for places open round the clock', () => {
+      for (const h of ['24/7', 'Mo-Su 00:00-24:00']) {
+        const schedule = getWeeklySchedule(h, LONDON)
+        expect(schedule.every(d => d.hours === 'Open 24 hours')).toBe(true)
+      }
+    })
+
+    it('shows a close at midnight as midnight, not 11:59pm', () => {
+      const schedule = getWeeklySchedule('Mo-Su 18:00-24:00', LONDON)
+      expect(schedule[0].hours).toMatch(/- midnight$/)
+      expect(schedule[0].hours).not.toMatch(/11:59/)
+    })
+
     it('returns 7-day schedule for valid hours', () => {
       const schedule = getWeeklySchedule('Mo-Fr 09:00-17:00', LONDON)
       expect(schedule).not.toBe(null)
