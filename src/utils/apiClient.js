@@ -19,6 +19,7 @@ import { recordApiCall } from './apiTelemetry'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 import { pickPlaceElement } from '../../shared/osmPick.mjs'
 import { isMajorAttraction } from './badges'
+import { sizedImageUrl } from '../../shared/commonsImage.mjs'
 
 // Public Overpass instances for the CLIENT-DIRECT fallback — used only
 // when the server proxy (/api/places/overpass/nearby) times out. This
@@ -343,7 +344,7 @@ export function parseOverpassResponse(data) {
       // tagged near the location), so they're high-relevance and we
       // should consume them when present. Coverage is sparse but
       // basically free real-estate.
-      image: tags.image,
+      image: sizedImageUrl(tags.image),
       wikimedia_commons: tags.wikimedia_commons,
       cuisine: tags.cuisine,
       outdoor_seating: tags.outdoor_seating,

@@ -6,6 +6,7 @@
 
 import * as db from './offlinePackDb.js'
 import { haversineKm } from '../../shared/geo.mjs'
+import { sizedImageUrl } from '../../shared/commonsImage.mjs'
 
 // ── Constants (locked thresholds from the spec) ────────────────
 const MAX_PACK_BYTES = 300 * 1024 * 1024 // 300 MB hard cap
@@ -272,7 +273,7 @@ out tags center;`
       tags: el.tags || {},
     }
     placesForDb.push(place)
-    if (el.tags?.image) imageUrls.push(el.tags.image)
+    if (el.tags?.image) imageUrls.push(sizedImageUrl(el.tags.image))
   }
 
   for (const place of placesForDb) {
