@@ -98,7 +98,8 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     await Promise.all(background)
     expect(shadowLines()).toEqual([expect.objectContaining({
-      evt: 'poi_shadow', n_live: 2, n_live_named: 2, n_db: 2, jaccard_ids: 0.333, jaccard_raw: 0.333, build: 'uk-20260927T0215Z'
+      evt: 'poi_shadow', n_live: 2, n_live_named: 2, n_db: 2, jaccard_ids: 0.333, jaccard_raw: 0.333, build: 'uk-20260927T0215Z',
+      extra_db: 1, extra_db_sample: ['node/3'], // named DB ids live lacks (bbox-overlap extras)
     })])
     expect(shadowLines()[0].db_ms).toBeTypeOf('number')
   })
@@ -112,12 +113,13 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(shadowLines()[0]).toMatchObject({ n_live: 3, n_live_named: 2, n_db: 2, jaccard_ids: 1, jaccard_raw: 0.667 })
   })
 
-  it('poiShadowPct 0 (the default): no shadow and no DB call at all', async () => {
+  it('poiShadowPct 0 (the default): no shadow, no generation read, no DB call at all', async () => {
     shadowPct = 0
     await call(LONDON)
     await call(LONDON)
     await Promise.all(background)
     expect(shadowLines()).toHaveLength(0)
+    expect(kvReads).not.toContain('roam:poiGen')
     expect(poolQuery).not.toHaveBeenCalled()
   })
 
@@ -137,12 +139,6 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(Date.now() - t).toBeLessThan(2500)
     expect(out.headers['x-places-source']).toBeUndefined()
     expect(out.body).toEqual(LIVE)
-  })
-
-  it('shadow reports named DB ids that live lacks (bbox-overlap extras)', async () => {
-    await call(LONDON)
-    await Promise.all(background)
-    expect(shadowLines()[0]).toMatchObject({ extra_db: 1, extra_db_sample: ['node/3'] })
   })
 
   it('a KV hit never waits on a slow flag store (50 ms, then POI off)', async () => {
@@ -171,14 +167,6 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(places[0].bucket).toBeGreaterThanOrEqual(0)
     expect(places[0].bucket).toBeLessThan(100)
     expect(places[1]).toMatchObject({ src: 'overpass', bucket: null, covered: false })
-  })
-
-  it('both percentages 0 (cached flags): no generation read and no SQL at all', async () => {
-    shadowPct = 0
-    await call(LONDON)
-    await call(LONDON)
-    expect(kvReads).not.toContain('roam:poiGen')
-    expect(poolQuery).not.toHaveBeenCalled()
   })
 
   it('pct 0: shadows KV hits too', async () => {

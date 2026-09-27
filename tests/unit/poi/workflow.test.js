@@ -92,7 +92,7 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       encoding: 'utf8',
       env: {
         PATH: `${dir}:${process.env.PATH}`, FAKE_DIR: dir, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'out'),
-        WORK: join(dir, 'work'), RETRY_DELAY_S: '0', ...env,
+        WORK: join(dir, 'work'), ...env,
       },
     })
     const read = f => readFileSync(join(dir, f), 'utf8')
@@ -106,82 +106,18 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
   }
 
   describe('Load into the database', () => {
-    const load = (responses, chunks = 3, env = {}) => exec('Load into the database', {
-      POI_LOAD_SECRET: 's3cret-value', BUILD_ID: 'uk-20260926T2022Z', CHUNKS: String(chunks), ...env,
-    }, responses)
-
-    it('loads begin, every chunk, finalize; marks active; never prints the secret', () => {
-      const r = load(['200 {"status":"loading","chunks_loaded":0}', '200 {}', '200 {}', '200 {}', '200 {"status":"active"}'])
-      expect(r.code).toBe(0)
-      expect(r.calls).toEqual(['step=begin', 'step=chunk&i=0', 'step=chunk&i=1', 'step=chunk&i=2', 'step=finalize'])
-      expect(r.out).toBe('active=true\n')
-      expect(r.all).not.toContain('s3cret-value')
-    })
-
-    it('stops cleanly when begin says the build is already active (noop)', () => {
-      const r = load(['200 {"build":"uk-20260926T2022Z","status":"active","noop":true}'])
-      expect(r.code).toBe(0)
-      expect(r.calls).toEqual(['step=begin'])
-      expect(r.out).toBe('active=true\n')
-    })
-
-    it('resumes from chunks_loaded', () => {
-      const r = load(['200 {"status":"loading","resumed":true,"chunks_loaded":2}', '200 {}', '200 {"status":"active"}'])
-      expect(r.calls).toEqual(['step=begin', 'step=chunk&i=2', 'step=finalize'])
-    })
-
-    it('retries 5xx and curl failures (timeout exit 28, connection exit 7)', () => {
-      const r = load(['503 busy', 'EXIT 28', 'EXIT 7', '200 {"chunks_loaded":0}', '200 {}', '200 {"status":"active"}'], 1)
-      expect(r.code).toBe(0)
-      expect(r.calls).toEqual(['step=begin', 'step=begin', 'step=begin', 'step=begin', 'step=chunk&i=0', 'step=finalize'])
-      expect(r.all).toMatch(/curl exit 28/)
-      expect(r.all).not.toMatch(/000000/)
-    })
-
-    it('gives up after 6 failed attempts', () => {
-      const r = load(Array(6).fill('EXIT 28'), 1)
-      expect(r.code).not.toBe(0)
-      expect(r.calls).toHaveLength(6)
-    })
-
-    it('retries a busy lock (409 {retry:true}) and 503 Retry-After, then carries on', () => {
-      const r = load(['409 {"error":"busy","retry":true}', '503 {"error":"busy"}', '200 {"chunks_loaded":0}', '409 {"retry":true}', '200 {}', '200 {"status":"active"}'], 1)
-      expect(r.code).toBe(0)
-      expect(r.calls).toEqual(['step=begin', 'step=begin', 'step=begin', 'step=chunk&i=0', 'step=chunk&i=0', 'step=finalize'])
-      expect(r.all).toMatch(/busy, retryable/)
-    })
-
-    it('a lock that stays busy gives up after 6 tries', () => {
-      const r = load(Array(6).fill('409 {"retry":true}'), 1)
-      expect(r.code).not.toBe(0)
-      expect(r.calls).toHaveLength(6)
-    })
-
-    it('does not retry any other 4xx (409 without retry, 422 gate, 401): fails at once, not active', () => {
-      for (const resp of ['409 {"error":"another build is loading"}', '409 {"retry":false}', '422 {"error":"bad chunk"}', '401 not json']) {
-        const r = load(['200 {"chunks_loaded":0}', resp])
-        expect(r.code, resp).not.toBe(0)
-        expect(r.calls, resp).toEqual(['step=begin', 'step=chunk&i=0'])
-        expect(r.out, resp).toBe('')
-      }
-    })
-
-    it('a finalize that fails its gates fails the job and is not active, so nothing is pruned', () => {
-      const r = load(['200 {"chunks_loaded":0}', '200 {}', '200 {"status":"failed","passed":false}'], 1)
-      expect(r.code).not.toBe(0)
-      expect(r.out).toBe('')
-      expect(r.all).toMatch(/did not go live/)
-    })
+    const load = env => exec('Load into the database', { POI_LOAD_SECRET: 's3cret-value', BUILD_ID: 'uk-20260926T2022Z', ...env })
 
     it('fails (not skips) when a load is requested but POI_LOAD_SECRET is missing', () => {
-      const r = load([], 1, { POI_LOAD_SECRET: '' })
+      const r = load({ POI_LOAD_SECRET: '' })
       expect(r.code).not.toBe(0)
       expect(r.calls).toEqual([])
       expect(r.all).toMatch(/load=false to publish only/)
     })
 
-    it('only runs when scheduled or load is requested (load=false publishes only)', () => {
+    it('only runs when scheduled or load is requested (load=false publishes only), via load.mjs', () => {
       expect(step('Load into the database')).toMatch(/if: \$\{\{ github\.event_name == 'schedule' \|\| inputs\.load \}\}/)
+      expect(runScript(step('Load into the database'))).toMatch(/node scripts\/poi\/load\.mjs --build "\$BUILD_ID" --skip-photos && echo active=true >> "\$GITHUB_OUTPUT"/)
     })
   })
 
@@ -200,7 +136,7 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       expect(r.gh.map(c => c.split(' ').slice(0, 2).join(' '))).toEqual(['release view', 'release create', 'release upload', 'release view', 'release edit'])
       expect(r.gh[1]).toMatch(/--draft/)
       expect(r.gh[4]).toMatch(/--draft=false/)
-      expect(r.out).toBe('build_id=uk-20260926T2022Z\nchunks=2\n')
+      expect(r.out).toBe('build_id=uk-20260926T2022Z\n')
     })
 
     it('asset count short: stays a draft, job fails', () => {
@@ -217,10 +153,10 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       expect(r.gh.indexOf(del)).toBeLessThan(r.gh.findIndex(c => c.startsWith('release create')))
     })
 
-    it('already published with identical chunks: uses the PUBLISHED chunk count, uploads nothing', () => {
+    it('already published with identical chunks: uploads nothing', () => {
       const r = publish({ FAKE_DRAFT: 'false' }, ['aa', 'bb'], ['aa', 'bb'])
       expect(r.code).toBe(0)
-      expect(r.out).toBe('build_id=uk-20260926T2022Z\nchunks=2\n')
+      expect(r.out).toBe('build_id=uk-20260926T2022Z\n')
       expect(r.gh.some(c => /release (create|upload|edit|delete)/.test(c))).toBe(false)
     })
 
@@ -228,7 +164,6 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       const r = publish({ FAKE_DRAFT: 'false' }, ['aa', 'bb'], ['aa', 'cc', 'dd'])
       expect(r.code).not.toBe(0)
       expect(r.all).toMatch(/refusing to load a mix/)
-      expect(r.out).not.toMatch(/chunks=/)
     })
   })
 

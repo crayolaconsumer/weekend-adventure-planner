@@ -19,12 +19,10 @@ import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { trimOverpassResponse } from '../../api/lib/overpassTrim.js'
-import { LARGE_CELL, isLarge, poiCell } from '../../shared/poiCell.mjs'
+import { LARGE_CELL, OSM_TYPE_CODE, SCHEMA_VERSION, isLarge, poiCell } from '../../shared/poiCell.mjs'
 import { POI_KEYS, filterPairs, makeMatcher } from './filter.mjs'
 
-export const SCHEMA_VERSION = 1 // must equal POI_SCHEMA_VERSION in api/lib/poiQuery.js
 export const CHUNK_ROWS = 10000
-const OSM_TYPE = { node: 1, way: 2, relation: 3 }
 const K_MAX = 48 // VARCHAR(48); a longer value can't equal anything the app queries
 
 const round7 = x => Math.round(x * 1e7) / 1e7
@@ -33,29 +31,24 @@ const round7 = x => Math.round(x * 1e7) / 1e7
  * osmium --add-unique-id=type_id: n<id>, w<id>, r<id>, and a<areaId> for
  * areas, where areaId = wayId*2 or relationId*2+1.
  */
+const T = { n: 'node', w: 'way', r: 'relation' }
 export function decodeId(fid) {
   const m = /^([nwra])(\d+)$/.exec(fid || '')
   if (!m) return null
   const n = Number(m[2])
-  if (m[1] === 'n') return { type: 'node', id: n }
-  if (m[1] === 'w') return { type: 'way', id: n }
-  if (m[1] === 'r') return { type: 'relation', id: n }
+  if (T[m[1]]) return { type: T[m[1]], id: n }
   return n % 2 === 0 ? { type: 'way', id: n / 2 } : { type: 'relation', id: (n - 1) / 2 }
 }
 
 /** Bounds of any GeoJSON geometry (coordinates are [lon, lat]). */
 export function geometryBounds(geometry) {
-  const b = { minlat: Infinity, minlon: Infinity, maxlat: -Infinity, maxlon: -Infinity }
+  const bb = [Infinity, Infinity, -Infinity, -Infinity]
   const walk = c => {
-    if (typeof c[0] === 'number') {
-      if (c[1] < b.minlat) b.minlat = c[1]
-      if (c[1] > b.maxlat) b.maxlat = c[1]
-      if (c[0] < b.minlon) b.minlon = c[0]
-      if (c[0] > b.maxlon) b.maxlon = c[0]
-    } else for (const x of c) walk(x)
+    if (typeof c[0] === 'number') grow(bb, c[0], c[1])
+    else for (const x of c) walk(x)
   }
   walk(geometry.coordinates)
-  return b
+  return { minlat: bb[1], minlon: bb[0], maxlat: bb[3], maxlon: bb[2] }
 }
 
 /**
@@ -87,7 +80,7 @@ export function featureToRow(feature, matches) {
   // Overpass (bbox) matches ways/relations that INTERSECT the box: keep their bounds
   const b = el.bounds || { minlat: lat, minlon: lon, maxlat: lat, maxlon: lon }
   const row = {
-    cell: poiCell(lat, lon), osm_type: OSM_TYPE[ref.type], osm_id: ref.id, lat, lon,
+    cell: poiCell(lat, lon), osm_type: OSM_TYPE_CODE[ref.type], osm_id: ref.id, lat, lon,
     min_lat: b.minlat, min_lon: b.minlon, max_lat: b.maxlat, max_lon: b.maxlon,
   }
   if (isLarge(row)) row.cell = LARGE_CELL
@@ -103,9 +96,6 @@ export function featureToRow(feature, matches) {
 }
 
 export const compareRows = (a, b) => a.cell - b.cell || a.osm_type - b.osm_type || a.osm_id - b.osm_id
-
-/** Largest side of an element's bbox, in degrees (0 for nodes). */
-export const extentDeg = r => Math.max(r.max_lat - r.min_lat, r.max_lon - r.min_lon)
 
 export const MAX_LARGE = 2000 // sanity: GB expected < 500
 
@@ -124,20 +114,14 @@ function collect(byKey, f, matches) {
 
 const bboxArea = r => (r.max_lat - r.min_lat) * (r.max_lon - r.min_lon)
 
-const sorted = byKey => [...byKey.values()].sort(compareRows)
-
-/** Rows from features: filtered, deduped by (type, id), sorted by PK. */
-export function buildRows(features, matches = makeMatcher()) {
-  const byKey = new Map()
-  for (const f of features) collect(byKey, f, matches)
-  return sorted(byKey)
-}
-
-/** Same, from async feature streams, converting each feature as it arrives. */
+/**
+ * Rows from (async) feature streams, converting each feature as it arrives:
+ * filtered, deduped by (type, id), sorted by PK.
+ */
 export async function buildRowsFromStreams(streams, matches = makeMatcher()) {
   const byKey = new Map()
   for (const stream of streams) for await (const f of stream) collect(byKey, f, matches)
-  return sorted(byKey)
+  return [...byKey.values()].sort(compareRows)
 }
 
 const lines = p => createInterface({ input: createReadStream(p), crlfDelay: Infinity })
@@ -236,13 +220,13 @@ export function perKeyCounts(rows, pairs = filterPairs()) {
 
 /** Sentinels absent from the rows, or present under another name. */
 export function missingSentinels(rows, sentinels) {
-  const want = new Set(sentinels.map(s => `${OSM_TYPE[s.type]}:${s.id}`))
+  const want = new Set(sentinels.map(s => `${OSM_TYPE_CODE[s.type]}:${s.id}`))
   const names = new Map()
   for (const r of rows) {
     const key = `${r.osm_type}:${r.osm_id}`
     if (want.has(key)) names.set(key, JSON.parse(r.el).tags?.name)
   }
-  return sentinels.filter(s => names.get(`${OSM_TYPE[s.type]}:${s.id}`) !== s.name)
+  return sentinels.filter(s => names.get(`${OSM_TYPE_CODE[s.type]}:${s.id}`) !== s.name)
 }
 
 // ─── Coverage (.poly) ────────────────────────────────────────────
@@ -280,7 +264,6 @@ export function inPoly(rings, lon, lat) {
   return rings.some(r => !r.hole && inRing(r.pts, lon, lat)) && !rings.some(r => r.hole && inRing(r.pts, lon, lat))
 }
 
-/** Cells whose four corners are all inside at least one of the polygons. */
 /**
  * Does segment (x0,y0)-(x1,y1) touch the rectangle? Liang-Barsky clipping;
  * touching an edge counts (conservative: that cell is then not covered).
@@ -373,13 +356,16 @@ export function buildId(region, osmTimestamp) {
   return `${region}-${d.toISOString().replace(/[-:]/g, '').slice(0, 13)}Z`
 }
 
+const MAX_DRIFT = 0.1 // per-key change vs the previous build
+const MIN_KEY_COUNT = 50 // keys smaller than this before are too noisy to judge
+
 /**
  * Local gates (plan §3 step 5). Returns human-readable failures; empty = pass.
  * `missing` = missingSentinels(). Sentinels: 90%, the coordinator's decision
  * in the plan's critic rounds (round 2 item 8, round 3); the loader's G5 uses
  * the same 90%.
  */
-export function gateFailures(m, prev, { minRows = 150000, minSentinelRatio = 0.9, maxDrift = 0.1, minKeyCount = 50 } = {}, { missing = [] } = {}) {
+export function gateFailures(m, prev, { minRows = 150000, minSentinelRatio = 0.9 } = {}, { missing = [] } = {}) {
   const fails = []
   if (m.row_count < minRows) fails.push(`row_count ${m.row_count} < ${minRows}`)
   if (m.sentinels_total && m.sentinels_found / m.sentinels_total < minSentinelRatio) {
@@ -387,9 +373,9 @@ export function gateFailures(m, prev, { minRows = 150000, minSentinelRatio = 0.9
   }
   if (m.large_count > MAX_LARGE) fails.push(`large_count ${m.large_count} > ${MAX_LARGE} (elements in cell ${LARGE_CELL})`)
   for (const [k, before] of Object.entries(prev?.per_key_counts || {})) {
-    if (before < minKeyCount) continue
+    if (before < MIN_KEY_COUNT) continue
     const now = m.per_key_counts[k] || 0
-    if (Math.abs(now / before - 1) > maxDrift) fails.push(`${k} ${before} -> ${now} (over ±${maxDrift * 100}%)`)
+    if (Math.abs(now / before - 1) > MAX_DRIFT) fails.push(`${k} ${before} -> ${now} (over ±${MAX_DRIFT * 100}%)`)
   }
   return fails
 }
@@ -411,7 +397,6 @@ export async function build({ inputs, relations = [], polys, osmTimestamp, regio
     photo_count: 0, // Phase 5 (photos.mjs)
     sentinels_found: sentinels.length - missing.length,
     sentinels_total: sentinels.length,
-    max_extent_deg: rows.reduce((mx, r) => Math.max(mx, extentDeg(r)), 0), // largest bbox side, for the record
     large_count: rows.filter(r => r.cell === LARGE_CELL).length,
   }
   writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 1))
@@ -442,7 +427,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
     prevManifest, sentinels, gates,
   })
   console.log(JSON.stringify({
-    build_id: manifest.build_id, rows: manifest.row_count, chunks: manifest.chunks.length, coverage_cells: coverage.length, max_extent_deg: manifest.max_extent_deg, large_count: manifest.large_count,
+    build_id: manifest.build_id, rows: manifest.row_count, chunks: manifest.chunks.length, coverage_cells: coverage.length, large_count: manifest.large_count,
     sentinels: `${manifest.sentinels_found}/${manifest.sentinels_total}`, secs: (Date.now() - t0) / 1000,
   }))
   if (failures.length) {

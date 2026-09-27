@@ -76,8 +76,7 @@ jobs:
       # Draft first, every asset uploaded and counted, then published: the
       # loader only ever sees a complete release. A leftover draft from a
       # failed run is deleted and recreated (drafts have no tag to clean up).
-      # Already published (same extract as a previous run): its manifest is
-      # what the loader reads, so its chunk count is used, and a local build
+      # Already published (same extract as a previous run): a local build
       # with different chunk hashes fails loudly rather than loading a mix.
       - name: Publish release
         id: publish
@@ -96,10 +95,8 @@ jobs:
               exit 1
             fi
             echo "$tag already published with identical chunks (extract unchanged since the last run)"
-            echo "chunks=$(jq '.chunks | length' "$RUNNER_TEMP/published-manifest.json")" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "chunks=$(jq '.chunks | length' "$WORK/out/manifest.json")" >> "$GITHUB_OUTPUT"
           if [ "$draft" = true ]; then gh release delete "$tag" --yes; fi
           gh release create "$tag" --draft --title "POI build $id" \
             --notes "Place data derived from OpenStreetMap. © OpenStreetMap contributors, available under the Open Database Licence (ODbL 1.0): https://www.openstreetmap.org/copyright"
@@ -112,67 +109,22 @@ jobs:
           fi
           gh release edit "$tag" --draft=false
 
-      # Retries 5xx (503 + Retry-After included), timeouts, network errors and
-      # a busy lock (4xx with {"retry":true}), backing off 15, 30 .. 75 s
-      # (~3.75 min over 6 tries); any other 4xx (bad build, 422 gate) stops. begin says noop when this build
-      # is already active, and chunks_loaded when resuming a partial load.
+      # scripts/poi/load.mjs: begin (noop when this build is already active,
+      # resumes from chunks_loaded), every chunk, finalize. Retries network
+      # errors, 5xx, 429 and a busy lock (409 {"retry":true}) with backoff; any
+      # other 4xx (bad build, 422 gate) stops. Exit 0 only when the build is live.
       - name: Load into the database
         id: load
         if: ${{ github.event_name == 'schedule' || inputs.load }}
         env:
           POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
           BUILD_ID: ${{ steps.publish.outputs.build_id }}
-          CHUNKS: ${{ steps.publish.outputs.chunks }}
         run: |
           if [ -z "$POI_LOAD_SECRET" ]; then
             echo "POI_LOAD_SECRET is not set but a load was requested. Add the secret, or run workflow_dispatch with load=false to publish only." >&2
             exit 1
           fi
-          post() {
-            for attempt in 1 2 3 4 5 6; do
-              rm -f "$RUNNER_TEMP/resp.json"
-              # curl's exit status and the HTTP code are separate: a timeout or
-              # dropped connection (non-zero exit) is retried like a 5xx
-              if code=$(curl -sS -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' --max-time 150 -X POST \
-                  -H "Authorization: Bearer ${POI_LOAD_SECRET}" \
-                  "https://www.go-roam.uk/api/admin/poi-load?build=${BUILD_ID}&$1"); then rc=0; else rc=$?; fi
-              if [ "$rc" != 0 ]; then
-                echo "step $1: curl exit $rc, retry $attempt" >&2
-              else
-                case "$code" in
-                  2??) cat "$RUNNER_TEMP/resp.json"; echo; return 0 ;;
-                  5??) echo "step $1: HTTP $code, retry $attempt" >&2 ;;
-                  *)
-                    # 409 {retry:true}: the loader's lock is busy (e.g. a frozen
-                    # instance after a 504); it frees itself. Any other 4xx is fatal.
-                    if jq -e '.retry == true' "$RUNNER_TEMP/resp.json" > /dev/null 2>&1; then
-                      echo "step $1: HTTP $code (busy, retryable), retry $attempt" >&2
-                    else
-                      echo "step $1: HTTP $code" >&2; cat "$RUNNER_TEMP/resp.json" >&2 2>/dev/null; echo >&2; return 1
-                    fi ;;
-                esac
-              fi
-              sleep $(( attempt * ${RETRY_DELAY_S:-15} ))
-            done
-            echo "step $1: gave up after retries" >&2
-            return 1
-          }
-          post "step=begin" > "$RUNNER_TEMP/begin.json"
-          cat "$RUNNER_TEMP/begin.json"
-          if [ "$(jq -r '.noop // false' "$RUNNER_TEMP/begin.json")" = true ]; then
-            echo "$BUILD_ID is already active: nothing to load"
-            echo "active=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          start=$(jq -r '.chunks_loaded // 0' "$RUNNER_TEMP/begin.json")
-          for i in $(seq "$start" $((CHUNKS - 1))); do post "step=chunk&i=$i"; done
-          post "step=finalize" > "$RUNNER_TEMP/finalize.json"
-          cat "$RUNNER_TEMP/finalize.json"
-          if [ "$(jq -r '.status // ""' "$RUNNER_TEMP/finalize.json")" != active ]; then
-            echo "$BUILD_ID did not go live (finalize gates): the previous build keeps serving" >&2
-            exit 1
-          fi
-          echo "active=true" >> "$GITHUB_OUTPUT"
+          node scripts/poi/load.mjs --build "$BUILD_ID" --skip-photos && echo active=true >> "$GITHUB_OUTPUT"
 
       # Only after this run's build went live. Keeps the newest 7 plus whatever
       # the database says is active and previous (a rollback can make an old

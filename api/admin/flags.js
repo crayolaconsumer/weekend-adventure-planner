@@ -26,27 +26,19 @@ const DEFAULTS = Object.freeze({
   pushNudges: true,
 })
 
-async function readEffective() {
-  const effective = { ...DEFAULTS }
-  if (!isCacheEnabled()) return effective
-  try {
-    const stored = await cacheGet(KV_FLAGS_KEY)
-    if (stored && typeof stored === 'object') {
-      for (const k of Object.keys(DEFAULTS)) {
-        if (typeof stored[k] === 'boolean') effective[k] = stored[k]
-      }
-    }
-  } catch {
-    // fall back to defaults
-  }
-  return effective
-}
+// The boolean flags this editor controls, from a stored blob (defaults for anything else)
+const effective = stored =>
+  Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, typeof stored?.[k] === 'boolean' ? stored[k] : DEFAULTS[k]]))
 
 async function handler(req, res) {
   if (!(await guardAdmin(req, res, { key: 'admin-flags-ip', limit: RATE_LIMITS.API_GENERAL }))) return
 
   if (req.method === 'GET') {
-    return res.status(200).json({ flags: await readEffective(), defaults: DEFAULTS, kvEnabled: isCacheEnabled() })
+    let stored = null
+    if (isCacheEnabled()) {
+      try { stored = await cacheGet(KV_FLAGS_KEY) } catch { /* fall back to defaults */ }
+    }
+    return res.status(200).json({ flags: effective(stored), defaults: DEFAULTS, kvEnabled: isCacheEnabled() })
   }
 
   if (req.method === 'POST' || req.method === 'PUT') {
@@ -69,9 +61,8 @@ async function handler(req, res) {
     } catch {
       return res.status(503).json({ error: 'Could not read current flags; nothing written' })
     }
-    const current = await readEffective()
+    const current = effective(stored)
     const next = { ...(stored || {}) }
-    delete next.poiGen // the cache generation has its own key (roam:poiGen); never written from here
     let changed = false
     for (const k of Object.keys(DEFAULTS)) {
       if (typeof incoming[k] === 'boolean' && incoming[k] !== current[k]) {
@@ -81,8 +72,7 @@ async function handler(req, res) {
     }
     const ok = await cacheSet(KV_FLAGS_KEY, next, FLAG_TTL_SECONDS)
     if (!ok) return res.status(500).json({ error: 'Failed to persist flags' })
-    const flags = Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, typeof next[k] === 'boolean' ? next[k] : DEFAULTS[k]]))
-    return res.status(200).json({ flags, defaults: DEFAULTS, changed, note: 'Live within ~60s (cache TTLs).' })
+    return res.status(200).json({ flags: effective(next), defaults: DEFAULTS, changed, note: 'Live within ~60s (cache TTLs).' })
   }
 
   return NOT_FOUND(res)

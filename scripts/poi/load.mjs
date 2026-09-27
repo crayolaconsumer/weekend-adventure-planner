@@ -13,21 +13,21 @@
  *
  * Exit codes: 0 live, 1 gates failed or a step gave up, 2 bad usage.
  */
+import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 
 const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z$/
-const DEFAULT_BASE = 'https://www.go-roam.uk'
-const ORIGIN = 'https://www.go-roam.uk'
+const BASE = 'https://www.go-roam.uk'
 export const MAX_ATTEMPTS = 8 // backoff 2..128 s outlasts a lock held ~150 s by a killed function
 
 // Worth retrying: network errors, 5xx, rate limits and a busy lock. Anything
 // else (bad sha, gates failed, out of order) is a verdict, not a blip.
 const retryable = (status, body) => status >= 500 || status === 429 || (status === 409 && body?.retry)
 
-export async function run({ build, base = DEFAULT_BASE, secret, adminToken, force = false, skipPhotos = false,
+export async function run({ build, base = BASE, secret, adminToken, force = false, skipPhotos = false,
   fetchImpl = fetch, sleep = ms => new Promise(r => setTimeout(r, ms)), log = console.log }) {
   const headers = force
-    ? { Authorization: `Bearer ${adminToken}`, Origin: ORIGIN }
+    ? { Authorization: `Bearer ${adminToken}`, Origin: BASE }
     : { Authorization: `Bearer ${secret}` }
 
   async function step(params) {
@@ -76,21 +76,21 @@ export async function run({ build, base = DEFAULT_BASE, secret, adminToken, forc
   return 0
 }
 
-function arg(name) {
-  const i = process.argv.indexOf(`--${name}`)
-  return i === -1 ? undefined : process.argv[i + 1]
-}
-
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  const build = arg('build')
-  const force = process.argv.includes('--force')
+  let a = {}
+  try {
+    a = parseArgs({ options: {
+      build: { type: 'string' }, base: { type: 'string', default: BASE },
+      'skip-photos': { type: 'boolean' }, force: { type: 'boolean', default: false },
+    } }).values
+  } catch { /* usage below */ }
   const secret = process.env.POI_LOAD_SECRET
   const adminToken = process.env.ROAM_ADMIN_TOKEN
-  if (!BUILD_RE.test(build || '') || (force ? !adminToken : !secret)) {
+  if (!BUILD_RE.test(a.build || '') || (a.force ? !adminToken : !secret)) {
     console.error('usage: POI_LOAD_SECRET=... node scripts/poi/load.mjs --build <region-YYYYMMDDTHHMMZ> [--base URL] [--skip-photos]\n' +
       '       ROAM_ADMIN_TOKEN=... node scripts/poi/load.mjs --build <id> --force')
     process.exit(2)
   }
-  run({ build, base: arg('base') || DEFAULT_BASE, secret, adminToken, force, skipPhotos: process.argv.includes('--skip-photos') })
+  run({ build: a.build, base: a.base, secret, adminToken, force: a.force, skipPhotos: Boolean(a['skip-photos']) })
     .then(code => process.exit(code))
 }

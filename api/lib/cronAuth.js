@@ -7,7 +7,11 @@
 import { timingSafeEqual } from 'node:crypto'
 
 export function isAuthorizedCron(req) {
-  const secret = process.env.CRON_SECRET
+  return hasBearer(req, process.env.CRON_SECRET)
+}
+
+/** `Authorization: Bearer <secret>`, constant-time; false when the secret is unset. */
+export function hasBearer(req, secret) {
   if (!secret) return false
   const given = Buffer.from(String(req.headers?.authorization || ''))
   const expected = Buffer.from(`Bearer ${secret}`)

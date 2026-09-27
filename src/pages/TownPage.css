@@ -283,11 +283,4 @@
 /* OpenStreetMap (ODbL) data credit under the list */
 .town-data-credit {
   margin: var(--space-lg) 0 0;
-  text-align: center;
-  font-size: var(--text-xs);
-  color: var(--roam-ink-light);
-}
-
-.town-data-credit a {
-  color: inherit;
 }

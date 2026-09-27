@@ -28,7 +28,7 @@ export const config = {
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
-import { parseQuery, getPois, isCoveredNow, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
+import { parseQuery, getPois, isCovered, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
@@ -376,7 +376,7 @@ export default async function handler(req, res) {
   const poiServe = poiBucket < poiPct.serve
   // §8 log fields: rollout bucket (null = not a POI query) and last-known coverage
   // (covered is read when the line is logged, after any coverage load)
-  const poiLog = { bucket: poiPlan ? poiBucket : null, get covered() { return Boolean(poiPlan) && isCoveredNow(poiPlan) } }
+  const poiLog = { bucket: poiPlan ? poiBucket : null, get covered() { return Boolean(poiPlan) && isCovered(poiPlan) } }
   if (poiServe) {
     // The DB gets POI_DEADLINE_MS before we use the old path; a query still
     // running carries on, is killed server-side by MAX_EXECUTION_TIME, and

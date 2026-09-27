@@ -15,7 +15,6 @@ const sendEmail = vi.fn(async () => ({ sent: true }))
 const recordCronRun = vi.fn(async () => {})
 const pq = {}
 const cellPad = { value: 0.2 }
-const isLargeSpy = { fn: undefined } // undefined = the real isLarge (or a stand-in until Phase 1 exports it)
 
 vi.mock('../../../api/lib/db.js', async () => (await import('./poiFakeDb.js')).dbModule)
 vi.mock('../../../api/lib/kvCache.js', async () => (await import('./poiFakeDb.js')).kvModule)
@@ -30,10 +29,7 @@ vi.mock('../../../api/lib/poiQuery.js', () => ({
 vi.mock('../../../shared/poiCell.mjs', async orig => ({
   ...(await orig()),
   get CELL_PAD_DEG() { return cellPad.value },
-  get isLarge() {
-    if (isLargeSpy.fn !== undefined) return isLargeSpy.fn
-    return b => Math.max(b.max_lat - b.min_lat, b.max_lon - b.min_lon) / 2 > cellPad.value
-  },
+  isLarge: b => Math.max(b.max_lat - b.min_lat, b.max_lon - b.min_lon) / 2 > cellPad.value,
 }))
 
 const { poiCell } = await import('../../../shared/poiCell.mjs')
@@ -160,7 +156,6 @@ beforeEach(() => {
     buildSql: (plan, table) => ({ sql: `(SELECT /*+ MAX_EXECUTION_TIME(800) */ 0 AS g FROM ${table} LIMIT ?)`, params: plan.groups.map(g => g.limit) }),
   })
   cellPad.value = 0.2
-  isLargeSpy.fn = undefined
 })
 afterEach(() => {
   // Every request released the lock and closed its dedicated connection
@@ -300,14 +295,6 @@ describe('toPoiRow', () => {
     const c = channel(5, 'C')
     expect(() => toPoiRow({ ...c, cell: poiCell(c.lat, c.lon) })).toThrow(/LARGE/)
     expect(() => toPoiRow({ ...ok, cell: 0 })).toThrow(/poiCell/)
-  })
-  it('uses the shared isLarge (build and loader agree at the boundary), failing closed without it', () => {
-    const c = channel(5, 'C')
-    isLargeSpy.fn = vi.fn(() => false) // shared rule says "not large": the row must then carry its poiCell
-    expect(() => toPoiRow(c)).toThrow(/poiCell/)
-    expect(isLargeSpy.fn).toHaveBeenCalledWith(expect.objectContaining({ min_lat: 51, max_lon: -2.6 }))
-    isLargeSpy.fn = null
-    expect(() => toPoiRow(ok)).toThrow(/isLarge missing/)
   })
   it('measures el in bytes, not characters', () => {
     const name = '€'.repeat(22000) // 22,000 characters, 66,000 bytes
@@ -843,21 +830,14 @@ describe('finalize', () => {
     expect(scans[0].match(/SUM\(/g)).toHaveLength(12)
   })
 
-  it('G5 passes at 90% of sentinels and fails below', async () => {
-    const good = [[1, 'British Museum'], [2, 'Cafe Two'], [3, 'Cafe Three']].map(([id, name]) => ({ type: 'node', id, name }))
-    const nine = [...good, ...good, ...good]
-    withActive()
-    await load()
-    writeSentinels([...nine, { type: 'node', id: 99, name: 'Gone' }])
-    expect((await call({ step: 'finalize' })).statusCode).toBe(200)
-  })
-
-  it('G5 below 90% fails', async () => {
+  it.each([['passes at', 1, 200, []], ['fails below', 2, 422, ['G5']]])('G5 %s 90%% of sentinels', async (_label, gone, status, failed) => {
     const good = [[1, 'British Museum'], [2, 'Cafe Two'], [3, 'Cafe Three']].map(([id, name]) => ({ type: 'node', id, name }))
     withActive()
     await load()
-    writeSentinels([...good, ...good, ...good, { type: 'node', id: 98, name: 'Gone' }, { type: 'node', id: 99, name: 'Gone' }])
-    expect((await call({ step: 'finalize' })).body.report.failed).toEqual(['G5'])
+    writeSentinels([...good, ...good, ...good, ...Array.from({ length: gone }, (_, n) => ({ type: 'node', id: 98 + n, name: 'Gone' }))])
+    const res = await call({ step: 'finalize' })
+    expect(res.statusCode).toBe(status)
+    expect(res.body.report.failed).toEqual(failed)
   })
 
   it('finalize refuses a failed build without an admin force', async () => {
@@ -898,6 +878,53 @@ describe('scripts/poi/load.mjs', () => {
     })
     expect(await run({ build: BUILD, secret: 's', fetchImpl, sleep: async () => {}, log: () => {} })).toBe(1)
     expect(fetchImpl).toHaveBeenCalledTimes(3)
+  })
+
+  // The workflow's Load step is `load.mjs ... && echo active=true`: exit codes are its contract
+  const cli = async (respond, extra = {}) => {
+    const { run, MAX_ATTEMPTS } = await import('../../../scripts/poi/load.mjs')
+    const calls = []
+    const lines = []
+    const fetchImpl = vi.fn(async url => {
+      const q = Object.fromEntries(new URL(url).searchParams)
+      calls.push(q.step + (q.i ?? ''))
+      return respond(q, calls.length)
+    })
+    const code = await run({ build: BUILD, secret: SECRET, skipPhotos: true, fetchImpl, sleep: async () => {}, log: l => lines.push(l), ...extra })
+    expect(lines.join('\n')).not.toContain(SECRET)
+    return { code, calls, MAX_ATTEMPTS }
+  }
+
+  it('begin says noop (already active): exit 0 with nothing else sent', async () => {
+    const r = await cli(() => json(200, { build: BUILD, status: 'active', noop: true }))
+    expect(r.code).toBe(0)
+    expect(r.calls).toEqual(['begin'])
+  })
+
+  it('retries a network error or timeout, then carries on', async () => {
+    const r = await cli((q, n) => {
+      if (n === 1) throw new TypeError('fetch failed')
+      if (n === 2) throw new DOMException('The operation timed out.', 'TimeoutError')
+      if (q.step === 'begin') return json(200, { chunks_loaded: 0, chunks_total: 1 })
+      if (q.step === 'finalize') return json(200, { status: 'active', report: { gates: [] } })
+      return json(200, { rows: 1 })
+    })
+    expect(r.code).toBe(0)
+    expect(r.calls).toEqual(['begin', 'begin', 'begin', 'chunk0', 'finalize'])
+  })
+
+  it('gives up after MAX_ATTEMPTS with a non-zero exit', async () => {
+    const r = await cli(() => { throw new TypeError('fetch failed') })
+    expect(r.code).not.toBe(0)
+    expect(r.calls).toHaveLength(r.MAX_ATTEMPTS)
+  })
+
+  it.each([
+    [409, { error: 'Chunks load in order; next is 0' }], [409, { retry: false }], [422, { error: 'bad chunk' }], [401, null],
+  ])('a chunk %i without retry:true fails at once, no retry, no finalize', async (status, body) => {
+    const r = await cli(q => (q.step === 'begin' ? json(200, { chunks_loaded: 0, chunks_total: 2 }) : json(status, body)))
+    expect(r.code).not.toBe(0)
+    expect(r.calls).toEqual(['begin', 'chunk0'])
   })
 })
 

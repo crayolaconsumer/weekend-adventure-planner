@@ -19,14 +19,12 @@
 import { randomUUID } from 'node:crypto'
 import { withCors } from '../lib/cors.js'
 import { guardAdmin } from '../lib/adminGuard.js'
-import { withPoiLock, reconcile, recover, flushPoiGen, BUILD_RE, q, q1, u } from './poi-load.js'
+import { withPoiLock, reconcile, recover, flushPoiGen, tableOwners, retryLater, isLockWaitTimeout, BUILD_RE, q, q1, u } from './poi-load.js'
 
 export const ROLLBACK_SQL = [
   'DROP TABLE IF EXISTS pois_failed, poi_photos_failed',
   'RENAME TABLE pois TO pois_failed, pois_prev TO pois, poi_photos TO poi_photos_failed, poi_photos_prev TO poi_photos',
 ]
-
-class Busy extends Error {}
 
 async function handler(req, res) {
   if (!(await guardAdmin(req, res, { key: 'admin-poi-rollback-ip' }))) return
@@ -44,9 +42,7 @@ async function handler(req, res) {
       const before = await recover()
       // A real previous build only: after the very first swap pois_prev holds the
       // empty migration tables (no COMMENT), and "rolling back" would blank Discover
-      const owners = Object.fromEntries((await q(
-        `SELECT table_name AS name, table_comment AS owner FROM information_schema.tables
-         WHERE table_schema = DATABASE() AND table_name IN ('pois_prev', 'poi_photos_prev')`)).map(r => [r.name, r.owner]))
+      const owners = await tableOwners(['pois_prev', 'poi_photos_prev'])
       const prevId = owners.pois_prev
       if (!BUILD_RE.test(prevId || '') || owners.poi_photos_prev !== prevId) return null
       const prevRow = await q1('SELECT status FROM poi_builds WHERE build_id = ?', [prevId])
@@ -56,7 +52,7 @@ async function handler(req, res) {
       try {
         for (const sql of ROLLBACK_SQL) await conn.query(sql)
       } catch (err) {
-        if (err?.errno === 1205 || err?.code === 'ER_LOCK_WAIT_TIMEOUT') throw new Busy()
+        if (isLockWaitTimeout(err)) throw retryLater('Rollback waited too long for readers; try again')
         throw err
       }
       const active = await reconcile()
@@ -65,10 +61,6 @@ async function handler(req, res) {
     if (!out) return res.status(409).json({ error: 'No previous build to roll back to' })
     return res.status(200).json(out)
   } catch (err) {
-    if (err instanceof Busy) {
-      res.setHeader('Retry-After', '5')
-      return res.status(503).json({ error: 'Rollback waited too long for readers; try again', retry: true })
-    }
     if (err?.status === 409 || err?.status === 503) {
       if (err.status === 503) res.setHeader('Retry-After', '5')
       return res.status(err.status).json({ error: err.message, retry: true })

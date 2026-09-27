@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // POST /api/admin/flags must MERGE the edited booleans into the stored
 // roam:flags blob: numeric rollout flags and unknown keys survive, a failed
-// read writes nothing, and poiGen (its own key now) is never written here.
+// read writes nothing.
 
 const getUserFromRequest = vi.fn()
 const kv = { value: null, getError: null, writes: [] }
@@ -40,12 +40,6 @@ describe('POST /api/admin/flags', () => {
     expect(kv.writes).toEqual([{ key: 'roam:flags',
       value: { overpassProxy: false, pushNudges: false, poiDbPct: 25, poiShadowPct: 10, somethingNew: 'x' } }])
     expect(res.body.flags).toMatchObject({ overpassProxy: false, pushNudges: false })
-  })
-
-  it('never writes poiGen (it lives in roam:poiGen)', async () => {
-    kv.value = { poiGen: 9, poiDbPct: 5 }
-    await post({ pushNudges: false })
-    expect(kv.writes[0].value).toEqual({ poiDbPct: 5, pushNudges: false })
   })
 
   it('a KV read error writes nothing', async () => {

@@ -7,14 +7,15 @@ import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { Readable } from 'node:stream'
 import { trimOverpassResponse } from '../../../api/lib/overpassTrim.js'
-import { CELL_PAD_DEG, LARGE_CELL, isLarge, poiCell } from '../../../shared/poiCell.mjs'
+import { LARGE_CELL, poiCell } from '../../../shared/poiCell.mjs'
 import {
-  CHUNK_ROWS, build, buildId, buildRows, buildRowsFromStreams, coverageCells, decodeId, extentDeg, featureToRow,
+  CHUNK_ROWS, build, buildId, buildRowsFromStreams, coverageCells, decodeId, featureToRow,
   MAX_LARGE, gateFailures, inPoly, missingSentinels, parsePoly, segmentTouchesRect, readOplRelations, writeChunks,
 } from '../../../scripts/poi/build.mjs'
 import { makeMatcher } from '../../../scripts/poi/filter.mjs'
 
 const match = makeMatcher()
+const buildRows = features => buildRowsFromStreams([features], match)
 
 // Real Rutland fixture: Oakham Castle as osmium exports it (closed way ->
 // w<id> LineString AND a<id*2> area), and what live Overpass returned for it.
@@ -114,36 +115,28 @@ describe('LARGE_CELL bucket (elements wider than the query padding)', () => {
     expect(JSON.parse(row.el).center).toEqual({ lat: 51.25, lon: -3.375 })
   })
 
-  it('exactly 2 × CELL_PAD_DEG wide stays in its centre cell; a hair wider does not', () => {
-    const edge = wide(1, 2 * CELL_PAD_DEG)
-    expect(extentDeg(edge)).toBeCloseTo(0.4)
-    expect(isLarge(edge)).toBe(false)
-    expect(edge.cell).toBe(poiCell(edge.lat, edge.lon))
-    expect(wide(2, 2 * CELL_PAD_DEG + 0.001).cell).toBe(LARGE_CELL)
-  })
-
   it('a normal park keeps its centre cell', () => {
     const park = featureToRow({ id: 'w372975520', properties: { leisure: 'park', name: 'Hyde Park' }, geometry: { type: 'LineString', coordinates: [[-0.1878, 51.5025], [-0.1527, 51.5118]] } }, match)
     expect(park.cell).toBe(poiCell(park.lat, park.lon))
     expect(park.cell).not.toBe(LARGE_CELL)
   })
 
-  it('cell-0 rows sort first', () => {
-    const rows = buildRows([node(1, -0.1, 51.5, { amenity: 'cafe', name: 'A' }), { id: 'w9', properties: { natural: 'bay', name: 'Big' }, geometry: { type: 'LineString', coordinates: [[-5, 51], [-3, 51.1]] } }], match)
+  it('cell-0 rows sort first', async () => {
+    const rows = await buildRows([node(1, -0.1, 51.5, { amenity: 'cafe', name: 'A' }), { id: 'w9', properties: { natural: 'bay', name: 'Big' }, geometry: { type: 'LineString', coordinates: [[-5, 51], [-3, 51.1]] } }])
     expect(rows.map(r => r.cell)).toEqual([0, poiCell(51.5, -0.1)])
   })
 })
 
-describe('buildRows', () => {
-  it('dedupes by (type, id) and sorts by (cell, osm_type, osm_id)', () => {
-    const rows = buildRows([
+describe('buildRowsFromStreams', () => {
+  it('dedupes by (type, id) and sorts by (cell, osm_type, osm_id)', async () => {
+    const rows = await buildRows([
       oakhamLine, oakhamArea,
       node(900, -0.72743, 52.671, { amenity: 'cafe', name: 'Same cell, node' }),
       node(5, -0.72743, 52.671, { amenity: 'cafe', name: 'Same cell, lower id' }),
       node(5, -0.72743, 52.671, { amenity: 'cafe', name: 'Duplicate from 2nd extract' }),
       node(7, -3.19, 55.95, { historic: 'castle', name: 'North' }),
       node(8, -5.93, 54.6, { amenity: 'pub', name: 'West' }),
-    ], match)
+    ])
     expect(rows.map(r => `${r.osm_type}/${r.osm_id}`)).toEqual(['1/5', '1/900', '2/417617998', '1/8', '1/7'])
     expect(el(rows[0]).tags.name).toBe('Same cell, lower id')
     for (let i = 1; i < rows.length; i++) expect(rows[i].cell).toBeGreaterThanOrEqual(rows[i - 1].cell)
@@ -151,11 +144,11 @@ describe('buildRows', () => {
 })
 
 describe('dedupe across extracts', () => {
-  it('keeps the copy with the larger bounds (the complete relation), whichever came first', () => {
+  it('keeps the copy with the larger bounds (the complete relation), whichever came first', async () => {
     const cut = { id: 'a8055165', properties: { natural: 'water', name: 'Lough' }, geometry: { type: 'MultiPolygon', coordinates: [[[[-6, 54], [-5.9, 54], [-5.9, 54.1], [-6, 54]]]] } }
     const full = { ...cut, geometry: { type: 'MultiPolygon', coordinates: [[[[-6.2, 54], [-5.9, 54], [-5.9, 54.2], [-6.2, 54]]]] } }
     for (const order of [[cut, full], [full, cut]]) {
-      const [row] = buildRows(order, match)
+      const [row] = await buildRows(order)
       expect(row).toMatchObject({ min_lon: -6.2, max_lat: 54.2 })
     }
   })
@@ -312,8 +305,8 @@ describe('gates and ids', () => {
     expect(gateFailures({ ...m, sentinels_found: 30 }, null)).toHaveLength(1)
   })
 
-  it('lists missing sentinels by type, id and exact name', () => {
-    const rows = buildRows([oakhamArea], match)
+  it('lists missing sentinels by type, id and exact name', async () => {
+    const rows = await buildRows([oakhamArea])
     const wanted = [{ type: 'way', id: 417617998, name: 'Oakham Castle' }, { type: 'relation', id: 417617998, name: 'Oakham Castle' }, { type: 'way', id: 417617998, name: 'Other' }]
     expect(missingSentinels(rows, wanted)).toEqual(wanted.slice(1))
   })
@@ -343,9 +336,8 @@ describe('build (end to end on files)', () => {
     expect(failures).toEqual([])
     const onDisk = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'))
     expect(onDisk).toEqual(manifest)
-    expect(Object.keys(manifest)).toEqual(['build_id', 'schema_version', 'osm_timestamp', 'chunks', 'row_count', 'per_key_counts', 'photo_count', 'sentinels_found', 'sentinels_total', 'max_extent_deg', 'large_count'])
+    expect(Object.keys(manifest)).toEqual(['build_id', 'schema_version', 'osm_timestamp', 'chunks', 'row_count', 'per_key_counts', 'photo_count', 'sentinels_found', 'sentinels_total', 'large_count'])
     expect(manifest.large_count).toBe(0)
-    expect(manifest.max_extent_deg).toBeCloseTo(0.03) // the OPL wood relation, 0.03° wide
     expect(manifest).toMatchObject({ build_id: 'uk-20260926T2022Z', schema_version: 1, osm_timestamp: '2026-09-26T20:22:51.000Z', row_count: 3, photo_count: 0, sentinels_found: 1, sentinels_total: 1 })
     expect(manifest.per_key_counts).toEqual({ 'amenity=cafe': 1, 'historic=castle': 1, 'natural=wood': 1 })
     expect(manifest.chunks).toHaveLength(1)

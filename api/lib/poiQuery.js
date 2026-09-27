@@ -29,22 +29,20 @@
  */
 import { getPool } from './db.js'
 import { cacheGet } from './kvCache.js'
-import { cellRanges, CELL_PAD_DEG, LARGE_CELL } from '../../shared/poiCell.mjs'
+import { cellRanges, CELL_PAD_DEG, LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, SCHEMA_VERSION } from '../../shared/poiCell.mjs'
 // The build's own osmium filter: a key=value outside it isn't in the table
-import { filterPairs } from '../../scripts/poi/filter.mjs'
+import { POI_KEYS, filterPairs } from '../../scripts/poi/filter.mjs'
 
 // Must equal poi_builds.schema_version and the build manifest (loader gate G1)
-export const POI_SCHEMA_VERSION = 1
+export const POI_SCHEMA_VERSION = SCHEMA_VERSION
 
-const KEYS = new Set(['amenity', 'tourism', 'leisure', 'historic', 'shop', 'natural', 'man_made'])
+const KEYS = new Set(POI_KEYS)
 const TYPE_CODES = { node: [1], way: [2], relation: [3], nw: [1, 2], nwr: [1, 2, 3] }
-const TYPE_NAMES = { 1: 'node', 2: 'way', 3: 'relation' }
 const CENTER_OUTS = new Set(['out center', 'out tags center', 'out body center'])
 const VALUE = /^[a-z0-9_]+$/
 const MAX_LIMIT = 1000
-let supported = null
-// key -> Set of values the build keeps (computed once, on first parse)
-const supportedValues = key => (supported ||= new Map([...filterPairs()].map(([k, vs]) => [k, new Set(vs)]))).get(key)
+// key -> Set of values the build keeps
+const SUPPORTED = new Map([...filterPairs()].map(([k, vs]) => [k, new Set(vs)]))
 // Largest bbox we answer. The app's biggest single query is 75 km (large
 // radii are tiled at 35 km): 1.36 deg of latitude, 2.8 deg of longitude at
 // Shetland. 100 km fits across mainland UK. Anything bigger takes the old path.
@@ -142,7 +140,7 @@ function parseFilterStatement(text) {
     if (values.length === 0 || !values.every(v => VALUE.test(v))) return null
     // Every requested value must be one the build extracts, or the answer
     // would silently miss it (amenity=bank is not in the table)
-    if (!values.every(v => supportedValues(key)?.has(v))) return null
+    if (!values.every(v => SUPPORTED.get(key)?.has(v))) return null
     stmt.keys[key] = [...new Set(values)]
   }
   // Without a key filter it would mean "everything named here", which the POI
@@ -152,14 +150,13 @@ function parseFilterStatement(text) {
 
 function parseIdStatement(text) {
   const m = /^(node|way|relation)\((\d{1,15})\)$/.exec(text)
-  return m ? { type: TYPE_CODES[m[1]][0], id: Number(m[2]) } : null
+  return m ? { type: OSM_TYPE_CODE[m[1]], id: Number(m[2]) } : null
 }
 
 function parseOut(text) {
   if (CENTER_OUTS.has(text)) return { limit: null }
   const m = /^out tags bb (\d{1,4})$/.exec(text)
-  const limit = m && Number(m[1])
-  return limit > 0 && limit <= MAX_LIMIT ? { limit } : null
+  return m && m[1] > 0 && m[1] <= MAX_LIMIT ? { limit: Number(m[1]) } : null
 }
 
 /**
@@ -268,7 +265,7 @@ function isRequested(stmt, row) {
   if (row.osm_type !== stmt.type || Number(row.osm_id) !== stmt.id) return false
   try {
     const el = JSON.parse(row.el)
-    return el.type === TYPE_NAMES[stmt.type] && el.id === stmt.id
+    return el.type === OSM_TYPE_NAME[stmt.type] && el.id === stmt.id
   } catch {
     return false
   }
@@ -287,9 +284,9 @@ function envelope(els, osmTimestamp) {
  * string, or { truncated: true } when the answer is over MAX_BODY_BYTES (or a
  * group over SCAN_ROWS). Throws on a DB error or timeout.
  */
-export async function queryPois(plan, { table = 'pois', timeoutMs = 2500, osmTimestamp = coverage.osmTimestamp } = {}) {
-  const { sql, params } = buildSql(plan, table)
-  const [rows] = await getPool().query({ sql, timeout: timeoutMs }, params)
+export async function queryPois(plan, { osmTimestamp = coverage.osmTimestamp } = {}) {
+  const { sql, params } = buildSql(plan)
+  const [rows] = await getPool().query({ sql, timeout: 2500 }, params)
   const els = []
   const ids = []
   const perGroup = new Array(plan.groups.length).fill(0)
@@ -301,7 +298,7 @@ export async function queryPois(plan, { table = 'pois', timeoutMs = 2500, osmTim
     bytes += Buffer.byteLength(r.el) + 1
     if (bytes > MAX_BODY_BYTES) return { truncated: true }
     els.push(r.el)
-    ids.push(`${TYPE_NAMES[r.osm_type]}/${r.osm_id}`)
+    ids.push(`${OSM_TYPE_NAME[r.osm_type]}/${r.osm_id}`)
   }
   return { body: envelope(els, osmTimestamp), n: els.length, ids }
 }
@@ -386,7 +383,7 @@ async function loadCoverage(gen) {
  * load is awaited (the caller bounds it with a deadline); after that, a stale
  * copy is served while a refresh runs in the background. Never throws.
  */
-export async function getCoverage(gen = 0, deadlineAt = Infinity) {
+async function getCoverage(gen = 0, deadlineAt = Infinity) {
   // A newer generation (roam:poiGen, bumped by the loader and rollback after a
   // table swap) forces a reload now rather than in up to 5 minutes. It only
   // moves forward: an older gen (a stale flag read) never reloads, and
@@ -402,11 +399,9 @@ export async function getCoverage(gen = 0, deadlineAt = Infinity) {
   return coverage
 }
 
-/** Covered by the last-known coverage, without loading it (for logs). */
-export const isCoveredNow = plan => isCovered(plan, coverage)
-
 /** Is the plan answerable from the active build? Id lookups only need a build.
- *  Uses the unpadded bbox cells, so LARGE_CELL never takes part. */
+ *  Uses the unpadded bbox cells, so LARGE_CELL never takes part. Without
+ *  `cov`: the last-known coverage, without loading it (for logs). */
 export function isCovered(plan, cov = coverage) {
   if (!cov.cells) return false
   if (!plan.bbox) return true
@@ -469,7 +464,7 @@ function remember(cacheKey, value) {
 export async function getPois(plan, key, { useLru = true, gen = 0, deadlineAt = Infinity } = {}) {
   const cov = await getCoverage(gen, deadlineAt)
   if (cov.gen !== gen || !isCovered(plan, cov)) return null
-  const buildId = cov.buildId
+  const { buildId } = cov
   const cacheKey = `${gen}|${buildId}|${key}`
   const hit = lru.get(cacheKey)
   const fresh = hit && Date.now() - hit.at < LRU_TTL_MS
@@ -487,8 +482,7 @@ export async function getPois(plan, key, { useLru = true, gen = 0, deadlineAt = 
   const run = (async () => {
     const started = Date.now()
     try {
-      const osmTimestamp = cov.osmTimestamp
-      const result = await queryPois(plan, { osmTimestamp })
+      const result = await queryPois(plan, { osmTimestamp: cov.osmTimestamp })
       // Cache only under a build still confirmed for this generation
       const confirmed = coverage.gen === gen && coverage.buildId === buildId
       // Too slow is a failure: the caller already gave up and served the old path

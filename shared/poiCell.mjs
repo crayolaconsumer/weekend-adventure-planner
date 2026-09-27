@@ -11,6 +11,13 @@
  * superset. lat 90 and lon 180 are clamped into the last row/column.
  */
 
+/** Must equal poi_builds.schema_version and the build manifest (loader gate G1). */
+export const SCHEMA_VERSION = 1
+
+/** pois.osm_type codes, both ways. */
+export const OSM_TYPE_CODE = { node: 1, way: 2, relation: 3 }
+export const OSM_TYPE_NAME = { 1: 'node', 2: 'way', 3: 'relation' }
+
 /**
  * Ways/relations are keyed on their centre but Overpass `(bbox)` returns
  * anything that intersects the box, so the query scans this far beyond the

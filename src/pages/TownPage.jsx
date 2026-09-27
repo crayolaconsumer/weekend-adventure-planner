@@ -205,7 +205,7 @@ export default function TownPage() {
         <>
           <OsmDataCredit className="town-data-credit" />
           {/* Thumbs are too small to caption; PlaceDetail credits each photo */}
-          <p className="town-data-credit">Photos: Wikimedia Commons contributors and others, credited on each place</p>
+          <p className="osm-data-credit town-data-credit">Photos: Wikimedia Commons contributors and others, credited on each place</p>
         </>
       )}
 

@@ -31,25 +31,26 @@
  * - Live serving is only touched by the RENAME in swap().
  */
 
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { gunzipSync } from 'node:zlib'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { withCors } from '../lib/cors.js'
 import { guardAdmin } from '../lib/adminGuard.js'
+import { hasBearer } from '../lib/cronAuth.js'
 import { query, update, dedicatedConnection } from '../lib/db.js'
 import { sendEmail } from '../lib/email.js'
 import { recordCronRun } from '../lib/cronRuns.js'
 import { getClient } from '../lib/kvCache.js'
-import * as poiCellMod from '../../shared/poiCell.mjs'
+import { LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, isLarge, poiCell } from '../../shared/poiCell.mjs'
 
 export const RELEASE_BASE = 'https://github.com/crayolaconsumer/weekend-adventure-planner/releases/download/'
 export const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z$/
 const CHUNK_RE = /^chunk-\d{3}\.ndjson\.gz$/
 const FIXED_FILES = new Set(['manifest.json', 'coverage.json', 'photos.ndjson.gz'])
-export const JOB_NAME = 'poi-load'
-export const LOCK_NAME = 'roam:poi-load'
+const JOB_NAME = 'poi-load'
+const LOCK_NAME = 'roam:poi-load'
 const BATCH_ROWS = 1000
 export const MAX_DOWNLOAD_BYTES = 32 * 1024 * 1024
 const MAX_INFLATED_BYTES = 128 * 1024 * 1024
@@ -61,17 +62,16 @@ const K_COLS = ['k_amenity', 'k_tourism', 'k_leisure', 'k_historic', 'k_shop', '
 export const POI_COLS = ['cell', 'osm_type', 'osm_id', 'lat', 'lon', 'min_lat', 'min_lon', 'max_lat', 'max_lon',
   ...K_COLS, 'has_name', 'has_name_tag', 'has_wikidata', 'el']
 const PHOTO_COLS = ['photo_key', 'url', 'width', 'height', 'source', 'artist', 'license', 'license_url', 'page_url', 'checked_on']
-const TYPE_NAMES = { 1: 'node', 2: 'way', 3: 'relation' }
 
 // Row alias upsert (MySQL 8.0.19+; VALUES() in ODKU is deprecated)
 const upsertSql = (table, cols, keyCols) =>
   `INSERT INTO ${table} (${cols.join(', ')}) VALUES ? AS new ON DUPLICATE KEY UPDATE ` +
   cols.filter(c => !keyCols.includes(c)).map(c => `${c} = new.${c}`).join(', ')
 export const INSERT_POIS = upsertSql('pois_staging', POI_COLS, ['cell', 'osm_type', 'osm_id'])
-export const INSERT_PHOTOS = upsertSql('poi_photos_staging', PHOTO_COLS, ['photo_key'])
+const INSERT_PHOTOS = upsertSql('poi_photos_staging', PHOTO_COLS, ['photo_key'])
 
 // Finalize gates (plan §3). REQUIRED gates hold even under force.
-export const REQUIRED_GATES = ['G1', 'G2', 'G8']
+const REQUIRED_GATES = ['G1', 'G2', 'G8']
 const FIRST_BUILD_MIN_ROWS = 150000
 const VOLUME_MIN = 0.95
 const VOLUME_MAX = 1.10
@@ -80,14 +80,13 @@ const SENTINEL_MIN = 0.90 // as the build's local gate: one remapped sentinel mu
 const QUERY_MIN = 0.85
 const PHOTO_MIN = 0.9
 const LARGE_ALERT = 1000 // more LARGE-bucket rows than this: alert, but still load
-const largeCell = () => poiCellMod.LARGE_CELL ?? 0 // CONTRACT AMENDMENT 2
 const G6_QUERY_TIMEOUT_MS = 5000
 const GATE_SCAN_MS = 30000 // a full scan of staging (G2 count, G4 sums) on a t4g.micro
 const GATE_MARGIN_MS = 25000 // kept back from every gate query: the swap reserve plus cleanup
 const G6_BUDGET_MS = 60000 // of the 120 s function budget
 const REQUEST_BUDGET_MS = 110000 // maxDuration 120 minus a margin
 const SWAP_RESERVE_MS = 20000 // never start the RENAME with less than this left
-export const MIX_KEYS = [
+const MIX_KEYS = [
   'amenity=cafe', 'amenity=pub', 'amenity=restaurant', 'amenity=bar', 'amenity=place_of_worship',
   'leisure=park', 'leisure=garden', 'leisure=nature_reserve',
   'tourism=museum', 'tourism=attraction', 'tourism=viewpoint', 'historic=castle',
@@ -106,17 +105,9 @@ const G6_DISCOVER = [
 class LoadError extends Error {
   constructor(status, message, extra = {}) { super(message); this.status = status; this.extra = extra }
 }
-const retryLater = message => new LoadError(503, message, { retry: true })
-const isLockWaitTimeout = err => err?.errno === 1205 || err?.code === 'ER_LOCK_WAIT_TIMEOUT'
+export const retryLater = message => new LoadError(503, message, { retry: true })
+export const isLockWaitTimeout = err => err?.errno === 1205 || err?.code === 'ER_LOCK_WAIT_TIMEOUT'
 const isQueryTimeout = err => err?.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || err?.errno === 3024 || err?.code === 'ER_QUERY_TIMEOUT'
-
-export function isAuthorizedLoader(req) {
-  const secret = process.env.POI_LOAD_SECRET
-  if (!secret) return false
-  const given = Buffer.from(String(req.headers?.authorization || ''))
-  const expected = Buffer.from(`Bearer ${secret}`)
-  return given.length === expected.length && timingSafeEqual(given, expected)
-}
 
 // ─── Lock + reconcile (shared with poi-rollback.js) ─────────────
 
@@ -164,7 +155,7 @@ export async function withPoiLock(fn) {
  * shared micro instance, so if mysql2 gives up first the query is killed from
  * a fresh connection. Either way the answer is "inconclusive": retryable 503.
  */
-export async function gateQuery(sql, params, { capMs, deadline = Infinity }) {
+async function gateQuery(sql, params, { capMs, deadline = Infinity }) {
   const limitMs = Math.floor(Math.min(capMs, deadline - Date.now() - GATE_MARGIN_MS))
   if (limitMs < 1000) throw retryLater('Not enough time left to validate; re-send finalize')
   if (!/^SELECT /.test(sql)) throw new Error('gateQuery needs a SELECT')
@@ -200,14 +191,12 @@ async function killLockedQuery() {
  * displaced active build becomes previous. Returns the live build id.
  */
 export async function reconcile() {
-  const tables = await q(
-    `SELECT table_name AS name, table_comment AS owner FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name IN ('pois', 'pois_failed')`)
-  const live = tables.find(t => t.name === 'pois')?.owner
+  const owners = await tableOwners(['pois', 'pois_failed'])
+  const live = owners.pois
   if (!BUILD_RE.test(live || '')) return null
   const row = await q1('SELECT status FROM poi_builds WHERE build_id = ?', [live])
   if (!row || row.status === 'active') return live
-  const failedOwner = tables.find(t => t.name === 'pois_failed')?.owner || ''
+  const failedOwner = owners.pois_failed || ''
   // activated_at first: MySQL applies SET left to right, so status is still the old one here
   await u(
     `UPDATE poi_builds SET
@@ -218,7 +207,8 @@ export async function reconcile() {
   return live
 }
 
-async function tableOwners(names) {
+/** { table name: its COMMENT } for the named tables that exist. */
+export async function tableOwners(names) {
   const rows = await q(
     `SELECT table_name AS name, table_comment AS owner FROM information_schema.tables
      WHERE table_schema = DATABASE() AND table_name IN (${names.map(() => '?').join(', ')})`, names)
@@ -233,7 +223,7 @@ async function tableOwners(names) {
  * finalize or rollback try again.
  */
 export const KV_POI_GEN_KEY = 'roam:poiGen'
-export async function bumpPoiGen(reason) {
+async function bumpPoiGen(reason) {
   let why
   try {
     const client = getClient()
@@ -247,15 +237,19 @@ export async function bumpPoiGen(reason) {
     why = err?.message || String(err)
   }
   console.error(`[poi-load] poiGen bump after ${reason} failed: ${why}`)
-  try {
-    await sendEmail({
-      to: ALERT_EMAIL,
-      subject: '[ROAM ALERT] POI cache generation not bumped',
-      text: `After ${reason}, INCR ${KV_POI_GEN_KEY} failed (${why}). The tables changed, but instances may serve ` +
-        'cached results from the old ones. The next loader or rollback call retries automatically; INCR the key by hand to clear it now.',
-    })
-  } catch { /* already logged */ }
+  await alert('[ROAM ALERT] POI cache generation not bumped',
+    `After ${reason}, INCR ${KV_POI_GEN_KEY} failed (${why}). The tables changed, but instances may serve ` +
+    'cached results from the old ones. The next loader or rollback call retries automatically; INCR the key by hand to clear it now.')
   return null
+}
+
+/** Email James; never throws. */
+async function alert(subject, text) {
+  try {
+    await sendEmail({ to: ALERT_EMAIL, subject, text })
+  } catch (err) {
+    console.error('[poi-load] alert email failed:', err?.message || err)
+  }
 }
 
 /** INCR once for every table change still waiting for it (gen_pending). */
@@ -302,7 +296,7 @@ async function fetchRelease(build, file, { optional = false } = {}) {
 
 const isInt = (v, min, max) => Number.isInteger(v) && v >= min && v <= max
 
-export function validateManifest(m, build) {
+function validateManifest(m, build) {
   const bad = why => { throw new LoadError(422, `Bad manifest: ${why}`) }
   if (!m || typeof m !== 'object') bad('not an object')
   if (m.build_id !== build) bad('build_id mismatch')
@@ -360,7 +354,7 @@ const flag = v => v === 0 || v === 1
 export function toPoiRow(o, n = 0) {
   const bad = why => { throw new LoadError(422, `Bad row ${n}: ${why}`) }
   if (!o || typeof o !== 'object') bad('not an object')
-  if (!TYPE_NAMES[o.osm_type]) bad('osm_type')
+  if (!OSM_TYPE_NAME[o.osm_type]) bad('osm_type')
   if (!Number.isSafeInteger(o.osm_id) || o.osm_id <= 0) bad('osm_id')
   const lats = [o.lat, o.min_lat, o.max_lat]
   const lons = [o.lon, o.min_lon, o.max_lon]
@@ -368,9 +362,8 @@ export function toPoiRow(o, n = 0) {
   if (!(o.min_lat <= o.lat && o.lat <= o.max_lat && o.min_lon <= o.lon && o.lon <= o.max_lon)) bad('centre outside bounds (or min > max)')
   // Wider than the query side's cell pad: stored in the LARGE bucket, which every query scans.
   // The build's own isLarge(), so build and loader can never disagree at the boundary
-  if (typeof poiCellMod.isLarge !== 'function') bad('isLarge missing from shared/poiCell.mjs')
-  const large = poiCellMod.isLarge(o)
-  if (o.cell !== (large ? largeCell() : poiCellMod.poiCell(o.lat, o.lon))) {
+  const large = isLarge(o)
+  if (o.cell !== (large ? LARGE_CELL : poiCell(o.lat, o.lon))) {
     bad(large ? 'wide element must be in the LARGE cell' : 'cell does not match poiCell(lat, lon)')
   }
   for (const k of K_COLS) if (!strOrNull(o[k] ?? null, 48)) bad(k)
@@ -379,7 +372,7 @@ export function toPoiRow(o, n = 0) {
   if (typeof o.el !== 'string' || Buffer.byteLength(o.el, 'utf8') > 65535) bad('el')
   let el
   try { el = JSON.parse(o.el) } catch { bad('el is not JSON') }
-  if (el?.type !== TYPE_NAMES[o.osm_type] || el.id !== o.osm_id) bad('el type/id mismatch')
+  if (el?.type !== OSM_TYPE_NAME[o.osm_type] || el.id !== o.osm_id) bad('el type/id mismatch')
   const tags = el.tags || {}
   if (o.has_name_tag !== (tags.name != null ? 1 : 0)) bad('has_name_tag disagrees with el tags')
   if (o.has_name !== (tags.name != null || tags['name:en'] != null ? 1 : 0)) bad('has_name disagrees with el tags')
@@ -389,7 +382,7 @@ export function toPoiRow(o, n = 0) {
 const PHOTO_SOURCES = new Set(['wikidata', 'commons-osm', 'geograph'])
 const httpsUrl = (v, max) => typeof v === 'string' && v.length <= max && v.startsWith('https://')
 
-export function toPhotoRow(o, n = 0) {
+function toPhotoRow(o, n = 0) {
   const bad = why => { throw new LoadError(422, `Bad photo row ${n}: ${why}`) }
   if (!o || typeof o !== 'object') bad('not an object')
   if (!strOrNull(o.photo_key, 64) || o.photo_key === null) bad('photo_key')
@@ -477,7 +470,7 @@ async function chunk(build, i) {
     const manifest = await pinnedManifest(build, row)
     const meta = manifest.chunks[i]
     const gz = await fetchRelease(build, meta.name)
-    if (createHash('sha256').update(gz).digest('hex') !== meta.sha256) throw new LoadError(422, `sha256 mismatch for ${meta.name}`)
+    if (sha256(gz) !== meta.sha256) throw new LoadError(422, `sha256 mismatch for ${meta.name}`)
     const rows = ndjson(gz).map(toPoiRow)
     if (rows.length !== meta.rows) throw new LoadError(422, `${meta.name} has ${rows.length} rows, manifest says ${meta.rows}`)
     await upsertBatches(INSERT_POIS, rows)
@@ -504,7 +497,7 @@ async function loadPoiQuery() {
   try { return { mod: await import('../lib/poiQuery.js') } } catch (err) { return { error: err?.message || String(err) } }
 }
 
-export async function loadSentinels() {
+async function loadSentinels() {
   try {
     const list = JSON.parse(await readFile(join(process.cwd(), 'scripts', 'poi', 'sentinels.json'), 'utf8'))
     return Array.isArray(list) ? list : null
@@ -513,12 +506,10 @@ export async function loadSentinels() {
   }
 }
 
-const TYPE_CODES = { node: 1, way: 2, relation: 3, n: 1, w: 2, r: 3 }
+// sentinels.json: [{ type: 'node'|'way'|'relation', id, name }]
 function normaliseSentinel(s) {
-  const t = s?.osm_type ?? s?.type
-  const type = TYPE_CODES[t] || (TYPE_NAMES[t] ? t : null)
-  const id = Number(s?.osm_id ?? s?.id)
-  return type && Number.isSafeInteger(id) && typeof s.name === 'string' ? { type, id, name: s.name } : null
+  const type = OSM_TYPE_CODE[s?.type]
+  return type && Number.isSafeInteger(s.id) && typeof s.name === 'string' ? { type, id: s.id, name: s.name } : null
 }
 
 /**
@@ -528,7 +519,7 @@ function normaliseSentinel(s) {
  * `out ... N` limit, as served. The reader's MAX_EXECUTION_TIME hint is
  * dropped: this runs with its own timeout. Throws on DB error or timeout.
  */
-export async function exactCount(buildSql, plan, table, deadline = Infinity) {
+async function exactCount(buildSql, plan, table, deadline = Infinity) {
   const uncapped = { ...plan, groups: plan.groups.map(g => ({ ...g, limit: g.limit || 1e9 })) }
   const { sql, params } = buildSql(uncapped, table)
   // The reader's own hint is only legal on a top-level SELECT: ours goes on the outer one
@@ -577,7 +568,7 @@ async function gateRealQueries(pq, hasActive, requestDeadline) {
   return { pass: failures.length === 0, detail: { checked: samples.length, failures } }
 }
 
-export async function runGates(build, row, manifest, requestDeadline = Infinity) {
+async function runGates(build, row, manifest, requestDeadline = Infinity) {
   const gates = []
   const gate = (id, name, pass, detail) => gates.push({ id, name, pass, detail })
   // The active build's figures were stored when it went live: no full scans of the live table
@@ -630,7 +621,7 @@ export async function runGates(build, row, manifest, requestDeadline = Infinity)
       try { tags = JSON.parse(r.el).tags || {} } catch { /* counts as missing */ }
       return [`${Number(r.osm_type)}/${Number(r.osm_id)}`, [tags.name, tags['name:en']]]
     }))
-    const missing = sentinels.filter(x => !names.get(`${x.type}/${x.id}`)?.includes(x.name)).map(x => `${TYPE_NAMES[x.type]}/${x.id} ${x.name}`)
+    const missing = sentinels.filter(x => !names.get(`${x.type}/${x.id}`)?.includes(x.name)).map(x => `${OSM_TYPE_NAME[x.type]}/${x.id} ${x.name}`)
     const ratio = (sentinels.length - missing.length) / sentinels.length
     gate('G5', 'sentinels', ratio >= SENTINEL_MIN, { found: sentinels.length - missing.length, total: sentinels.length, missing })
   }
@@ -643,7 +634,7 @@ export async function runGates(build, row, manifest, requestDeadline = Infinity)
   gate('G7', 'photos', photoActive === 0 || photoStaging >= PHOTO_MIN * photoActive, { staging: photoStaging, active: photoActive })
 
   // Every wide element must be in the LARGE bucket, or queries near its edges miss it (cheap: cell leads the PK)
-  const largeStaging = Number((await gateOne('SELECT COUNT(*) AS n FROM pois_staging WHERE cell = ?', [largeCell()], scan))?.n || 0)
+  const largeStaging = Number((await gateOne('SELECT COUNT(*) AS n FROM pois_staging WHERE cell = ?', [LARGE_CELL], scan))?.n || 0)
   gate('G8', 'large bucket', largeStaging === manifest.large_count, { staging: largeStaging, manifest: manifest.large_count })
   const warnings = largeStaging > LARGE_ALERT ? [`${largeStaging} rows in the LARGE bucket (alert above ${LARGE_ALERT}); every query scans them`] : []
 
@@ -658,7 +649,7 @@ export async function runGates(build, row, manifest, requestDeadline = Infinity)
 }
 
 /** The swap: nothing is dropped until the new build is live, so a failed RENAME leaves every rollback target. */
-export function swapSql(prevTables) {
+function swapSql(prevTables) {
   const displaced = ['pois_prev', 'poi_photos_prev'].filter(t => prevTables.includes(t)).map(t => `${t} TO ${t.replace('_prev', '_old')}`)
   return [
     'DROP TABLE IF EXISTS pois_old, poi_photos_old', // leftovers of an earlier interrupted swap, never a rollback target
@@ -683,33 +674,6 @@ async function swap(conn, build) {
      WHERE status = 'active' OR build_id = ?`, [build, build, build])
   await conn.query('DROP TABLE IF EXISTS pois_old, poi_photos_old')
     .catch(err => console.error('[poi-load] dropping the displaced previous build failed:', err?.message || err))
-}
-
-async function alertWarnings(build, report) {
-  try {
-    await sendEmail({
-      to: ALERT_EMAIL,
-      subject: `[ROAM WARNING] POI build ${build} went live with warnings`,
-      text: `The place database build ${build} passed its gates and is live, but:\n\n${report.warnings.join('\n')}`,
-    })
-  } catch (err) {
-    console.error('[poi-load] warning email failed:', err?.message || err)
-  }
-}
-
-async function alertFailure(build, report) {
-  const lines = report.gates.map(g => `${g.pass === false ? 'FAIL' : g.pass === null ? 'SKIP' : 'OK  '} ${g.id} ${g.name}: ${JSON.stringify(g.detail).slice(0, 400)}`)
-  try {
-    await sendEmail({
-      to: ALERT_EMAIL,
-      subject: `[ROAM ALERT] POI build ${build} failed its gates; live places unchanged`,
-      text: `The nightly place database build ${build} was NOT swapped live.\n\n${lines.join('\n')}\n\n` +
-        'The previous build keeps serving. Fix the build and re-run the workflow, or force it from an admin session ' +
-        `(step=finalize&force=1) if the change is expected. ${REQUIRED_GATES.join(', ')} can never be forced.`,
-    })
-  } catch (err) {
-    console.error('[poi-load] alert email failed:', err?.message || err)
-  }
 }
 
 async function finalize(build, admin, deadline) {
@@ -743,7 +707,11 @@ async function finalize(build, admin, deadline) {
 
     if (blocked) {
       await u("UPDATE poi_builds SET status = 'failed' WHERE build_id = ?", [build])
-      await alertFailure(build, report)
+      const lines = report.gates.map(g => `${g.pass === false ? 'FAIL' : g.pass === null ? 'SKIP' : 'OK  '} ${g.id} ${g.name}: ${JSON.stringify(g.detail).slice(0, 400)}`)
+      await alert(`[ROAM ALERT] POI build ${build} failed its gates; live places unchanged`,
+        `The nightly place database build ${build} was NOT swapped live.\n\n${lines.join('\n')}\n\n` +
+        'The previous build keeps serving. Fix the build and re-run the workflow, or force it from an admin session ' +
+        `(step=finalize&force=1) if the change is expected. ${REQUIRED_GATES.join(', ')} can never be forced.`)
       const msg = report.required_failed.length && admin
         ? `${report.required_failed.join(', ')} cannot be forced; live places unchanged`
         : 'Gates failed; live places unchanged'
@@ -753,7 +721,10 @@ async function finalize(build, admin, deadline) {
     if (Date.now() > deadline - SWAP_RESERVE_MS) throw retryLater('Not enough time left to swap safely; re-send finalize')
     await swap(conn, build)
     report.poi_gen = await flushPoiGen(`${build} going live`)
-    if (report.warnings.length) await alertWarnings(build, report)
+    if (report.warnings.length) {
+      await alert(`[ROAM WARNING] POI build ${build} went live with warnings`,
+        `The place database build ${build} passed its gates and is live, but:\n\n${report.warnings.join('\n')}`)
+    }
     return { build, status: 'active', forced: Boolean(admin), report }
   })
 }
@@ -784,7 +755,7 @@ async function handler(req, res) {
   const force = req.query?.force === '1'
   let admin = null
   // Force needs a real admin session even with the secret: a bot can't force
-  if (force || !isAuthorizedLoader(req)) {
+  if (force || !hasBearer(req, process.env.POI_LOAD_SECRET)) {
     admin = await guardAdmin(req, res, { key: 'admin-poi-load-ip' })
     if (!admin) return
   }

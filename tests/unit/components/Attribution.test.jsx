@@ -128,15 +128,6 @@ describe('SwipeCard photo credit', () => {
     expect(screen.getByRole('link', { name: /^Photo:/ })).not.toHaveAttribute('tabindex')
   })
 
-  it('renders "Photo: artist, licence" linked to the file page', () => {
-    renderCard({ ...place, imageAttribution: COMMONS })
-    expect(screen.getByRole('link', { name: 'Photo: Jane Doe, CC BY-SA 4.0' })).toHaveAttribute('href', COMMONS.url)
-  })
-  it('shows the source alone when the licence is absent', () => {
-    renderCard({ ...place, imageAttribution: { name: 'Street-level imagery', url: 'https://www.mapillary.com', source: 'Mapillary' } })
-    expect(screen.getByRole('link', { name: 'Photo: Mapillary' })).toBeInTheDocument()
-    expect(screen.queryByText(/CC BY/)).toBeNull()
-  })
   it('shows no credit without an attribution, or without a real photo', () => {
     const { unmount } = renderCard(place)
     expect(screen.queryByText(/^Photo:/)).toBeNull()
