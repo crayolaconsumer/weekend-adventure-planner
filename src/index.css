@@ -6,7 +6,8 @@
   Warm, inviting, but with a sense of adventure.
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Outfit:wght@300;400;500;600;700&display=swap');
+/* Fonts load from index.html (preconnect + link) so the browser finds
+   them without waiting for this stylesheet first. */
 
 /* ═══════════════════════════════════════════════════════
    CSS CUSTOM PROPERTIES

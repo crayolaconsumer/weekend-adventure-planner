@@ -37,6 +37,15 @@
     })()
   </script>
 
+  <!-- Fonts: preconnect both Google origins and link the stylesheet here
+       rather than @import-ing it from index.css, which made the browser
+       wait for our CSS bundle before it could even discover the fonts.
+       media="print" + onload keeps it from blocking first paint; the
+       fallback fonts show until it lands (display=swap does the same). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Outfit:wght@300;400;500;600;700&display=swap" media="print" onload="this.media='all'" />
+
   <!-- Primary Meta Tags -->
   <title>ROAM — Stop scrolling. Start roaming.</title>
   <meta name="title" content="ROAM — Stop scrolling. Start roaming." />
@@ -121,10 +130,14 @@
           })
       })
 
-      // Listen for controller change (SW took over) and reload
+      // Listen for controller change (SW took over) and reload. Only when a
+      // worker already controlled this page, i.e. an update: on a first
+      // visit clients.claim() also fires this, and reloading there made
+      // every new visitor load the whole app twice.
+      const hadController = !!navigator.serviceWorker.controller
       let refreshing = false
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
+        if (hadController && !refreshing) {
           refreshing = true
           window.location.reload()
         }

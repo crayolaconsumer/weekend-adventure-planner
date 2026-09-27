@@ -18,7 +18,6 @@ import { makeCacheKey, makeKey, getWithSWR, setCache } from './geoCache'
 import { selectBestImage } from './imageScoring'
 import { recordApiCall } from './apiTelemetry'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
-import { nearestSeed } from './seedFloor'
 import { pickPlaceElement } from '../../shared/osmPick.mjs'
 
 // Public Overpass instances for the CLIENT-DIRECT fallback — used only
@@ -752,12 +751,15 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
   // Never-empty floor: if the live sources + caches yielded fewer than the
   // floor (e.g. a sparse area, or Overpass down while OpenTripMap answers),
   // top up with the nearest bundled seed landmarks so the deck is never empty.
-  // Pure local array math — no network, cannot fail. Deduped by coords against
-  // what we already have; seed places are tagged source:'seed', low quality.
+  // Pure local array math. Deduped by coords against what we already have;
+  // seed places are tagged source:'seed', low quality. The seed data is a
+  // 250 KB chunk only this rare path needs, so it loads on demand; if that
+  // import fails the deck just isn't topped up.
   const SEED_FLOOR = 8
-  if (merged.length < SEED_FLOOR) {
+  const seedFloor = merged.length < SEED_FLOOR ? await import('./seedFloor').catch(() => null) : null
+  if (seedFloor) {
     const have = new Set(merged.map(p => `${(p.lat ?? 0).toFixed(4)},${(p.lng ?? 0).toFixed(4)}`))
-    const topup = nearestSeed(lat, lng, SEED_FLOOR - merged.length)
+    const topup = seedFloor.nearestSeed(lat, lng, SEED_FLOOR - merged.length)
       .filter(s => !have.has(`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`))
     if (topup.length) merged = [...merged, ...topup]
   }

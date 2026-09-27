@@ -364,7 +364,14 @@ function thumb(p, category) {
   const q = new URLSearchParams({ ...p.photo, name: p.name, category, lat: String(p.lat), lng: String(p.lng) })
   return `<span class="thumb" data-img="${escapeHtml(q.toString())}">${CATEGORY_SVGS[category]}</span>`
 }
-const photoScript = `<script>document.querySelectorAll('[data-img]').forEach(function(t){fetch('/api/places/image-resolve?'+t.dataset.img).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.url)return;var i=new Image();i.alt='';i.onload=function(){t.appendChild(i)};i.src=d.url}).catch(function(){})})</script>`
+// The resolver hands back 800px+ Commons/Wikipedia images; a 56px tile only
+// needs Wikimedia's 120px step. Stringified into photoScript, so keep it ES5.
+export function smallThumb(u) {
+  if (/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(u)) return u.replace(/([?&]width=)\d+/, '$1120')
+  if (/^https:\/\/(upload|thumb)\.wikimedia\.org\/.*\/thumb\//.test(u)) return u.replace(/\/\d+px-([^/?]+)(\?.*)?$/, '/120px-$1$2')
+  return u
+}
+const photoScript = `<script>var smallThumb=${smallThumb.toString()};document.querySelectorAll('[data-img]').forEach(function(t){fetch('/api/places/image-resolve?'+t.dataset.img).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.url)return;var i=new Image();i.alt='';i.decoding='async';i.onload=function(){t.appendChild(i)};i.src=smallThumb(d.url)}).catch(function(){})})</script>`
 
 // Light theme = app default; dark = the app's [data-theme="dark"] values
 const STYLE = `
@@ -490,7 +497,9 @@ function shell({ title, description, url, body, slug, noindex = false, extraHead
   <meta name="twitter:description" content="${d}" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Outfit:wght@400;500;600&display=swap" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Outfit:wght@400;500;600&display=swap" media="print" onload="this.media='all'" />
   <style>${STYLE}</style>
   ${extraHead}
 </head>

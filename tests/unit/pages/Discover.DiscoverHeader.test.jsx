@@ -74,6 +74,13 @@ describe('Discover/DiscoverHeader', () => {
     expect(screen.queryByText(/Getting your location/i)).toBeNull()
   })
 
+  it('hides "Finding places nearby" behind the load-error card', () => {
+    render(<DiscoverHeader {...baseProps} placesCount={0} />)
+    expect(screen.getByText('Finding places nearby...')).toBeInTheDocument()
+    render(<DiscoverHeader {...baseProps} placesCount={0} loadError="Failed to fetch" />)
+    expect(screen.getAllByText('Finding places nearby...')).toHaveLength(1)
+  })
+
   it('renders weather when provided', () => {
     render(
       <DiscoverHeader

@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import CardStack from '../components/CardStack'
-import PlaceDetail from '../components/PlaceDetail'
 import VisitedPrompt from '../components/VisitedPrompt'
 import PlanPrompt from '../components/PlanPrompt'
 import FilterModal from '../components/FilterModal'
 import UpgradePrompt from '../components/UpgradePrompt'
 import JustGoModal from '../components/JustGoModal'
 import AdBanner from '../components/AdBanner'
+import { lazyWithReload } from '../utils/lazyWithReload'
 import { useAdMob, shouldShowBanner } from '../hooks/useAdMob'
 import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pendingVisit'
 import { useToast } from '../hooks/useToast'
@@ -36,8 +36,12 @@ import DiscoverHeader from './Discover/DiscoverHeader'
 import './Discover.css'
 
 // Lazy load desktop-only components to keep mobile bundle small
-const DiscoverMap = lazy(() => import('../components/DiscoverMap'))
-const DiscoverList = lazy(() => import('../components/DiscoverList'))
+// PlaceDetail carries Leaflet and only opens on a card tap, so it stays off
+// Discover's first paint and is prefetched once the browser is idle.
+const loadPlaceDetail = () => import('../components/PlaceDetail')
+const PlaceDetail = lazyWithReload(loadPlaceDetail)
+const DiscoverMap = lazyWithReload(() => import('../components/DiscoverMap'))
+const DiscoverList = lazyWithReload(() => import('../components/DiscoverList'))
 const FRIEND_ACTIVITY_PLACE_LIMIT = 20
 
 export default function Discover({ location }) {
@@ -117,6 +121,17 @@ export default function Discover({ location }) {
     const initialMode = localStorage.getItem('roam_travel_mode') || 'walking'
     return localStorage.getItem(bandStorageKey(initialMode)) || DEFAULT_BAND
   })
+
+  // Warm the PlaceDetail chunk after first paint so the first card tap is
+  // instant, and the seed landmarks so the service worker has them cached
+  // before the first offline visit (the deck's never-empty floor needs them)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      loadPlaceDetail().catch(() => {})
+      import('../utils/seedFloor').catch(() => {})
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [])
 
   // When travel mode changes, restore that mode's saved band (or fall
   // back to the default). This is the read-side of the per-mode
@@ -799,6 +814,7 @@ export default function Discover({ location }) {
         hasLocation={Boolean(effectiveLocation)}
         placesCount={places.length}
         loading={loading}
+        loadError={loadError}
         weather={weather}
         travelMode={travelMode}
         travelModeLabel={currentMode.label}
@@ -934,16 +950,18 @@ export default function Discover({ location }) {
       {/* Place Detail Modal */}
       <AnimatePresence>
         {selectedPlace && (
-          <PlaceDetail
-            place={selectedPlace}
-            userLocation={effectiveLocation}
-            onClose={() => setSelectedPlace(null)}
-            onGo={(place) => {
-              setPendingVisit(place)
-              updateStats(buildWentOutPatch(stats))
-              setSelectedPlace(null)
-            }}
-          />
+          <Suspense key="place-detail" fallback={null}>
+            <PlaceDetail
+              place={selectedPlace}
+              userLocation={effectiveLocation}
+              onClose={() => setSelectedPlace(null)}
+              onGo={(place) => {
+                setPendingVisit(place)
+                updateStats(buildWentOutPatch(stats))
+                setSelectedPlace(null)
+              }}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 

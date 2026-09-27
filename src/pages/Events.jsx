@@ -161,9 +161,11 @@ export default function Events({ location }) {
             const newEvents = result.events.filter(e => !existingIds.has(e.id))
             return [...prev, ...newEvents]
           })
-          setHasMoreFromServer(result.hasMore)
           setNextServerPage(result.currentPage)
         }
+        // An empty page means the server is out of events, whatever hasMore
+        // says; without this the button stuck around after the last page.
+        setHasMoreFromServer(Boolean(result.hasMore) && result.events?.length > 0)
       } catch (err) {
         console.error('Failed to load more events:', err)
       }

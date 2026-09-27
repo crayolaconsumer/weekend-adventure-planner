@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   slugify, isValidSlug, pickDisplayName, localityFromAddress, distanceKm,
   townFromResult, resolveTown, resolveNear, townOverpassQuery, groupPlaces,
-  placeScore, describeTown, renderTownPage, renderHub, escapeHtml, displayPlaceName, roundCount, nominatimGate, slugForQuery
+  placeScore, describeTown, renderTownPage, renderHub, escapeHtml, displayPlaceName, roundCount, nominatimGate, slugForQuery, smallThumb
 } from '../../../api/lib/towns.js'
 import { TOWNS } from '../../../shared/towns.mjs'
 
@@ -420,6 +420,33 @@ describe('renderTownPage', () => {
     const q = new URLSearchParams(attr)
     expect(Object.fromEntries(q)).toEqual({ wikidata: 'Q5', commons: 'File:HH.jpg', name: 'Hatfield "House" & Park', category: 'historic', lat: '51.7', lng: '-0.2' })
     expect(page).toContain("fetch('/api/places/image-resolve?'+t.dataset.img)")
+  })
+
+  it('photo script asks Wikimedia for a 120px thumb, not the 800px+ original, for the 56px tile', async () => {
+    const page = renderTownPage(town, groupPlaces([{ type: 'node', id: 1, lat: 1, lon: 1, tags: { name: 'A', amenity: 'cafe' } }]))
+    const js = page.match(/<script>(var smallThumb[\s\S]*?)<\/script>/)[1]
+    const tile = { dataset: { img: 'x' }, appendChild: vi.fn() }
+    const imgs = []
+    function FakeImage() { imgs.push(this) }
+    const url = 'https://commons.wikimedia.org/wiki/Special:FilePath/HH.jpg?width=800'
+    const fetch = async () => ({ ok: true, json: async () => ({ url }) })
+    new Function('document', 'fetch', 'Image', js)({ querySelectorAll: () => [tile] }, fetch, FakeImage)
+    await vi.waitFor(() => expect(imgs).toHaveLength(1))
+    expect(imgs[0].src).toBe('https://commons.wikimedia.org/wiki/Special:FilePath/HH.jpg?width=120')
+    expect(imgs[0].decoding).toBe('async')
+  })
+
+  it('smallThumb shrinks Wikimedia thumb paths and leaves other hosts alone', () => {
+    expect(smallThumb('https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/A_b.jpg/330px-A_b.jpg')).toBe('https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/A_b.jpg/120px-A_b.jpg')
+    expect(smallThumb('https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/N_R_M.jpg/330px-N_R_M.jpg?utm_source=en.wikipedia.org&utm_content=thumbnail')).toBe('https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/N_R_M.jpg/120px-N_R_M.jpg?utm_source=en.wikipedia.org&utm_content=thumbnail')
+    expect(smallThumb('https://upload.wikimedia.org/wikipedia/commons/d/db/A_b.jpg')).toBe('https://upload.wikimedia.org/wikipedia/commons/d/db/A_b.jpg')
+    expect(smallThumb('https://images.mapillary.com/x/thumb_1024.jpg?width=800')).toBe('https://images.mapillary.com/x/thumb_1024.jpg?width=800')
+  })
+
+  it('loads fonts without blocking first paint', () => {
+    const page = renderTownPage(town, groupPlaces([{ type: 'node', id: 1, lat: 1, lon: 1, tags: { name: 'A', amenity: 'cafe' } }]))
+    expect(page).toContain('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />')
+    expect(page).toMatch(/fonts\.googleapis\.com\/css2[^>]*media="print" onload="this\.media='all'"/)
   })
 
   it('shows this weekend\'s events with ticket links and Event structured data', () => {

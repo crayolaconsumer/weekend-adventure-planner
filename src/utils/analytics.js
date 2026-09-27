@@ -16,6 +16,7 @@
  *   4. Redeploy.
  */
 
+import { whenIdle } from './whenIdle'
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY
 // Use the ingestion endpoint (eu.i.posthog.com) not the dashboard URL
 // (eu.posthog.com). Events POSTed to the dashboard URL are dropped
@@ -33,7 +34,9 @@ export function initAnalytics() {
   if (!POSTHOG_KEY) return null
   if (initPromise) return initPromise
 
-  initPromise = import('posthog-js').then((mod) => {
+  // Fetch the ~190 KB SDK once the browser is idle, not during first paint.
+  // track()/identify() calls made before then queue on initPromise.
+  initPromise = new Promise((resolve) => whenIdle(resolve)).then(() => import('posthog-js')).then((mod) => {
     const ph = mod.default
     ph.init(POSTHOG_KEY, {
       api_host: POSTHOG_HOST,

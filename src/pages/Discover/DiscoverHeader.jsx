@@ -21,6 +21,7 @@ export default function DiscoverHeader({
   hasLocation,
   placesCount,
   loading,
+  loadError,
   weather,
   travelMode,
   travelModeLabel,
@@ -111,8 +112,9 @@ export default function DiscoverHeader({
             <span className="boredom-btn-text">I'm bored</span>
           </div>
         </motion.button>
-        {/* Tooltip explaining disabled state */}
-        {justGoDisabled && !loading && (
+        {/* Tooltip explaining disabled state. Hidden while the load-error
+            card is up: "Finding places nearby..." contradicts it. */}
+        {justGoDisabled && !loading && !loadError && (
           <motion.span
             className="boredom-btn-tooltip"
             initial={{ opacity: 0 }}
