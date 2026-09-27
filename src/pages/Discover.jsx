@@ -31,6 +31,7 @@ import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
 import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure } from './Discover/applyFilters'
 import { DEFAULT_BAND, bandStorageKey, getBandsFor } from './Discover/distanceBands'
 import { buildWentOutPatch } from './Discover/stats'
+import { shouldShowPlanPrompt, PLAN_PROMPT_FIRST_SAVE } from './Discover/planPrompt'
 import ErrorRecovery from './Discover/ErrorRecovery'
 import DiscoverHeader from './Discover/DiscoverHeader'
 import './Discover.css'
@@ -269,10 +270,21 @@ export default function Discover({ location }) {
     return applyFilters(basePlaces, weather, friendActivity)
   }, [basePlaces, applyFilters, weather, friendActivity])
 
-  // Memoized recommendations for Just Go - only recalculates when places change
+  // Places swiped this session (any direction). I'm Bored must not offer
+  // something the user has just skipped or already acted on.
+  const swipedIdsRef = useRef(new Set())
+
+  // I'm Bored picks, worked out when the modal opens (not when places load)
+  // so skips made since then, and closing times, are current
   const justGoRecommendations = useMemo(() => {
-    return getTopRecommendations(places, 5)
-  }, [places])
+    if (!showJustGo) return []
+    return getTopRecommendations(places, 5, { excludeIds: swipedIdsRef.current })
+  }, [places, showJustGo])
+
+  const justGoInterests = useMemo(
+    () => [...selectedCategories, ...(userProfile?.topCategories || [])],
+    [selectedCategories, userProfile],
+  )
 
   // Save settings to localStorage
   useEffect(() => {
@@ -624,6 +636,7 @@ export default function Discover({ location }) {
 
   // Handle swipe actions
   const handleSwipe = async (action, place) => {
+    if (place?.id != null) swipedIdsRef.current.add(place.id)
     if (action === 'like') {
       // CHECK SAVE LIMIT FOR FREE USERS
       const currentSaveCount = savedPlaces?.length || 0
@@ -663,33 +676,29 @@ export default function Discover({ location }) {
         )
       }
 
-      // Plan prompt — show RARELY. Previous logic (every 3rd save OR
-      // every 30s) felt constant during batch-saving. New rules:
-      //   1. Show on a user's very first save ever (intro the feature)
-      //   2. After that, only re-show if BOTH:
-      //      - it's been >7 days since the last time we showed it
-      //      - the user has saved ≥5 more places since the last show
-      //   3. Once per session max — if they dismiss, they won't see it
-      //      again until the next cold-launch.
+      // Plan prompt: a toast for the first two saves, the full-screen
+      // prompt from the 3rd (see Discover/planPrompt for the rules)
       const now = Date.now()
       const totalSaves = parseInt(localStorage.getItem('roam_save_count') || '0', 10) + 1
       localStorage.setItem('roam_save_count', String(totalSaves))
 
-      const lastShownAt = parseInt(localStorage.getItem('roam_plan_prompt_last_shown_at') || '0', 10)
-      const savesAtLastShow = parseInt(localStorage.getItem('roam_plan_prompt_saves_at_last_show') || '0', 10)
-      const sessionShown = lastPlanPromptRef.current > 0
-      const daysSinceLastShow = (now - lastShownAt) / 86400000
-      const savesSinceLastShow = totalSaves - savesAtLastShow
+      const saved = Boolean(saveResult.success || saveResult.fallback)
+      const showPrompt = saved && shouldShowPlanPrompt({
+        totalSaves,
+        lastShownAt: parseInt(localStorage.getItem('roam_plan_prompt_last_shown_at') || '0', 10),
+        savesAtLastShow: parseInt(localStorage.getItem('roam_plan_prompt_saves_at_last_show') || '0', 10),
+        sessionShown: lastPlanPromptRef.current > 0,
+        now,
+      })
 
-      const isFirstEverSave = lastShownAt === 0 && totalSaves === 1
-      const isCooledDown = daysSinceLastShow >= 7 && savesSinceLastShow >= 5
-
-      if (!sessionShown && (isFirstEverSave || isCooledDown)) {
+      if (showPrompt) {
         lastPlanPromptRef.current = now
         localStorage.setItem('roam_plan_prompt_last_shown_at', String(now))
         localStorage.setItem('roam_plan_prompt_saves_at_last_show', String(totalSaves))
         // Small delay so user sees the swipe complete
         setTimeout(() => setPlanPromptPlace(place), 400)
+      } else if (saved && totalSaves < PLAN_PROMPT_FIRST_SAVE) {
+        toast.success('Saved')
       }
     }
 
@@ -1037,6 +1046,7 @@ export default function Discover({ location }) {
         onClose={() => setShowJustGo(false)}
         recommendations={justGoRecommendations}
         weather={weather}
+        interests={justGoInterests}
         onGo={(place) => {
           setPendingVisit(place)
           incrementStat('totalSwipes')

@@ -10,6 +10,7 @@ import { identify as analyticsIdentify, resetAnalytics, track } from '../utils/a
 import { identifyUserToRC, logoutFromRC } from '../utils/revenueCat'
 import { bestEffortUnsubscribePushNotifications } from '../hooks/usePushNotifications'
 import { rememberPremium, forgetPremium } from '../utils/adEligibility'
+import { clearDraft } from '../pages/Plan/draft'
 import { TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY, getAuthToken } from '../utils/authToken'
 
 const MIGRATION_KEY = 'roam_places_migrated'
@@ -425,6 +426,7 @@ export function AuthProvider({ children }) {
     } finally {
       clearStoredToken()
       forgetPremium()
+      clearDraft() // a half-built plan must not follow the next person on this device
       setUser(null)
     }
   }, [clearStoredToken])

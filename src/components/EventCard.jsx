@@ -186,14 +186,14 @@ export default function EventCard({ event, variant = 'compact' }) {
             <CalendarIcon />
             {dateLabel}
           </span>
-          {event.pricing.isFree ? (
+          {event.pricing?.isFree ? (
             <span className="event-card-price-free">Free</span>
-          ) : (
+          ) : priceLabel ? (
             <span className="event-card-price">
               <TicketIcon />
               {priceLabel}
             </span>
-          )}
+          ) : null}
         </div>
 
         <h3 className="event-card-title">{event.name}</h3>

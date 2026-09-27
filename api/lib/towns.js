@@ -268,9 +268,42 @@ const NON_LATIN = /(?!\p{Script=Latin})\p{L}/u
 export const displayPlaceName = (tags = {}) =>
   (tags.name && NON_LATIN.test(tags.name) && tags['name:en']) || tags.name
 
-/** Overpass elements → { groups: [{key,title,total,places}], total } */
-export function groupPlaces(elements = []) {
+// Town boxes cross borders: New York's took in Jersey City's parks (NJ).
+// addr:state is a code ("NY") or a name ("New York"), so US states compare
+// by code. ponytail: US only; other countries' states would need their own table.
+const US_STATES = Object.fromEntries('AL Alabama|AK Alaska|AZ Arizona|AR Arkansas|CA California|CO Colorado|CT Connecticut|DE Delaware|DC District of Columbia|FL Florida|GA Georgia|HI Hawaii|ID Idaho|IL Illinois|IN Indiana|IA Iowa|KS Kansas|KY Kentucky|LA Louisiana|ME Maine|MD Maryland|MA Massachusetts|MI Michigan|MN Minnesota|MS Mississippi|MO Missouri|MT Montana|NE Nebraska|NV Nevada|NH New Hampshire|NJ New Jersey|NM New Mexico|NY New York|NC North Carolina|ND North Dakota|OH Ohio|OK Oklahoma|OR Oregon|PA Pennsylvania|RI Rhode Island|SC South Carolina|SD South Dakota|TN Tennessee|TX Texas|UT Utah|VT Vermont|VA Virginia|WA Washington|WV West Virginia|WI Wisconsin|WY Wyoming'
+  .split('|').flatMap(e => { const code = e.slice(0, 2); return [[code, code], [e.slice(3).toLowerCase(), code]] }))
+const usState = v => typeof v === 'string' ? US_STATES[v.trim().length === 2 ? v.trim().toUpperCase() : v.trim().toLowerCase()] || null : null
+
+// The town's state: its region, else what most state-tagged places in the box say
+function homeUsState(town, elements) {
+  if (town?.countryCode !== 'us') return null
+  const own = usState(town.region)
+  if (own) return own
+  const counts = {}
+  let tagged = 0
+  for (const el of elements) {
+    const st = usState(el.tags?.['addr:state'])
+    if (st) { counts[st] = (counts[st] || 0) + 1; tagged++ }
+  }
+  const [top, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || []
+  return tagged >= 3 && n * 2 > tagged ? top : null
+}
+
+function isOutOfTown(tags, town, homeState) {
+  const country = tags['addr:country']
+  if (country && town?.countryCode && country.trim().toLowerCase() !== town.countryCode.toLowerCase()) return true
+  const st = homeState && usState(tags['addr:state'])
+  return Boolean(st && st !== homeState)
+}
+
+/**
+ * Overpass elements → { groups: [{key,title,total,places}], total }.
+ * With the town, places addressed to another country or US state are dropped.
+ */
+export function groupPlaces(elements = [], town = null) {
   const seen = new Set()
+  const homeState = homeUsState(town, elements)
   const byGroup = Object.fromEntries(GROUPS.map(g => [g.key, []]))
   for (const el of elements) {
     const tags = el.tags || {}
@@ -278,7 +311,7 @@ export function groupPlaces(elements = []) {
     const b = el.bounds
     const lat = el.lat ?? el.center?.lat ?? (b && (b.minlat + b.maxlat) / 2)
     const lng = el.lon ?? el.center?.lon ?? (b && (b.minlon + b.maxlon) / 2)
-    if (!name || lat == null || lng == null) continue
+    if (!name || lat == null || lng == null || isOutOfTown(tags, town, homeState)) continue
     const kind = tags.tourism || tags.historic || tags.leisure || tags.natural || tags.amenity
     const group = KIND_TO_GROUP[kind]
     if (!group || seen.has(name.toLowerCase())) continue
@@ -294,7 +327,7 @@ export function groupPlaces(elements = []) {
     const photo = Object.fromEntries(Object.entries({
       wikipedia: tags.wikipedia, wikidata: tags.wikidata, website: tags.website,
       // Only a File: is a photo; "Category:Tour Eiffel" isn't, and would beat Wikipedia's
-      commons: /^File:/i.test(tags.wikimedia_commons || '') ? tags.wikimedia_commons : undefined
+      commons: /^File:/i.test(tags.wikimedia_commons || '') && thumbOk(tags.wikimedia_commons) ? tags.wikimedia_commons : undefined
     }).filter(([, v]) => v))
     byGroup[group].push({ id, name, kind, lat, lng, photo, score: placeScore(tags), area })
   }
@@ -371,7 +404,15 @@ export function smallThumb(u) {
   if (/^https:\/\/(upload|thumb)\.wikimedia\.org\/.*\/thumb\//.test(u)) return u.replace(/\/\d+px-([^/?]+)(\?.*)?$/, '/120px-$1$2')
   return u
 }
-const photoScript = `<script>var smallThumb=${smallThumb.toString()};document.querySelectorAll('[data-img]').forEach(function(t){fetch('/api/places/image-resolve?'+t.dataset.img).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.url)return;var i=new Image();i.alt='';i.decoding='async';i.onload=function(){t.appendChild(i)};i.src=smallThumb(d.url)}).catch(function(){})})</script>`
+// Logos, crests, flags and maps aren't photos of the place: no thumb beats one.
+// Checks the file name (a Wikimedia thumb of an SVG ends .svg.png). ES5 too.
+export function thumbOk(u) {
+  var n = String(u || '')
+  try { n = decodeURIComponent(n) } catch (err) { void err }
+  n = (n.split('?')[0].split('/').pop() || '').toLowerCase()
+  return !/\.svg/.test(n) && !/(^|[^a-z])(logo|wordmark|icon|favicon|seal|coat[\s_-]*of[\s_-]*arms|flag|map)s?([^a-z]|$)/.test(n)
+}
+const photoScript = `<script>var smallThumb=${smallThumb.toString()};var thumbOk=${thumbOk.toString()};document.querySelectorAll('[data-img]').forEach(function(t){fetch('/api/places/image-resolve?'+t.dataset.img).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.url||!thumbOk(d.url))return;var i=new Image();i.alt='';i.decoding='async';i.onload=function(){t.appendChild(i)};i.src=smallThumb(d.url)}).catch(function(){})})</script>`
 
 // Light theme = app default; dark = the app's [data-theme="dark"] values
 const STYLE = `

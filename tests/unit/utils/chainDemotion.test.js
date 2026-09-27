@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { isChainPlace } from '../../../src/utils/badges.js'
 import { scorePlace, filterPlaces, clearShownPlaces } from '../../../src/utils/placeFilter.js'
 import { getTopRecommendations } from '../../../src/utils/tasteProfile.js'
@@ -42,7 +42,11 @@ describe('chain demotion in ranking', () => {
   })
 
   it("I'm Bored picks the independent over the chain", () => {
+    // Both open 08:00-18:00, and I'm Bored skips closed places: pin midday
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 5, 10, 12, 0))
     const recs = getTopRecommendations([starbucks, indie], 2)
+    vi.useRealTimers()
     expect(recs[0].id).toBe('in')
     expect(recs).toHaveLength(2)
   })

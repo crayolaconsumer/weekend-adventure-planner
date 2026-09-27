@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { appendStops } from '../../../src/pages/Plan/appendStops'
 
 const toast = { info: vi.fn(), success: vi.fn(), error: vi.fn() }
 vi.mock('../../../src/hooks/useToast', () => ({ useToast: () => toast }))
@@ -14,6 +13,7 @@ vi.mock('../../../src/contexts/DistanceContext', () => ({ useFormatDistance: () 
 vi.mock('../../../src/components/PlaceDetail', () => ({ default: () => null }))
 
 const { default: Plan } = await import('../../../src/pages/Plan')
+const apiClient = await import('../../../src/utils/apiClient')
 
 const cafe = { id: 'p1', name: 'Pending Cafe', lat: 51.5, lng: -0.12, category: { key: 'food', label: 'Cafe' } }
 
@@ -45,12 +45,49 @@ describe('Plan pending places from Discover', () => {
   })
 })
 
-describe('appendStops', () => {
-  it('starts at 10:00, spaces stops 2.5h apart and skips duplicates', () => {
-    const a = appendStops([], [cafe, { ...cafe, id: 'p2' }, cafe], null)
-    expect(a.map(s => s.id)).toEqual(['p1', 'p2'])
-    expect(new Date(a[0].scheduledTime).getHours()).toBe(10)
-    expect(new Date(a[1].scheduledTime) - new Date(a[0].scheduledTime)).toBe(150 * 60000)
-    expect(a[0].duration).toBe(90)
+describe('Plan generate and draft', () => {
+  const museum = { id: 'm1', name: 'The Town Museum', type: 'museum', lat: 51.503, lng: -0.12 }
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })))
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('Generate keeps the stops the user added', async () => {
+    localStorage.setItem('roam_pending_plan_place', JSON.stringify([cafe]))
+    apiClient.fetchEnrichedPlaces.mockResolvedValueOnce([museum])
+    render(<MemoryRouter><Plan location={{ lat: 51.5, lng: -0.12 }} /></MemoryRouter>)
+    await screen.findAllByText('Pending Cafe')
+    fireEvent.click(screen.getByRole('button', { name: 'Generate itinerary' }))
+    expect((await screen.findAllByText('The Town Museum')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Pending Cafe').length).toBeGreaterThan(0)
+    // walking plans search 2 km, not the 10 km "Local" radius
+    expect(apiClient.fetchEnrichedPlaces).toHaveBeenCalledWith(51.5, -0.12, 2000, null)
+  })
+
+  it('restores the draft plan after leaving the page', async () => {
+    const first = render(<MemoryRouter><Plan location={{ lat: 51.5, lng: -0.12 }} /></MemoryRouter>)
+    localStorage.setItem('roam_pending_plan_place', JSON.stringify([cafe]))
+    first.unmount()
+    render(<MemoryRouter><Plan location={{ lat: 51.5, lng: -0.12 }} /></MemoryRouter>)
+    await screen.findAllByText('Pending Cafe')
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('roam_plan_draft')).itinerary[0].id).toBe('p1'))
+
+    const again = render(<MemoryRouter><Plan location={{ lat: 51.5, lng: -0.12 }} /></MemoryRouter>)
+    expect(again.getAllByText('Pending Cafe').length).toBeGreaterThan(0)
+  })
+
+  it('clears the draft once the plan is saved to an account', async () => {
+    localStorage.setItem('roam_pending_plan_place', JSON.stringify([cafe]))
+    fetch.mockImplementation(async (url, opts) => (url === '/api/plans' && opts?.method === 'POST'
+      ? new Response(JSON.stringify({ plan: { shareCode: 'abc' } }), { status: 200 })
+      : new Response('{}', { status: 404 })))
+    render(<MemoryRouter><Plan location={{ lat: 51.5, lng: -0.12 }} /></MemoryRouter>)
+    await screen.findAllByText('Pending Cafe')
+    await waitFor(() => expect(localStorage.getItem('roam_plan_draft')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(localStorage.getItem('roam_plan_draft')).toBeNull())
   })
 })

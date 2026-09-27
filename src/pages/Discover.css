@@ -696,8 +696,8 @@
   .discover-page:has(> .discover-content.view-swipe) > .discover-header {
     grid-column: 1;
     grid-row: 1;
-    align-self: center;
-    padding-top: var(--space-2xl);
+    align-self: end;
+    padding-top: var(--space-xl);
   }
 
   .discover-page:has(> .discover-content.view-swipe) > .discover-active-filters,
@@ -712,5 +712,24 @@
     padding: var(--space-lg) 0 0;
     min-height: min(640px, calc(100dvh - 96px));
     display: flex;
+  }
+}
+
+/* Desktop: the top nav already carries the ROAM lockup, so the hero
+   wordmark would be the second ROAM on screen. Keep it for screen readers
+   (it is the page's h1) and let the tagline lead the hero. */
+@media (min-width: 1024px) {
+  .discover-hero .discover-wordmark {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .discover-hero .discover-tagline {
+    font-size: var(--text-2xl);
   }
 }

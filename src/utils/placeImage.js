@@ -25,6 +25,8 @@
 // key force-clears any localStorage entries cached with the v2 verdict
 // (which often returned null because geosearch was disabled outright),
 // so users see the upgraded results on next page load.
+import { isDistressingImage, isEventArticle } from '../../shared/placeTopic.mjs'
+
 const WIKI_CACHE_KEY = 'roam_wiki_image_cache_v3'
 const WIKI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -110,8 +112,27 @@ export function resolvePlaceImageSync(place) {
  * One API call gives us both the thumbnail (used by PlaceImage) and
  * the extract (used by PlaceDetail "About" section), so we cache the
  * full object once.
+ *
+ * null when the article is about an event rather than the place (the
+ * 9/11 Memorial is tagged with "September 11 attacks"); a distressing
+ * lead image is dropped. Judged on read, so cached entries are covered.
  */
-export async function fetchWikipediaSummary(wikipediaTag) {
+export async function fetchWikipediaSummary(wikipediaTag, placeName) {
+  const summary = await fetchRawWikipediaSummary(wikipediaTag)
+  if (!summary) return summary
+  if (isEventArticle(summary, placeName)) return null
+  if (isDistressingImage(summary.thumbnail)) return { ...summary, thumbnail: null, thumbnailWidth: null, thumbnailHeight: null }
+  return summary
+}
+
+// enrichPlace sets description to the first 150 characters of the same
+// Wikipedia extract shown above it, so the page printed the summary twice
+export function isWikiExcerpt(description, extract) {
+  if (!description || !extract) return false
+  return extract.startsWith(description.replace(/\.\.\.$/, '').trim())
+}
+
+async function fetchRawWikipediaSummary(wikipediaTag) {
   const memHit = memoryCache.get(wikipediaTag)
   if (memHit !== undefined) return memHit
 
@@ -193,7 +214,9 @@ async function fetchEnhancedImage(place) {
   // attribution } so callers can render a photo credit. Bumping the prefix
   // skips the old string-format entries (they'd parse as objects and lose
   // the cached image otherwise).
-  const key = `image-resolve:v4:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${name || ''}|${category || ''}|${lat ?? ''},${lng ?? ''}`
+  // v5: the resolver stopped picking event images and wrong-place Commons
+  // photos (api/places/image-resolve.js v5); drop the old verdicts.
+  const key = `image-resolve:v5:${wiki || ''}|${wikidata || ''}|${commons || ''}|${websiteHost}|${name || ''}|${category || ''}|${lat ?? ''},${lng ?? ''}`
   const memHit = memoryCache.get(key)
   if (memHit !== undefined) return memHit
   const diskHit = readDiskEntry(key)

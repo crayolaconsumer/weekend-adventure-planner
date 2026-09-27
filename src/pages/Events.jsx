@@ -399,7 +399,7 @@ export default function Events({ location }) {
               <h1 className="page-title">What's on</h1>
               <p className="events-subtitle">
                 {apiStatus.hasEvents
-                  ? `${filteredEvents.length} events near you`
+                  ? `${allFilteredEvents.length} ${allFilteredEvents.length === 1 ? 'event' : 'events'} near you`
                   : 'Local events near you'
                 }
               </p>

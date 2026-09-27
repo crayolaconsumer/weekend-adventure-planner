@@ -189,3 +189,64 @@ describe('placeFilter.getRandomQualityPlaces', () => {
     expect(getRandomQualityPlaces([], 5)).toEqual([])
   })
 })
+
+describe('placeFilter deck ranking (selectWithDiversity)', () => {
+  const at = (id, type, distance, extra = {}) =>
+    makePlace({ id, name: `Spot ${id}`, type, distance, lat: 51.5 + distance / 100, lng: -0.1, ...extra })
+
+  it('drops access=private and access=no places, keeps the rest', () => {
+    const places = [
+      at('open', 'park', 1),
+      at('private', 'park', 1, { access: 'private' }),
+      at('no', 'park', 1, { access: 'no' }),
+      at('customers', 'park', 1, { access: 'customers' }),
+    ]
+    const ids = filterPlaces(places, { minScore: 0 }).map(p => p.id)
+    expect(ids).toContain('open')
+    expect(ids).toContain('customers')
+    expect(ids).not.toContain('private')
+    expect(ids).not.toContain('no')
+  })
+
+  it('puts the nearer of two otherwise equal places first, whatever the seed', () => {
+    for (let seed = 0; seed < 25; seed++) {
+      const out = filterPlaces([at('far', 'restaurant', 4.8), at('near', 'restaurant', 0.2)], { minScore: 0, seed })
+      expect(out.map(p => p.id)).toEqual(['near', 'far'])
+    }
+  })
+
+  it('puts an open-now place ahead of a closed one, whatever the seed', () => {
+    for (let seed = 0; seed < 25; seed++) {
+      const out = filterPlaces([
+        at('closed', 'restaurant', 1, { openingHours: 'Mo-Su off' }),
+        at('open', 'restaurant', 1, { openingHours: '24/7' }),
+      ], { minScore: 0, seed })
+      expect(out.map(p => p.id)).toEqual(['open', 'closed'])
+    }
+  })
+
+  it('puts a closed place behind one with unknown hours, whatever the seed', () => {
+    for (let seed = 0; seed < 25; seed++) {
+      const out = filterPlaces([
+        at('closed', 'restaurant', 1, { openingHours: 'Mo-Su off', website: 'https://x.test' }),
+        at('unknown', 'restaurant', 1, { website: 'https://x.test', phone: '1', address: '1 St' }),
+      ], { minScore: 0, seed })
+      expect(out.map(p => p.id)).toEqual(['unknown', 'closed'])
+    }
+  })
+
+  const mixedPool = () => ['restaurant', 'park', 'museum', 'cafe', 'castle', 'pub'].flatMap((type, t) =>
+    Array.from({ length: 5 }, (_, i) => at(`${type}-${i}`, type, 0.3 + ((i * 7 + t * 3) % 10) / 4)))
+
+  it('is stable for one seed and varies across seeds', () => {
+    const order = seed => filterPlaces(mixedPool(), { minScore: 0, seed }).map(p => p.id).join()
+    expect(order(7)).toBe(order(7))
+    const distinct = new Set(Array.from({ length: 10 }, (_, s) => order(s)))
+    expect(distinct.size).toBeGreaterThan(1)
+  })
+
+  it('still mixes categories at the top of the deck', () => {
+    const top = filterPlaces(mixedPool(), { minScore: 0, seed: 3 }).slice(0, 4)
+    expect(new Set(top.map(p => p.category?.key)).size).toBeGreaterThanOrEqual(3)
+  })
+})

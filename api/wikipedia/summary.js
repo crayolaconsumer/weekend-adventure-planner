@@ -139,6 +139,9 @@ async function handler(req, res) {
       thumbnailHeight: dims.height,
       extract: typeof data.extract === 'string' ? data.extract : null,
       title: typeof data.title === 'string' ? data.title : parsed.title,
+      // Short description ("Islamist terrorist attacks in the United
+      // States"): the client uses it to spot articles about an event
+      description: typeof data.description === 'string' ? data.description : null,
       contentUrl: data.content_urls?.desktop?.page || null
     }
 

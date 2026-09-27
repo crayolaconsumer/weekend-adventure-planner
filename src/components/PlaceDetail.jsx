@@ -25,7 +25,7 @@ import { useSavedPlaces } from '../hooks/useSavedPlaces'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { openDirections, openExternalLink } from '../utils/navigation'
 import PlaceImage from './PlaceImage'
-import { fetchWikipediaSummary } from '../utils/placeImage'
+import { fetchWikipediaSummary, isWikiExcerpt } from '../utils/placeImage'
 import { getWeeklySchedule } from '../utils/openingHours'
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -218,12 +218,12 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
     setWikiSummary(null)
     const wikiTag = enrichedPlace?.wikipedia || enrichedPlace?.tags?.wikipedia
     if (!wikiTag) return
-    fetchWikipediaSummary(wikiTag).then((summary) => {
+    fetchWikipediaSummary(wikiTag, enrichedPlace?.name).then((summary) => {
       if (cancelled) return
       if (summary && summary.extract) setWikiSummary(summary)
     })
     return () => { cancelled = true }
-  }, [enrichedPlace?.wikipedia, enrichedPlace?.tags?.wikipedia])
+  }, [enrichedPlace?.wikipedia, enrichedPlace?.tags?.wikipedia, enrichedPlace?.name])
 
   // Fetch enriched data when modal opens
   // Uses cached enrichPlace results for instant loads if CardStack prefetched
@@ -567,7 +567,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                       )}
                     </div>
                   )}
-                  {enrichedPlace.description && (
+                  {enrichedPlace.description && !isWikiExcerpt(enrichedPlace.description, wikiSummary?.extract) && (
                     <p className="place-detail-description">{enrichedPlace.description}</p>
                   )}
                   {/* Floating "Restaurant" / type-info fallback removed —

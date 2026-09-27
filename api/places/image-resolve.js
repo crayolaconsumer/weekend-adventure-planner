@@ -8,8 +8,11 @@
  * fetches per day, not N.
  *
  * Sources, in preference order when multiple hit:
- *   1. Wikipedia summary thumbnail (via the wikipedia tag)
- *   2. Wikidata P18 image (via the wikidata QID, points to a Commons file)
+ *   1. Wikidata P18 image (via the wikidata QID, points to a Commons file):
+ *      the item's own chosen image, so it beats the article's lead image
+ *   2. Wikipedia summary thumbnail (via the wikipedia tag)
+ *   Neither is used when the tag is about an event rather than the place
+ *   (shared/placeTopic.mjs), and no tier may return a distressing file.
  *   3. Wikimedia Commons geosearch — finds any geotagged image within
  *      300m of (lat, lng). The killer source for outdoor / nature places
  *      that aren't in Wikipedia individually but are photographed by
@@ -30,6 +33,8 @@
 
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { haversineKm } from '../../shared/geo.mjs'
+import { isDistressingImage, isEventArticle, isEventEntity, sharesMeaningfulWord } from '../../shared/placeTopic.mjs'
 
 const MEMORY_TTL_MS = 60 * 60 * 1000
 const memCache = new Map()
@@ -53,7 +58,11 @@ const UPSTREAM_TIMEOUT_MS = 4000
 //        added title-keyword denylist filter (war / military / weapon
 //        imagery was being returned for cuisine names like "Afghan",
 //        "Syrian", "Vietnamese"). Old caches must be invalidated.
-const CACHE_VERSION = 'v4'
+//   v5 = Wikidata P18 before Wikipedia, event articles/items rejected
+//        (9/11 Memorial showed the burning towers), distressing file
+//        names rejected, Commons geo/name picks must match the place by
+//        name or distance. Name + category joined the key.
+const CACHE_VERSION = 'v5'
 
 // Wikimedia Commons file titles that contain any of these tokens are
 // rejected outright, regardless of source tier. The denylist covers
@@ -75,7 +84,7 @@ function isDenylistedTitle(title) {
   return COMMONS_TITLE_DENYLIST.some(token => normalised.includes(token))
 }
 
-function cacheKey({ wikipedia, wikidata, commons, website, lat, lng }) {
+function cacheKey({ wikipedia, wikidata, commons, website, name, category, lat, lng }) {
   // Round coords to 4 decimals (~11m) so nearby calls hit the same cache.
   // Anything tighter just causes cache fragmentation without a meaningful
   // change in geosearch results.
@@ -89,7 +98,7 @@ function cacheKey({ wikipedia, wikidata, commons, website, lat, lng }) {
       websiteKey = new URL(website.startsWith('http') ? website : `https://${website}`).hostname
     } catch { websiteKey = '' }
   }
-  return `${CACHE_VERSION}:wp:${wikipedia || ''}|wd:${wikidata || ''}|cm:${commons || ''}|web:${websiteKey}|geo:${roundedLat},${roundedLng}`
+  return `${CACHE_VERSION}:wp:${wikipedia || ''}|wd:${wikidata || ''}|cm:${commons || ''}|web:${websiteKey}|geo:${roundedLat},${roundedLng}|n:${(name || '').toLowerCase()}|c:${category || ''}`
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = UPSTREAM_TIMEOUT_MS) {
@@ -102,7 +111,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = UPSTREAM_TIMEOUT_
   }
 }
 
-async function tryWikipedia(tag) {
+// The article when it is about the place: one about an event (the memorial
+// tagged with the attack) gives neither its image nor its text
+async function tryWikipedia(tag, placeName) {
   if (!tag || typeof tag !== 'string') return null
   const colonIdx = tag.indexOf(':')
   const lang = colonIdx > 0 ? tag.slice(0, colonIdx).toLowerCase() : 'en'
@@ -115,6 +126,7 @@ async function tryWikipedia(tag) {
     )
     if (!res.ok) return null
     const data = await res.json()
+    if (isEventArticle(data, placeName)) return null
     const url = data?.thumbnail?.source || data?.originalimage?.source || null
     if (!url) return null
     return {
@@ -129,6 +141,8 @@ async function tryWikipedia(tag) {
   } catch { return null }
 }
 
+// { event: true } (no url) when the item is an event, so the caller can
+// also drop the Wikipedia article paired with it
 async function tryWikidata(qid) {
   if (!qid || typeof qid !== 'string') return null
   // Reject anything that doesn't look like a QID — guard against query injection
@@ -140,7 +154,9 @@ async function tryWikidata(qid) {
     )
     if (!res.ok) return null
     const data = await res.json()
-    const claims = data?.entities?.[qid]?.claims?.P18
+    const entity = data?.entities?.[qid]
+    if (isEventEntity(entity)) return { event: true }
+    const claims = entity?.claims?.P18
     const filename = claims?.[0]?.mainsnak?.datavalue?.value
     if (!filename || typeof filename !== 'string') return null
     return {
@@ -291,7 +307,11 @@ const GEOSEARCH_OK_CATEGORIES = new Set([
  */
 const GEOSEARCH_TITLE_DENYLIST = /\b(road|street|junction|roundabout|crossing|footpath|pavement|sidewalk|signpost|sign\b|highway|motorway|verge|bus stop|car park|carpark)\b/i
 
-async function tryCommonsGeo(lat, lng, category) {
+// A nearby photo is only of the place when its title names it, or it was
+// taken right on top of it: St John's Gardens got a photo of Liverpool
+const GEO_SAME_SPOT_M = 60
+
+async function tryCommonsGeo(lat, lng, category, name) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
   // Category gate — running geosearch for restaurants/shops produced
@@ -313,7 +333,8 @@ async function tryCommonsGeo(lat, lng, category) {
     const filtered = items.filter(it =>
       it?.title &&
       !GEOSEARCH_TITLE_DENYLIST.test(it.title) &&
-      !isDenylistedTitle(it.title)
+      !isDenylistedTitle(it.title) &&
+      (sharesMeaningfulWord(name, it.title.replace(/^File:/, '')) || (typeof it.dist === 'number' && it.dist <= GEO_SAME_SPOT_M))
     )
     const first = filtered[0]
     if (!first?.title) return null
@@ -330,6 +351,9 @@ async function tryCommonsGeo(lat, lng, category) {
   } catch { return null }
 }
 
+// A same-named file geotagged farther away is of another place with that name
+const NAME_SEARCH_MAX_KM = 1
+
 /**
  * Find a Commons file whose title contains the place's name. Higher
  * signal than geosearch because the title is metadata describing the
@@ -337,17 +361,29 @@ async function tryCommonsGeo(lat, lng, category) {
  * (only named landmarks get individual Commons files) but when it
  * hits, the file is reliably of the place.
  */
-async function tryCommonsNameSearch(name) {
+async function tryCommonsNameSearch(name, lat, lng) {
   if (!name || typeof name !== 'string') return null
   const trimmed = name.trim()
   if (trimmed.length < 4) return null // too short to be specific
   try {
-    // srsearch with srnamespace=6 (file pages), prefer recent + relevant
-    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`intitle:"${trimmed}"`)}&srnamespace=6&srlimit=5&format=json&origin=*`
+    // Search file pages (namespace 6) and fetch each hit's coordinates too
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(`intitle:"${trimmed}"`)}&gsrnamespace=6&gsrlimit=5&prop=coordinates&format=json&origin=*`
     const res = await fetchWithTimeout(url, { headers: POLITE_HEADERS })
     if (!res.ok) return null
     const data = await res.json()
-    const items = data?.query?.search || []
+    const hasCoords = typeof lat === 'number' && typeof lng === 'number'
+    // Pages come back keyed by id; `index` is the search rank. A file with
+    // no coordinates can't be checked, so it stays eligible, unless every
+    // geotagged hit is far away: then the name belongs to another place
+    // (St John's Gardens, Westminster got Liverpool's).
+    const km = it => {
+      const c = it?.coordinates?.[0]
+      return hasCoords && c ? haversineKm(lat, lng, c.lat, c.lon) : null
+    }
+    const ranked = Object.values(data?.query?.pages || {}).sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
+    const tagged = ranked.filter(it => km(it) != null)
+    if (tagged.length && !tagged.some(it => km(it) <= NAME_SEARCH_MAX_KM)) return null
+    const items = ranked.filter(it => km(it) == null || km(it) <= NAME_SEARCH_MAX_KM)
     // intitle: search already requires the name to be in the title.
     // Pick the first file with a recognisable image extension that
     // ALSO passes the denylist — Commons has a lot of war / military
@@ -453,6 +489,8 @@ async function handler(req, res) {
     wikidata,
     commons,
     website,
+    name,
+    category,
     lat: validCoords ? lat : null,
     lng: validCoords ? lng : null
   })
@@ -503,28 +541,31 @@ async function handler(req, res) {
   // Within a tier we still pick by the original left-to-right preference,
   // so ties resolve exactly as before. firstHit returns the first source
   // in `results` that produced a usable image.
-  const firstHit = results => results.find(r => r && r.url) || null
+  // Any tier's pick with a distressing file name is skipped (safety net).
+  const firstHit = results => results.find(r => r && r.url && !isDistressingImage(r.url)) || null
+  // The item's own P18 beats the article's lead image; an event item vetoes
+  // the Wikipedia article paired with it (tagged together by the mapper).
+  const curated = async () => {
+    const [wd, wp] = await Promise.all([tryWikidata(wikidata), tryWikipedia(wikipedia, name)])
+    return wd?.event ? [] : [wd, wp]
+  }
 
   let value = null
 
   // Tier 0 — mapper-vetted Commons file (no network).
-  value = await tryCommonsFile(commons)
+  value = firstHit([await tryCommonsFile(commons)])
 
   if (isLandmarkLike) {
     // Tier 1 — high-signal curated databases, in parallel.
     if (!value) {
-      const [wp, wd] = await Promise.all([
-        tryWikipedia(wikipedia),
-        tryWikidata(wikidata)
-      ])
-      value = firstHit([wp, wd])
+      value = firstHit(await curated())
     }
     // Tier 2 — expensive tail: Commons name-search, Commons geosearch,
     // venue website og:image. Only reached when nothing curated hit.
     if (!value) {
       const [cn, geo, og] = await Promise.all([
-        tryCommonsNameSearch(name),
-        validCoords ? tryCommonsGeo(lat, lng, category) : Promise.resolve(null),
+        tryCommonsNameSearch(name, validCoords ? lat : null, validCoords ? lng : null),
+        validCoords ? tryCommonsGeo(lat, lng, category, name) : Promise.resolve(null),
         tryWebsiteOgImage(website)
       ])
       value = firstHit([cn, geo, og])
@@ -532,24 +573,20 @@ async function handler(req, res) {
     // Tier 3 — Mapillary, last real-photo tier (landmarks only, dormant
     // unless MAPILLARY_TOKEN is configured). Panoramas filtered upstream.
     if (!value && validCoords) {
-      value = await tryMapillary(lat, lng)
+      value = firstHit([await tryMapillary(lat, lng)])
     }
   } else {
     // Venue order: website og:image first, then curated databases.
     // Tier 1 — venue website + curated, in parallel.
     if (!value) {
-      const [og, wp, wd] = await Promise.all([
-        tryWebsiteOgImage(website),
-        tryWikipedia(wikipedia),
-        tryWikidata(wikidata)
-      ])
-      value = firstHit([og, wp, wd])
+      const [og, rest] = await Promise.all([tryWebsiteOgImage(website), curated()])
+      value = firstHit([og, ...rest])
     }
     // Tier 2 — Commons geosearch (category-gated; returns null for venue
     // categories, so this is effectively a no-op safety net rather than a
     // real upstream call for most venues).
     if (!value && validCoords) {
-      value = await tryCommonsGeo(lat, lng, category)
+      value = firstHit([await tryCommonsGeo(lat, lng, category, name)])
     }
   }
 

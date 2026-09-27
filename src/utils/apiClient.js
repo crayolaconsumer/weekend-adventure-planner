@@ -335,6 +335,8 @@ function parseOverpassResponse(data) {
       openingHours: tags.opening_hours,
       description: tags.description || tags['description:en'],
       wheelchair: tags.wheelchair,
+      // access=private / access=no places are dropped from the deck (placeFilter)
+      access: tags.access,
       wikipedia: tags.wikipedia,
       wikidata: tags.wikidata,
       // OSM image tags — a mapper sometimes hangs a direct photo URL
@@ -990,7 +992,7 @@ export async function enrichPlace(place) {
   // Wikipedia summary fetch
   if (place.wikipedia) {
     fetchPromises.push(
-      fetchWikipediaSummary(place.wikipedia).then(wiki => {
+      fetchWikipediaSummary(place.wikipedia, place.name).then(wiki => {
         if (wiki) {
           if (!enriched.description) {
             enriched.description = wiki.extractShort || enriched.description

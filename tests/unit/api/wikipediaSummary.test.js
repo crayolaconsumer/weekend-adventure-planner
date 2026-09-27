@@ -43,6 +43,12 @@ describe('GET /api/wikipedia/summary image dimensions', () => {
     expect(body).toMatchObject({ thumbnail: 'https://upload.wikimedia.org/o.jpg', thumbnailWidth: 1600, thumbnailHeight: 900 })
   })
 
+  it('passes the short description through, so the client can spot event articles', async () => {
+    upstream({ title: 'September 11 attacks', description: 'Islamist terrorist attacks in the United States', extract: 'x' })
+    const { body } = await call('en:September 11 attacks desc-a')
+    expect(body.description).toBe('Islamist terrorist attacks in the United States')
+  })
+
   it('returns null dimensions when there is no image', async () => {
     upstream({ title: 'Y', extract: 'No picture.' })
     const { body } = await call('en:No image dims-c')

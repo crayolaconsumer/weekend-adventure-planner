@@ -74,8 +74,11 @@ export async function fetchAllEvents(lat, lng, radiusKm = 30, options = {}) {
     ...skiddleEvents
   ]
 
-  // Deduplicate by name + date (same event might be on multiple platforms)
+  // Deduplicate by name + date (same event might be on multiple platforms),
+  // then drop listings that are not events and tidy SHOUTED titles
   const dedupedEvents = deduplicateEvents(allEvents)
+    .filter(event => !isNonEvent(event))
+    .map(event => ({ ...event, name: displayEventTitle(event.name) }))
 
   // Remove past events (with grace window), add distance + score, and sort by relevance
   const upcomingEvents = filterPastEvents(dedupedEvents)
@@ -263,10 +266,56 @@ function enhanceEvents(events, { lat, lng, radiusKm }) {
   })
 }
 
+// Ticket sites list gift cards and vouchers as if they were events
+const NON_EVENT = /\b(gift\s*cards?|e-?gift|gift\s*vouchers?|vouchers?|redemption)\b/i
+
+/** A ticketing listing that is not something you can go to. */
+export function isNonEvent(event) {
+  return NON_EVENT.test(event?.name || '')
+}
+
+// Kept upper case when an all-caps title is tidied
+const ACRONYMS = new Set([
+  'BSL', 'DJ', 'DJS', 'MC', 'UK', 'US', 'USA', 'EU', 'NYE', 'LGBT', 'LGBTQ', 'LGBTQ+', 'LGBTQIA+',
+  'R&B', 'RNB', 'EDM', 'VIP', 'BBC', 'BFI', 'NHS', 'V&A', 'Q&A', 'EP', 'LP', 'TV', 'UV', 'AI',
+  'FC', 'AFC', 'UFC', 'WWE', 'ABBA', 'AC/DC', 'KISS', 'II', 'III', 'IV', 'VI', 'VII', 'VIII', 'IX', 'XI', 'XII',
+])
+const SMALL_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'into', 'of', 'on', 'or', 'the', 'to', 'vs', 'with'])
+
+function titleWord(word, isFirst) {
+  const bare = word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9+]+$/g, '')
+  if (ACRONYMS.has(bare.toUpperCase())) return word
+  if (/^\d+S$/.test(bare)) return word.replace(/S/, 's') // 90S -> 90s
+  if (/\d/.test(bare)) return word // UB40, 3D
+  const lower = word.toLowerCase()
+  if (!isFirst && SMALL_WORDS.has(bare.toLowerCase())) return lower
+  // Capitalise the first letter of each part: hip-hop -> Hip-Hop, (live) -> (Live)
+  return lower.replace(/(^[^a-z0-9]*|[-/(])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase())
+}
+
 /**
- * Sort events by different strategies
+ * Title-case an ALL-CAPS event title for display ("I LOVE REGGAETON -
+ * LONDON'S BIGGEST PARTY" -> "I Love Reggaeton - London's Biggest Party"),
+ * keeping acronyms such as BSL or DJ. Mixed-case titles are left alone.
+ */
+export function displayEventTitle(name) {
+  if (typeof name !== 'string') return name
+  const letters = name.replace(/[^A-Za-z]/g, '')
+  const upper = letters.replace(/[^A-Z]/g, '').length
+  if (letters.length < 4 || upper / letters.length < 0.8) return name
+  return name.split(' ').map((word, i) => titleWord(word, i === 0)).join(' ')
+}
+
+/**
+ * Sort events by different strategies. Sold-out events always go last:
+ * nobody can book them, so they shouldn't lead the list.
  */
 export function sortEvents(events, sortBy = 'recommended') {
+  const sorted = sortByStrategy(events, sortBy)
+  return [...sorted.filter(e => !e.isSoldOut), ...sorted.filter(e => e.isSoldOut)]
+}
+
+function sortByStrategy(events, sortBy) {
   const list = [...events]
 
   switch (sortBy) {
@@ -532,19 +581,21 @@ export function formatPriceRange(pricing) {
     return 'Free'
   }
 
-  if (pricing.minPrice === null) {
-    return 'Check price'
+  // Unknown price: say nothing rather than a vague "Check price"
+  if (pricing.minPrice == null) {
+    return ''
   }
 
   const symbol = pricing.currency === 'GBP' ? '£' :
                  pricing.currency === 'USD' ? '$' :
                  pricing.currency === 'EUR' ? '€' : pricing.currency
 
+  const amount = n => (Number.isInteger(n) ? String(n) : Number(n).toFixed(2))
   if (pricing.minPrice === pricing.maxPrice || !pricing.maxPrice) {
-    return `${symbol}${pricing.minPrice}`
+    return `${symbol}${amount(pricing.minPrice)}`
   }
 
-  return `${symbol}${pricing.minPrice} - ${symbol}${pricing.maxPrice}`
+  return `${symbol}${amount(pricing.minPrice)} - ${symbol}${amount(pricing.maxPrice)}`
 }
 
 /**

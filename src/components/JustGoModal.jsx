@@ -15,7 +15,7 @@ import CategoryIcon from './icons/CategoryIcon'
 import { useLockBodyScroll } from '../hooks/useLockBodyScroll'
 import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
-import { weatherVerdict } from '../utils/placeFilter'
+import { getJustGoReasons } from '../utils/justGoReasons'
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
 import './JustGoModal.css'
 
@@ -98,69 +98,31 @@ const MoonIcon = () => (
   </svg>
 )
 
-/**
- * Get recommendation reasons based on context
- * @param {object} place - The place object
- * @param {object} context - Context with weather info
- * @param {function} formatDistance - Distance formatting function
- * @returns {Array} Array of reason objects with icon and text
- */
-function getRecommendationReasons(place, context, formatDistance) {
-  const reasons = []
+/* Lucide "clock" — open now */
+const ClockIcon = () => (
+  <svg {...REASON_ICON_PROPS}>
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12 6 12 12 16 14"/>
+  </svg>
+)
 
-  // Distance — enhancePlace (placeFilter.js) sets place.distance in
-  // KILOMETRES (calculateDistance uses R = 6371 km). The old code
-  // assumed metres and was doubly wrong: the < 2000 check treated km
-  // as metres (so ~always fired), then divided by 1000 again so a
-  // place 1km away rendered as "Only 1m away". Now: surface the hint
-  // when the place is genuinely close (within 5km) and pass distance
-  // through formatDistance directly.
-  if (typeof place.distance === 'number' && place.distance < 5) {
-    reasons.push({
-      icon: <NearbyIcon />,
-      text: `Only ${formatDistance(place.distance)} away`
-    })
+const StarIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
+  </svg>
+)
+
+function reasonIcon(kind, place) {
+  switch (kind) {
+    case 'distance': return <NearbyIcon />
+    case 'open': return <ClockIcon />
+    case 'match': return <CategoryIcon name={place.category?.key} size="xs" />
+    case 'sun': return <SunIcon />
+    case 'indoor': return <HomeIcon />
+    case 'lunch': return <UtensilsIcon />
+    case 'dinner': return <MoonIcon />
+    default: return <StarIcon />
   }
-
-  // Weather match, only from real weather: indoor copy when it is wet or
-  // cold, outdoor copy when it is fine, nothing when weather is unknown.
-  const isOutdoor = ['nature', 'active', 'entertainment'].includes(place.category?.key)
-  const verdict = weatherVerdict(context.weather)
-  if (verdict === 'fine' && isOutdoor) {
-    reasons.push({ icon: <SunIcon />, text: 'Good weather for this' })
-  } else if ((verdict === 'wet' || verdict === 'cold') && !isOutdoor) {
-    reasons.push({ icon: <HomeIcon />, text: verdict === 'wet' ? 'Good indoor option while it rains' : 'Good indoor option on a cold day' })
-  }
-
-  // Time of day
-  const hour = new Date().getHours()
-  if (hour >= 11 && hour <= 14 && place.category?.key === 'food') {
-    reasons.push({ icon: <UtensilsIcon />, text: 'Perfect for lunch' })
-  } else if (hour >= 18 && place.category?.key === 'food') {
-    reasons.push({ icon: <MoonIcon />, text: 'Great for dinner' })
-  }
-
-  // Rating
-  if (place.rating && place.rating >= 4.5) {
-    reasons.push({
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" />
-        </svg>
-      ),
-      text: 'Highly rated'
-    })
-  }
-
-  // Category match (fallback)
-  if (reasons.length < 2 && place.category) {
-    reasons.push({
-      icon: <CategoryIcon name={place.category.key} size="xs" />,
-      text: `Popular ${place.category.label}`
-    })
-  }
-
-  return reasons.slice(0, 3) // Max 3 reasons
 }
 
 // Confetti particles for celebration. Pre-computed at module load
@@ -181,6 +143,7 @@ export default function JustGoModal({
   onClose,
   recommendations = [],
   weather,
+  interests = [],
   onGo
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -220,8 +183,8 @@ export default function JustGoModal({
 
   const current = recommendations[currentIndex]
   const reasons = useMemo(() =>
-    current ? getRecommendationReasons(current, { weather }, formatDistance) : [],
-    [current, weather, formatDistance]
+    current ? getJustGoReasons(current, { weather, formatDistance, interests }) : [],
+    [current, weather, formatDistance, interests]
   )
 
   // Pre-resolve the image URL for the current recommendation. The
@@ -293,8 +256,8 @@ export default function JustGoModal({
             <CloseIcon />
           </button>
           <div className="just-go-empty-content">
-            <h2>No recommendations yet</h2>
-            <p>Keep swiping to help us learn your taste!</p>
+            <h2>Nothing to suggest right now</h2>
+            <p>Places nearby are closed or already swiped. Keep swiping, or try again later.</p>
           </div>
         </div>
       </motion.div>
@@ -369,7 +332,7 @@ export default function JustGoModal({
                   <div className="just-go-reasons">
                     {reasons.map((reason) => (
                       <span key={reason.text} className="just-go-reason">
-                        <span className="just-go-reason-icon">{reason.icon}</span>
+                        <span className="just-go-reason-icon">{reasonIcon(reason.kind, current)}</span>
                         {reason.text}
                       </span>
                     ))}

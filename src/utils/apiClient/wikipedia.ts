@@ -10,6 +10,7 @@
  */
 
 import { fetchWikipediaSummary as fetchWikipediaSummaryViaProxy } from '../placeImage'
+import { isDistressingImage, isEventEntity } from '../../../shared/placeTopic.mjs'
 
 const WIKIPEDIA_API = 'https://en.wikipedia.org/api/rest_v1'
 
@@ -84,8 +85,10 @@ export async function fetchWikidataImage(wikidataId: string): Promise<string | n
 
     const data = await response.json() as { entities?: Record<string, WikidataEntity> }
     const entity = data.entities?.[wikidataId]
+    // An event item (a memorial tagged with the attack) has no photo of the place
+    if (isEventEntity(entity)) return null
     const imageClaim = entity?.claims?.P18?.[0]?.mainsnak?.datavalue?.value
-    if (!imageClaim) return null
+    if (!imageClaim || isDistressingImage(imageClaim)) return null
 
     // Step 2: Get actual URL from Wikimedia Commons API
     const filename = imageClaim.replace(/ /g, '_')
@@ -115,8 +118,8 @@ export async function fetchWikidataImage(wikidataId: string): Promise<string | n
  * path to Wikipedia. The proxy parses "en:Article Name" OSM tags itself.
  * The proxy returns the image's dimensions as thumbnailWidth/Height.
  */
-export async function fetchWikipediaSummary(title: string): Promise<WikipediaSummary | null> {
-  const data = await fetchWikipediaSummaryViaProxy(title)
+export async function fetchWikipediaSummary(title: string, placeName?: string): Promise<WikipediaSummary | null> {
+  const data = await fetchWikipediaSummaryViaProxy(title, placeName)
   if (!data) return null
   return {
     title: data.title ?? title,

@@ -1,7 +1,7 @@
 /**
  * PlanPrompt - Post-save celebration prompt
  *
- * A delightful modal that appears after saving a place to wishlist,
+ * A delightful modal that appears after saving a place,
  * encouraging users to add it to their adventure plan.
  *
  * Features warm, organic animations with floating particles
@@ -156,7 +156,7 @@ export default function PlanPrompt({ place, onClose, onAddToPlan }) {
             transition={{ delay: 0.2 }}
           >
             <h3 id="plan-prompt-title" className="plan-prompt-title">
-              Saved to wishlist!
+              Saved
             </h3>
             <p className="plan-prompt-text">
               Add <strong>{place.name}</strong> to an adventure?

@@ -14,6 +14,7 @@ import {
 import { getPersonalizationBoost } from './tasteProfile'
 import { isChainPlace, CHAIN_PENALTY } from './badges'
 import { haversineKm } from '../../shared/geo.mjs'
+import { isPlaceOpen } from './openingHours'
 
 // Session storage key for tracking shown places
 const SHOWN_PLACES_KEY = 'roam_shown_places'
@@ -286,7 +287,8 @@ export function filterPlaces(places, options = {}) {
     sortBy = 'smart', // 'smart', 'score', 'distance', 'name'
     weather = null,
     ensureDiversity = true, // Mix categories when no filter selected
-    userProfile = null // Taste profile for personalized scoring
+    userProfile = null, // Taste profile for personalized scoring
+    seed = SESSION_SEED, // Varies the deck between page loads, stable within one
   } = options
 
   // Pass categories as vibeCategories for soft boost scoring (not hard filter)
@@ -300,6 +302,9 @@ export function filterPlaces(places, options = {}) {
     // type ban. Tiny village chapels (blacklisted type, no positive
     // signals) still drop out.
     .filter(place => shouldKeepPlace(place))
+    // OSM access=private / access=no: members-only clubs, private
+    // gardens, staff car parks. Nobody can actually go, so never deal them.
+    .filter(place => !isNoAccess(place))
     // Remove boring names — same rescue logic: chain stores with
     // wikipedia (rare but possible — original-location stores,
     // iconic flagships) get kept.
@@ -329,7 +334,7 @@ export function filterPlaces(places, options = {}) {
 
   // SMART SELECTION: Always ensure category diversity for varied itineraries
   if (sortBy === 'smart' && ensureDiversity) {
-    return selectWithDiversity(filtered, maxResults)
+    return selectWithDiversity(filtered, maxResults, seed)
   }
 
   // Traditional sorting
@@ -356,11 +361,82 @@ function getGeoZone(place, precision = 0.005) {
   return `${latZone},${lngZone}`
 }
 
+function isNoAccess(place) {
+  const access = String(place?.access || '').toLowerCase()
+  return access === 'private' || access === 'no'
+}
+
+// One seed per page load: the deck differs between reloads, but repeated
+// filterPlaces calls in one session (every React re-render) return the same
+// order. A per-call Math.random here once made the deck reshuffle itself on
+// re-render, see shuffleWithWeight below.
+const SESSION_SEED = Math.floor(Math.random() * 2 ** 31)
+
+/** Stable pseudo-random number in [0, 1) for a place id under a seed (FNV-1a). */
+function seededUnit(id, seed) {
+  let h = 2166136261 ^ seed
+  const str = String(id ?? '')
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0) / 2 ** 32
+}
+
+// Opening-hours parsing is the slow part of ranking, and many places share
+// the same hours string, so cache the verdict per string for five minutes.
+const openCache = { bucket: -1, map: new Map() }
+function openNowCached(place) {
+  const hours = place.openingHours || place.opening_hours
+  if (!hours) return null
+  const bucket = Math.floor(Date.now() / 300000)
+  if (openCache.bucket !== bucket) {
+    openCache.bucket = bucket
+    openCache.map.clear()
+  }
+  if (!openCache.map.has(hours)) openCache.map.set(hours, isPlaceOpen(place))
+  return openCache.map.get(hours)
+}
+
+// Deck ranking weights, on top of the 0-100 quality score.
+export const DECK_WEIGHTS = {
+  nearest: 20,   // the nearest place in the pool, fading to 0 for the furthest
+  openNow: 8,    // known to be open right now
+  closedNow: -15, // known to be closed right now (kept, just later)
+  jitter: 12,    // seeded randomness so reloads aren't identical
+}
+
 /**
- * Select places ensuring both category AND geographic diversity
- * Creates a balanced mix across categories AND spreads them across the map
+ * Rank used inside the diversity weave: quality score, plus a pull towards
+ * nearer and open-now places, plus a little seeded randomness.
  */
-function selectWithDiversity(places, maxResults) {
+function deckRank(place, maxDistance, seed) {
+  let rank = place.score ?? 0
+  if (typeof place.distance === 'number' && maxDistance > 0) {
+    rank += DECK_WEIGHTS.nearest * (1 - Math.min(1, place.distance / maxDistance))
+  }
+  const open = openNowCached(place)
+  if (open === true) rank += DECK_WEIGHTS.openNow
+  else if (open === false) rank += DECK_WEIGHTS.closedNow
+  rank += DECK_WEIGHTS.jitter * seededUnit(place.id, seed)
+  return rank
+}
+
+/**
+ * Select places ensuring both category AND geographic diversity.
+ *
+ * Categories take turns (round-robin), and within a category the ~500m map
+ * zones take turns, so the deck is a mix of kinds of place spread over the
+ * area. Inside that weave everything is ordered by deckRank, so the first
+ * card of each category and zone is the nearest, open, good-quality one, and
+ * the seeded jitter changes the mix between page loads.
+ */
+function selectWithDiversity(places, maxResults, seed = SESSION_SEED) {
+  const maxDistance = places.reduce(
+    (max, p) => (typeof p.distance === 'number' && p.distance > max ? p.distance : max), 0)
+  const ranks = new Map(places.map(p => [p, deckRank(p, maxDistance, seed)]))
+  const byRank = (a, b) => ranks.get(b) - ranks.get(a)
+
   // Group by category first
   const byCategory = {}
   for (const place of places) {
@@ -369,8 +445,8 @@ function selectWithDiversity(places, maxResults) {
     byCategory[key].push(place)
   }
 
-  // Within each category, group by geographic zone
-  // Then shuffle zones and places within zones
+  // Within each category, group by geographic zone, rank each zone, then
+  // round-robin the zones (best zone first) to spread geographically
   for (const catKey of Object.keys(byCategory)) {
     const catPlaces = byCategory[catKey]
     const byZone = {}
@@ -381,14 +457,8 @@ function selectWithDiversity(places, maxResults) {
       byZone[zoneKey].push(place)
     }
 
-    // Shuffle within each zone (weighted by score)
-    for (const zoneKey of Object.keys(byZone)) {
-      byZone[zoneKey] = shuffleWithWeight(byZone[zoneKey])
-    }
-
-    // Round-robin from zones to spread geographically
-    const zoneKeys = Object.keys(byZone)
-    shuffleArray(zoneKeys)
+    for (const zoneKey of Object.keys(byZone)) byZone[zoneKey].sort(byRank)
+    const zoneKeys = Object.keys(byZone).sort((a, b) => byRank(byZone[a][0], byZone[b][0]))
 
     const zoneSorted = []
     const zoneIndices = {}
@@ -416,14 +486,12 @@ function selectWithDiversity(places, maxResults) {
     ]
   }
 
-  // Round-robin selection from categories
+  // Round-robin selection from categories, strongest lead place first
   const selected = []
   const categoryKeys = Object.keys(byCategory)
+    .sort((a, b) => byRank(byCategory[a][0], byCategory[b][0]))
   const categoryIndices = {}
   categoryKeys.forEach(k => categoryIndices[k] = 0)
-
-  // Shuffle category order for variety
-  shuffleArray(categoryKeys)
 
   let attempts = 0
   const maxAttempts = maxResults * 3
@@ -469,15 +537,6 @@ function shuffleWithWeight(places) {
     if (scoreDiff !== 0) return scoreDiff
     return String(a.id ?? '').localeCompare(String(b.id ?? ''))
   })
-}
-
-/**
- * Deterministic ordering — same input always yields same output.
- * Was Fisher-Yates with Math.random; see shuffleWithWeight comment
- * above for why we removed the non-determinism.
- */
-function shuffleArray(arr) {
-  return arr.sort((a, b) => String(a).localeCompare(String(b)))
 }
 
 /**

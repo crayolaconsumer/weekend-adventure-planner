@@ -25,8 +25,7 @@ import PlaceImage from '../components/PlaceImage'
 import FilterIcon from '../components/icons/FilterIcon'
 import VibeIcon from '../components/icons/VibeIcon'
 import { tap as hapticTap, selectionTick } from '../utils/haptics'
-import { isPlaceOpen } from '../utils/openingHours'
-import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS } from './Plan/constants'
+import { VIBES, DURATIONS, TRANSPORT_MODES, RADIUS_OPTIONS, effectiveRadius } from './Plan/constants'
 import { MOODS } from './Plan/moods'
 import {
   DragIcon,
@@ -40,9 +39,10 @@ import {
   NavigationIcon,
   MapIcon,
 } from './Plan/icons'
-import { selectDiverseStops } from './Plan/selectDiverseStops'
 import { parseScheduledTime } from './Plan/utils'
 import { appendStops } from './Plan/appendStops'
+import { buildPlan, fitToDuration, estimateTravelMinutes, isOpenFor, planStart, scheduleStops } from './Plan/schedule'
+import { readDraft, writeDraft } from './Plan/draft'
 import { getAuthToken } from '../utils/authToken'
 import { haversineKm } from '../../shared/geo.mjs'
 import './Plan.css'
@@ -55,17 +55,21 @@ export default function Plan({ location }) {
   const { places: wishlist } = useSavedPlaces()
   const formatDistance = useFormatDistance()
 
-  // State
-  const [selectedVibe, setSelectedVibe] = useState('mixed')
-  const [selectedDuration, setSelectedDuration] = useState(4)
-  const [selectedTransport, setSelectedTransport] = useState('walk')
-  const [selectedRadius, setSelectedRadius] = useState('local')
-  const [itinerary, setItinerary] = useState([])
+  // State. A draft left from an earlier visit is restored (see Plan/draft).
+  const [draft] = useState(readDraft)
+  const [selectedVibe, setSelectedVibe] = useState(draft?.vibe || 'mixed')
+  const [selectedDuration, setSelectedDuration] = useState(draft?.duration || 4)
+  const [selectedTransport, setSelectedTransport] = useState(draft?.transport || 'walk')
+  const [selectedRadius, setSelectedRadius] = useState(draft?.radius || 'local')
+  const [itinerary, setItinerary] = useState(draft?.itinerary || [])
+  // Start time the user chose by editing the first stop's time; otherwise
+  // plans start now (rounded, see planStart)
+  const [chosenStart, setChosenStart] = useState(null)
   const [travelTimes, setTravelTimes] = useState({}) // Cache of travel times: { "stopId-nextStopId": { duration, mode } }
   const [editingLegIndex, setEditingLegIndex] = useState(null) // Which leg's mode is being edited
   const [editingTimeIndex, setEditingTimeIndex] = useState(null) // Which stop's time is being edited
   const [stopDetail, setStopDetail] = useState(null) // Itinerary stop being viewed in PlaceDetail modal
-  const [customTitle, setCustomTitle] = useState(null) // User-renamed adventure title; null = auto from vibe
+  const [customTitle, setCustomTitle] = useState(draft?.title || null) // User-renamed adventure title; null = auto from vibe
   const [titleEditing, setTitleEditing] = useState(false)
   const [showMiniMap, setShowMiniMap] = useState(true) // Toggle for the mini-map ribbon
   const [selectedMood, setSelectedMood] = useState(null) // Mood-first chip selection
@@ -90,6 +94,19 @@ export default function Plan({ location }) {
     setItinerary(prev => appendStops(prev, places, location))
     toast.success(places.length === 1 ? `Added ${places[0].name}` : `Added ${places.length} places`)
   }, [toast, location])
+
+  // Keep the plan being built so it survives leaving the page. Once it is
+  // saved to an account (it has a share code) the draft is dropped.
+  useEffect(() => {
+    writeDraft(shareCode ? null : {
+      itinerary,
+      vibe: selectedVibe,
+      duration: selectedDuration,
+      transport: selectedTransport,
+      radius: selectedRadius,
+      title: customTitle,
+    })
+  }, [itinerary, selectedVibe, selectedDuration, selectedTransport, selectedRadius, customTitle, shareCode])
 
   // Reopen a saved plan when navigated to /plan?planId=N. Hydrates the
   // editor state (vibe / duration / transport / title / stops) from
@@ -143,26 +160,28 @@ export default function Plan({ location }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once for the planId at mount
   }, [])
 
-  // Optimize route
-  const optimizeRoute = useCallback((places, start) => {
-    if (places.length <= 1) return places
-    const result = []
-    const remaining = [...places]
-    let current = start
-    while (remaining.length) {
-      let best = 0, bestDist = Infinity
-      remaining.forEach((p, i) => {
-        const d = haversineKm(current.lat, current.lng, p.lat, p.lng)
-        if (d < bestDist) { bestDist = d; best = i }
-      })
-      const nearest = remaining.splice(best, 1)[0]
-      result.push(nearest)
-      current = nearest
-    }
-    return result
-  }, [])
+  // Real travel minutes for each leg of a plan (routing API, falling back
+  // to the estimate when it is slow or fails)
+  const realTravel = useCallback(async (stops, origin, mode) => {
+    const key = (a, b) => `${a.lat},${a.lng}>${b.lat},${b.lng}`
+    const known = new Map()
+    const legs = stops.map((stop, i) => [i === 0 ? origin : stops[i - 1], stop]).filter(([a]) => a)
+    await Promise.all(legs.map(async ([a, b]) => {
+      const timeout = new Promise(resolve => setTimeout(() => resolve(null), 5000))
+      try {
+        const result = await Promise.race([
+          fetchTravelTime({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }, mode.key),
+          timeout,
+        ])
+        if (typeof result?.duration === 'number') known.set(key(a, b), result.duration)
+      } catch { /* estimate below */ }
+    }))
+    return (a, b) => known.get(key(a, b)) ?? estimateTravelMinutes(a, b, mode.speed)
+  }, [fetchTravelTime])
 
-  // Generate itinerary with timeout handling and retry
+  // Generate an itinerary around the user's own stops: search within reach
+  // of the travel mode, pick stops that are open at their slot, and keep the
+  // whole day (travel included) inside the chosen duration.
   const generate = async (retryCount = 0) => {
     if (!location) { toast.error('Need location'); return }
     if (isGenerating && retryCount === 0) return
@@ -170,7 +189,44 @@ export default function Plan({ location }) {
     setIsGenerating(true)
     const vibe = VIBES.find(v => v.key === selectedVibe)
     const duration = DURATIONS.find(d => d.hours === selectedDuration)
-    const radiusConfig = RADIUS_OPTIONS.find(r => r.key === selectedRadius)
+    const mode = TRANSPORT_MODES.find(m => m.key === selectedTransport) || TRANSPORT_MODES[0]
+    const radius = effectiveRadius(RADIUS_OPTIONS.find(r => r.key === selectedRadius), mode)
+    const fixed = itinerary.filter(s => s.userAdded)
+    const start = chosenStart && chosenStart > Date.now() ? chosenStart : planStart()
+    const durationMinutes = duration.hours * 60
+
+    const planFrom = async (candidates) => {
+      const planned = buildPlan({
+        fixed,
+        candidates,
+        count: Math.max(duration.stops, fixed.length),
+        start,
+        durationMinutes,
+        origin: location,
+        travel: (a, b) => estimateTravelMinutes(a, b, mode.speed),
+        isMixed: selectedVibe === 'mixed',
+      })
+      const travel = await realTravel(planned, location, mode)
+      const final = fitToDuration(planned, { start, origin: location, travel, durationMinutes })
+      setItinerary(final)
+      return final
+    }
+
+    const report = (final, source) => {
+      const added = final.filter(s => !s.userAdded).length
+      if (added > 0) toast.success(`${added} ${added === 1 ? 'stop' : 'stops'} added${source}`)
+      else if (fixed.length) toast.info('Your stops already fill this time. Try a longer duration.')
+      else toast.info('Nothing open nearby fits this time. Try a longer duration or another way to travel.')
+      const closed = final.filter(s => s.closedAtSlot)
+      if (closed.length) {
+        toast.info(`${closed.map(s => s.name).join(', ')} ${closed.length === 1 ? 'is' : 'are'} closed at the planned time`)
+      }
+    }
+
+    const wishlistCandidates = () => wishlist
+      .filter(w => w.lat && w.lng)
+      .map(w => ({ ...w, distance: haversineKm(location.lat, location.lng, w.lat, w.lng) }))
+      .sort((a, b) => a.distance - b.distance)
 
     // Create a timeout promise - 45 seconds for first try, 60 for retry
     const timeoutMs = retryCount > 0 ? 60000 : 45000
@@ -188,40 +244,21 @@ export default function Plan({ location }) {
 
       // Fetch with timeout
       const raw = await Promise.race([
-        fetchEnrichedPlaces(location.lat, location.lng, radiusConfig.radius, null),
+        fetchEnrichedPlaces(location.lat, location.lng, radius, null),
         timeoutPromise
       ])
 
-      // If no API places found, fallback to wishlist
+      // If no API places found, fall back to saved places
       if (raw.length === 0 && wishlist.length > 0) {
         toast.info('No places found in this area - using your saved places instead')
-        const wishlistStops = wishlist
-          .filter(w => w.lat && w.lng)
-          .slice(0, duration.stops)
-          .map((place, i) => {
-            const startTime = new Date()
-            startTime.setHours(10, 0, 0, 0)
-            const time = new Date(startTime)
-            time.setMinutes(time.getMinutes() + i * 150)
-            return {
-              ...place,
-              scheduledTime: time.toISOString(),
-              duration: 90,
-              distance: haversineKm(location.lat, location.lng, place.lat, place.lng)
-            }
-          })
-
-        if (wishlistStops.length > 0) {
-          setItinerary(wishlistStops)
-          toast.success(`${wishlistStops.length} stops from your wishlist!`)
-        } else {
-          toast.info('No places found. Try saving some places first!')
-        }
-        setIsGenerating(false)
+        report(await planFrom(wishlistCandidates()), ' from your saved places')
         return
       }
 
-      const enhanced = raw.map(p => enhancePlace(p, location))
+      const enhanced = raw
+        .map(p => enhancePlace(p, location))
+        // Cached tiles can reach past the radius; keep the plan within it
+        .filter(p => typeof p.distance !== 'number' || p.distance <= radius / 1000)
 
       // Filter places - vibe categories applied as BOOST (not hard filter)
       // Places matching vibe rank higher, but variety is preserved
@@ -233,35 +270,7 @@ export default function Plan({ location }) {
       })
       setAvailablePlaces(filtered)
 
-      // Select stops with category diversity (strict for mixed mode)
-      const isMixed = selectedVibe === 'mixed'
-      const stops = selectDiverseStops(filtered, duration.stops, isMixed)
-
-      const optimized = optimizeRoute(stops, location)
-
-      const startTime = new Date()
-      startTime.setHours(10, 0, 0, 0)
-
-      const withTimes = optimized.map((stop, i) => {
-        const time = new Date(startTime)
-        // 2.5 hours per stop (150 min) - enough time to travel + actually enjoy the place
-        time.setMinutes(time.getMinutes() + i * 150)
-        return {
-          ...stop,
-          scheduledTime: time.toISOString(),
-          duration: 90, // 1.5 hours at each place by default
-          distance: haversineKm(location.lat, location.lng, stop.lat, stop.lng)
-        }
-      })
-
-      setItinerary(withTimes)
-
-      // Show actual count, not expected count
-      if (withTimes.length > 0) {
-        toast.success(`${withTimes.length} stops added!`)
-      } else {
-        toast.info('No places found nearby. Try a different location.')
-      }
+      report(await planFrom(filtered), '')
     } catch (e) {
       console.error('[Plan] Generate error:', e)
       if (e.message === 'timeout') {
@@ -270,30 +279,10 @@ export default function Plan({ location }) {
           toast.info('Still searching...')
           return generate(retryCount + 1)
         }
-        // If still timing out, use wishlist as fallback
+        // If still timing out, use saved places as fallback
         if (wishlist.length > 0) {
           toast.info('Search timed out - using your saved places instead')
-          const wishlistStops = wishlist
-            .filter(w => w.lat && w.lng)
-            .slice(0, duration.stops)
-            .map((place, i) => {
-              const startTime = new Date()
-              startTime.setHours(10, 0, 0, 0)
-              const time = new Date(startTime)
-              time.setMinutes(time.getMinutes() + i * 150)
-              return {
-                ...place,
-                scheduledTime: time.toISOString(),
-                duration: 90,
-                distance: haversineKm(location.lat, location.lng, place.lat, place.lng)
-              }
-            })
-          if (wishlistStops.length > 0) {
-            setItinerary(wishlistStops)
-            toast.success(`${wishlistStops.length} stops from your wishlist!`)
-          } else {
-            toast.error('Search timed out. Try adding places manually.')
-          }
+          report(await planFrom(wishlistCandidates()), ' from your saved places')
         } else {
           toast.error('Search timed out. Try adding places manually.')
         }
@@ -312,23 +301,25 @@ export default function Plan({ location }) {
       return
     }
 
-    setItinerary(prev => appendStops(prev, [place], location))
+    const speedKmh = TRANSPORT_MODES.find(m => m.key === selectedTransport)?.speed
+    setItinerary(prev => appendStops(prev, [place], location, { speedKmh }))
     toast.success(`Added ${place.name}`)
-  }, [itinerary, location, toast])
+  }, [itinerary, location, toast, selectedTransport])
+
+  // Re-time stops back to back from the first stop's time, using known
+  // travel times where we have them
+  const retime = useCallback((stops, startValue) => {
+    if (!stops.length) return stops
+    const start = parseScheduledTime(startValue) || planStart()
+    const speed = TRANSPORT_MODES.find(m => m.key === selectedTransport)?.speed || 5
+    const travel = (a, b) => travelTimes[`${a.id}-${b.id}`]?.duration ?? estimateTravelMinutes(a, b, speed)
+    return scheduleStops(stops, { start, travel })
+  }, [selectedTransport, travelTimes])
 
   // Remove stop
   const removeStop = useCallback((index) => {
-    setItinerary(prev => {
-      const next = prev.filter((_, i) => i !== index)
-      if (!next.length) return next
-      const start = new Date(prev[0].scheduledTime)
-      return next.map((s, i) => {
-        const t = new Date(start)
-        t.setMinutes(t.getMinutes() + i * 150)
-        return { ...s, scheduledTime: t.toISOString() }
-      })
-    })
-  }, [])
+    setItinerary(prev => retime(prev.filter((_, i) => i !== index), prev[0]?.scheduledTime))
+  }, [retime])
 
   // Shuffle stop
   const shuffleStop = useCallback((index) => {
@@ -361,13 +352,8 @@ export default function Plan({ location }) {
   // Reorder
   const handleReorder = useCallback((newOrder) => {
     if (!newOrder.length) return
-    const start = new Date(itinerary[0].scheduledTime)
-    setItinerary(newOrder.map((s, i) => {
-      const t = new Date(start)
-      t.setMinutes(t.getMinutes() + i * 150)
-      return { ...s, scheduledTime: t.toISOString() }
-    }))
-  }, [itinerary])
+    setItinerary(retime(newOrder, itinerary[0].scheduledTime))
+  }, [itinerary, retime])
 
   // Update a stop's scheduled time
   const updateStopTime = useCallback((index, newTime) => {
@@ -376,6 +362,8 @@ export default function Plan({ location }) {
       const date = new Date(s.scheduledTime)
       const [hours, minutes] = newTime.split(':').map(Number)
       date.setHours(hours, minutes, 0, 0)
+      // The first stop's time is the plan's start for the next generate
+      if (index === 0) setChosenStart(date.getTime())
       return { ...s, scheduledTime: date.toISOString() }
     }))
     setEditingTimeIndex(null)
@@ -619,19 +607,19 @@ export default function Plan({ location }) {
       ? new Date(itinerary[0].scheduledTime).getHours()
       : new Date().getHours()
     if (firstTime >= 5 && firstTime < 11) {
-      // Morning — warm peach into terracotta
-      return { gradient: 'linear-gradient(135deg, #d96941 0%, #c45c3e 60%, #1a3a2f 130%)', label: 'morning' }
+      // Morning — terracotta light into terracotta, settling on forest
+      return { gradient: 'linear-gradient(135deg, #e07a5f 0%, #c45c3e 60%, #1a3a2f 130%)', label: 'morning' }
     }
     if (firstTime >= 11 && firstTime < 16) {
       // Midday — forest plus a brighter sage highlight
       return { gradient: 'linear-gradient(135deg, #2d5a4a 0%, #1a3a2f 70%, #0f2a22 100%)', label: 'midday' }
     }
     if (firstTime >= 16 && firstTime < 20) {
-      // Evening — dusk pink fading into indigo
-      return { gradient: 'linear-gradient(135deg, #c45c3e 0%, #6b5b95 60%, #1a3a2f 110%)', label: 'evening' }
+      // Evening — terracotta dusk into forest (brand colours only)
+      return { gradient: 'linear-gradient(135deg, #c45c3e 0%, #1a3a2f 75%)', label: 'evening' }
     }
-    // Night — indigo deep into forest
-    return { gradient: 'linear-gradient(135deg, #4a4a8a 0%, #2d2d5a 60%, #1a3a2f 100%)', label: 'night' }
+    // Night — deep forest
+    return { gradient: 'linear-gradient(135deg, #1a3a2f 0%, #0f2a22 100%)', label: 'night' }
   }, [itinerary])
 
   // Plan totals — duration in minutes, distance in km. Sums each
@@ -862,7 +850,7 @@ export default function Plan({ location }) {
               <FilterIcon name={transportData?.key || 'walk'} size={14} />
               <span>{transportData?.label}</span>
               <span className="plan-adventure-sep"> · </span>
-              {radiusData?.description}
+              {`${effectiveRadius(radiusData, transportData) / 1000}km`}
             </div>
           </div>
           <button className="plan-adventure-edit" aria-label="Edit settings" onClick={openSettings}>
@@ -996,16 +984,10 @@ export default function Plan({ location }) {
                         )}
                       </div>
                       {(() => {
-                        // Check if the stop would be closed at its
-                        // scheduled time. isPlaceOpen reads
-                        // place.opening_hours / tags.opening_hours.
-                        // Returns null if the data is missing.
-                        let isClosed = false
-                        try {
-                          const scheduledDate = new Date(stop.scheduledTime)
-                          const state = isPlaceOpen(stop, scheduledDate)
-                          isClosed = state === false
-                        } catch { /* opening-hours parse can throw on malformed tags — silent */ }
+                        // Closed at its scheduled time (not just now)?
+                        // isOpenFor is null when the hours are unknown.
+                        const scheduledDate = parseScheduledTime(stop.scheduledTime)
+                        const isClosed = Boolean(scheduledDate) && isOpenFor(stop, scheduledDate, stop.duration || 60) === false
                         return (
                           <motion.div
                             className={`plan-stop-card ${isClosed ? 'plan-stop-card--closed' : ''}`}

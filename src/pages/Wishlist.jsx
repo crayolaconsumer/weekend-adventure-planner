@@ -287,7 +287,7 @@ export default function Wishlist() {
               <Link
                 to="/pricing"
                 className={`wishlist-limit ${wishlist.length >= 8 ? 'warning' : ''} ${wishlist.length >= 10 ? 'full' : ''}`}
-                aria-label={`${wishlist.length} of 10 places saved${wishlist.length >= 10 ? ', limit reached' : wishlist.length >= 8 ? ', approaching limit' : ''}`}
+                aria-label={`${wishlist.length} of 10 free saves used${wishlist.length >= 10 ? ', limit reached' : wishlist.length >= 8 ? ', approaching limit' : ''}. See ROAM+ plans`}
               >
                 {wishlist.length >= 10 && (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -303,7 +303,7 @@ export default function Wishlist() {
                     <line x1="12" y1="17" x2="12.01" y2="17"/>
                   </svg>
                 )}
-                {wishlist.length}/10
+                {wishlist.length} of 10 free saves
                 {wishlist.length >= 10 && <span className="limit-upgrade-hint">Limit reached - Upgrade</span>}
                 {wishlist.length >= 8 && wishlist.length < 10 && <span className="limit-upgrade-hint">Upgrade</span>}
               </Link>

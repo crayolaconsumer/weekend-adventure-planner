@@ -14,6 +14,7 @@
 
 import { GOOD_CATEGORIES } from './categories'
 import { isChainPlace, CHAIN_PENALTY } from './badges'
+import { isPlaceOpen } from './openingHours'
 
 // Default profile for users with no data
 const DEFAULT_PROFILE = {
@@ -545,9 +546,11 @@ export function scorePlaceForUser(place) {
  * Get top N personalized recommendations
  * @param {Array} places - Array of place objects to score
  * @param {number} count - Number of recommendations to return (default 5)
- * @returns {Array} Top N places sorted by personalization score
+ * @param {{excludeIds?: Iterable}} options - ids to leave out (e.g. swiped this session)
+ * @returns {Array} Top N places sorted by personalization score, never one
+ *   known to be closed right now
  */
-export function getTopRecommendations(places, count = 5) {
+export function getTopRecommendations(places, count = 5, { excludeIds = [] } = {}) {
   if (!Array.isArray(places) || places.length === 0) return []
   if (typeof count !== 'number' || count < 1) count = 5
 
@@ -574,12 +577,17 @@ export function getTopRecommendations(places, count = 5) {
     // Ignore corrupted data
   }
 
+  // Places the caller knows are done with (e.g. swiped this session)
+  const excluded = new Set([...excludeIds].map(String))
+
   // Filter and score places
   const scored = places
     .filter(place => {
+      // "Go now" means now: never suggest somewhere known to be closed
+      if (isPlaceOpen(place) === false) return false
       const id = place?.id || place?.placeId
       if (!id) return true // Include places without ID (can't filter them)
-      return !visitedIds.has(id) && !notInterestedIds.has(id)
+      return !visitedIds.has(id) && !notInterestedIds.has(id) && !excluded.has(String(id))
     })
     .map(place => ({
       ...place,

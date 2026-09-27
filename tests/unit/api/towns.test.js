@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   slugify, isValidSlug, pickDisplayName, localityFromAddress, distanceKm,
   townFromResult, resolveTown, resolveNear, townOverpassQuery, groupPlaces,
-  placeScore, describeTown, renderTownPage, renderHub, escapeHtml, displayPlaceName, roundCount, nominatimGate, slugForQuery, smallThumb
+  placeScore, describeTown, renderTownPage, renderHub, escapeHtml, displayPlaceName, roundCount, nominatimGate, slugForQuery, smallThumb, thumbOk
 } from '../../../api/lib/towns.js'
 import { TOWNS } from '../../../shared/towns.mjs'
 
@@ -620,5 +620,72 @@ describe('world towns (shared/worldTowns.mjs)', () => {
     // Every headline slug is a shipped world town (a typo would silently drop a chip)
     expect(links).toEqual(WORLD_HEADLINE_SLUGS)
     expect(links).toHaveLength(24)
+  })
+})
+
+// Audit: New York's thumbs showed seals and logos, and its "Nature" list had
+// Jersey City parks (addr:state NJ) from across the Hudson
+describe('town page thumbnails and border places', () => {
+  it('thumbOk rejects SVGs, logos, crests, flags and maps, keeps photos', () => {
+    expect(thumbOk('https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Seal_of_New_York.svg/120px-Seal_of_New_York.svg.png')).toBe(false)
+    expect(thumbOk('https://commons.wikimedia.org/wiki/Special:FilePath/Park%20logo.png?width=800')).toBe(false)
+    expect(thumbOk('https://example.com/img/wordmark-dark.jpg')).toBe(false)
+    expect(thumbOk('https://example.com/Coat_of_arms_of_Leeds.png')).toBe(false)
+    expect(thumbOk('https://example.com/Flag_of_France.jpg')).toBe(false)
+    expect(thumbOk('https://example.com/Map_of_Central_Park.jpg')).toBe(false)
+    expect(thumbOk('https://example.com/app-icon.png')).toBe(false)
+    expect(thumbOk('https://commons.wikimedia.org/wiki/Special:FilePath/Central%20Park%20Lake.jpg?width=800')).toBe(true)
+    expect(thumbOk('https://example.com/Mapleton_Hall_Iconic_view.jpg')).toBe(true)
+  })
+
+  it('photo script leaves the placeholder when the resolver returns a logo', async () => {
+    const page = renderTownPage(townFromResult('paris', PARIS), groupPlaces([{ type: 'node', id: 1, lat: 1, lon: 1, tags: { name: 'A', amenity: 'cafe' } }]))
+    const js = page.match(/<script>(var smallThumb[\s\S]*?)<\/script>/)[1]
+    const imgs = []
+    function FakeImage() { imgs.push(this) }
+    const run = url => new Function('document', 'fetch', 'Image', js)(
+      { querySelectorAll: () => [{ dataset: { img: 'x' }, appendChild() {} }] },
+      async () => ({ ok: true, json: async () => ({ url }) }), FakeImage)
+    run('https://example.com/cafe-logo.svg')
+    run('https://example.com/cafe.jpg')
+    await vi.waitFor(() => expect(imgs).toHaveLength(1))
+    expect(imgs[0].src).toBe('https://example.com/cafe.jpg')
+  })
+
+  it('does not pass a logo Commons file as a photo hint', () => {
+    const g = groupPlaces([{ type: 'node', id: 1, lat: 1, lon: 1, tags: { name: 'A', tourism: 'museum', wikidata: 'Q1', wikimedia_commons: 'File:A logo.svg' } }])
+    expect(g.groups[0].places[0].photo).toEqual({ wikidata: 'Q1' })
+  })
+
+  const ny = { slug: 'new-york', name: 'New York', region: null, countryCode: 'us', lat: 40.71, lng: -74 }
+  const park = (id, name, tags = {}) => ({ type: 'node', id, lat: 40.72, lon: -74.02, tags: { name, leisure: 'park', ...tags } })
+
+  it('drops places in another US state, judged by the box majority when the town has no region', () => {
+    const els = [
+      park(1, 'Battery Park', { 'addr:state': 'NY' }),
+      park(2, 'Washington Square Park', { 'addr:state': 'New York' }),
+      park(3, 'Hudson River Park', { 'addr:state': 'NY', 'addr:city': 'New York' }),
+      park(4, 'Liberty State Park', { 'addr:state': 'NJ', 'addr:city': 'Jersey City' }),
+      park(5, 'Hamilton Park', { 'addr:state': 'New Jersey' }),
+      park(6, 'Bryant Park')
+    ]
+    const names = groupPlaces(els, ny).groups[0].places.map(p => p.name)
+    expect(names).toEqual(['Battery Park', 'Washington Square Park', 'Hudson River Park', 'Bryant Park'])
+    // no town, no filtering (UK callers and old behaviour)
+    expect(groupPlaces(els).groups[0].places).toHaveLength(6)
+  })
+
+  it('uses the town region when known, and needs a clear majority otherwise', () => {
+    const kc = { name: 'Kansas City', region: 'Missouri', countryCode: 'us' }
+    const els = [park(1, 'A', { 'addr:state': 'KS' }), park(2, 'B', { 'addr:state': 'KS' }), park(3, 'C', { 'addr:state': 'MO' })]
+    expect(groupPlaces(els, kc).groups[0].places.map(p => p.name)).toEqual(['C'])
+    // two states tagged once each: no majority, keep everything
+    expect(groupPlaces([park(1, 'A', { 'addr:state': 'NY' }), park(2, 'B', { 'addr:state': 'NJ' })], ny).groups[0].places).toHaveLength(2)
+  })
+
+  it('drops places addressed to another country', () => {
+    const basel = { name: 'Basel', region: 'Basel-City', countryCode: 'ch' }
+    const els = [park(1, 'Schützenmattpark', { 'addr:country': 'CH' }), park(2, 'Parc des Eaux Vives', { 'addr:country': 'FR' }), park(3, 'Kannenfeldpark')]
+    expect(groupPlaces(els, basel).groups[0].places.map(p => p.name)).toEqual(['Schützenmattpark', 'Kannenfeldpark'])
   })
 })

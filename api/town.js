@@ -83,7 +83,7 @@ async function fetchGroupedPlaces(town, ip, proxy, deadline) {
   try {
     const { status, body } = await callOverpassProxy(townOverpassQuery(town.lat, town.lng), ip, proxy, deadline - Date.now())
     if (status === 200 && Array.isArray(body?.elements) && body.elements.length > 0) {
-      return { grouped: groupPlaces(body.elements), ok: true }
+      return { grouped: groupPlaces(body.elements, town), ok: true }
     }
     console.warn(`[town] places ${town.slug}: proxy ${status}`)
   } catch (err) {

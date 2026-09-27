@@ -175,3 +175,16 @@ describe('pre-signup saves migration', () => {
     expect(localStorage.getItem('roam_wishlist')).not.toBeNull()
   })
 })
+
+describe('sign-out on a shared device', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('drops the half-built plan so it does not follow the next person', async () => {
+    localStorage.setItem('roam_plan_draft', JSON.stringify({ itinerary: [{ id: 1 }], savedAt: Date.now() }))
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'tok')
+    vi.stubGlobal('fetch', vi.fn((url, opts) => opts?.method === 'POST' ? respond(200, {}) : respond(200, { user: USER })))
+    function Out() { const { logout } = useAuth(); return <button onClick={() => logout()}>out</button> }
+    render(<AuthProvider><Out /></AuthProvider>)
+    await act(async () => { screen.getByText('out').click() })
+    await waitFor(() => expect(localStorage.getItem('roam_plan_draft')).toBeNull())
+  })
+})
