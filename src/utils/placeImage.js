@@ -29,6 +29,10 @@ import { isDistressingImage, isEventArticle } from '../../shared/placeTopic.mjs'
 
 const WIKI_CACHE_KEY = 'roam_wiki_image_cache_v3'
 const WIKI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+// A 'no photo' verdict can be a throttled upstream, not a real absence
+// (2026-09-27: a crawler got Wikimedia throttled and phones kept blank cards
+// for a week), so it is retried after a few hours
+const NO_IMAGE_TTL_MS = 6 * 60 * 60 * 1000
 
 const memoryCache = new Map() // wiki key -> url | null
 
@@ -66,7 +70,8 @@ function readDiskEntry(key) {
   const cache = loadDiskCache()
   const entry = cache[key]
   if (!entry) return undefined
-  if (Date.now() - (entry.ts ?? 0) > WIKI_CACHE_TTL_MS) return undefined
+  const ttl = entry.value == null ? NO_IMAGE_TTL_MS : WIKI_CACHE_TTL_MS
+  if (Date.now() - (entry.ts ?? 0) > ttl) return undefined
   return entry.value
 }
 
