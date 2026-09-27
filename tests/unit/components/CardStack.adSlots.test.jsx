@@ -47,7 +47,7 @@ vi.mock('../../../src/components/AdCard', async () => {
     },
   }
 })
-vi.mock('../../../src/hooks/useTopContributions', () => ({ useTopContributions: () => ({ contributions: {} }) }))
+vi.mock('../../../src/hooks/useTopContributions', () => ({ useTopContributions: () => ({ contributions: {} }), tipPrefetchIds: () => [] }))
 vi.mock('../../../src/hooks/useSubscription', () => ({
   useSubscription: () => ({ isPremium: state.premium, noAds: state.premium || state.noAds }),
 }))

@@ -9,7 +9,7 @@ import EmptyStateIllustration from './icons/EmptyStateIllustration'
 import { fetchAndCacheImage } from '../utils/imageCache'
 import { enrichPlace } from '../utils/apiClient'
 import { resolvePlaceImageWithMeta } from '../utils/placeImage'
-import { useTopContributions } from '../hooks/useTopContributions'
+import { useTopContributions, tipPrefetchIds } from '../hooks/useTopContributions'
 import { useSubscription } from '../hooks/useSubscription'
 import { useAuth } from '../contexts/AuthContext'
 import { isNative, getPlatform } from '../utils/nativeBridge'
@@ -523,8 +523,8 @@ export default function CardStack({
 
   // Get visible cards (current + 2 behind)
   const visibleCards = mergedPlaces.slice(currentIndex, currentIndex + 3)
-  const prefetchCards = mergedPlaces.slice(currentIndex, currentIndex + 12)
-  const prefetchPlaceIds = prefetchCards.map(item => item.place?.id).filter(Boolean)
+  // Chunked window: the id list changes once per 12 swipes, not every swipe
+  const prefetchPlaceIds = tipPrefetchIds(mergedPlaces, currentIndex)
   const { contributions: topContributions } = useTopContributions(prefetchPlaceIds)
 
   const currentMessage = LOADING_MESSAGES[loadingMessageIndex]

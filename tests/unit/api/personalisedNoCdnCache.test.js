@@ -9,6 +9,7 @@ import { join } from 'node:path'
 // Exceptions vary the public copy on Cookie, which Vercel refuses to cache.
 const EXCEPTIONS = {
   'api/contributions/index.js': 'anonymous branch sets Vary: Authorization, Cookie',
+  'api/contributions/batch.js': 'anonymous branch sets Vary: Authorization, Cookie; signed-in is private, no-store',
 }
 
 function walk(dir) {

@@ -5,128 +5,83 @@
  * Used to show community tips on swipe cards efficiently.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
-// In-memory cache for contributions
-// Persists across component mounts within the same session
+// Module-level cache: placeId -> { timestamp, promise<contribution|null> }.
+// Storing the promise (not the result) means an id already in flight is never
+// requested twice, whether by a re-render or another mounted hook.
 const contributionCache = new Map()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 /**
- * Fetch top contributions for a batch of place IDs
+ * Resolve top contributions for placeIds, requesting only ids not already
+ * cached or in flight. Never throws: failures resolve to null (and are cached
+ * so a broken API is not hammered).
  */
-async function fetchBatchContributions(placeIds) {
+export async function fetchBatchContributions(placeIds) {
   if (!placeIds || placeIds.length === 0) return {}
 
-  // Filter out already cached (and not expired) IDs
   const now = Date.now()
-  const uncachedIds = placeIds.filter(id => {
+  const missing = [...new Set(placeIds)].filter(id => {
     const cached = contributionCache.get(id)
-    return !cached || (now - cached.timestamp > CACHE_TTL)
+    return !cached || now - cached.timestamp > CACHE_TTL
   })
 
-  // If all are cached, return from cache
-  if (uncachedIds.length === 0) {
-    const result = {}
-    for (const id of placeIds) {
-      const cached = contributionCache.get(id)
-      result[id] = cached?.data || null
+  if (missing.length > 0) {
+    const request = fetch(`/api/contributions/batch?placeIds=${missing.join(',')}`)
+      .then(response => (response.ok ? response.json() : null))
+      .then(body => body?.contributions || {})
+      .catch(() => ({})) // Silently fail - API might not be configured in development
+    for (const id of missing) {
+      contributionCache.set(id, { timestamp: now, promise: request.then(c => c[id] || null) })
     }
-    return result
   }
 
-  try {
-    const response = await fetch(`/api/contributions/batch?placeIds=${uncachedIds.join(',')}`)
+  const values = await Promise.all(placeIds.map(id => contributionCache.get(id).promise))
+  return Object.fromEntries(placeIds.map((id, i) => [id, values[i]]))
+}
 
-    if (!response.ok) {
-      // Silently fail - API might not be configured in development
-      // Cache empty results to avoid repeated failed requests
-      for (const id of uncachedIds) {
-        contributionCache.set(id, { data: null, timestamp: now })
-      }
-      return {}
-    }
+const TIP_PREFETCH_CHUNK = 12
 
-    const { contributions } = await response.json()
-
-    // Cache the results
-    for (const id of uncachedIds) {
-      contributionCache.set(id, {
-        data: contributions[id] || null,
-        timestamp: now
-      })
-    }
-
-    // Return all requested IDs (mix of newly fetched and cached)
-    const result = {}
-    for (const id of placeIds) {
-      const cached = contributionCache.get(id)
-      result[id] = cached?.data || null
-    }
-    return result
-  } catch {
-    // Silently fail - API might not be configured in development
-    // Cache empty results to avoid repeated failed requests
-    for (const id of uncachedIds) {
-      contributionCache.set(id, { data: null, timestamp: now })
-    }
-    return {}
-  }
+/**
+ * Place ids whose tips the swipe deck should hold. The window moves in fixed
+ * chunks of 12, so it changes once per 12 swipes (one request for the next 12
+ * ids) instead of on every swipe, and always covers 12+ cards ahead.
+ */
+export function tipPrefetchIds(items, currentIndex) {
+  const start = Math.floor(currentIndex / TIP_PREFETCH_CHUNK) * TIP_PREFETCH_CHUNK
+  return items
+    .slice(start, start + 2 * TIP_PREFETCH_CHUNK)
+    .map(item => item.place?.id)
+    .filter(Boolean)
 }
 
 /**
- * Hook to get top contributions for a list of places
+ * Hook to get top contributions for a list of places.
+ * Refetches only when the set of ids changes (not on every render), and then
+ * only for ids it has not seen. Callers should pass a list that moves in
+ * chunks (see CardStack) so a swipe does not change it.
  *
  * @param {string[]} placeIds - Array of place IDs to fetch contributions for
  * @returns {{ contributions: Object, loading: boolean, error: string|null }}
  */
 export function useTopContributions(placeIds) {
   const [contributions, setContributions] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  const pendingIdsRef = useRef(new Set())
-  const debounceRef = useRef(null)
-
-  const fetchContributions = useCallback(async () => {
-    if (!placeIds || placeIds.length === 0) return
-
-    // Queue IDs for a short window to batch rapid updates
-    placeIds.forEach(id => pendingIdsRef.current.add(id))
-    if (debounceRef.current) return
-
-    debounceRef.current = setTimeout(async () => {
-      const idsToFetch = Array.from(pendingIdsRef.current)
-      pendingIdsRef.current.clear()
-      debounceRef.current = null
-
-      if (idsToFetch.length === 0) return
-
-      setLoading(true)
-      setError(null)
-
-      try {
-        const result = await fetchBatchContributions(idsToFetch)
-        setContributions(prev => ({ ...prev, ...result }))
-      } catch {
-        setError('Failed to load community tips')
-      } finally {
-        setLoading(false)
-      }
-    }, 200)
-  }, [placeIds])
+  const [loadedKey, setLoadedKey] = useState('')
+  const key = (placeIds || []).join(',')
 
   useEffect(() => {
-    fetchContributions()
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-        debounceRef.current = null
-      }
-    }
-  }, [fetchContributions])
+    if (!key) return
+    let cancelled = false
+    fetchBatchContributions(key.split(',')).then(result => {
+      if (cancelled) return
+      setContributions(prev => ({ ...prev, ...result }))
+      setLoadedKey(key)
+    })
+    return () => { cancelled = true }
+  }, [key])
 
-  return { contributions, loading, error }
+  return { contributions, loading: Boolean(key) && key !== loadedKey, error: null }
 }
 
 /**

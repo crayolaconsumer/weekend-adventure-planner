@@ -7,8 +7,37 @@
 
 import { query } from '../lib/db.js'
 import { getUserFromRequest } from '../lib/auth.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+
+// Per-instance set of place_ids that have ANY approved tip (every visibility).
+// Most swipe-deck places have no tips, so ids outside this set are answered
+// null without touching MySQL. It is a superset of what any viewer can see, so
+// the shortcut can never reveal a tip, only skip places that have none.
+// Worst case a brand-new tip shows up to TIPPED_TTL_MS late on this instance.
+// ponytail: whole set held in memory; switch to a bloom filter or per-id cache
+// if distinct tipped places ever reach the hundreds of thousands.
+const TIPPED_TTL_MS = 60_000
+let tipped = null // { ids: Set<string>, at: number, loading?: Promise }
+
+async function getTippedPlaceIds() {
+  if (tipped && Date.now() - tipped.at < TIPPED_TTL_MS) return tipped.ids
+  if (tipped?.loading) return tipped.loading
+  const loading = query(
+    `SELECT DISTINCT place_id FROM contributions WHERE status = 'approved' AND contribution_type = 'tip'`
+  ).then(rows => {
+    tipped = { ids: new Set(rows.map(r => String(r.place_id))), at: Date.now() }
+    return tipped.ids
+  }).catch(err => {
+    tipped = null // retry next request; this request falls back to the full query
+    throw err
+  })
+  tipped = { ids: null, at: 0, loading }
+  return loading
+}
+
+/** Test hook: forget the cached set. */
+export function _resetTippedCache() { tipped = null }
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -46,7 +75,34 @@ async function handler(req, res) {
     // top-tip preview text from a blocked user.
     const currentUser = await getUserFromRequest(req).catch(() => null)
 
-    const placeholders = ids.map(() => '?').join(',')
+    // Anonymous answers are the same for everyone: let the CDN share them.
+    // Signed-in answers apply the viewer's blocks and follows: never shared.
+    // Vary keeps a cached anonymous copy from being served to a request that
+    // carries a token (Bearer on native, roam_token cookie on web).
+    if (currentUser) {
+      res.setHeader('Cache-Control', 'private, no-store')
+    } else {
+      dropRateLimitHeaders(res)
+      res.setHeader('Cache-Control', 'public, s-maxage=60')
+      const vary = res.getHeader?.('Vary')
+      res.setHeader('Vary', [vary, 'Authorization', 'Cookie'].filter(Boolean).join(', '))
+    }
+
+    const contributionsByPlace = Object.fromEntries(ids.map(id => [id, null]))
+
+    // Only places with at least one tip reach the database.
+    let queryIds = ids
+    try {
+      const tippedIds = await getTippedPlaceIds()
+      queryIds = ids.filter(id => tippedIds.has(id))
+    } catch (err) {
+      console.warn('Tipped place set unavailable, querying all ids', err)
+    }
+    if (queryIds.length === 0) {
+      return res.status(200).json({ contributions: contributionsByPlace })
+    }
+
+    const placeholders = queryIds.map(() => '?').join(',')
 
     const blockFilter = currentUser
       ? `AND NOT EXISTS (
@@ -55,6 +111,19 @@ async function handler(req, res) {
               OR (blocker_id = c.user_id AND blocked_id = ?)
          )`
       : ''
+
+    // Same visibility rules as GET /api/contributions: anonymous viewers see
+    // public tips; signed-in viewers also see their own and followers_only
+    // tips from people they follow. private tips only ever reach the author.
+    const visibilityFilter = currentUser
+      ? `AND (
+           c.visibility = 'public'
+           OR c.user_id = ?
+           OR (c.visibility = 'followers_only' AND EXISTS (
+             SELECT 1 FROM follows WHERE follower_id = ? AND following_id = c.user_id
+           ))
+         )`
+      : `AND c.visibility = 'public'`
 
     const sql = `
       SELECT
@@ -77,17 +146,17 @@ async function handler(req, res) {
         AND c.status = 'approved'
         AND c.contribution_type = 'tip'
         AND u.is_banned = FALSE
+        ${visibilityFilter}
         ${blockFilter}
       ORDER BY c.place_id, (c.upvotes - c.downvotes) DESC, c.created_at DESC
     `
 
     const queryParams = currentUser
-      ? [...ids, currentUser.id, currentUser.id]
-      : ids
+      ? [...queryIds, currentUser.id, currentUser.id, currentUser.id, currentUser.id]
+      : queryIds
     const allContributions = await query(sql, queryParams)
 
     // Group by place_id and take only the first (highest scored) for each
-    const contributionsByPlace = {}
     const seenPlaces = new Set()
 
     for (const c of allContributions) {
@@ -114,16 +183,10 @@ async function handler(req, res) {
       }
     }
 
-    // Fill in nulls for places without contributions
-    for (const id of ids) {
-      if (!contributionsByPlace[id]) {
-        contributionsByPlace[id] = null
-      }
-    }
-
     return res.status(200).json({ contributions: contributionsByPlace })
   } catch (error) {
     console.error('Batch contributions error:', error)
+    res.setHeader('Cache-Control', 'no-store') // never let the CDN keep an error
     return res.status(500).json({ error: 'Internal server error' })
   }
 }
