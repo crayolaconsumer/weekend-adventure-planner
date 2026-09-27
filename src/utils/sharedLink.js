@@ -14,3 +14,11 @@ export function keepDeferring(pathname) {
 export function shouldDeferOnboarding({ onboarded, native, pathname }) {
   return !onboarded && !native && SHARED_LINK.test(pathname)
 }
+
+// Pages that skip onboarding and the location prompt entirely: partner and
+// marketing surfaces, and the legal/support pages store reviewers and policy
+// links land on as first-time visitors.
+const STANDALONE = ['/get-roam', '/privacy', '/terms', '/support']
+export function isStandalonePathname(pathname) {
+  return pathname.startsWith('/partners') || STANDALONE.includes(pathname.replace(/\/$/, ''))
+}

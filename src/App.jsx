@@ -37,7 +37,7 @@ import PartnerRoute from './components/PartnerRoute'
 
 import Onboarding from './components/Onboarding'
 import ResumeOnboarding from './components/ResumeOnboarding'
-import { shouldDeferOnboarding } from './utils/sharedLink'
+import { shouldDeferOnboarding, isStandalonePathname } from './utils/sharedLink'
 import { track } from './utils/analytics'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoadingState from './components/LoadingState'
@@ -419,8 +419,7 @@ function App() {
   // prompt. App sits above BrowserRouter, so we read the entry path directly
   // (visitors land here via a full page load from a marketing/press link, so
   // this is reliable at mount).
-  const isStandalonePath = typeof window !== 'undefined' &&
-    (window.location.pathname.startsWith('/partners') || window.location.pathname === '/get-roam')
+  const isStandalonePath = typeof window !== 'undefined' && isStandalonePathname(window.location.pathname)
 
   const [location, setLocation] = useState(null)
   const [locationError, setLocationError] = useState(null)
