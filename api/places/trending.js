@@ -29,6 +29,37 @@ function memoized(key, load) {
 }
 export function _resetTrendingMemo() { memo.clear() }
 
+// place_data is whatever the saving client posted, served here to everyone:
+// keep only what the card needs to name the place and find its own photo.
+// Dropped: client-computed fields (distance gives away where the saver was),
+// any image URL, and websites (image-resolve would use that site's og:image):
+// a saver must not choose the picture on everyone's card. Real user photos
+// come from approved contributions below; Wikipedia/Wikidata/Commons picks
+// are community-curated and filtered by image-resolve.
+const TEXT_KEYS = ['name', 'type', 'wikipedia', 'wikidata', 'wikimedia_commons']
+const TAG_KEYS = ['wikipedia', 'wikidata', 'wikimedia_commons']
+const str = v => (typeof v === 'string' ? v.slice(0, 300) : undefined)
+const coord = (v, max) => (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= max ? v : undefined)
+export function publicPlaceData(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const out = {}
+  for (const k of TEXT_KEYS) if (str(raw[k]) !== undefined) out[k] = str(raw[k])
+  const c = raw.category
+  if (typeof c === 'string') out.category = str(c)
+  else if (c && typeof c === 'object' && !Array.isArray(c)) {
+    out.category = {}
+    if (str(c.key) !== undefined) out.category.key = str(c.key)
+    if (str(c.label) !== undefined) out.category.label = str(c.label)
+  }
+  for (const [k, max] of [['lat', 90], ['lng', 180], ['lon', 180]]) if (coord(raw[k], max) !== undefined) out[k] = raw[k]
+  if (raw.tags && typeof raw.tags === 'object' && !Array.isArray(raw.tags)) {
+    const tags = {}
+    for (const k of TAG_KEYS) if (str(raw.tags[k]) !== undefined) tags[k] = str(raw.tags[k])
+    if (Object.keys(tags).length) out.tags = tags
+  }
+  return out
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -195,7 +226,7 @@ async function handler(req, res) {
     for (const p of placeData) {
       try {
         const data = typeof p.place_data === 'string' ? JSON.parse(p.place_data) : p.place_data
-        placeDataByPlace[p.place_id] = data
+        placeDataByPlace[p.place_id] = publicPlaceData(data)
       } catch {
         // Skip invalid JSON
       }

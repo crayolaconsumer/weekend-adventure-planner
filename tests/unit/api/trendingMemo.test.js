@@ -8,7 +8,7 @@ vi.mock('../../../api/lib/db.js', () => ({ query: (...a) => query(...a) }))
 vi.mock('../../../api/lib/auth.js', () => ({ getUserFromRequest: async () => viewer }))
 vi.mock('../../../api/lib/rateLimit.js', () => ({ applyRateLimit: () => null, RATE_LIMITS: {} }))
 
-const { default: handler, _resetTrendingMemo } = await import('../../../api/places/trending.js')
+const { default: handler, _resetTrendingMemo, publicPlaceData } = await import('../../../api/places/trending.js')
 
 const RANK = [{ place_id: 'p1', contribution_count: 1, save_count: 2, visit_count: 0, popularity_score: 5 }]
 function route(sql) {
@@ -108,5 +108,47 @@ describe('trending: global ranking memoized per instance', () => {
       expect(placeholders(sql)).toBe(params.length)
       expect(params).toEqual(['p1', 42, 42, 42, 42])
     }
+  })
+})
+
+describe('trending: a saver\'s place_data is never passed through', () => {
+  beforeEach(() => { _resetTrendingMemo(); query.mockReset(); viewer = null })
+
+  it('drops distance, image URLs and unknown fields; keeps what the card uses to name and picture the place', async () => {
+    const saved = {
+      name: 'York Minster', type: 'place_of_worship', category: { key: 'culture', label: 'Culture', secret: 'x' },
+      lat: 53.962, lng: -1.082, distance: 0.4, image: 'https://evil.example/x.jpg', imageUrl: 'https://evil.example/y.jpg',
+      photo: 'p', thumbnail: 't', images: ['i'], address: '1 Private Rd', userId: 7,
+      tags: { wikipedia: 'en:York Minster', wikidata: 'Q1', 'addr:street': 'x', phone: '0123' }
+    }
+    query.mockImplementation(async sql => {
+      if (sql.includes('popularity_score')) return RANK
+      if (sql.includes("contribution_type = 'photo'")) return [{ place_id: 'p1', metadata: JSON.stringify({ photoUrl: 'https://abc.public.blob.vercel-storage.com/p.jpg' }) }]
+      if (sql.includes("contribution_type = 'tip'")) return []
+      return [{ place_id: 'p1', place_data: JSON.stringify(saved) }]
+    })
+    const res = await get()
+    const pd = res.body.trending[0].placeData
+    expect(pd).toEqual({
+      name: 'York Minster', type: 'place_of_worship', category: { key: 'culture', label: 'Culture' },
+      lat: 53.962, lng: -1.082, tags: { wikipedia: 'en:York Minster', wikidata: 'Q1' },
+      image: 'https://abc.public.blob.vercel-storage.com/p.jpg' // an approved user photo, from contributions
+    })
+    expect(res.body.trending[0].placeName).toBe('York Minster')
+    expect(res.body.trending[0].placeCategory).toBe('Culture')
+  })
+
+  it('handles junk safely', () => {
+    for (const junk of [null, 'x', 5, [], [1]]) expect(publicPlaceData(junk)).toBeNull()
+    expect(publicPlaceData({ name: 'x'.repeat(5000), lat: NaN, lng: Infinity })).toEqual({ name: 'x'.repeat(300) })
+    expect(publicPlaceData({ name: { toString: 1 }, tags: 'nope' })).toEqual({})
+    expect(publicPlaceData({ lat: '53.9', lng: -1, lon: 9999, name: 5, wikidata: 42, category: 'food' })).toEqual({ lng: -1, category: 'food' })
+    expect(publicPlaceData(JSON.parse('{"__proto__":{"polluted":1},"name":"x"}'))).toEqual({ name: 'x' })
+  })
+
+  it('a saver\'s website never reaches the card (image-resolve would use its og:image)', () => {
+    const out = publicPlaceData({ name: 'Cafe', website: 'https://evil.example', tags: { website: 'https://evil.example', 'contact:website': 'https://evil.example', wikimedia_commons: 'File:X.jpg' } })
+    expect(JSON.stringify(out)).not.toContain('evil.example')
+    expect(out).toEqual({ name: 'Cafe', tags: { wikimedia_commons: 'File:X.jpg' } })
   })
 })
