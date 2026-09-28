@@ -30,6 +30,8 @@ import { routeRequest, routeResetKey } from './Discover/routeRequest'
 import { getTopRecommendations } from '../utils/tasteProfile'
 import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
+import { buildFreshDeck, excludeSeen, recordSeen } from '../utils/seenPlaces'
+import DeckRunningDryNotice, { nextWider } from './Discover/DeckRunningDryNotice'
 import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure, firstOpening, MIN_OPEN_CARDS } from './Discover/applyFilters'
 import ClosedNowNotice from './Discover/ClosedNowNotice'
 import { DEFAULT_BAND, bandStorageKey, getBandsFor } from './Discover/distanceBands'
@@ -54,7 +56,17 @@ export default function Discover({ location }) {
   const { savePlace, places: savedPlaces } = useSavedPlaces()
   const { profile: userProfile } = useTasteProfile()
   const { isPremium } = useSubscription()
-  const { recordSwipe } = useSwipedPlaces()
+  // Places swiped this session (any direction). I'm Bored must not offer
+  // something the user has just skipped or already acted on.
+  const swipedIdsRef = useRef(new Set())
+  // Bumped when the seen store changes under us (sign-in switched stores, the
+  // server's swipes from other devices arrived), so the deck is rebuilt
+  // without them. Not once the user is swiping: a rebuild mid-deck would
+  // reshuffle it; the next deck build picks them up instead.
+  const [seenVersion, setSeenVersion] = useState(0)
+  const { recordSwipe } = useSwipedPlaces({
+    onSeenChange: () => { if (swipedIdsRef.current.size === 0) setSeenVersion(v => v + 1) },
+  })
   const { stats, incrementStat, updateStats } = useUserStats()
 
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
@@ -279,24 +291,36 @@ export default function Discover({ location }) {
     [selectedCategories, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand, includeClosed],
   )
 
-  // Memoized filtered places - only recalculates when basePlaces or filter deps change
-  const filteredPlaces = useMemo(() => {
-    if (!basePlaces || basePlaces.length === 0) return []
-    return applyFilters(basePlaces, weather, friendActivity)
-  }, [basePlaces, applyFilters, weather, friendActivity])
+  // The deck: places already swiped (this device, or the server's list) are
+  // taken out BEFORE the picker ranks, so a reload never re-deals them.
+  // Recalculates when basePlaces or filter deps change, not on every swipe
+  // (the deck in hand must not reshuffle); seenVersion covers server merges.
+  // Old skips only come back when there is no wider radius to offer and no
+  // filter to clear (the running-dry notice offers those first).
+  const hasDeckFilters = selectedCategories.length > 0 || showFreeOnly || accessibilityMode || showLocalsPicks || showOffPeak
+  const canRecycle = !hasDeckFilters && !nextWider(travelMode, selectedBand, isPremium)
+  const freshDeck = useMemo(
+    () => buildFreshDeck(basePlaces, list => applyFilters(list, weather, friendActivity), { recycle: canRecycle }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seenVersion: the seen store changed
+    [basePlaces, applyFilters, weather, friendActivity, seenVersion, canRecycle],
+  )
+  const filteredPlaces = freshDeck.places
+  // New cards in this deck the user hasn't swiped yet (the running-dry count)
+  const [swipeTick, setSwipeTick] = useState(0)
+  const freshLeft = useMemo(
+    () => freshDeck.places.slice(0, freshDeck.fresh).filter(p => !swipedIdsRef.current.has(p.id)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- swipeTick: swipedIdsRef changed
+    [freshDeck, swipeTick],
+  )
 
   // Too few open places (night time): would including closed ones help?
   // Only then do we offer them, labelled with when the first one opens.
   const closedOffer = useMemo(() => {
     if (includeClosed || filteredPlaces.length >= MIN_OPEN_CARDS || basePlaces.length === 0) return null
-    const withClosed = applyFilters(basePlaces, weather, friendActivity, { includeClosed: true })
+    const withClosed = applyFilters(excludeSeen(basePlaces), weather, friendActivity, { includeClosed: true })
     if (withClosed.length <= filteredPlaces.length) return null
     return { firstOpens: firstOpening(withClosed), closedCount: withClosed.length - filteredPlaces.length }
   }, [includeClosed, filteredPlaces.length, basePlaces, applyFilters, weather, friendActivity])
-
-  // Places swiped this session (any direction). I'm Bored must not offer
-  // something the user has just skipped or already acted on.
-  const swipedIdsRef = useRef(new Set())
 
   // I'm Bored picks, worked out when the modal opens (not when places load)
   // so skips made since then, and closing times, are current
@@ -486,7 +510,8 @@ export default function Discover({ location }) {
       // Enhance and filter
       const enhanced = rawPlaces.map(p => enhancePlace(p, effectiveLocation, { weather }))
 
-      let filtered = filterPlaces(enhanced, {
+      // Swiped places stay out of the extra cards too
+      let filtered = filterPlaces(excludeSeen(enhanced), {
         categories: selectedCategories.length > 0 ? selectedCategories : null,
         minScore: 25, // Lower threshold for more results
         maxResults: 100,
@@ -559,9 +584,11 @@ export default function Discover({ location }) {
 
     // Only update if filteredPlaces actually changed
     setPlaces(prevPlaces => {
-      // Check if the filtered results are actually different
+      // Check if the filtered results are actually different: every id, in
+      // order (a rebuild without seen places can keep the length and the
+      // first card while dropping cards further down)
       if (prevPlaces.length === filteredPlaces.length &&
-          prevPlaces[0]?.id === filteredPlaces[0]?.id) {
+          prevPlaces.every((p, i) => p.id === filteredPlaces[i].id)) {
         return prevPlaces
       }
 
@@ -659,7 +686,15 @@ export default function Discover({ location }) {
 
   // Handle swipe actions
   const handleSwipe = async (action, place) => {
-    if (place?.id != null) swipedIdsRef.current.add(place.id)
+    if (place?.id != null) {
+      swipedIdsRef.current.add(place.id)
+      setSwipeTick(t => t + 1)
+      // Every swipe leaves the deck, before any early return below. A go
+      // stays out for good; a nope stays out as a skip (60 days), and so
+      // does a like until its save succeeds (then it's a like, for good).
+      // A like the save limit blocked, or whose save failed, stays a skip.
+      recordSeen(place.id, action === 'go' ? 'like' : 'skip')
+    }
     if (action === 'like') {
       // CHECK SAVE LIMIT FOR FREE USERS
       const currentSaveCount = savedPlaces?.length || 0
@@ -673,6 +708,8 @@ export default function Discover({ location }) {
       const saveResult = await savePlace(place)
       if (!saveResult.success && !saveResult.fallback) {
         toast.error('Failed to save place. Please try again.')
+      } else if (place?.id != null) {
+        recordSeen(place.id, 'like')
       }
 
       // SOFT PROMPT AT 5TH SAVE (success moment)
@@ -916,9 +953,26 @@ export default function Discover({ location }) {
           />
         )}
 
+        {/* Running out of places the user hasn't swiped: say so, offer a
+            wider search. The closed-now offer comes first when it applies. */}
+        {!loading && !loadError && freshDeck.dry && !closedOffer && (
+          <DeckRunningDryNotice
+            freshCount={freshLeft}
+            recycledCount={freshDeck.recycled}
+            compact={places.length > 0}
+            travelMode={travelMode}
+            selectedBand={selectedBand}
+            isPremium={isPremium}
+            hasFilters={hasDeckFilters}
+            onBandChange={handleBandChange}
+            onTravelModeChange={setTravelMode}
+            onClearFilters={clearAllFilters}
+          />
+        )}
+
         {/* Card Stack (always on mobile, conditional on desktop). With nothing
-            open, the closed-now notice above is the empty state instead. */}
-        {(viewMode === 'swipe' || !isDesktop) && !loadError && !(closedOffer && places.length === 0 && !loading) && (
+            open (or nothing new), the notice above is the empty state instead. */}
+        {(viewMode === 'swipe' || !isDesktop) && !loadError && !((closedOffer || freshDeck.dry) && places.length === 0 && !loading) && (
           <CardStack
             places={places}
             sponsoredPlaces={sponsoredPlaces}

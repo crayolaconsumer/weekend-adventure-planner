@@ -11,11 +11,49 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getAuthToken } from '../utils/authToken'
+import { mergeSeen, setSeenOwner } from '../utils/seenPlaces'
 
 const STORAGE_KEY = 'roam_not_interested'
 const BATCH_SIZE = 50 // API limit per request
 const DEBOUNCE_DELAY = 2000 // 2 seconds debounce for real-time swipes
 const MAX_LOCAL_SKIPS = 50 // Keep localStorage small
+// The server's swipes are read once per signed-in user per page session
+// (not per mount), so swipes from other devices leave the deck without a
+// call per visit. A different user signing in gets their own read.
+const SERVER_SEEN_LIMIT = 500 // api/places/swiped.js caps GET at 500
+let serverSeenFor = null
+
+/**
+ * GET the signed-in user's swipes once per session and merge them into the
+ * seen store. Resolves to the number of places newly added (0 on failure:
+ * the deck never waits on or breaks over this call).
+ */
+export async function mergeServerSwipes(userId, token = getAuthToken()) {
+  if (userId == null || serverSeenFor === String(userId) || !token) return 0
+  serverSeenFor = String(userId)
+  try {
+    const res = await fetch(`/api/places/swiped?limit=${SERVER_SEEN_LIMIT}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include'
+    })
+    if (!res.ok) return 0
+    const data = await res.json()
+    // Signed out or switched user while the GET was in flight: not theirs
+    if (serverSeenFor !== String(userId)) return 0
+    const tag = action => item => ({ ...item, action })
+    return mergeSeen([
+      ...(Array.isArray(data?.likes) ? data.likes.map(tag('like')) : []),
+      ...(Array.isArray(data?.skips) ? data.skips.map(tag('skip')) : [])
+    ])
+  } catch {
+    return 0
+  }
+}
+
+/** For tests: allow another once-per-session GET. */
+export function resetServerSeenForTests() {
+  serverSeenFor = null
+}
 
 /**
  * Record a skip in the local "not interested" list, the one writer for
@@ -42,8 +80,25 @@ export function recordLocalSkip(placeId, details = {}) {
   }
 }
 
-export function useSwipedPlaces() {
-  const { isAuthenticated, loading: authLoading } = useAuth()
+export function useSwipedPlaces({ onSeenChange } = {}) {
+  const { isAuthenticated, loading: authLoading, user } = useAuth()
+  const userId = isAuthenticated ? (user?.id ?? null) : null
+  const onSeenChangeRef = useRef(onSeenChange)
+  onSeenChangeRef.current = onSeenChange
+
+  // The seen store follows the signed-in user (anonymous merges in on
+  // sign-in); then swipes made on other devices are merged from the server
+  useEffect(() => {
+    if (authLoading) return
+    if (setSeenOwner(userId)) onSeenChangeRef.current?.()
+    if (userId == null) {
+      serverSeenFor = null // signed out: the next sign-in reads its own list
+      return
+    }
+    mergeServerSwipes(userId).then(added => {
+      if (added > 0) onSeenChangeRef.current?.()
+    })
+  }, [userId, authLoading])
   const syncedRef = useRef(false)
   const pendingSwipesRef = useRef([]) // Queue for debounced swipes
   const debounceTimerRef = useRef(null)
@@ -144,6 +199,8 @@ export function useSwipedPlaces() {
   const recordSwipe = useCallback(async (placeId, action, details) => {
     // Always update localStorage for skip/not interested (for personalization)
     // This is kept regardless of auth state for local recommendations
+    // (The deck's seen store is written by Discover's swipe handler, for
+    // every direction, before any early return.)
     if (action === 'skip') recordLocalSkip(placeId, details)
 
     // Queue swipe for batched API sync if authenticated
