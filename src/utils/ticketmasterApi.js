@@ -37,9 +37,11 @@ let tmCache = {
  * @returns {Promise<{events: Array, pagination: Object|null}>}
  */
 async function fetchTicketmasterPage(lat, lng, radiusKm, page, from, to) {
+  // ~1 km cells, the same rounding as the proxy (api/events/ticketmaster.js):
+  // nearby users share one CDN entry, and the proxy doesn't have to redirect
   const params = new URLSearchParams({
-    lat: lat.toString(),
-    lng: lng.toString(),
+    lat: String(Math.round(lat * 100) / 100),
+    lng: String(Math.round(lng * 100) / 100),
     radius: radiusKm.toString(),
     page: page.toString()
   })
@@ -101,7 +103,7 @@ export async function fetchTicketmasterEvents(lat, lng, radiusKm = 30, options =
   }
 
   // Check cache validity (only for initial load, startPage === 0)
-  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)},${radiusKm},${from || ''},${to || ''}`
+  const cacheKey = `${Math.round(lat * 100) / 100},${Math.round(lng * 100) / 100},${radiusKm},${from || ''},${to || ''}`
   if (
     startPage === 0 &&
     tmCache.data &&

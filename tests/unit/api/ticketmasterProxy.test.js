@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import handler from '../../../api/events/ticketmaster.js'
 
 let n = 0
-async function call(query) {
+async function call(query, url) {
   const res = {
     statusCode: 200, headers: {},
     setHeader(k, v) { this.headers[k] = v },
@@ -12,7 +12,7 @@ async function call(query) {
     json(b) { this.body = b; return this },
     end() { return this }
   }
-  await handler({ method: 'GET', query, headers: { 'x-forwarded-for': `10.9.0.${n++}` } }, res)
+  await handler({ method: 'GET', query, url, headers: { 'x-forwarded-for': `10.9.0.${n++}` } }, res)
   return res
 }
 
@@ -114,5 +114,55 @@ describe('Ticketmaster proxy edge caching', () => {
     const res = await call({ lat: '999', lng: '-1.08' })
     expect(res.statusCode).toBe(400)
     expect(res.headers['Cache-Control']).toBe('private, no-store')
+  })
+})
+
+describe('Ticketmaster proxy: shared ~1 km cells', () => {
+  let fetchMock
+  beforeEach(() => {
+    vi.stubEnv('TICKETMASTER_KEY', 'test-key')
+    fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ _embedded: { events: [] } }) }))
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
+
+  const http = query => call(query, `/api/events/ticketmaster?${new URLSearchParams(query)}`)
+
+  it('307s raw GPS coordinates (old builds) to the rounded, CDN-shareable URL, without calling upstream', async () => {
+    const res = await http({ lat: '51.507351', lng: '-0.127758', radius: '30', page: '1' })
+    expect(res.statusCode).toBe(307)
+    expect(res.headers.Location).toBe('/api/events/ticketmaster?lat=51.51&lng=-0.13&radius=30&page=1')
+    expect(res.headers['Cache-Control']).toMatch(/public, max-age=0, s-maxage=\d+/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('serves already-rounded coordinates directly (current builds), including whole and negative values', async () => {
+    for (const q of [{ lat: '51.51', lng: '-0.13' }, { lat: '52', lng: '-1' }, { lat: '-33.87', lng: '151.21' }]) {
+      fetchMock.mockClear()
+      const res = await http(q)
+      expect(res.statusCode).toBe(200)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('never redirects in-process callers (town pages pass exact coordinates and no url)', async () => {
+    const res = await call({ lat: '53.959965', lng: '-1.087298' })
+    expect(res.statusCode).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves invalid coordinates to the normal 400', async () => {
+    expect((await http({ lat: 'abc', lng: '-0.1' })).statusCode).toBe(400)
+    expect((await http({ lat: '91.123', lng: '0' })).statusCode).toBe(400)
+    expect((await http({ lat: '', lng: '-0.12' })).statusCode).toBe(400) // not redirected to lat=0
+    expect((await http({ lat: ' ', lng: '-0.12' })).statusCode).toBe(400)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('the redirect target never redirects again', async () => {
+    const first = await http({ lat: '51.5049999', lng: '-0.0050001' })
+    const target = new URL(first.headers.Location, 'https://x')
+    const second = await call(Object.fromEntries(target.searchParams), first.headers.Location)
+    expect(second.statusCode).toBe(200)
   })
 })

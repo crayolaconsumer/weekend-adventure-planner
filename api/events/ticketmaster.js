@@ -30,10 +30,33 @@ function isRateLimited(ip) {
   return false
 }
 
+// ~1 km cells: everyone in a cell shares one CDN entry (and one upstream call
+// per cache window) instead of each GPS fix being its own URL
+export const roundCoord = v => Math.round(v * 100) / 100
+
 async function handler(req, res) {
   // Only allow GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Older app builds send raw GPS coordinates: send them to their cell's URL,
+  // which the CDN can share. Only real HTTP requests (req.url); in-process
+  // callers (town pages) are CDN-cached by their own page.
+  if (req.url) {
+    const la = Number(req.query.lat)
+    const ln = Number(req.query.lng)
+    if (String(req.query.lat).trim() !== '' && String(req.query.lng).trim() !== '' && Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180 &&
+        (String(roundCoord(la)) !== req.query.lat || String(roundCoord(ln)) !== req.query.lng)) {
+      const url = new URL(req.url, 'https://www.go-roam.uk')
+      url.searchParams.set('lat', String(roundCoord(la)))
+      url.searchParams.set('lng', String(roundCoord(ln)))
+      // 307, not 308: every HTTP stack (incl. old native builds' Capacitor HTTP) follows it,
+      // and clients don't remember it, so the rounding can change later
+      res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=86400')
+      res.setHeader('Location', url.pathname + url.search)
+      return res.status(307).end()
+    }
   }
 
   // Rate limiting
