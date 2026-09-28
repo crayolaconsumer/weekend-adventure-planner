@@ -435,9 +435,16 @@ CREATE TABLE IF NOT EXISTS pois (
   has_name     TINYINT(1) NOT NULL,                   -- name or name:en present
   has_name_tag TINYINT(1) NOT NULL,                   -- the `name` tag itself (Overpass ["name"])
   has_wikidata TINYINT(1) NOT NULL,
+  q            TINYINT UNSIGNED NOT NULL DEFAULT 0,   -- relevance-cap features (shared/poiRank.mjs, phase12):
+  cat          TINYINT UNSIGNED NOT NULL DEFAULT 0,   --   deck score 0-100, category code,
+  flags        TINYINT UNSIGNED NOT NULL DEFAULT 0,   --   open slots / has hours / eligible / skip bits
   el           TEXT NOT NULL,                         -- finished Overpass element JSON, served as-is
   PRIMARY KEY (cell, osm_type, osm_id),
-  UNIQUE KEY uq_osm (osm_type, osm_id)                -- id lookups (placeLookup, fetchPlaceById)
+  UNIQUE KEY uq_osm (osm_type, osm_id),               -- id lookups (placeLookup, fetchPlaceById), cap phase 2
+  -- Covering index for the cap's phase 1 (poiQuery buildCandidateSql): the bbox WHERE plus the
+  -- features, so dense answers are ranked without reading el. 16 parts, MySQL's maximum;
+  -- osm_type/osm_id come free as the PK suffix. has_wikidata is left out (no Discover query uses it).
+  KEY ix_rank (cell, min_lat, max_lat, min_lon, max_lon, has_name_tag, k_amenity, k_tourism, k_leisure, k_historic, k_shop, k_natural, k_man_made, q, cat, flags)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS poi_photos (

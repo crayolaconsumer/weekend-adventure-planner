@@ -21,6 +21,7 @@ import { pathToFileURL } from 'node:url'
 import { trimOverpassResponse } from '../../api/lib/overpassTrim.js'
 import { LARGE_CELL, OSM_TYPE_CODE, SCHEMA_VERSION, isLarge, poiCell } from '../../shared/poiCell.mjs'
 import { POI_KEYS, filterPairs, makeMatcher } from './filter.mjs'
+import { poiFeatures, FEATURES_VERSION } from '../../shared/poiRank.mjs'
 
 export const CHUNK_ROWS = 10000
 const K_MAX = 48 // VARCHAR(48); a longer value can't equal anything the app queries
@@ -91,6 +92,8 @@ export function featureToRow(feature, matches) {
   row.has_name = 1
   row.has_name_tag = t.name ? 1 : 0 // Overpass ["name"] means the name tag itself
   row.has_wikidata = t.wikidata ? 1 : 0
+  // Relevance-cap features (shared/poiRank.mjs): the server ranks dense answers on these alone
+  Object.assign(row, poiFeatures(el))
   row.el = JSON.stringify(el)
   return row
 }
@@ -390,6 +393,7 @@ export async function build({ inputs, relations = [], polys, osmTimestamp, regio
   const manifest = {
     build_id: buildId(region, osmTimestamp),
     schema_version: SCHEMA_VERSION,
+    features_version: FEATURES_VERSION, // rows carry q, cat, flags (shared/poiRank.mjs)
     osm_timestamp: new Date(osmTimestamp).toISOString(),
     chunks,
     row_count: rows.length,

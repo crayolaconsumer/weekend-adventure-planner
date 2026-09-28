@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Drive api/admin/poi-load.js for one published build: begin, then every
- * chunk from the resume point, then photos, then finalize. Safe to re-run:
- * begin resumes from chunks_loaded and re-sent chunks are idempotent.
+ * chunk from the resume point, then photos, then verify (re-sent until every
+ * row's features are checked), then finalize. Safe to re-run: begin resumes
+ * from chunks_loaded, re-sent chunks are idempotent, verify resumes itself.
  *
  *   POI_LOAD_SECRET=... node scripts/poi/load.mjs --build uk-20261001T0215Z
  *   [--base https://www.go-roam.uk] [--skip-photos: only for a release without photos; G7 fails otherwise]
@@ -68,6 +69,17 @@ export async function run({ build, base = BASE, secret, adminToken, force = fals
         log(`  photos: ${p.skipped || `${offset + p.photos}/${p.total}`}`)
         offset = p.next ?? null
       }
+    }
+    // Every row's q/cat/flags re-derived from el, in batches, resumable (G9 needs it done).
+    // Only when begin advertises it: an older deployed handler has no verify step (it would
+    // answer 400) and its finalize doesn't need one.
+    // (only an explicit done: false asks for another call; 100 calls is ~5x GB's worst case)
+    for (let n = 0, done = !b.capabilities?.verify; !done; n++) {
+      if (n >= 100) { log('verify: gave up after 100 calls'); return 1 }
+      const v = await step({ step: 'verify' })
+      if (v.failed) { log(`verify failed: ${v.status} ${v.error}`); return 1 }
+      log(`  verify: ${v.verified_rows} rows${v.wrong ? `, ${v.wrong} WRONG` : ''}${v.done ? ', done' : ''}`)
+      done = v.done !== false
     }
   }
 

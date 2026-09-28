@@ -29,7 +29,7 @@ export const config = {
 import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
-import { parseQuery, getPois, isCovered, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
+import { parseQuery, getPois, shadowPois, isCovered, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
@@ -240,7 +240,7 @@ function applyCorsHeaders(res) {
 // waits long on the flag store. With both percentages at 0 the generation
 // isn't read at all.
 const POI_FLAGS_WAIT_MS = 50
-const POI_OFF = { serve: 0, shadow: 0, gen: 0 }
+const POI_OFF = { serve: 0, shadow: 0, cap: 0, gen: 0 }
 function within(promise, ms) {
   let timer
   const late = new Promise(resolve => { timer = setTimeout(resolve, ms, null) })
@@ -252,7 +252,7 @@ async function poiFlags() {
     if (!flags || !(flags.poiDbPct > 0 || flags.poiShadowPct > 0)) return POI_OFF
     const gen = peekPoiGen() ?? await within(getPoiGen(), POI_FLAGS_WAIT_MS)
     if (gen === null) return POI_OFF
-    return { serve: flags.poiDbPct || 0, shadow: flags.poiShadowPct || 0, gen }
+    return { serve: flags.poiDbPct || 0, shadow: flags.poiShadowPct || 0, cap: flags.poiCapPct || 0, gen }
   } catch {
     return POI_OFF
   }
@@ -273,11 +273,16 @@ function sendPoiBody(res, db) {
   return res.send(db.body)
 }
 
-// Shadow mode: what would the DB have served for a response we just gave from
-// KV or Overpass? Runs after the response (waitUntil), logs one line to compare.
-async function poiShadow(plan, key, live, gen) {
-  const db = await getPois(plan, key, { useLru: false, gen })
-  if (!db) return // not covered, over the row cap, breaker open, or DB error
+// Shadow mode: what would the DB have served (capped, for a dense Discover tile on a
+// features build, whatever poiCapPct serves) for a response we just gave, from KV,
+// Overpass or the DB itself (liveSrc)? Runs after the response (waitUntil) on its
+// own connection, only while the instance is idle, at most once per tile per 10 min
+// (poiQuery shadowPois): it never touches served traffic. Logs one line to compare.
+// `live` may be a function, so a served DB body is only parsed when compared.
+async function poiShadow(plan, key, live, gen, liveSrc) {
+  const db = await shadowPois(plan, key, { gen })
+  if (!db) return // not covered, busy, seen recently, over the row cap, or DB error
+  if (typeof live === 'function') live = live()
   const dbIds = new Set(db.ids)
   const jaccard = els => {
     const ids = new Set(els.map(el => `${el.type}/${el.id}`))
@@ -293,10 +298,17 @@ async function poiShadow(plan, key, live, gen) {
   const namedIds = new Set(named.map(el => `${el.type}/${el.id}`))
   const extra = [...dbIds].filter(id => !namedIds.has(id))
   console.log(JSON.stringify({
-    evt: 'poi_shadow', n_live: live.elements.length, n_live_named: named.length, n_db: db.n,
+    evt: 'poi_shadow', live_src: liveSrc, n_live: live.elements.length, n_live_named: named.length, n_db: db.n,
     jaccard_ids: jaccard(named), jaccard_raw: jaccard(live.elements),
     extra_db: extra.length, extra_db_sample: extra.slice(0, 5),
-    db_ms: db.ms, build: db.buildId
+    db_ms: db.ms, build: db.buildId,
+    // A capped answer is a subset of the full one by design: its jaccard_ids is ~n_db/n_live,
+    // so the rollout gate reads jaccard on capped: false lines and extra_db on all of them
+    capped: db.scanned > db.n, n_scanned: db.scanned ?? db.n, rank_ms: db.rankMs ?? null,
+    // phase timings (ms) of a run that probed for the cap: probe (ix_rank, no el), candidates
+    // (phase 1), rank, el (phase 2), and today's statement when it served instead
+    probe_ms: db.timings?.probe ?? null, candidates_ms: db.timings?.candidates ?? null,
+    el_ms: db.timings?.el ?? null, today_ms: db.timings?.today ?? null, cap_fallback: db.capFallback ?? null
   }))
 }
 
@@ -383,14 +395,24 @@ export default async function handler(req, res) {
     // running carries on, is killed server-side by MAX_EXECUTION_TIME, and
     // counts as a breaker failure in getPois when it was this slow
     const deadlineAt = Date.now() + POI_DEADLINE_MS
-    const db = await within(getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt }), Math.max(0, deadlineAt - Date.now()))
+    // The relevance cap serves only in its own rollout bucket (poiCapPct, fail closed)
+    const pending = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt, cap: poiBucket < poiPct.cap })
+    // A capped answer holds a transaction (and the metadata lock that makes the loader's
+    // RENAME wait) until its ROLLBACK: keep the instance alive until it ends even when we
+    // stop waiting, or a suspended instance could hold that lock for hours
+    waitUntil(pending.catch(() => {}))
+    const db = await within(pending, Math.max(0, deadlineAt - Date.now()))
     if (db && db.n > 0) {
-      logPlaces(req, t0, 'db', db.n, poiLog)
-      return sendPoiBody(res, db)
+      logPlaces(req, t0, 'db', db.n, Object.assign(poiLog, { db_scanned: db.scanned ?? db.n, db_cached: db.cached }))
+      const sent = sendPoiBody(res, db)
+      shadowPoi(() => JSON.parse(db.body), 'db')
+      return sent
     }
   }
-  const shadowPoi = live => {
-    if (!poiServe && poiBucket < poiPct.shadow) waitUntil(poiShadow(poiPlan, upstreamQuery, live, poiPct.gen).catch(() => {}))
+  // Shadow is sampled on its own (poiShadowPct), whatever the DB rollout: DB answers,
+  // KV hits and Overpass answers all get compared, so the cap is measured at any poiDbPct
+  function shadowPoi(live, liveSrc) {
+    if (poiPlan && poiBucket < poiPct.shadow) waitUntil(poiShadow(poiPlan, upstreamQuery, live, poiPct.gen, liveSrc).catch(() => {}))
   }
   if (isCacheEnabled()) {
     const cached = await cacheGet(cacheKey)
@@ -403,7 +425,7 @@ export default async function handler(req, res) {
       dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Cache', 'HIT')
-      shadowPoi(cached)
+      shadowPoi(cached, 'kv')
       logPlaces(req, t0, 'kv', cached.elements.length, poiLog)
       return res.status(200).json(cached)
     }
@@ -508,7 +530,7 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
       res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
-      shadowPoi(data)
+      shadowPoi(data, 'overpass')
       logPlaces(req, t0, 'overpass', data.elements.length, poiLog)
       return res.status(200).json(data)
 

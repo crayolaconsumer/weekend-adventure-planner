@@ -9,7 +9,8 @@ export const kv = {}
 
 export function resetDb() {
   Object.assign(kv, { gen: 0, incrError: null, incrs: [], writes: [] })
-  const table = (comment = '') => ({ rows: new Map(), comment, count: null })
+  // features: the table has q, cat, flags (database/phase12). null = follow db.featureSchema (pois)
+  const table = (comment = '', features = null) => ({ rows: new Map(), comment, count: null, features })
   Object.assign(db, {
     builds: new Map(),
     tables: { pois: table(), poi_photos: table() },
@@ -25,6 +26,7 @@ export function resetDb() {
     kills: [],        // KILL QUERY <id> sent
     lockConnIds: [],  // CONNECTION_ID() of each locked session
     onSql: null,      // (statement) => void, e.g. to advance a fake clock
+    featureSchema: { cols: 3, ix_parts: 16 }, // live pois after database/phase12-poi-features.sql
     opened: 0,
     closed: 0,
     newTable: table,
@@ -33,6 +35,10 @@ export function resetDb() {
 resetDb()
 
 const count = t => (t.count ?? t.rows.size)
+const hasFeatureCols = name => {
+  const t = db.tables[name]
+  return t?.features ?? db.featureSchema.cols === 3
+}
 const quoted = s => [...s.matchAll(/'(\w+)'/g)].map(m => m[1])
 
 export function fake(sql, p = []) {
@@ -48,16 +54,28 @@ export function fake(sql, p = []) {
   if (hit) { if (hit.once) db.fail.splice(db.fail.indexOf(hit), 1); throw hit.err }
   const T = db.tables
   let m
+  // The schema, enforced as MySQL does: naming q, cat or flags on a POI table that lacks them
+  // (before database/phase12-poi-features.sql) is ER_BAD_FIELD_ERROR, not a silent pass
+  if (!/^(CREATE|DROP|ALTER|RENAME) TABLE/.test(s) && !s.includes('information_schema')) {
+    for (const [, name] of s.matchAll(/\b(?:FROM|INTO|UPDATE|JOIN)\s+(pois(?:_staging|_prev)?)\b/g)) {
+      // (string literals and G6's derived-table alias `) q` are not columns)
+      const missing = !hasFeatureCols(name) && /\b(q|cat|flags)\b/.exec(s.replace(/'[^']*'/g, "''").replace(/\) q$/, ')'))
+      if (missing) throw Object.assign(new Error(`Unknown column '${missing[1]}' in '${name}'`), { code: 'ER_BAD_FIELD_ERROR', errno: 1054 })
+    }
+  }
 
   if (s.startsWith('SELECT table_name AS name, table_comment AS owner FROM information_schema.tables')) {
     const names = p.length ? p : quoted(s.slice(s.indexOf('IN (')))
     return names.filter(n => T[n]).map(n => ({ name: n, owner: T[n].comment }))
   }
+  if (s.startsWith("SELECT (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'pois'")) {
+    return [{ ...db.featureSchema }]
+  }
   if (s.startsWith('SELECT COUNT(*) AS n FROM information_schema.tables')) {
     return [{ n: quoted(s.slice(s.indexOf('IN ('))).filter(n => T[n]).length }]
   }
   if (s === 'SELECT status FROM poi_builds WHERE build_id = ?' ||
-      s === 'SELECT status, chunks_total, chunks_loaded, manifest_sha256, coverage_sha256 FROM poi_builds WHERE build_id = ?') {
+      s === 'SELECT status, chunks_total, chunks_loaded, manifest_sha256, coverage_sha256, gate_report FROM poi_builds WHERE build_id = ?') {
     const r = db.builds.get(p[0]); return r ? [{ ...r }] : []
   }
   if (s.startsWith("SELECT build_id, row_count, photo_count, gate_report FROM poi_builds WHERE status = 'active'")) {
@@ -95,13 +113,35 @@ export function fake(sql, p = []) {
     return 1
   }
   if ((m = /^DROP TABLE IF EXISTS (.+)$/.exec(s))) { m[1].split(', ').forEach(n => delete T[n]); return {} }
-  if ((m = /^CREATE TABLE (\w+) LIKE (\w+)$/.exec(s))) { T[m[1]] = db.newTable(T[m[2]].comment); return {} }
+  if ((m = /^CREATE TABLE (\w+) LIKE (\w+)$/.exec(s))) { T[m[1]] = db.newTable(T[m[2]].comment, hasFeatureCols(m[2])); return {} }
   if ((m = /^ALTER TABLE (\w+) COMMENT = \?$/.exec(s))) { T[m[1]].comment = p[0]; return {} }
-  if (s.startsWith('INSERT INTO poi_builds')) {
-    const [id, , , , total, , manifestSha, coverageSha] = p
-    db.builds.set(id, { gen_pending: 0, ...(db.builds.get(id) || {}), status: 'loading', chunks_total: total, chunks_loaded: 0,
-      gate_report: null, row_count: null, photo_count: null, manifest_sha256: manifestSha, coverage_sha256: coverageSha })
+  if ((m = /^INSERT INTO poi_builds \(([^)]+)\) VALUES \(([^)]+)\) AS new ON DUPLICATE KEY UPDATE (.+)$/.exec(s))) {
+    // Modelled as MySQL does it: a NEW build gets exactly the VALUES; an existing one gets
+    // exactly the ON DUPLICATE KEY UPDATE assignments (new.x = that VALUE, NULL, a literal)
+    const cols = m[1].split(',').map(c => c.trim())
+    let at = 0
+    const values = Object.fromEntries(m[2].split(',').map(v => v.trim()).map((v, i) =>
+      [cols[i], v === '?' ? p[at++] : v === 'NULL' ? null : /^'.*'$/.test(v) ? v.slice(1, -1) : Number(v)]))
+    const json = v => (typeof v === 'string' && /^[[{]/.test(v) ? JSON.parse(v) : v)
+    const had = db.builds.get(values.build_id)
+    if (!had) {
+      db.builds.set(values.build_id, { gen_pending: 0, row_count: null, photo_count: null, activated_at: null,
+        ...Object.fromEntries(Object.entries(values).filter(([c]) => c !== 'build_id').map(([c, v]) => [c, c === 'coverage' ? v : json(v)])) })
+      if (!cols.includes('gate_report')) db.builds.get(values.build_id).gate_report = null
+      return {}
+    }
+    for (const [, col, rhs] of m[3].matchAll(/(\w+) = (new\.\w+|NULL|'\w+'|\d+)/g)) {
+      had[col] = rhs.startsWith('new.') ? json(values[rhs.slice(4)] ?? null) : rhs === 'NULL' ? null : /^'/.test(rhs) ? rhs.slice(1, -1) : Number(rhs)
+    }
     return {}
+  }
+  if (s === 'UPDATE poi_builds SET gate_report = ? WHERE build_id = ?') { db.builds.get(p[1]).gate_report = JSON.parse(p[0]); return 1 }
+  if (s.startsWith('SELECT cell, osm_type, osm_id, q, cat, flags, el FROM pois_staging ')) {
+    const key = r => [r.cell, r.osm_type, r.osm_id]
+    const after = s.includes('WHERE cell > ?') ? [p[0], p[2], p[4]] : null
+    const gt = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+    return [...T.pois_staging.rows.values()].sort((a, b) => gt(key(a), key(b)))
+      .filter(r => !after || gt(key(r), after) > 0).slice(0, p.at(-1))
   }
   if (s === 'UPDATE poi_builds SET gen_pending = 1 WHERE build_id = ?') { db.builds.get(p[0]).gen_pending = 1; return 1 }
   if (s === 'SELECT build_id FROM poi_builds WHERE gen_pending = 1') {
@@ -112,6 +152,9 @@ export function fake(sql, p = []) {
     return 1
   }
   if ((m = /^SELECT COUNT\(\*\) AS n FROM \((.+)\) q$/.exec(s))) return [{ n: db.g6Count(m[1], p) }]
+  if (s === 'SELECT osm_type, osm_id, q, cat, flags, el FROM pois_staging FORCE INDEX (uq_osm) WHERE osm_type IN (1, 2, 3) AND MOD(osm_id, ?) = ?') {
+    return [...T.pois_staging.rows.values()].filter(r => r.osm_id % p[0] === p[1])
+  }
   if ((m = /^INSERT INTO (pois_staging|poi_photos_staging) \(([^)]+)\) VALUES \? AS new ON DUPLICATE KEY UPDATE/.exec(s))) {
     const cols = m[2].split(', ')
     for (const r of p[0]) {
@@ -137,6 +180,9 @@ export function fake(sql, p = []) {
     ;[...m[1].matchAll(/SUM\((k_\w+) = \?\) AS (m\d+)/g)].forEach(([, col, alias], i) => {
       out[alias] = rows.filter(r => r[col] === p[i]).length
     })
+    const elig = /SUM\(flags & (\d+) <> 0\) AS eligible/.exec(m[1])
+    if (elig) out.eligible = rows.filter(r => r.flags & Number(elig[1])).length
+    if (/COUNT\(\*\) AS n_all/.test(m[1])) out.n_all = rows.length
     return [out]
   }
   if (s.startsWith('SELECT osm_type, osm_id, el FROM pois_staging WHERE (osm_type, osm_id) IN')) {

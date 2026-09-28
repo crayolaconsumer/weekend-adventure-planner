@@ -29,6 +29,7 @@ const FLAG_META = [
 const PCT_META = [
   { key: 'poiDbPct', label: 'Place database: serve', desc: 'Share of place lookups answered from our own database instead of Overpass.' },
   { key: 'poiShadowPct', label: 'Place database: shadow', desc: 'Share of Overpass answers also checked against our database (logged, never shown).' },
+  { key: 'poiCapPct', label: 'Place database: dense-area cap', desc: 'Share of database-served dense areas (over 3,500 places) cut to the 3,500 the deck would pick. Off: they are served as before.' },
 ]
 
 const EXTERNAL = [

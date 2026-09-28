@@ -30,7 +30,11 @@ dist-ssr
 .vercel
 
 # Local folders (screenshots, database schemas, docs)
-database/
+database/*
+# ...except the POI table migrations the code depends on (api/admin/poi-load.js, api/lib/poiQuery.js):
+# they must ship with it
+!database/phase11-pois.sql
+!database/phase12-poi-features.sql
 docs/
 **/screenshots/
 

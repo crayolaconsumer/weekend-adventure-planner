@@ -54,6 +54,15 @@ describe('flags: numeric poiDbPct', () => {
     expect(f.overpassProxy).toBe(true)
   })
 
+  it('poiCapPct is numeric too, default 0, fails closed', async () => {
+    stored = { poiCapPct: 20 }
+    expect((await flags()).poiCapPct).toBe(20)
+    stored = { poiCapPct: true }
+    expect((await flags()).poiCapPct).toBe(0)
+    stored = null
+    expect((await flags()).poiCapPct).toBe(0)
+  })
+
   it('poiShadowPct is numeric too, default 0, fails closed', async () => {
     stored = { poiShadowPct: 10 }
     expect((await flags()).poiShadowPct).toBe(10)

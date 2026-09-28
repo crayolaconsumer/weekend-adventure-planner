@@ -38,6 +38,9 @@ const DEFAULTS = Object.freeze({
   // Percentage (0-100) of tiles whose KV/Overpass answer is also queried from
   // the POI table and compared (shadow log only, never served)
   poiShadowPct: 0,
+  // Percentage (0-100) of served dense Discover tiles cut to the relevance cap
+  // (shared/poiRank.mjs); the rest are served as before. Shadow always measures it
+  poiCapPct: 0,
 })
 
 const CACHE_TTL_MS = 30 * 1000

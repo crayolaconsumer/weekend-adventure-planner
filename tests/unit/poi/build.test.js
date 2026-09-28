@@ -13,6 +13,7 @@ import {
   MAX_LARGE, gateFailures, inPoly, missingSentinels, parsePoly, segmentTouchesRect, readOplRelations, writeChunks,
 } from '../../../scripts/poi/build.mjs'
 import { makeMatcher } from '../../../scripts/poi/filter.mjs'
+import { poiFeatures, CATEGORY_KEYS, ELIGIBLE, HAS_HOURS, FEATURES_VERSION } from '../../../shared/poiRank.mjs'
 
 const match = makeMatcher()
 const buildRows = features => buildRowsFromStreams([features], match)
@@ -49,6 +50,15 @@ describe('featureToRow', () => {
     expect(row).toMatchObject({ cell: poiCell(52.5875688, -0.7221169), osm_type: 1, osm_id: 18337815, lat: 52.5875688, lon: -0.7221169, k_amenity: 'pub', k_shop: null, has_name: 1, has_name_tag: 1, has_wikidata: 0 })
     expect(row).toMatchObject({ min_lat: 52.5875688, max_lat: 52.5875688, min_lon: -0.7221169, max_lon: -0.7221169 })
     expect(el(row)).toEqual({ type: 'node', id: 18337815, lat: 52.5875688, lon: -0.7221169, tags: { amenity: 'pub', name: 'The Vaults' } })
+  })
+
+  it('writes the relevance-cap features shared/poiRank.mjs derives from the served el (not the raw tags)', () => {
+    // fixme is trimmed from el, opening_hours is kept: features see exactly what the phone sees
+    const row = featureToRow(node(7, -0.72, 52.59, { amenity: 'pub', name: 'The Vaults', opening_hours: 'Mo-Su 12:00-23:00', fixme: 'x' }), match)
+    expect({ q: row.q, cat: row.cat, flags: row.flags }).toEqual(poiFeatures(el(row)))
+    expect(row.cat).toBe(CATEGORY_KEYS.indexOf('food') + 1)
+    expect(row.flags & ELIGIBLE).toBe(ELIGIBLE)
+    expect(row.flags & HAS_HOURS).toBe(HAS_HOURS)
   })
 
   it('closed way: centre and bounds match live Overpass exactly, LineString or area', () => {
@@ -198,7 +208,7 @@ describe('chunks', () => {
       expect(chunks[1].sha256).toBe(createHash('sha256').update(gz).digest('hex'))
       const lines = gunzipSync(gz).toString().split('\n').filter(Boolean)
       const row = JSON.parse(lines[0])
-      expect(Object.keys(row)).toEqual(['cell', 'osm_type', 'osm_id', 'lat', 'lon', 'min_lat', 'min_lon', 'max_lat', 'max_lon', 'k_amenity', 'k_tourism', 'k_leisure', 'k_historic', 'k_shop', 'k_natural', 'k_man_made', 'has_name', 'has_name_tag', 'has_wikidata', 'el'])
+      expect(Object.keys(row)).toEqual(['cell', 'osm_type', 'osm_id', 'lat', 'lon', 'min_lat', 'min_lon', 'max_lat', 'max_lon', 'k_amenity', 'k_tourism', 'k_leisure', 'k_historic', 'k_shop', 'k_natural', 'k_man_made', 'has_name', 'has_name_tag', 'has_wikidata', 'q', 'cat', 'flags', 'el'])
       expect(typeof row.el).toBe('string')
     } finally {
       rmSync(dir, { recursive: true, force: true })
@@ -336,9 +346,9 @@ describe('build (end to end on files)', () => {
     expect(failures).toEqual([])
     const onDisk = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'))
     expect(onDisk).toEqual(manifest)
-    expect(Object.keys(manifest)).toEqual(['build_id', 'schema_version', 'osm_timestamp', 'chunks', 'row_count', 'per_key_counts', 'photo_count', 'sentinels_found', 'sentinels_total', 'large_count'])
+    expect(Object.keys(manifest)).toEqual(['build_id', 'schema_version', 'features_version', 'osm_timestamp', 'chunks', 'row_count', 'per_key_counts', 'photo_count', 'sentinels_found', 'sentinels_total', 'large_count'])
     expect(manifest.large_count).toBe(0)
-    expect(manifest).toMatchObject({ build_id: 'uk-20260926T2022Z', schema_version: 1, osm_timestamp: '2026-09-26T20:22:51.000Z', row_count: 3, photo_count: 0, sentinels_found: 1, sentinels_total: 1 })
+    expect(manifest).toMatchObject({ build_id: 'uk-20260926T2022Z', schema_version: 1, features_version: FEATURES_VERSION, osm_timestamp: '2026-09-26T20:22:51.000Z', row_count: 3, photo_count: 0, sentinels_found: 1, sentinels_total: 1 })
     expect(manifest.per_key_counts).toEqual({ 'amenity=cafe': 1, 'historic=castle': 1, 'natural=wood': 1 })
     expect(manifest.chunks).toHaveLength(1)
     const coverage = JSON.parse(readFileSync(join(out, 'coverage.json'), 'utf8'))

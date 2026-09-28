@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/poi-load?build=<id>&step=begin|chunk|photos|finalize[&i=N][&offset=N][&force=1]
+ * POST /api/admin/poi-load?build=<id>&step=begin|chunk|photos|verify|finalize[&i=N][&offset=N][&force=1]
  * GET  /api/admin/poi-load?step=status  -> { active_build_id, active_release_tag, previous_release_tag, latest }
  *
  * Loads one nightly POI build (database/phase11-pois.sql) from OUR GitHub
@@ -44,6 +44,7 @@ import { sendEmail } from '../lib/email.js'
 import { recordCronRun } from '../lib/cronRuns.js'
 import { getClient } from '../lib/kvCache.js'
 import { LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, isLarge, poiCell } from '../../shared/poiCell.mjs'
+import { poiFeatures, FEATURES_VERSION, ELIGIBLE } from '../../shared/poiRank.mjs'
 
 export const RELEASE_BASE = 'https://github.com/crayolaconsumer/weekend-adventure-planner/releases/download/'
 export const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z$/
@@ -59,8 +60,11 @@ const RETRY_AFTER_S = 5
 const ALERT_EMAIL = process.env.MODERATION_ALERT_EMAIL || 'fittonj@gmail.com'
 
 const K_COLS = ['k_amenity', 'k_tourism', 'k_leisure', 'k_historic', 'k_shop', 'k_natural', 'k_man_made']
+// q, cat, flags: relevance-cap features (shared/poiRank.mjs, database/phase12-poi-features.sql).
+// A build without them (no manifest features_version) loads them as 0 and is served uncapped.
+const FEATURE_COLS = ['q', 'cat', 'flags']
 export const POI_COLS = ['cell', 'osm_type', 'osm_id', 'lat', 'lon', 'min_lat', 'min_lon', 'max_lat', 'max_lon',
-  ...K_COLS, 'has_name', 'has_name_tag', 'has_wikidata', 'el']
+  ...K_COLS, 'has_name', 'has_name_tag', 'has_wikidata', 'q', 'cat', 'flags', 'el']
 const PHOTO_COLS = ['photo_key', 'url', 'width', 'height', 'source', 'artist', 'license', 'license_url', 'page_url', 'checked_on']
 
 // Row alias upsert (MySQL 8.0.19+; VALUES() in ODKU is deprecated)
@@ -68,10 +72,13 @@ const upsertSql = (table, cols, keyCols) =>
   `INSERT INTO ${table} (${cols.join(', ')}) VALUES ? AS new ON DUPLICATE KEY UPDATE ` +
   cols.filter(c => !keyCols.includes(c)).map(c => `${c} = new.${c}`).join(', ')
 export const INSERT_POIS = upsertSql('pois_staging', POI_COLS, ['cell', 'osm_type', 'osm_id'])
+// Before database/phase12-poi-features.sql: the same row without q, cat, flags (see begin)
+const BASE_IDX = POI_COLS.flatMap((c, i) => (FEATURE_COLS.includes(c) ? [] : [i]))
+export const INSERT_POIS_BASE = upsertSql('pois_staging', BASE_IDX.map(i => POI_COLS[i]), ['cell', 'osm_type', 'osm_id'])
 const INSERT_PHOTOS = upsertSql('poi_photos_staging', PHOTO_COLS, ['photo_key'])
 
 // Finalize gates (plan §3). REQUIRED gates hold even under force.
-const REQUIRED_GATES = ['G1', 'G2', 'G8']
+const REQUIRED_GATES = ['G1', 'G2', 'G8', 'G9']
 const FIRST_BUILD_MIN_ROWS = 150000
 const VOLUME_MIN = 0.95
 const VOLUME_MAX = 1.10
@@ -79,6 +86,9 @@ const MIX_TOLERANCE = 0.10
 const SENTINEL_MIN = 0.90 // as the build's local gate: one remapped sentinel must not block every night
 const QUERY_MIN = 0.85
 const PHOTO_MIN = 0.9
+const G9_SAMPLE_MOD = 97 // ~1% of staging (GB: ~4k rows) re-derived from el
+const G9_MIN_ELIGIBLE = 0.5 // measured whole-table share 0.879 (Discover-type rows alone 0.97-0.99); all-zero features read 0
+const G9_SHARE_DRIFT = 0.1 // vs the live build's stored share
 const LARGE_ALERT = 1000 // more LARGE-bucket rows than this: alert, but still load
 const G6_QUERY_TIMEOUT_MS = 5000
 const GATE_SCAN_MS = 30000 // a full scan of staging (G2 count, G4 sums) on a t4g.micro
@@ -311,6 +321,7 @@ function validateManifest(m, build) {
   })
   if (m.row_count !== m.chunks.reduce((n, c) => n + c.rows, 0)) bad('row_count does not match chunk rows')
   if (m.per_key_counts != null && typeof m.per_key_counts !== 'object') bad('per_key_counts')
+  if (m.features_version != null && !isInt(m.features_version, 0, 255)) bad('features_version')
   return m
 }
 
@@ -350,8 +361,14 @@ function ndjson(gz) {
 const strOrNull = (v, max) => v === null || (typeof v === 'string' && v.length >= 1 && v.length <= max)
 const flag = v => v === 0 || v === 1
 
-/** One chunk row -> column values in POI_COLS order. Throws on anything off-contract. */
-export function toPoiRow(o, n = 0) {
+/** Does this build carry the features this code reads? (Otherwise G1 or plain 0s decide.) */
+export const hasFeatures = manifest => manifest.features_version === FEATURES_VERSION
+
+/**
+ * One chunk row -> column values in POI_COLS order. Throws on anything off-contract.
+ * `features`: the manifest says the rows carry this code's q/cat/flags; else they load as 0.
+ */
+export function toPoiRow(o, n = 0, features = false) {
   const bad = why => { throw new LoadError(422, `Bad row ${n}: ${why}`) }
   if (!o || typeof o !== 'object') bad('not an object')
   if (!OSM_TYPE_NAME[o.osm_type]) bad('osm_type')
@@ -376,7 +393,13 @@ export function toPoiRow(o, n = 0) {
   const tags = el.tags || {}
   if (o.has_name_tag !== (tags.name != null ? 1 : 0)) bad('has_name_tag disagrees with el tags')
   if (o.has_name !== (tags.name != null || tags['name:en'] != null ? 1 : 0)) bad('has_name disagrees with el tags')
-  return POI_COLS.map(c => (K_COLS.includes(c) ? o[c] ?? null : o[c]))
+  // The server ranks dense answers on these alone, so they must be exactly what the deployed
+  // shared/poiRank.mjs derives from el: a build made with another ranker fails closed here
+  if (features) {
+    const f = poiFeatures(el)
+    for (const k of FEATURE_COLS) if (o[k] !== f[k]) bad(`${k} disagrees with shared/poiRank.mjs (${o[k]} vs ${f[k]})`)
+  }
+  return POI_COLS.map(c => (K_COLS.includes(c) ? o[c] ?? null : FEATURE_COLS.includes(c) ? (features ? o[c] : 0) : o[c]))
 }
 
 const PHOTO_SOURCES = new Set(['wikidata', 'commons-osm', 'geograph'])
@@ -409,7 +432,18 @@ async function stagingOwnedBy(build) {
   return owners.pois_staging === build && owners.poi_photos_staging === build
 }
 
-const BUILD_ROW_SQL = 'SELECT status, chunks_total, chunks_loaded, manifest_sha256, coverage_sha256 FROM poi_builds WHERE build_id = ?'
+const BUILD_ROW_SQL = 'SELECT status, chunks_total, chunks_loaded, manifest_sha256, coverage_sha256, gate_report FROM poi_builds WHERE build_id = ?'
+
+// Which loader filled this staging: begin stamps it into the build's gate_report (and the
+// finalize report carries it on). An older loader drops q/cat/flags (they land as 0), so a
+// staging it began, or one with no stamp, is never resumed by this code: begin starts afresh.
+// Chunks an older loader adds to OUR staging (a deploy rolled back mid-load) are caught by G9.
+const LOADER_STAMP = { loader_features: FEATURES_VERSION }
+const stampedByUs = row => parseJson(row?.gate_report)?.loader_features === FEATURES_VERSION
+// The load carries features only if the build has them AND the tables could take them when
+// it began (stamp.schema_features; see begin). Decided once per load, never mid-load
+const stampOf = row => parseJson(row?.gate_report) || {}
+const loadsFeatures = (manifest, stamp) => hasFeatures(manifest) && stamp.schema_features !== false
 
 async function ownedRow(build, statuses) {
   const row = await q1(BUILD_ROW_SQL, [build])
@@ -420,6 +454,32 @@ async function ownedRow(build, statuses) {
 
 // ─── Steps ──────────────────────────────────────────────────────
 
+// q, cat, flags go into staging (made LIKE pois) only if the live table has them and ix_rank.
+// Before database/phase12-poi-features.sql is applied (or after a rollback to a table from
+// before it), the load goes on WITHOUT them rather than refusing: the nightly keeps the data
+// fresh, the build is recorded features_version 0 and served exactly as before (uncapped),
+// and the gap is logged at begin and emailed when the build goes live. Refusing instead would
+// stop every nightly until someone noticed; loading uncapped risks nothing the server reads.
+const FEATURE_SCHEMA_SQL =
+  "SELECT (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'pois' " +
+  "AND column_name IN ('q', 'cat', 'flags')) AS cols, (SELECT COUNT(*) FROM information_schema.statistics " +
+  "WHERE table_schema = DATABASE() AND table_name = 'pois' AND index_name = 'ix_rank') AS ix_parts"
+async function featureSchemaReady(build) {
+  const row = await q1(FEATURE_SCHEMA_SQL)
+  const ready = Number(row?.cols) === 3 && Number(row?.ix_parts) === 16
+  if (!ready) {
+    console.error(JSON.stringify({ evt: 'poi_load_no_feature_schema', build, cols: Number(row?.cols) || 0, ix_parts: Number(row?.ix_parts) || 0,
+      action: 'loading without relevance-cap features (served uncapped): apply database/phase12-poi-features.sql' }))
+  }
+  return ready
+}
+
+// Steps this handler has beyond begin/chunk/photos/finalize, advertised by begin so the
+// driver (scripts/poi/load.mjs) calls only what the DEPLOYED handler understands: after a
+// Vercel rollback (or a workflow newer than the deploy) an older handler has no verify, never
+// advertises it, and its finalize never asks for it. This handler's finalize still requires it.
+const CAPABILITIES = { verify: true }
+
 async function begin(build) {
   const { manifest, digest } = await fetchManifest(build)
   const { value: coverage, digest: coverageDigest } = await fetchJson(build, 'coverage.json')
@@ -429,14 +489,16 @@ async function begin(build) {
 
   return withPoiLock(async () => {
     await recover()
+    const schemaReady = await featureSchemaReady(build)
     const existing = await q1(BUILD_ROW_SQL, [build])
     if (existing?.status === 'active') return { build, status: 'active', noop: true }
     // Same release revision only: a re-uploaded release starts again from chunk 0
-    const resumable = ['loading', 'validating'].includes(existing?.status) &&
+    const resumable = ['loading', 'validating'].includes(existing?.status) && stampedByUs(existing) &&
       existing.manifest_sha256 === digest && Number(existing.chunks_total) === total && await stagingOwnedBy(build)
     if (resumable) {
       await u("UPDATE poi_builds SET status = 'loading' WHERE build_id = ?", [build])
-      return { build, status: 'loading', resumed: true, chunks_loaded: Number(existing.chunks_loaded), chunks_total: total }
+      return { build, status: 'loading', resumed: true, chunks_loaded: Number(existing.chunks_loaded), chunks_total: total,
+        features: loadsFeatures(manifest, stampOf(existing)), capabilities: CAPABILITIES }
     }
     // Staging belongs to whichever build began last; a fresh start takes it over
     await u(
@@ -449,14 +511,16 @@ async function begin(build) {
     await q('ALTER TABLE poi_photos_staging COMMENT = ?', [build])
     await q(
       `INSERT INTO poi_builds (build_id, release_tag, schema_version, osm_timestamp, chunks_total, chunks_loaded,
-         coverage, manifest_sha256, coverage_sha256, status)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 'loading') AS new
+         coverage, manifest_sha256, coverage_sha256, gate_report, status)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 'loading') AS new
        ON DUPLICATE KEY UPDATE release_tag = new.release_tag, schema_version = new.schema_version,
          osm_timestamp = new.osm_timestamp, chunks_total = new.chunks_total, chunks_loaded = 0,
          coverage = new.coverage, manifest_sha256 = new.manifest_sha256, coverage_sha256 = new.coverage_sha256, status = 'loading', row_count = NULL, photo_count = NULL,
-         gate_report = NULL, activated_at = NULL`,
-      [build, `poi-${build}`, manifest.schema_version, osmTimestamp, total, JSON.stringify(coverage), digest, coverageDigest])
-    return { build, status: 'loading', resumed: false, chunks_loaded: 0, chunks_total: total }
+         gate_report = new.gate_report, activated_at = NULL`,
+      [build, `poi-${build}`, manifest.schema_version, osmTimestamp, total, JSON.stringify(coverage), digest, coverageDigest,
+        JSON.stringify({ ...LOADER_STAMP, schema_features: schemaReady })])
+    return { build, status: 'loading', resumed: false, chunks_loaded: 0, chunks_total: total,
+      features: loadsFeatures(manifest, { schema_features: schemaReady }), capabilities: CAPABILITIES }
   })
 }
 
@@ -471,11 +535,90 @@ async function chunk(build, i) {
     const meta = manifest.chunks[i]
     const gz = await fetchRelease(build, meta.name)
     if (sha256(gz) !== meta.sha256) throw new LoadError(422, `sha256 mismatch for ${meta.name}`)
-    const rows = ndjson(gz).map(toPoiRow)
+    const stamp = stampOf(row)
+    const rows = ndjson(gz).map((o, n) => toPoiRow(o, n, loadsFeatures(manifest, stamp)))
     if (rows.length !== meta.rows) throw new LoadError(422, `${meta.name} has ${rows.length} rows, manifest says ${meta.rows}`)
-    await upsertBatches(INSERT_POIS, rows)
+    if (stamp.schema_features === false) await upsertBatches(INSERT_POIS_BASE, rows.map(r => BASE_IDX.map(i => r[i])))
+    else await upsertBatches(INSERT_POIS, rows)
     await u('UPDATE poi_builds SET chunks_loaded = GREATEST(chunks_loaded, ?) WHERE build_id = ?', [i + 1, build])
+    // Rows changed: any earlier verify pass no longer vouches for staging
+    if (stamp.verify) {
+      const { verify: _gone, ...rest } = stamp
+      await u('UPDATE poi_builds SET gate_report = ? WHERE build_id = ?', [JSON.stringify(rest), build])
+    }
     return { build, chunk: i, rows: rows.length, chunks_loaded: Math.max(loaded, i + 1), chunks_total: Number(row.chunks_total) }
+  })
+}
+
+// ─── verify: every persisted feature, before finalize (G9 requires it) ─────
+
+// Loads with features only. Re-derives q/cat/flags from el for EVERY staging row, in PK
+// order, one batch per statement (each within its own MAX_EXECUTION_TIME, VERIFY_STATEMENT_MS),
+// and records the resume point and batch size in the build's gate_report after every batch,
+// like chunk progress: the client re-sends step=verify until done. A batch that runs out of
+// time is halved (never below VERIFY_MIN_BATCH) and retried from the same point; if even
+// that floor times out, the call answers a retryable 503 and the driver's bounded retries
+// decide (it never loops here). GB (~400k rows, ~200 MB with el) is ~20 full batches.
+// Cost: every batch reads its rows' el from the clustered index, so a full verify cycles
+// ~200 MB through the 128 MB buffer pool, evicting pages serving traffic uses; it runs in
+// the nightly load, off-peak. Any mismatch is recorded, and G9 then refuses the build.
+const VERIFY_BATCH = 20000
+const VERIFY_MIN_BATCH = 2500
+const VERIFY_STATEMENT_MS = 20000
+const VERIFY_BUDGET_MS = 75000
+// gateQuery's two retryable answers: this batch ran out of time, or the request did
+const batchTimedOut = err => err?.status === 503 && /ran out of time/.test(err.message)
+const requestOutOfTime = err => err?.status === 503 && /Not enough time left/.test(err.message)
+const VERIFY_SQL = 'SELECT cell, osm_type, osm_id, q, cat, flags, el FROM pois_staging '
+const VERIFY_AFTER = 'WHERE cell > ? OR (cell = ? AND (osm_type > ? OR (osm_type = ? AND osm_id > ?))) '
+const VERIFY_ORDER = 'ORDER BY cell, osm_type, osm_id LIMIT ?'
+
+function featureMismatch(r) {
+  let f = null
+  try { f = poiFeatures(JSON.parse(r.el)) } catch { /* unparseable el counts as wrong */ }
+  return !f || f.q !== Number(r.q) || f.cat !== Number(r.cat) || f.flags !== Number(r.flags)
+}
+
+async function verify(build, deadline) {
+  return withPoiLock(async () => {
+    const row = await ownedRow(build, ['loading'])
+    if (Number(row.chunks_loaded) !== Number(row.chunks_total)) throw new LoadError(409, `Load every chunk before verify (${row.chunks_loaded}/${row.chunks_total})`)
+    const manifest = await pinnedManifest(build, row)
+    const stamp = stampOf(row)
+    const v = { batch: VERIFY_BATCH, ...(stamp.verify || { after: null, rows: 0, wrong: 0, wrong_sample: [], done: false }) }
+    const save = () => u('UPDATE poi_builds SET gate_report = ? WHERE build_id = ?', [JSON.stringify({ ...stamp, verify: v }), build])
+    if (!loadsFeatures(manifest, stamp)) Object.assign(v, { done: true, skipped: 'this load has no features' })
+    const stop = Math.min(Date.now() + VERIFY_BUDGET_MS, deadline - SWAP_RESERVE_MS)
+    while (!v.done && Date.now() < stop) {
+      const a = v.after
+      let rows
+      try {
+        rows = await gateQuery(VERIFY_SQL + (a ? VERIFY_AFTER : '') + VERIFY_ORDER,
+          [...(a ? [a[0], a[0], a[1], a[1], a[2]] : []), v.batch], { capMs: VERIFY_STATEMENT_MS, deadline })
+      } catch (err) {
+        if (requestOutOfTime(err)) break // this call is done; the next continues from v.after
+        if (!batchTimedOut(err)) throw err
+        if (v.batch <= VERIFY_MIN_BATCH) {
+          await save()
+          throw retryLater(`verify: even a ${VERIFY_MIN_BATCH}-row batch ran out of time; re-send when the database is less busy`)
+        }
+        v.batch = Math.max(VERIFY_MIN_BATCH, Math.floor(v.batch / 2))
+        await save()
+        continue
+      }
+      for (const r of rows) {
+        v.rows++
+        if (featureMismatch(r)) {
+          v.wrong++
+          if (v.wrong_sample.length < 5) v.wrong_sample.push(`${OSM_TYPE_NAME[r.osm_type]}/${r.osm_id}`)
+        }
+      }
+      if (rows.length < v.batch) v.done = true
+      else v.after = [Number(rows.at(-1).cell), Number(rows.at(-1).osm_type), Number(rows.at(-1).osm_id)]
+      await save()
+    }
+    if (v.done && v.skipped) await save()
+    return { build, verified_rows: v.rows, wrong: v.wrong, done: v.done, batch: v.batch }
   })
 }
 
@@ -591,8 +734,11 @@ async function runGates(build, row, manifest, requestDeadline = Infinity) {
 
   const pq = await loadPoiQuery()
   const expected = pq.mod?.POI_SCHEMA_VERSION
-  gate('G1', 'schema', Number.isInteger(expected) && manifest.schema_version === expected,
-    { manifest: manifest.schema_version, expected: expected ?? null, ...(pq.error ? { error: pq.error } : {}) })
+  // A features_version this code can't read would load as unvalidated 0s: refuse it. None (0) is fine
+  const featuresOk = [undefined, null, 0, FEATURES_VERSION].includes(manifest.features_version)
+  gate('G1', 'schema', Number.isInteger(expected) && manifest.schema_version === expected && featuresOk,
+    { manifest: manifest.schema_version, expected: expected ?? null, features_version: manifest.features_version ?? null,
+      features_expected: FEATURES_VERSION, ...(pq.error ? { error: pq.error } : {}) })
 
   const scan = { capMs: GATE_SCAN_MS, deadline: requestDeadline }
   const gateCount = async table => Number((await gateOne(`SELECT COUNT(*) AS n FROM ${table}`, [], scan))?.n || 0)
@@ -609,8 +755,14 @@ async function runGates(build, row, manifest, requestDeadline = Infinity) {
 
   // Every G4 key from staging in ONE scan (a SUM per key), checked against the manifest too
   const counts = manifest.per_key_counts || {}
+  // The same scan also counts deck-eligible rows for G9 (two more aggregates on a scan that
+  // already reads every row: no extra pass over staging). Not when this load began before
+  // database/phase12-poi-features.sql: staging then has no flags column at all
+  const stamp = stampOf(row)
+  const withFeatures = loadsFeatures(manifest, stamp)
   const sums = await gateOne(
-    `SELECT ${MIX_KEYS.map((k, n) => `SUM(k_${k.split('=')[0]} = ?) AS m${n}`).join(', ')} FROM pois_staging`,
+    `SELECT ${MIX_KEYS.map((k, n) => `SUM(k_${k.split('=')[0]} = ?) AS m${n}`).join(', ')}` +
+    `${withFeatures ? `, SUM(flags & ${ELIGIBLE} <> 0) AS eligible, COUNT(*) AS n_all` : ''} FROM pois_staging`,
     MIX_KEYS.map(k => k.split('=')[1]), scan) || {}
   const s = Object.fromEntries(MIX_KEYS.map((k, n) => [k, Number(sums[`m${n}`] || 0)]))
   const unverified = MIX_KEYS.filter(k => s[k] !== Number(counts[k] || 0)).map(k => `${k}: manifest ${Number(counts[k] || 0)}, staging ${s[k]}`)
@@ -653,7 +805,48 @@ async function runGates(build, row, manifest, requestDeadline = Infinity) {
   // Every wide element must be in the LARGE bucket, or queries near its edges miss it (cheap: cell leads the PK)
   const largeStaging = Number((await gateOne('SELECT COUNT(*) AS n FROM pois_staging WHERE cell = ?', [LARGE_CELL], scan))?.n || 0)
   gate('G8', 'large bucket', largeStaging === manifest.large_count, { staging: largeStaging, manifest: manifest.large_count })
+
+  // G9: the PERSISTED features are what this code's ranker derives from el. A build whose
+  // manifest says it has them but whose rows were written by an older loader (q/cat/flags 0)
+  // or anything else would rank on garbage: step=verify must have re-derived every row with
+  // no mismatch, a fresh ~1% sample must match too, and the share of deck-eligible rows
+  // (counted in G4's scan) must be plausible.
+  let eligibleShare = null
+  if (!withFeatures) {
+    gate('G9', 'features', null, hasFeatures(manifest)
+      ? 'skipped: loaded without features (database/phase12-poi-features.sql not applied at begin); served uncapped'
+      : 'skipped: build has no features (served uncapped)')
+  }
+  else {
+    // Cost: the filter runs on uq_osm (osm_type, osm_id: ~20 bytes a row, ~8 MB for GB's ~400k
+    // rows), then ~1% of rows (~4k) are read by primary key for el and re-derived in JS
+    // (~40 ms). Well under a second on the t4g.micro; the G4 scan above is the expensive read
+    const sample = await gateQuery(
+      'SELECT osm_type, osm_id, q, cat, flags, el FROM pois_staging FORCE INDEX (uq_osm) WHERE osm_type IN (1, 2, 3) AND MOD(osm_id, ?) = ?',
+      [G9_SAMPLE_MOD, 1], scan)
+    const wrong = []
+    for (const r of sample) {
+      let f = null
+      try { f = poiFeatures(JSON.parse(r.el)) } catch { /* counts as wrong */ }
+      if (!f || f.q !== Number(r.q) || f.cat !== Number(r.cat) || f.flags !== Number(r.flags)) wrong.push(`${OSM_TYPE_NAME[r.osm_type]}/${r.osm_id}`)
+    }
+    eligibleShare = Number(sums.n_all) ? Number(sums.eligible) / Number(sums.n_all) : 0
+    const activeShare = parseJson(active?.gate_report)?.eligible_share
+    const shareOk = eligibleShare >= G9_MIN_ELIGIBLE && (typeof activeShare !== 'number' || Math.abs(eligibleShare - activeShare) <= G9_SHARE_DRIFT)
+    // The proof: step=verify re-derived EVERY row (the sample above only catches rows
+    // changed since, e.g. an older loader re-sending a chunk)
+    const v = stamp.verify
+    const verified = Boolean(v?.done) && v.wrong === 0 && v.rows === stagingCount
+    gate('G9', 'features', verified && sample.length > 0 && wrong.length === 0 && shareOk, {
+      verified: v ? { done: Boolean(v.done), rows: v.rows, wrong: v.wrong, wrong_sample: v.wrong_sample } : 'not run: send step=verify until done',
+      staging: stagingCount, sampled: sample.length, wrong: wrong.length, wrong_sample: wrong.slice(0, 5),
+      eligible_share: Math.round(eligibleShare * 1000) / 1000, active_share: activeShare ?? null,
+    })
+  }
   const warnings = largeStaging > LARGE_ALERT ? [`${largeStaging} rows in the LARGE bucket (alert above ${LARGE_ALERT}); every query scans them`] : []
+  if (stamp.schema_features === false) {
+    warnings.push('database/phase12-poi-features.sql was not applied when this load began: it went live WITHOUT relevance-cap features (served uncapped, exactly as before). Apply the migration; the next nightly carries them.')
+  }
 
   const failed = gates.filter(g => g.pass === false).map(g => g.id)
   return {
@@ -662,6 +855,12 @@ async function runGates(build, row, manifest, requestDeadline = Infinity) {
     required_failed: failed.filter(id => REQUIRED_GATES.includes(id)),
     row_count: stagingCount, photo_count: photoStaging,
     per_key_counts: s, large_count: largeStaging, warnings,
+    // Read by the server (poiQuery loadCoverage) to decide whether this build may be capped
+    features_version: withFeatures ? FEATURES_VERSION : 0,
+    eligible_share: eligibleShare, // the next build's G9 compares against it
+    ...LOADER_STAMP,
+    schema_features: stamp.schema_features !== false,
+    verify: stamp.verify ?? null, // kept: a re-sent finalize reads it again
   }
 }
 
@@ -789,8 +988,9 @@ async function handler(req, res) {
     if (step === 'begin') out = await begin(build)
     else if (step === 'chunk') out = await chunk(build, /^\d{1,4}$/.test(req.query?.i) ? Number(req.query.i) : NaN)
     else if (step === 'photos') out = await photos(build, /^\d{1,7}$/.test(req.query?.offset ?? '0') ? Number(req.query?.offset ?? 0) : NaN)
+    else if (step === 'verify') out = await verify(build, deadline)
     else if (step === 'finalize') out = await finalize(build, force ? admin : null, deadline)
-    else return res.status(400).json({ error: 'step must be begin, chunk, photos or finalize' })
+    else return res.status(400).json({ error: 'step must be begin, chunk, photos, verify or finalize' })
     return res.status(200).json(out)
   } catch (err) {
     if (err instanceof LoadError) {

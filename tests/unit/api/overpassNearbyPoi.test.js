@@ -16,7 +16,8 @@ vi.mock('../../../api/lib/kvCache.js', async () => {
 let pct = 0
 let shadowPct = 0
 let peekFresh = true
-let flagsNow = () => ({ poiDbPct: pct, poiShadowPct: shadowPct })
+let capPct = 0
+let flagsNow = () => ({ poiDbPct: pct, poiShadowPct: shadowPct, poiCapPct: capPct })
 vi.mock('../../../api/lib/flags.js', () => ({
   getFlags: async () => flagsNow(),
   peekFlags: () => (peekFresh ? flagsNow() : null),
@@ -27,14 +28,37 @@ vi.mock('@vercel/functions', () => ({ waitUntil: p => { background.push(p) } }))
 
 let build
 let answer
-const poolQuery = vi.fn(async opts => {
+let tableOwner = null
+const answerSql = async (opts, params) => {
+  if (/^(SET SESSION|START TRANSACTION|ROLLBACK)/.test(opts.sql)) return [[]]
+  // the live table's build (its COMMENT): the active build unless a test says otherwise
+  if (opts.sql.includes('information_schema.tables')) return [[{ owner: tableOwner ?? build?.build_id }]]
   if (opts.sql.includes('poi_builds')) return [[build]]
-  return [(await answer()).map(r => ({ g: 0, ...r }))]
-})
-vi.mock('../../../api/lib/db.js', () => ({ getPool: () => ({ query: poolQuery }) }))
+  const rows = await answer()
+  // the relevance cap's phase 1 (compact candidates) and phase 2 (el by id)
+  if (opts.sql.includes('ix_rank')) return [rows.map(candidateOf)]
+  if (opts.sql.includes('uq_osm')) return [rows.filter(r => r.osm_type === params[0] && params.slice(1).includes(r.osm_id))]
+  return [rows.map(r => ({ g: 0, ...r }))]
+}
+const poolQuery = vi.fn(answerSql)
+// shadow runs on its own connection (poiQuery shadowPois), never the pool
+const shadowQuery = vi.fn(answerSql)
+const shadowConns = { opened: 0, ended: 0 }
+vi.mock('../../../api/lib/db.js', () => ({
+  getPool: () => ({ query: poolQuery, getConnection: async () => ({ query: poolQuery, release() {}, destroy() {} }) }),
+  dedicatedConnection: async () => { shadowConns.opened++; return { query: shadowQuery, end: async () => { shadowConns.ended++ }, destroy() {} } },
+}))
 
 const { default: handler } = await import('../../../api/places/overpass/nearby.js')
-const { _resetPoiState } = await import('../../../api/lib/poiQuery.js')
+const { _resetPoiState, POI_SCHEMA_VERSION, CAP } = await import('../../../api/lib/poiQuery.js')
+const { poiFeatures, FEATURES_VERSION } = await import('../../../shared/poiRank.mjs')
+function candidateOf(r) {
+  const el = JSON.parse(r.el)
+  const b = el.bounds || { minlat: el.lat, minlon: el.lon, maxlat: el.lat, maxlon: el.lon }
+  return { osm_type: r.osm_type, osm_id: r.osm_id, min_lat: b.minlat, max_lat: b.maxlat, min_lon: b.minlon, max_lon: b.maxlon, ...poiFeatures(el) }
+}
+// DB runs: each starts with today's statement
+const dbRuns = () => poolQuery.mock.calls.filter(c => c[0].sql.startsWith('(SELECT'))
 const { cellRanges } = await import('../../../shared/poiCell.mjs')
 const GB = cellRanges(49.9, -8, 60.9, 1.8).flatMap(([lo, hi]) => Array.from({ length: hi - lo + 1 }, (_, k) => lo + k))
 const { callOverpassProxy } = await import('../../../api/town.js')
@@ -68,14 +92,18 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
   let fetchMock
   let logs
   beforeEach(() => {
+    shadowQuery.mockImplementation(answerSql)
     store.clear()
     kvReads.length = 0
     background.length = 0
     _resetPoiState()
     poolQuery.mockClear()
+    shadowQuery.mockClear()
+    Object.assign(shadowConns, { opened: 0, ended: 0 })
     pct = 0
     shadowPct = 100
-    build = { build_id: 'uk-20260927T0215Z', schema_version: 1, osm_timestamp: '2026-09-27T02:15:00Z', coverage: GB }
+    capPct = 0
+    build = { build_id: 'uk-20260927T0215Z', schema_version: POI_SCHEMA_VERSION, osm_timestamp: '2026-09-27T02:15:00Z', coverage: GB, features_version: FEATURES_VERSION }
     answer = async () => DB_ROWS
     fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => LIVE }))
     vi.stubGlobal('fetch', fetchMock)
@@ -123,12 +151,120 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(poolQuery).not.toHaveBeenCalled()
   })
 
-  it('shadow queries hit the DB every time (no LRU), so db_ms is real', async () => {
+  it('shadow runs on its own connection, at most once per tile per 10 min: a hot tile costs one DB run and one comparison', async () => {
+    for (let i = 0; i < 5; i++) {
+      await call(LONDON)
+      await Promise.all(background)
+    }
+    expect(dbRuns()).toHaveLength(0) // never the pool (pct 0: nothing served from the DB)
+    expect(shadowConns).toEqual({ opened: 1, ended: 1 })
+    expect(shadowLines()).toHaveLength(1)
+    expect(shadowLines()[0]).toMatchObject({ live_src: 'overpass', n_db: 2, n_scanned: 2, rank_ms: null, capped: false }) // under the cap: not ranked
+    // a different tile is its own comparison
+    await call(buildDiscoverOverpassQuery(53.959, -1.0815, 5000, null).query)
+    await Promise.all(background)
+    expect(shadowConns.opened).toBe(2)
+  })
+
+  it('cap shadow is sampled whatever poiDbPct: DB-served answers are compared too (live_src db)', async () => {
+    pct = 100
+    const many = Array.from({ length: CAP + 500 }, (_, i) => ({ osm_type: 1, osm_id: 10 + i,
+      el: JSON.stringify({ type: 'node', id: 10 + i, lat: 51.47 + (i % 70) / 1000, lon: -0.2 + Math.floor(i / 70) / 1000, tags: { name: `Cafe ${i}`, amenity: 'cafe' } }) }))
+    answer = async () => many
+    const out = await call(LONDON)
+    expect(out.headers['x-places-source']).toBe('db')
+    expect(out.body.elements).toHaveLength(CAP + 500) // served uncapped (poiCapPct 0)
+    await Promise.all(background)
+    expect(shadowLines()).toEqual([expect.objectContaining({ live_src: 'db', n_live: CAP + 500, n_db: CAP, capped: true })])
+  })
+
+  it('INVARIANT (poiCapPct 0): shadow and cap failures of every kind never change served answers, the shared breaker or admission', async () => {
+    pct = 100
+    const { breakerState } = await import('../../../api/lib/poiQuery.js')
+    const many = Array.from({ length: CAP + 500 }, (_, i) => ({ osm_type: 1, osm_id: 10 + i,
+      el: JSON.stringify({ type: 'node', id: 10 + i, lat: 51.47 + (i % 70) / 1000, lon: -0.2 + Math.floor(i / 70) / 1000, tags: { name: `Cafe ${i}`, amenity: 'cafe' } }) }))
+    const failures = [
+      Object.assign(new Error("Key 'ix_rank' doesn't exist in table 'pois'"), { errno: 1176 }), // before phase12
+      Object.assign(new Error('Query execution was interrupted, maximum statement execution time exceeded'), { errno: 3024 }),
+      Object.assign(new Error('You have an error in your SQL syntax'), { errno: 1064 }),
+    ]
+    // reference: what a served request gets with shadow off
+    shadowPct = 0
+    answer = async () => many
+    const expected = (await call(LONDON)).raw
+    shadowPct = 100
+    _resetPoiState() // one instance through all 12 failures: nothing may accumulate in the shared breaker
+    for (const [n, failure] of failures.entries()) {
+      for (let i = 0; i < 4; i++) {
+        store.clear()
+        // every statement a shadow run sends fails; served statements succeed (distinct tiles:
+        // shadow runs once per tile)
+        shadowQuery.mockImplementation(async opts => { if (/ix_rank|^\(SELECT/.test(opts.sql)) throw failure; return answerSql(opts) })
+        const served = await call(buildDiscoverOverpassQuery(51.3 + n * 0.1 + i * 0.02, -0.1278, 5000, null).query)
+        await Promise.all(background)
+        expect(served.headers['x-places-source']).toBe('db')
+        expect(breakerState()).toBe('closed')
+      }
+    }
+    expect(shadowConns.opened).toBe(12) // every shadow ran (and failed), on its own connection
+    // and with no served success in between to reset it (pct 0: shadow only), failures still
+    // never reach the shared breaker
+    pct = 0
+    shadowQuery.mockImplementation(async opts => { if (/ix_rank|^\(SELECT/.test(opts.sql)) throw failures[0]; return answerSql(opts) })
+    for (let i = 0; i < 4; i++) {
+      await call(buildDiscoverOverpassQuery(52.5 + i * 0.05, -1.5, 5000, null).query)
+      await Promise.all(background)
+    }
+    expect(shadowConns.opened).toBe(16)
+    expect(breakerState()).toBe('closed')
+    pct = 100
+    shadowQuery.mockImplementation(answerSql)
+    // same answer as with shadow off, byte for byte
+    _resetPoiState()
+    expect((await call(LONDON)).raw).toBe(expected)
+    expect(poolQuery.mock.calls.some(c => c[0].sql.includes('ix_rank'))).toBe(false) // cap work never on the pool
+  })
+
+  it('shadow of a dense tile logs the capped answer: candidates scanned and rank time', async () => {
+    const many = Array.from({ length: CAP + 500 }, (_, i) => ({ osm_type: 1, osm_id: 10 + i,
+      el: JSON.stringify({ type: 'node', id: 10 + i, lat: 51.47 + (i % 70) / 1000, lon: -0.2 + Math.floor(i / 70) / 1000, tags: { name: `Cafe ${i}`, amenity: 'cafe' } }) }))
+    answer = async () => many
     await call(LONDON)
     await Promise.all(background)
-    await call(LONDON)
-    await Promise.all(background)
-    expect(poolQuery.mock.calls.filter(c => !c[0].sql.includes('poi_builds'))).toHaveLength(2)
+    expect(shadowLines()[0]).toMatchObject({ n_db: CAP, n_scanned: CAP + 500, capped: true, cap_fallback: null })
+    // phase timings, split out, so the cap is measured before it serves (poiCapPct 0 here)
+    for (const k of ['rank_ms', 'probe_ms', 'candidates_ms', 'el_ms']) expect(shadowLines()[0][k], k).toBeTypeOf('number')
+  })
+
+  const dense = () => Array.from({ length: CAP + 500 }, (_, i) => ({ osm_type: 1, osm_id: 10 + i,
+    el: JSON.stringify({ type: 'node', id: 10 + i, lat: 51.47 + (i % 70) / 1000, lon: -0.2 + Math.floor(i / 70) / 1000, tags: { name: `Cafe ${i}`, amenity: 'cafe' } }) }))
+
+  it('poiCapPct 0 (the default, fail closed): a served dense tile is served exactly as before, uncapped', async () => {
+    pct = 100
+    answer = async () => dense()
+    const out = await call(LONDON)
+    expect(out.headers['x-places-source']).toBe('db')
+    expect(out.body.elements).toHaveLength(CAP + 500)
+    expect(poolQuery.mock.calls.some(c => c[0].sql.includes('ix_rank'))).toBe(false) // no probe, no cap
+  })
+
+  it('poiCapPct 100: the same tile is served capped; a flag read failure keeps it off', async () => {
+    pct = 100
+    capPct = 100
+    answer = async () => dense()
+    expect((await call(LONDON)).body.elements).toHaveLength(CAP)
+    // a flag store that won't answer: POI off entirely, so certainly no cap
+    _resetPoiState()
+    peekFresh = false
+    const real = flagsNow
+    flagsNow = () => new Promise(() => {})
+    try {
+      const out = await call(LONDON)
+      expect(out.headers['x-places-source']).toBeUndefined()
+    } finally {
+      flagsNow = real
+      peekFresh = true
+    }
   })
 
   it('pct 100 + a DB that never answers: the old path serves after ~1 s', async () => {
@@ -137,6 +273,8 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     const t = Date.now()
     const out = await call(LONDON)
     expect(Date.now() - t).toBeLessThan(2500)
+    // the abandoned DB run stays in waitUntil, so the instance lives until its transaction ends
+    expect(background).toHaveLength(4) // the DB run, the two KV writes of the Overpass answer, its shadow
     expect(out.headers['x-places-source']).toBeUndefined()
     expect(out.body).toEqual(LIVE)
   })
@@ -172,6 +310,7 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
   it('pct 0: shadows KV hits too', async () => {
     await call(LONDON)
     await Promise.all(background)
+    _resetPoiState() // a fresh instance: nothing compared yet
     const hit = await call(LONDON)
     expect(hit.headers['x-overpass-cache']).toBe('HIT')
     await Promise.all(background)
@@ -184,7 +323,7 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     await call('[out:json][timeout:25];node(around:500,51.5,-0.12)["amenity"="cafe"];out center;')
     await Promise.all(background)
     expect(shadowLines()).toHaveLength(0)
-    expect(poolQuery.mock.calls.filter(c => !c[0].sql.includes('poi_builds'))).toHaveLength(0)
+    expect(dbRuns()).toHaveLength(0)
   })
 
   it('pct 100 + covered + rows: served from the DB, no Overpass, no KV write', async () => {
@@ -197,6 +336,8 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(out.headers['cache-control']).toBe('s-maxage=86400, stale-while-revalidate=172800')
     expect(out.body.elements.map(e => e.id)).toEqual([1, 3])
     expect(out.body.generator).toBe('roam-poi-db')
+    const line = logs.map(l => (typeof l === 'string' && l.includes('"evt":"places"') ? JSON.parse(l) : null)).find(Boolean)
+    expect(line).toMatchObject({ src: 'db', n: 2, db_scanned: 2, db_cached: false })
     expect(fetchMock).not.toHaveBeenCalled()
     expect(store.size).toBe(0)
   })
@@ -205,14 +346,14 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     pct = 100
     expect((await call(LONDON)).headers['x-places-source']).toBe('db')
     expect((await call(LONDON)).headers['x-places-source']).toBe('db') // from the LRU
-    expect(poolQuery.mock.calls.filter(c => !c[0].sql.includes('poi_builds'))).toHaveLength(1)
+    expect(dbRuns()).toHaveLength(1)
     store.set('roam:poiGen', 1) // the loader's INCR
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       vi.setSystemTime(Date.now() + 31_000) // past the 30 s generation cache
       await call(LONDON)
       // Never the gen 0 LRU copy: a fresh query under gen 1 (or the old path)
-      const poiQueries = poolQuery.mock.calls.filter(c => !c[0].sql.includes('poi_builds')).length
+      const poiQueries = dbRuns().length
       expect(poiQueries + fetchMock.mock.calls.length).toBe(2)
       expect(poolQuery.mock.calls.filter(c => c[0].sql.includes('poi_builds'))).toHaveLength(2) // coverage reloaded for gen 1
     } finally {
@@ -258,8 +399,11 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     const sources = []
     for (let i = 0; i < 40; i++) {
       const q = buildDiscoverOverpassQuery(51 + i * 0.05, -1, 5000, null).query
+      // A shadow comparison still running holds the instance's one SQL slot, so let it finish
       const first = await call(q)
+      await Promise.all(background)
       const again = await call(q)
+      await Promise.all(background)
       expect(again.headers['x-places-source']).toBe(first.headers['x-places-source'])
       sources.push(first.headers['x-places-source'] === 'db')
     }

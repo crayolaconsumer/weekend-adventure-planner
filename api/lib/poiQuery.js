@@ -7,7 +7,9 @@
  * means "not ours": the caller takes the legacy KV/Overpass path unchanged.
  *
  * queryPois(plan) runs it and returns the same Overpass JSON envelope the proxy
- * serves today, built by concatenating the stored element strings.
+ * serves today, built by concatenating the stored element strings. A Discover
+ * answer over CAP rows is cut to the CAP rows the phone's deck would deal from
+ * (shared/poiRank.mjs), read in two phases so el is only fetched for those.
  *
  * getPois(plan, key) is the serving wrapper: active-build coverage, a
  * per-instance circuit breaker, in-flight dedupe and a small LRU. It never
@@ -27,11 +29,13 @@
  *   whatever the `out` mode, so `out tags bb` answers include coordinates
  *   Overpass leaves out. Every parser reads them the same (tested).
  */
-import { getPool } from './db.js'
+import { getPool, dedicatedConnection } from './db.js'
 import { cacheGet } from './kvCache.js'
 import { cellRanges, CELL_PAD_DEG, LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, SCHEMA_VERSION } from '../../shared/poiCell.mjs'
 // The build's own osmium filter: a key=value outside it isn't in the table
 import { POI_KEYS, filterPairs } from '../../scripts/poi/filter.mjs'
+import { rankCap, FEATURES_VERSION, ELIGIBLE, CAP } from '../../shared/poiRank.mjs'
+import { SNAP_GRID_DEGREES } from './bboxSnap.js'
 
 // Must equal poi_builds.schema_version and the build manifest (loader gate G1)
 export const POI_SCHEMA_VERSION = SCHEMA_VERSION
@@ -60,7 +64,22 @@ const MIN_REMAINING_MS = 200
 // Server-side bound: MySQL kills the SELECT, so the connection is freed too
 // (the mysql2 timeout alone only rejects the promise)
 const HINT = '/*+ MAX_EXECUTION_TIME(800) */'
-const LRU_MAX_BYTES = 1_000_000
+// Relevance cap (shared/poiRank.mjs, rubric /tmp/roam-overnight/ranking/RUBRIC.md):
+// a Discover answer over CAP rows is served as the CAP rows the phone's deck
+// would deal from. Phase 1 reads compact candidates (no el) through ix_rank;
+// more than RANK_SCAN_ROWS of them takes the old path. Phase 2 reads el for
+// the chosen ids, ID_BATCH per statement.
+// The relevance cap's size lives with the ranker (shared/poiRank.mjs), so the eval uses the same
+export { CAP }
+// Below this share of deck-eligible candidates the features are not trusted (see cappedAnswer)
+const CAP_MIN_ELIGIBLE = 0.5
+export const RANK_SCAN_ROWS = 60_000
+const ID_BATCH = 1000
+// LRU: a byte budget, not an entry count. A capped dense answer is ~1.1 MB
+// (London 30 km) and must be cached; a town page is ~50 KB. UTF-8 bytes of
+// the body; V8 may hold up to twice that for non-Latin-1 text.
+export const LRU_BUDGET_BYTES = 16_000_000
+export const LRU_ENTRY_MAX_BYTES = 2_000_000
 // Collapse whitespace outside quoted strings, so "out  tags\ncenter" and
 // "nw[ \"shop\" ]" read the same as the compact forms
 function normalise(ql) {
@@ -228,38 +247,98 @@ function statementSql(stmt, params) {
   return `(${parts.join(' AND ')})`
 }
 
+const checkTable = (table) => {
+  if (!/^pois(?:_staging|_prev)?$/.test(table)) throw new Error(`bad poi table ${table}`)
+}
+
+// One output group's WHERE, binding its values into params
+function groupWhere(plan, group, params) {
+  const where = []
+  if (plan.bbox) {
+    const { s, w, n, e } = plan.bbox
+    // Overpass (bbox) returns ways and relations that INTERSECT the box. Rows
+    // are celled by centre, so scan cells padded by the largest half-extent the
+    // build allows, then keep rows whose bounds touch the box (nodes: min=max).
+    // Elements wider than the pad (Bristol Channel) all live in LARGE_CELL.
+    const ranges = [[LARGE_CELL, LARGE_CELL], ...cellRanges(s - CELL_PAD_DEG, w - CELL_PAD_DEG, n + CELL_PAD_DEG, e + CELL_PAD_DEG)]
+    where.push(`(${ranges.map(() => 'cell BETWEEN ? AND ?').join(' OR ')})`)
+    params.push(...ranges.flat())
+    where.push('max_lat >= ? AND min_lat <= ? AND max_lon >= ? AND min_lon <= ?')
+    params.push(s, n, w, e)
+  }
+  where.push(`(${group.statements.map(st => statementSql(st, params)).join(' OR ')})`)
+  return where.join(' AND ')
+}
+
 /**
  * The whole plan as ONE statement (one round trip on the single pooled
  * connection, one MAX_EXECUTION_TIME for all of it): a parenthesised SELECT per
  * output group, joined by UNION ALL, tagged with its group index. Exported for tests.
  */
-export function buildSql(plan, table = 'pois') {
-  if (!/^pois(?:_staging|_prev)?$/.test(table)) throw new Error(`bad poi table ${table}`)
+export function buildSql(plan, table = 'pois', scanLimit = SCAN_ROWS + 1) {
+  checkTable(table)
   const params = []
   const selects = plan.groups.map((group, g) => {
-    const where = []
-    if (plan.bbox) {
-      const { s, w, n, e } = plan.bbox
-      // Overpass (bbox) returns ways and relations that INTERSECT the box. Rows
-      // are celled by centre, so scan cells padded by the largest half-extent the
-      // build allows, then keep rows whose bounds touch the box (nodes: min=max).
-      // Elements wider than the pad (Bristol Channel) all live in LARGE_CELL.
-      const ranges = [[LARGE_CELL, LARGE_CELL], ...cellRanges(s - CELL_PAD_DEG, w - CELL_PAD_DEG, n + CELL_PAD_DEG, e + CELL_PAD_DEG)]
-      where.push(`(${ranges.map(() => 'cell BETWEEN ? AND ?').join(' OR ')})`)
-      params.push(...ranges.flat())
-      where.push('max_lat >= ? AND min_lat <= ? AND max_lon >= ? AND min_lon <= ?')
-      params.push(s, n, w, e)
-    }
-    where.push(`(${group.statements.map(st => statementSql(st, params)).join(' OR ')})`)
+    const where = groupWhere(plan, group, params)
     // One row past the scan bound tells queryPois the answer is too big.
     // The hint is only allowed in the first SELECT and covers the whole statement.
-    params.push(group.limit || SCAN_ROWS + 1)
+    params.push(group.limit || scanLimit)
     // Area reads go through the cell range. Left alone, MySQL walks uq_osm in id
     // order for the LIMIT (24 s for York) or full-scans dense London (20 s).
     return `(SELECT ${g === 0 ? `${HINT} ` : ''}${g} AS g, osm_type, osm_id, el FROM ${table}${plan.bbox ? ' FORCE INDEX (PRIMARY)' : ''} ` +
-      `WHERE ${where.join(' AND ')} ORDER BY osm_type, osm_id LIMIT ?)`
+      `WHERE ${where} ORDER BY osm_type, osm_id LIMIT ?)`
   })
   return { sql: `${selects.join(' UNION ALL ')} ORDER BY g, osm_type, osm_id`, params }
+}
+
+// Only boxes of a single Discover query up to 30 km (plus slack) are capped. Past 42 km the
+// app (src/utils/apiClient.js sampleLargeRadius) sends 35 km tiles, four of them centred
+// half the radius AWAY from the phone, and merges them: the server can't tell a tile from a
+// phone at its centre, and the ranker's position assumptions (the phone within half a snap
+// cell of the box centre) don't hold. Those, and any single query of 34.5 km or more, are
+// served exactly as before. Radius from the box's height, as radiusToBbox builds it.
+export const MAX_CAP_RADIUS_KM = 34.5
+const LAT_KM_PER_DEG = 111.32
+
+/** A Discover answer (one unlimited output over a bbox of radius < MAX_CAP_RADIUS_KM): the only kind the cap ranks. */
+export const isRankable = plan => plan.kind === 'area' && plan.groups.length === 1 && !plan.groups[0].limit &&
+  ((plan.bbox.n - plan.bbox.s) / 2) * LAT_KM_PER_DEG < MAX_CAP_RADIUS_KM
+
+/**
+ * Cap phase 1: the same WHERE as buildSql, reading only ix_rank (a covering
+ * index: bounds and features, osm_type/osm_id from the PK suffix), so no el
+ * is read. Unordered: queryPois sorts the candidates itself.
+ */
+export function buildCandidateSql(plan, table = 'pois') {
+  checkTable(table)
+  const params = []
+  const where = groupWhere(plan, plan.groups[0], params)
+  params.push(RANK_SCAN_ROWS + 1)
+  return {
+    sql: `SELECT ${HINT} osm_type, osm_id, min_lat, max_lat, min_lon, max_lon, q, cat, flags FROM ${table} FORCE INDEX (ix_rank) WHERE ${where} LIMIT ?`,
+    params
+  }
+}
+
+/**
+ * The cap's probe: is this answer over CAP? The same WHERE, index-only through
+ * ix_rank (no el read), stopping at CAP + 1 rows. Outside any transaction.
+ */
+export function buildProbeSql(plan, table = 'pois') {
+  checkTable(table)
+  const params = []
+  const where = groupWhere(plan, plan.groups[0], params)
+  params.push(CAP + 1)
+  return { sql: `SELECT ${HINT} osm_type FROM ${table} FORCE INDEX (ix_rank) WHERE ${where} LIMIT ?`, params }
+}
+
+/** Cap phase 2: el for chosen ids of one osm_type, through uq_osm. */
+export function buildElSql(type, ids, table = 'pois') {
+  checkTable(table)
+  return {
+    sql: `SELECT ${HINT} osm_type, osm_id, el FROM ${table} FORCE INDEX (uq_osm) WHERE osm_type = ? AND osm_id IN (${ids.map(() => '?').join(',')})`,
+    params: [type, ...ids]
+  }
 }
 
 // An id answer must be the element asked for, checked in the stored JSON too
@@ -281,14 +360,9 @@ function envelope(els, osmTimestamp) {
     `"elements":[${els.join(',')}]}`
 }
 
-/**
- * Run a plan. Returns { body, n, ids } where body is the Overpass JSON envelope
- * string, or { truncated: true } when the answer is over MAX_BODY_BYTES (or a
- * group over SCAN_ROWS). Throws on a DB error or timeout.
- */
-export async function queryPois(plan, { osmTimestamp = coverage.osmTimestamp } = {}) {
-  const { sql, params } = buildSql(plan)
-  const [rows] = await getPool().query({ sql, timeout: 2500 }, params)
+// Envelope from rows in output order. { body, n, ids }, or { truncated: true }
+// when an unlimited group passes SCAN_ROWS or the body passes MAX_BODY_BYTES.
+function toAnswer(plan, rows, osmTimestamp) {
   const els = []
   const ids = []
   const perGroup = new Array(plan.groups.length).fill(0)
@@ -303,6 +377,174 @@ export async function queryPois(plan, { osmTimestamp = coverage.osmTimestamp } =
     ids.push(`${OSM_TYPE_NAME[r.osm_type]}/${r.osm_id}`)
   }
   return { body: envelope(els, osmTimestamp), n: els.length, ids }
+}
+
+const byOsm = (a, b) => a.osm_type - b.osm_type || a.osm_id - b.osm_id
+
+/**
+ * Run a plan. Returns { body, n, ids } where body is the Overpass JSON envelope
+ * string, or { truncated: true } when the answer is over MAX_BODY_BYTES (or a
+ * group over SCAN_ROWS, or a Discover answer over RANK_SCAN_ROWS). Throws on a
+ * DB error, a timeout, or the deadline passing between statements; an error
+ * inside the capped transaction carries `cap: true` (getPois gives it to the
+ * cap breaker, never to the shared one).
+ *
+ * `features`: cap this plan if it is dense. The caller sets it only when the
+ * active build carries this code's features (FEATURES_VERSION) and poiCapPct
+ * covers the request. Then an index-only probe through ix_rank (no el) decides:
+ * at or under CAP, today's statement serves as always; over it, the capped
+ * transaction runs. Its results carry capPath: true and phase timings (ms):
+ * { probe, candidates, rank, el }.
+ */
+export async function queryPois(plan, { osmTimestamp = coverage.osmTimestamp, deadlineAt = Infinity, features = false, buildId = coverage.buildId, conn = null } = {}) {
+  // `conn`: a dedicated connection (shadow); otherwise the instance's pool
+  const send = conn ? (o, p) => conn.query(o, p) : (o, p) => getPool().query(o, p)
+  // Time spent in today's statement: all the shared breaker may judge (sharedMs). Everything
+  // else (probe, capped transaction) is the cap's, and every error it throws carries cap: true
+  let sharedMs = null // null: today's statement never ran (a capped answer)
+  const today = async () => {
+    const started = Date.now()
+    const { sql, params } = buildSql(plan)
+    const [rows] = await send({ sql, timeout: 2500 }, params)
+    sharedMs = (sharedMs ?? 0) + Date.now() - started
+    return toAnswer(plan, rows, osmTimestamp)
+  }
+  if (!features || !isRankable(plan)) return { ...(await today()), sharedMs }
+  const asCap = async fn => {
+    try {
+      return await fn()
+    } catch (err) {
+      err.cap = true
+      throw err
+    }
+  }
+  let t = performance.now()
+  const probe = buildProbeSql(plan)
+  const [hits] = await asCap(() => send({ sql: probe.sql, timeout: 2500 }, probe.params))
+  const timings = { probe: since(t) }
+  if (hits.length <= CAP) return { ...(await today()), timings, sharedMs }
+  const capped = await asCap(() => queryCapped(plan, osmTimestamp, Math.min(deadlineAt, Date.now() + CAP_TXN_MS), buildId, conn))
+  Object.assign(timings, capped.timings)
+  if (!capped.fallback) return { ...capped, timings, sharedMs, capPath: true }
+  // The candidates can't be ranked (features zero or stale, or a swap shrank the answer):
+  // today's path, uncapped. Never a thin capped deck, and never cached (getPois)
+  console.warn(JSON.stringify({ evt: 'poi_cap_fallback', reason: capped.fallback, scanned: capped.scanned, eligible: capped.eligible, table: capped.table }))
+  t = performance.now()
+  const answer = await today()
+  return { ...answer, timings: { ...timings, today: since(t) }, sharedMs, capPath: true, capFallback: capped.fallback }
+}
+
+const since = t => Math.round(performance.now() - t)
+
+// The capped read's own time bound, whatever the caller's deadline (shadow has
+// none). See queryCapped for why it must stay well under the loader's 5 s.
+const CAP_TXN_MS = 2000
+// Server-side bounds for the capped transaction's session (see queryCapped). wait_timeout:
+// idle seconds before MySQL closes the session (ending the transaction and its MDL);
+// lock_wait_timeout: how long our own reads wait for a metadata lock (a pending RENAME);
+// innodb_lock_wait_timeout: row locks (none taken by these reads, bounded anyway);
+// max_execution_time: every SELECT, as the per-statement hint does.
+const TXN_IDLE_S = 5
+const TXN_SESSION = `SET SESSION wait_timeout = ${TXN_IDLE_S}, lock_wait_timeout = 2, innodb_lock_wait_timeout = 2, max_execution_time = 800`
+const RESTORE_SESSION = 'SET SESSION wait_timeout = @@GLOBAL.wait_timeout, lock_wait_timeout = @@GLOBAL.lock_wait_timeout, ' +
+  'innodb_lock_wait_timeout = @@GLOBAL.innodb_lock_wait_timeout, max_execution_time = @@GLOBAL.max_execution_time'
+
+/**
+ * The two phases, in ONE read-only transaction on one connection. Reading
+ * `pois` takes a shared metadata lock that is held until the transaction ends,
+ * so the loader's swap (RENAME TABLE pois TO pois_prev, pois_staging TO pois)
+ * waits for us and both phases read the same build.
+ *
+ * While that RENAME waits, every newer reader of `pois` queues behind it (MDL
+ * is first come, first served), so this transaction must stay short: it is
+ * bounded by CAP_TXN_MS plus one statement's MAX_EXECUTION_TIME (800 ms), about
+ * 3 s, against the loader's lock_wait_timeout of 5 s (poi-load.js withPoiLock).
+ * If the RENAME does time out, the loader answers 503 and retries; nothing is
+ * half-swapped. On ANY error (including a failed ROLLBACK or restore) the
+ * connection is destroyed, never reused: a ROLLBACK would queue behind a
+ * statement still running after a client-side timeout. Closing the session
+ * ends the transaction as soon as the server stops that statement
+ * (MAX_EXECUTION_TIME at the latest), freeing the lock.
+ *
+ * The server bounds it too, whatever happens to this function (suspended by
+ * Fluid, frozen, killed): TXN_SESSION is set before START TRANSACTION, so a
+ * session left idle inside the transaction is closed by MySQL after
+ * wait_timeout (TXN_IDLE_S) seconds, which ends the transaction and releases
+ * the lock. The pool's connection is shared, so those settings are put back
+ * (to the server's globals) after the ROLLBACK, before it is released.
+ */
+async function queryCapped(plan, osmTimestamp, deadlineAt, buildId, dedicated = null) {
+  // A dedicated (shadow) connection is the caller's, closed after this run: no settings to restore
+  const conn = dedicated ?? await getPool().getConnection()
+  let clean = false
+  const run = async ({ sql, params }) => {
+    // Like the first statement: none sent that would outlive the caller's wait
+    if (deadlineAt - Date.now() < MIN_REMAINING_MS) throw new Error('too close to the deadline')
+    return (await conn.query({ sql, timeout: 2500 }, params))[0]
+  }
+  try {
+    await conn.query({ sql: TXN_SESSION, timeout: 1000 })
+    await conn.query({ sql: 'START TRANSACTION READ ONLY', timeout: 2500 })
+    const result = await cappedAnswer(plan, osmTimestamp, run, buildId)
+    await conn.query({ sql: 'ROLLBACK', timeout: 1000 }) // read-only: ending it is all there is to do
+    if (!dedicated) await conn.query({ sql: RESTORE_SESSION, timeout: 1000 })
+    clean = true
+    return result
+  } finally {
+    if (!dedicated) {
+      if (clean) conn.release()
+      else conn.destroy()
+    }
+  }
+}
+
+// The build the live `pois` holds: the loader stamps its id into the table COMMENT and
+// RENAME carries it (poi-load.js begin). Read inside the transaction, after phase 1 has
+// taken the metadata lock, so it names the very table the candidates came from.
+export const TABLE_BUILD_SQL = "SELECT table_comment AS owner FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'pois'"
+
+async function cappedAnswer(plan, osmTimestamp, run, buildId) {
+  let t = performance.now()
+  const candidates = await run(buildCandidateSql(plan))
+  const timings = { candidates: since(t) }
+  // Only the build whose features_version we read (coverage, cached up to 5 min) may be
+  // ranked: after a swap or rollback in between, the table may be another build, with no
+  // features at all. On mismatch or doubt, today's (uncapped) path
+  const [table] = await run({ sql: TABLE_BUILD_SQL, params: [] })
+  if (!buildId || table?.owner !== buildId) return { fallback: 'build_mismatch', scanned: candidates.length, table: table?.owner ?? null, timings }
+  const scanned = candidates.length
+  if (scanned > RANK_SCAN_ROWS) {
+    // Too dense even to rank: today's path (Overpass/KV). Logged, so we see how often
+    console.warn(JSON.stringify({ evt: 'poi_cap_fallback', reason: 'too_dense', scanned, limit: RANK_SCAN_ROWS }))
+    return { truncated: true, timings }
+  }
+  // A swap between the probe and this transaction left a smaller build: today's answer
+  if (scanned <= CAP) return { fallback: 'not_dense', scanned, timings }
+  // Features all zero (an older loader's rows) or from another ranker version would rank on
+  // nothing and deal a thin deck: Discover rows measure 97-99% deck-eligible
+  let eligible = 0
+  for (const c of candidates) if (c.flags & ELIGIBLE) eligible++
+  if (eligible < CAP_MIN_ELIGIBLE * scanned) return { fallback: 'features', scanned, eligible, timings }
+
+  // Row order is the tie-break, so rank in the order the DB serves (osm_type, osm_id)
+  candidates.sort(byOsm)
+  t = performance.now()
+  const { s, w, n, e } = plan.bbox
+  // The bbox is snapped (bboxSnap.js), so every phone within half a grid cell of its
+  // centre shares this body: the ranker's stratum floor holds for all of them
+  const chosen = rankCap(candidates, { lat: (s + n) / 2, lng: (w + e) / 2 }, CAP, SNAP_GRID_DEGREES / 2)
+  timings.rank = since(t)
+  t = performance.now()
+  const rows = []
+  for (const type of [1, 2, 3]) {
+    const ids = chosen.filter(c => c.osm_type === type).map(c => c.osm_id)
+    for (let i = 0; i < ids.length; i += ID_BATCH) rows.push(...await run(buildElSql(type, ids.slice(i, i + ID_BATCH))))
+  }
+  timings.el = since(t)
+  // Same snapshot, so every chosen id is there; anything else is a bug, not an answer
+  if (rows.length !== chosen.length) throw new Error(`cap phase 2 read ${rows.length} of ${chosen.length} rows`)
+  const answer = toAnswer(plan, rows.map(r => ({ ...r, g: 0 })).sort(byOsm), osmTimestamp)
+  return answer.truncated ? { ...answer, timings } : { ...answer, scanned, rankMs: timings.rank, timings }
 }
 
 // ─── Serving wrapper: coverage, breaker, dedupe, LRU (all per instance) ───
@@ -342,7 +584,7 @@ export async function getPoiGen() {
 
 const COVERAGE_TTL_MS = 5 * 60 * 1000
 const COVERAGE_RETRY_MS = 30 * 1000
-const coverage = { cells: null, buildId: null, osmTimestamp: null, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false }
+const coverage = { cells: null, buildId: null, osmTimestamp: null, features: false, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false }
 
 function isoSeconds(v) {
   if (v instanceof Date) return v.toISOString().replace(/\.\d{3}Z$/, 'Z')
@@ -354,15 +596,19 @@ async function loadCoverage(gen) {
   active++
   try {
     const [rows] = await getPool().query({
-      sql: `SELECT ${HINT} build_id, schema_version, osm_timestamp, coverage FROM poi_builds WHERE status = 'active' ORDER BY activated_at DESC LIMIT 1`,
+      // features_version: written into gate_report by the loader (no new column, so this
+      // read works before and after database/phase12-poi-features.sql)
+      sql: `SELECT ${HINT} build_id, schema_version, osm_timestamp, coverage, JSON_EXTRACT(gate_report, '$.features_version') AS features_version ` +
+        "FROM poi_builds WHERE status = 'active' ORDER BY activated_at DESC LIMIT 1",
       timeout: 2500
     })
     const row = rows[0]
     const cells = typeof row?.coverage === 'string' ? JSON.parse(row.coverage) : row?.coverage
     if (!row || row.schema_version !== POI_SCHEMA_VERSION || !Array.isArray(cells)) {
-      Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null })
+      Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null, features: false })
     } else {
-      Object.assign(coverage, { cells: new Set(cells), buildId: row.build_id, osmTimestamp: isoSeconds(row.osm_timestamp) })
+      Object.assign(coverage, { cells: new Set(cells), buildId: row.build_id, osmTimestamp: isoSeconds(row.osm_timestamp),
+        features: Number(row.features_version) === FEATURES_VERSION })
     }
     // Only a successful read confirms the generation; after a failed one a
     // newer gen stays unconfirmed and getPois declines it (fails closed)
@@ -426,6 +672,11 @@ function breakerAllows(now = Date.now()) {
   return true
 }
 
+// No verdict (the run never touched the shared path): only free a half-open probe slot
+function breakerRelease() {
+  breaker.probing = false
+}
+
 function breakerResult(ok) {
   breaker.probing = false
   if (ok) {
@@ -438,10 +689,22 @@ function breakerResult(ok) {
 
 export const breakerState = () => (breaker.fails < BREAKER_FAILURES ? 'closed' : Date.now() < breaker.openUntil ? 'open' : 'half-open')
 
+// The cap's own breaker: capped runs (the transaction and a fallback after it) that fail or
+// are slower than the caller's wait count HERE, never on the shared breaker above, so a slow
+// dense London can't switch DB serving off for towns. Open, dense tiles take today's
+// (uncapped) path; after BREAKER_OPEN_MS the next dense tile tries again.
+const capBreaker = { fails: 0, openUntil: 0 }
+const capAllowed = () => capBreaker.fails < BREAKER_FAILURES || Date.now() >= capBreaker.openUntil
+function capBreakerResult(ok) {
+  if (ok) capBreaker.fails = 0
+  else if (++capBreaker.fails >= BREAKER_FAILURES) capBreaker.openUntil = Date.now() + BREAKER_OPEN_MS
+}
+export const capBreakerState = () => (capAllowed() ? 'closed' : 'open')
+
 // ponytail: per-instance only; add a CDN-cacheable GET endpoint if DB CPU becomes the limit (plan §4)
-const LRU_MAX = 50
 const LRU_TTL_MS = 10 * 60 * 1000
-const lru = new Map()
+const lru = new Map() // cacheKey -> { at, value, bytes }, least recently used first
+let lruBytes = 0
 const inflight = new Map()
 // Admission control: the pool has ONE connection, so a second query would only
 // queue behind the first and outlive the caller's deadline
@@ -449,30 +712,52 @@ let active = 0
 // LRU value meaning "too big for the DB path": skip the scan for 10 minutes
 const OVER_CAP = Symbol('over cap')
 
-function remember(cacheKey, value) {
-  lru.set(cacheKey, { at: Date.now(), value })
-  if (lru.size > LRU_MAX) lru.delete(lru.keys().next().value)
+const OVER_CAP_BYTES = 64 // a marker still costs something, so a flood of them is bounded too
+
+function forget(cacheKey) {
+  const entry = lru.get(cacheKey)
+  if (!entry) return
+  lruBytes -= entry.bytes
+  lru.delete(cacheKey)
 }
+
+function remember(cacheKey, value, bytes = OVER_CAP_BYTES) {
+  forget(cacheKey)
+  lru.set(cacheKey, { at: Date.now(), value, bytes })
+  lruBytes += bytes
+  // Oldest first; an entry is at most LRU_ENTRY_MAX_BYTES, so the new one always stays
+  for (const oldest of lru.keys()) {
+    if (lruBytes <= LRU_BUDGET_BYTES) break
+    forget(oldest)
+  }
+}
+
+/** Test hook: { entries, bytes } held by the LRU. */
+export const lruUsage = () => ({ entries: lru.size, bytes: lruBytes })
 
 /**
  * Serve a plan from the DB when it can be: returns { body, n, ids, buildId, ms, cached }
- * or null (not covered, too big, busy, too close to the deadline, breaker open,
- * DB error). Never throws. `key` identifies the query (the snapped query string).
- * `gen` is the roam:poiGen generation: results are only served and cached for coverage
- * loaded under the same generation. `deadlineAt` is when the caller stops
- * waiting. `useLru: false` (shadow mode) neither reads nor fills the LRU with
- * results, so db_ms is a real query time.
+ * (plus { scanned, rankMs, timings } for a capped answer) or null (not covered, too big,
+ * busy, too close to the deadline, breaker open, DB error). Never throws. `key`
+ * identifies the query (the snapped query string). `gen` is the roam:poiGen
+ * generation: results are only served and cached for coverage loaded under the
+ * same generation. `deadlineAt` is when the caller stops waiting. (Shadow uses
+ * shadowPois, never this.)
+ * `cap`: this request may be capped (poiCapPct). It takes effect
+ * only for a rankable plan on a build with this code's features while the cap
+ * breaker is closed; capped and uncapped answers are cached apart.
  */
-export async function getPois(plan, key, { useLru = true, gen = 0, deadlineAt = Infinity } = {}) {
+export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap = false } = {}) {
   const cov = await getCoverage(gen, deadlineAt)
   if (cov.gen !== gen || !isCovered(plan, cov)) return null
   const { buildId } = cov
-  const cacheKey = `${gen}|${buildId}|${key}`
+  const capOn = cap && cov.features && isRankable(plan) && capAllowed()
+  const cacheKey = `${gen}|${buildId}|${capOn ? 'cap' : 'all'}|${key}`
   const hit = lru.get(cacheKey)
   const fresh = hit && Date.now() - hit.at < LRU_TTL_MS
-  if (fresh && hit.value === OVER_CAP) return null // shadow honours this too
-  if (fresh && useLru) {
-    lru.delete(cacheKey)
+  if (fresh && hit.value === OVER_CAP) return null
+  if (fresh) {
+    lru.delete(cacheKey) // most recently used again; bytes unchanged
     lru.set(cacheKey, hit)
     return { ...hit.value, ms: 0, cached: true }
   }
@@ -484,21 +769,33 @@ export async function getPois(plan, key, { useLru = true, gen = 0, deadlineAt = 
   const run = (async () => {
     const started = Date.now()
     try {
-      const result = await queryPois(plan, { osmTimestamp: cov.osmTimestamp })
+      const result = await queryPois(plan, { osmTimestamp: cov.osmTimestamp, deadlineAt, features: capOn, buildId })
       // Cache only under a build still confirmed for this generation
       const confirmed = coverage.gen === gen && coverage.buildId === buildId
-      // Too slow is a failure: the caller already gave up and served the old path
-      breakerResult(Date.now() - started <= POI_DEADLINE_MS)
+      // Too slow is a failure: the caller already gave up and served the old path. The shared
+      // breaker judges ONLY today's statement (its own time; none at all for a capped answer);
+      // the probe and the capped transaction are the cap breaker's
+      if (result.sharedMs == null) breakerRelease()
+      else breakerResult(result.sharedMs <= POI_DEADLINE_MS)
+      if (capOn) capBreakerResult(Date.now() - started - (result.sharedMs ?? 0) <= POI_DEADLINE_MS)
+      // A fallback is today's answer from a run that doubted the cap: never cached, so the
+      // next request checks again (and the answer never outlives the table it came from)
+      const cacheable = confirmed && !result.capFallback
       if (result.truncated) {
         console.warn('[poi] over the size cap, using the legacy path')
-        if (confirmed) remember(cacheKey, OVER_CAP)
+        if (cacheable) remember(cacheKey, OVER_CAP)
         return null
       }
       const value = { ...result, buildId }
-      if (confirmed && useLru && result.n > 0 && Buffer.byteLength(result.body) <= LRU_MAX_BYTES) remember(cacheKey, value)
+      const bytes = Buffer.byteLength(result.body)
+      if (cacheable && result.n > 0 && bytes <= LRU_ENTRY_MAX_BYTES) remember(cacheKey, value, bytes)
       return { ...value, ms: Date.now() - started, cached: false }
     } catch (err) {
-      breakerResult(false)
+      // A cap error (probe or transaction: today's statement never ran) is the cap's alone
+      if (err.cap) {
+        capBreakerResult(false)
+        breakerRelease()
+      } else breakerResult(false)
       console.warn('[poi] query failed:', err.message)
       return null
     } finally {
@@ -510,12 +807,81 @@ export async function getPois(plan, key, { useLru = true, gen = 0, deadlineAt = 
   return run
 }
 
+// ─── Shadow: measure the DB (and the cap) without touching served traffic ───
+
+// Shadow runs never use the instance's pool connection, its admission slot, the shared
+// breaker or the answer cache: each runs on its own short-lived connection, only while this
+// instance has no served query in flight, one at a time, and at most once per tile per
+// SHADOW_TTL_MS. Coverage is refreshed exactly as a served request would (getCoverage: one
+// small read, only when the instance is idle), so shadow works at poiDbPct 0. The cap
+// breaker is shared with served capped runs (the same signal: the cap is slow or failing).
+const SHADOW_TTL_MS = 10 * 60 * 1000
+const SHADOW_SEEN_MAX = 1000
+const shadowSeen = new Map() // gen|build|key -> at
+let shadowActive = false
+// Worst case: one extra DB connection per warm nearby instance, for one shadow run's length
+// (a shadow runs one at a time per instance). If opening one fails (ER_CON_COUNT_ERROR: the
+// server is out of connections, or any other connect error), shadow stops on this instance
+// for SHADOW_CONNECT_BACKOFF_MS, and a run never retries its connect.
+const SHADOW_CONNECT_BACKOFF_MS = 60 * 1000
+let shadowConnectBlockedUntil = 0
+
+/**
+ * The DB's answer for a query the caller has already served, for comparison logs:
+ * { body, n, ids, buildId, ms, scanned?, rankMs?, timings, capFallback? } or null (not
+ * covered, busy, seen recently, cap breaker irrelevant, DB error). Never throws. A rankable
+ * plan on a features build is capped (while the cap breaker is closed), whatever poiCapPct.
+ */
+export async function shadowPois(plan, key, { gen = 0 } = {}) {
+  if (active > 0 || shadowActive) return null // served traffic first
+  if (Date.now() < shadowConnectBlockedUntil) return null // backing off after a failed connect
+  const cov = await getCoverage(gen)
+  if (cov.gen !== gen || !isCovered(plan, cov)) return null
+  if (active > 0 || shadowActive) return null // again: the coverage read may have waited
+  const seenKey = `${gen}|${cov.buildId}|${key}`
+  const seenAt = shadowSeen.get(seenKey)
+  if (seenAt !== undefined && Date.now() - seenAt < SHADOW_TTL_MS) return null
+  shadowSeen.delete(seenKey)
+  shadowSeen.set(seenKey, Date.now())
+  if (shadowSeen.size > SHADOW_SEEN_MAX) shadowSeen.delete(shadowSeen.keys().next().value)
+  const capOn = cov.features && isRankable(plan) && capAllowed()
+  shadowActive = true
+  let conn = null
+  const started = Date.now()
+  try {
+    try {
+      conn = await dedicatedConnection()
+    } catch (err) {
+      shadowConnectBlockedUntil = Date.now() + SHADOW_CONNECT_BACKOFF_MS
+      console.warn(`[poi] shadow connect failed (${err.code || err.message}); no shadow here for ${SHADOW_CONNECT_BACKOFF_MS / 1000} s`)
+      return null
+    }
+    const result = await queryPois(plan, { osmTimestamp: cov.osmTimestamp, features: capOn, buildId: cov.buildId, conn })
+    if (capOn) capBreakerResult(Date.now() - started - (result.sharedMs ?? 0) <= POI_DEADLINE_MS)
+    return result.truncated ? null : { ...result, buildId: cov.buildId, ms: Date.now() - started, cached: false }
+  } catch (err) {
+    if (err.cap) capBreakerResult(false)
+    console.warn('[poi] shadow query failed:', err.message)
+    conn?.destroy?.()
+    conn = null
+    return null
+  } finally {
+    shadowActive = false
+    if (conn) await conn.end().catch(() => conn.destroy?.())
+  }
+}
+
 /** Test hook: forget all per-instance state. */
 export function _resetPoiState() {
-  Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false })
+  Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null, features: false, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false })
   active = 0
   Object.assign(genCache, { value: 0, at: 0, loading: null })
   Object.assign(breaker, { fails: 0, openUntil: 0, probing: false })
+  Object.assign(capBreaker, { fails: 0, openUntil: 0 })
+  shadowSeen.clear()
+  shadowActive = false
+  shadowConnectBlockedUntil = 0
   lru.clear()
+  lruBytes = 0
   inflight.clear()
 }

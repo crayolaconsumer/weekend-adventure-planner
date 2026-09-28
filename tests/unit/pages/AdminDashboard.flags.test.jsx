@@ -15,7 +15,7 @@ const { default: AdminDashboard } = await import('../../../src/pages/AdminDashbo
 let flags, fetchMock
 beforeEach(() => {
   toast.success.mockReset()
-  flags = { overpassProxy: true, contributionsUpload: true, pushNudges: true, poiDbPct: 5, poiShadowPct: 0 }
+  flags = { overpassProxy: true, contributionsUpload: true, pushNudges: true, poiDbPct: 5, poiShadowPct: 0, poiCapPct: 0 }
   fetchMock = vi.fn(async (url, opts = {}) => {
     if (url === '/api/admin/flags' && opts.method === 'POST') {
       flags = { ...flags, ...JSON.parse(opts.body).flags }
@@ -39,6 +39,14 @@ describe('AdminDashboard rollout percentages', () => {
     await waitFor(() => expect(posts()).toEqual([{ flags: { poiShadowPct: 10 } }]))
     expect(await screen.findByText('Place database: shadow: 10%')).toBeInTheDocument()
     expect(toast.success).toHaveBeenCalledWith('Place database: shadow set to 10%. Live within about a minute.')
+  })
+
+  it('the dense-area cap has its own percentage', async () => {
+    render(<MemoryRouter><AdminDashboard /></MemoryRouter>)
+    const input = await screen.findByLabelText('Place database: dense-area cap percent')
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.submit(input.closest('form'))
+    await waitFor(() => expect(posts()).toEqual([{ flags: { poiCapPct: 5 } }]))
   })
 
   it('kill switch: serve back to 0', async () => {

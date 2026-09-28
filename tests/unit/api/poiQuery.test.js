@@ -19,22 +19,60 @@ vi.mock('../../../api/lib/kvCache.js', () => ({
   getClient: () => null
 }))
 
-// Fake pool: poi_builds answers from `build`, everything else from `answer`
+// A pois row as cap phase 1 reads it from ix_rank: bounds and features, derived from el
+// exactly as the build does (so plain { osm_type, osm_id, el } test rows work too)
+function candidateOf(r) {
+  const el = JSON.parse(r.el)
+  const b = el.bounds || { minlat: el.lat, minlon: el.lon, maxlat: el.lat, maxlon: el.lon }
+  // a table row carries its stored features (possibly wrong); a bare { el } row gets the build's
+  const f = 'q' in r ? { q: r.q, cat: r.cat, flags: r.flags } : poiFeatures(el)
+  return { osm_type: r.osm_type, osm_id: r.osm_id, min_lat: b.minlat, max_lat: b.maxlat, min_lon: b.minlon, max_lon: b.maxlon, ...f }
+}
+
+// Fake pool: poi_builds answers from `build`, everything else from `answer`.
+// getConnection hands out the same fake (the cap's transaction), counted.
 let build
 let answer
-const poolQuery = vi.fn(async (opts, params) => {
+let tableOwner = null
+const answerSql = async (opts, params) => {
+  if (/^(SET SESSION|START TRANSACTION|ROLLBACK)/.test(opts.sql)) return [[]]
+  // the live table's build (its COMMENT): the active build unless a test says otherwise
+  if (opts.sql.includes('information_schema.tables')) return [[{ owner: tableOwner ?? build?.build_id }]]
   if (opts.sql.includes('poi_builds')) {
     if (build instanceof Error) throw build
     return [build ? [build] : []]
   }
+  const rows = await answer(opts, params)
+  if (opts.sql.includes('FORCE INDEX (ix_rank)')) return [rows.map(candidateOf)]
+  if (opts.sql.includes('FORCE INDEX (uq_osm)')) {
+    const want = new Set(params.slice(1).map(id => `${params[0]}/${id}`))
+    return [rows.filter(r => want.has(`${r.osm_type}/${r.osm_id}`))]
+  }
   // Single-group tests may leave out the UNION's group column
-  return [(await answer(opts, params)).map(r => ({ g: 0, ...r }))]
+  return [rows.map(r => ({ g: 0, ...r }))]
+}
+const poolQuery = vi.fn(answerSql)
+const conns = { opened: 0, released: 0, destroyed: 0 }
+const connQuery = vi.fn((...args) => poolQuery(...args)) // statements sent on a transaction's connection
+const getConnection = vi.fn(async () => {
+  conns.opened++
+  return { query: connQuery, release: () => { conns.released++ }, destroy: () => { conns.destroyed++ } }
 })
-vi.mock('../../../api/lib/db.js', () => ({ getPool: () => ({ query: poolQuery }) }))
+// shadow runs on its own short-lived connection (shadowPois), never the pool's
+const shadowQuery = vi.fn(answerSql)
+const shadowConns = { opened: 0, ended: 0, destroyed: 0 }
+const dedicatedConnection = vi.fn(async () => {
+  shadowConns.opened++
+  return { query: shadowQuery, end: async () => { shadowConns.ended++ }, destroy: () => { shadowConns.destroyed++ } }
+})
+vi.mock('../../../api/lib/db.js', () => ({ getPool: () => ({ query: poolQuery, getConnection }), dedicatedConnection }))
 
+const { poiFeatures, rankCap, FEATURES_VERSION } = await import('../../../shared/poiRank.mjs')
+const { SNAP_GRID_DEGREES } = await import('../../../api/lib/bboxSnap.js')
+const { SCHEMA_VERSION } = await import('../../../shared/poiCell.mjs')
 const {
-  parseQuery, buildSql, queryPois, getPois, isCovered, breakerState,
-  _resetPoiState, POI_SCHEMA_VERSION, SCAN_ROWS, MAX_BODY_BYTES
+  parseQuery, buildSql, buildCandidateSql, buildElSql, buildProbeSql, isRankable, queryPois, getPois, isCovered, breakerState, capBreakerState, lruUsage,
+  _resetPoiState, TABLE_BUILD_SQL, POI_SCHEMA_VERSION, SCAN_ROWS, MAX_BODY_BYTES, CAP, RANK_SCAN_ROWS, LRU_BUDGET_BYTES, LRU_ENTRY_MAX_BYTES, MAX_CAP_RADIUS_KM
 } = await import('../../../api/lib/poiQuery.js')
 const { lookupPlace } = await import('../../../api/lib/placeLookup.js')
 const { parseOverpassResponse, fetchPlaceById } = await import('../../../src/utils/apiClient.js')
@@ -44,11 +82,13 @@ const GB = cellsOf(49.9, -8, 60.9, 1.8)
 
 // Runs the generated SQL against rows in memory: every `?` becomes its bound
 // value, then each UNION part's WHERE is evaluated per row, ordered and
-// limited like MySQL would (our SQL uses only these forms)
+// limited like MySQL would (our SQL uses only these forms: buildSql, and the
+// cap's buildCandidateSql and buildElSql)
 function runSql({ sql, params }, rows) {
   let i = 0
-  return sql.replace(/\?/g, () => `p[${i++}]`).split(' UNION ALL ').flatMap(part => {
-    const m = /^\(SELECT (?:\/\*.*?\*\/ )?(\d+) AS g, osm_type, osm_id, el FROM \w+(?: FORCE INDEX \(PRIMARY\))? WHERE (.*) ORDER BY osm_type, osm_id LIMIT p\[(\d+)\]\)/.exec(part)
+  return sql.replace(/\?/g, () => `p[${i++}]`).replace(/ ORDER BY g, osm_type, osm_id$/, '').split(' UNION ALL ').flatMap(part => {
+    if (part.startsWith('(')) part = part.slice(1, -1) // a UNION part: (SELECT ...)
+    const m = /^SELECT (?:\/\*.*?\*\/ )?(?:(\d+) AS g, )?[\w, ]+? FROM \w+(?: FORCE INDEX \(\w+\))? WHERE (.+?)(?: ORDER BY osm_type, osm_id)?(?: LIMIT p\[(\d+)\])?$/.exec(part)
     const where = m[2]
       .replace(/(\w+) BETWEEN (p\[\d+\]) AND (p\[\d+\])/g, '(r.$1 >= $2 && r.$1 <= $3)')
       .replace(/(\w+)(?: COLLATE utf8mb4_0900_bin)? IN \(([^)]*)\)/g, '[$2].includes(r.$1)')
@@ -59,8 +99,8 @@ function runSql({ sql, params }, rows) {
     const match = new Function('r', 'p', `return ${where}`)
     return rows.filter(r => match(r, params))
       .sort((a, b) => a.osm_type - b.osm_type || a.osm_id - b.osm_id)
-      .slice(0, params[m[3]])
-      .map(r => ({ ...r, g: Number(m[1]) }))
+      .slice(0, m[3] === undefined ? Infinity : params[m[3]])
+      .map(r => (m[1] === undefined ? r : { ...r, g: Number(m[1]) }))
   })
 }
 
@@ -77,7 +117,7 @@ function rowFor(el, { large = false } = {}) {
     k_amenity: k('amenity'), k_tourism: k('tourism'), k_leisure: k('leisure'), k_historic: k('historic'),
     k_shop: k('shop'), k_natural: k('natural'), k_man_made: k('man_made'),
     has_name: tags.name || tags['name:en'] ? 1 : 0, has_name_tag: tags.name ? 1 : 0, has_wikidata: tags.wikidata ? 1 : 0,
-    el: JSON.stringify(el)
+    ...poiFeatures(el), el: JSON.stringify(el)
   }
 }
 function row(osm_type, osm_id, tags, { lat, lon, bounds }) {
@@ -421,7 +461,8 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
   const OUTSIDE = '[out:json][timeout:20][bbox:48.8,2.3,48.9,2.4];nw["amenity"="cafe"];out tags center;'
   const ROW = { osm_type: 1, osm_id: 5, el: '{"type":"node","id":5,"lat":51.5,"lon":-0.1,"tags":{"name":"A","amenity":"cafe"}}' }
   const plan = parseQuery(Q)
-  const poiCalls = () => poolQuery.mock.calls.filter(c => !c[0].sql.includes('poi_builds')).length
+  // DB runs: each starts with today's statement through the pool
+  const poiCalls = () => poolQuery.mock.calls.filter(c => c[0].sql.startsWith('(SELECT')).length
   // Coverage loaded, with no pois query yet
   const getCoverageLoaded = async () => {
     await getPois(parseQuery(OUTSIDE), OUTSIDE)
@@ -433,7 +474,7 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     vi.setSystemTime(new Date('2026-09-27T12:00:00Z'))
     _resetPoiState()
     poolQuery.mockClear()
-    build = { build_id: 'uk-20260927T0215Z', schema_version: POI_SCHEMA_VERSION, osm_timestamp: new Date('2026-09-27T02:15:00Z'), coverage: JSON.stringify(GB) }
+    build = { build_id: 'uk-20260927T0215Z', schema_version: POI_SCHEMA_VERSION, osm_timestamp: new Date('2026-09-27T02:15:00Z'), coverage: JSON.stringify(GB), features_version: FEATURES_VERSION }
     answer = async () => [ROW]
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
@@ -505,7 +546,7 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
 
   it('a coverage read waits for the SQL slot and the deadline like any query', async () => {
     let release
-    answer = () => new Promise(resolve => { release = () => resolve([ROW]) })
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) })) // one gate for every statement of the run
     await getCoverageLoaded()
     const first = getPois(plan, 'a')
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
@@ -528,8 +569,18 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
   })
 
   it('takes the old path instead of serving an answer over the row scan bound', async () => {
+    // Discover on a features build: over RANK_SCAN_ROWS candidates in phase 1, logged, and el is
+    // never read for them (phase 2 never runs)
+    answer = async () => Array.from({ length: RANK_SCAN_ROWS + 1 }, (_, i) => ({ ...ROW, osm_id: i }))
+    expect(await getPois(plan, Q, { cap: true })).toBeNull()
+    expect(poolQuery.mock.calls.some(c => c[0].sql.includes('uq_osm'))).toBe(false)
+    expect(console.warn).toHaveBeenCalledWith(JSON.stringify({ evt: 'poi_cap_fallback', reason: 'too_dense', scanned: RANK_SCAN_ROWS + 1, limit: RANK_SCAN_ROWS }))
+    _resetPoiState()
+    // Any other unlimited plan (two outputs: not ranked) keeps the SCAN_ROWS bound
+    const two = '[out:json][bbox:51.45,-0.25,51.55,-0.05];nw["amenity"="cafe"];out tags center;nw["amenity"="pub"];out tags center;'
     answer = async () => Array.from({ length: SCAN_ROWS + 1 }, (_, i) => ({ ...ROW, osm_id: i }))
-    expect(await getPois(plan, Q)).toBeNull()
+    expect(isRankable(parseQuery(two))).toBe(false)
+    expect(await getPois(parseQuery(two), two)).toBeNull()
     expect(breakerState()).toBe('closed')
   })
 
@@ -543,10 +594,10 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
   })
 
   it('remembers an over-cap tile for 10 minutes instead of re-scanning', async () => {
-    answer = async () => Array.from({ length: SCAN_ROWS + 1 }, (_, i) => ({ ...ROW, osm_id: i }))
+    answer = async () => Array.from({ length: RANK_SCAN_ROWS + 1 }, (_, i) => ({ ...ROW, osm_id: i }))
     await getPois(plan, Q)
     expect(await getPois(plan, Q)).toBeNull()
-    expect(await getPois(plan, Q, { useLru: false })).toBeNull() // shadow too
+    expect(await getPois(plan, Q)).toBeNull() // shadow calls go through the same check
     expect(poiCalls()).toBe(1)
     vi.setSystemTime(Date.now() + 10 * 60 * 1000 + 1)
     await getPois(plan, Q)
@@ -567,7 +618,7 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
 
   it('admits one query at a time per instance: a second key falls back at once', async () => {
     let release
-    answer = () => new Promise(resolve => { release = () => resolve([ROW]) })
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) })) // one gate for every statement of the run
     await getCoverageLoaded()
     const first = getPois(plan, 'a')
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
@@ -592,15 +643,39 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     expect(breakerState()).toBe('open')
   })
 
-  it('does not keep bodies over 1 MB (in bytes) in the LRU, and shadow calls skip it', async () => {
-    const big = { ...ROW, el: JSON.stringify({ type: 'node', id: 5, lat: 51.5, lon: -0.1, tags: { name: '\u6771'.repeat(400_000), amenity: 'cafe' } }) }
-    answer = async () => [big]
-    await getPois(plan, 'big')
-    expect(await getPois(plan, 'big')).toMatchObject({ cached: false })
-    answer = async () => [ROW]
-    await getPois(plan, 'shadow', { useLru: false })
-    expect(await getPois(plan, 'shadow')).toMatchObject({ cached: false })
-    expect(poiCalls()).toBe(4)
+  it('the LRU is a byte budget: a capped dense answer (~1.1 MB) is cached, a body over 2 MB is not', async () => {
+    const sized = (id, kb) => ({ ...ROW, osm_id: id, el: JSON.stringify({ type: 'node', id, lat: 51.5, lon: -0.1, tags: { name: '\u6771'.repeat(kb * 1000 / 3), amenity: 'cafe' } }) })
+    // 1.1 MB in UTF-8 bytes (a third of that in characters): kept
+    answer = async () => [sized(5, 1100)]
+    expect((await getPois(plan, 'london')).cached).toBe(false)
+    expect(await getPois(plan, 'london')).toMatchObject({ cached: true })
+    expect(lruUsage().bytes).toBeGreaterThan(1_100_000)
+    // over LRU_ENTRY_MAX_BYTES: served, never kept
+    answer = async () => [sized(6, 2100)]
+    expect((await getPois(plan, 'huge')).cached).toBe(false)
+    expect((await getPois(plan, 'huge')).cached).toBe(false)
+    expect(LRU_ENTRY_MAX_BYTES).toBe(2_000_000)
+    expect(poiCalls()).toBe(3)
+  })
+
+  it('the LRU evicts least recently used answers to stay within its byte budget', async () => {
+    const mb = id => ({ ...ROW, osm_id: id, el: JSON.stringify({ type: 'node', id, lat: 51.5, lon: -0.1, tags: { name: 'x'.repeat(1_500_000), amenity: 'cafe' } }) })
+    const fits = Math.floor(LRU_BUDGET_BYTES / 1_500_100) // 10 bodies of ~1.5 MB
+    for (let i = 0; i < fits; i++) {
+      answer = async () => [mb(i)]
+      await getPois(plan, `k${i}`)
+    }
+    expect(lruUsage().entries).toBe(fits)
+    expect(await getPois(plan, 'k0')).toMatchObject({ cached: true }) // k0 is now the most recent
+    answer = async () => [mb(99)]
+    await getPois(plan, 'k-new')
+    expect(lruUsage().bytes).toBeLessThanOrEqual(LRU_BUDGET_BYTES)
+    expect(lruUsage().entries).toBe(fits)
+    const calls = poiCalls()
+    expect(await getPois(plan, 'k0')).toMatchObject({ cached: true })
+    expect(await getPois(plan, 'k-new')).toMatchObject({ cached: true })
+    expect(await getPois(plan, 'k1')).toMatchObject({ cached: false }) // the least recently used went
+    expect(poiCalls()).toBe(calls + 1)
   })
 
   it('dedupes identical in-flight queries and serves repeats from the LRU', async () => {
@@ -624,7 +699,7 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     vi.setSystemTime(Date.now() + 60 * 1000)
     expect(breakerState()).toBe('half-open')
     let release
-    answer = () => new Promise(resolve => { release = () => resolve([ROW]) })
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) })) // one gate for every statement of the run
     const probe = getPois(plan, 'probe')
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
     expect(await getPois(plan, 'second')).toBeNull() // only one probe at a time
@@ -647,5 +722,455 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     for (let i = 0; i < 4; i++) expect(await getPois(plan, Q)).toMatchObject({ n: 0 })
     expect(breakerState()).toBe('closed')
     expect(poiCalls()).toBe(4)
+  })
+})
+
+describe('relevance cap: dense Discover answers (shared/poiRank.mjs, two phases)', () => {
+  // A dense, varied table inside a 5 km London Discover box: cafes, pubs, parks,
+  // museums, a few blacklisted and private places, nodes and ways, some with hours
+  const Q = snapQueryBbox(buildDiscoverOverpassQuery(51.5074, -0.1278, 5000, null).query)
+  const plan = parseQuery(Q)
+  const { s, w, n, e } = plan.bbox
+  function denseRows(count) {
+    let seed = 7
+    const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) + 12345 | 0) >>> 0) / 2 ** 32
+    const kinds = [{ amenity: 'cafe' }, { amenity: 'pub' }, { amenity: 'restaurant' }, { leisure: 'park' }, { amenity: 'fast_food' },
+      { amenity: 'bar' }, { shop: 'bakery' }, { amenity: 'ice_cream' }]
+    return Array.from({ length: count }, (_, i) => {
+      const lat = s + rnd() * (n - s)
+      const lon = w + rnd() * (e - w)
+      const tags = { name: `Place ${i}`, ...kinds[i % kinds.length] }
+      if (rnd() < 0.4) tags.opening_hours = rnd() < 0.5 ? 'Mo-Su 08:00-18:00' : 'Mo-Sa 17:00-23:30'
+      if (rnd() < 0.2) tags.website = 'https://example.org'
+      if (rnd() < 0.05) tags.wikidata = `Q${i}`
+      if (rnd() < 0.02) tags.access = 'private'
+      if (rnd() < 0.05) tags.brand = 'Costa'
+      const way = i % 5 === 0
+      const el = way
+        ? { type: 'way', id: 100000 + i, center: { lat, lon }, bounds: { minlat: lat - 0.001, minlon: lon - 0.001, maxlat: lat + 0.001, maxlon: lon + 0.001 }, tags }
+        : { type: 'node', id: 100000 + i, lat, lon, tags }
+      return rowFor(el)
+    })
+  }
+  const statements = () => poolQuery.mock.calls.map(c => c[0].sql).filter(q => !q.includes('poi_builds'))
+  const TS = '2026-09-27T02:15:00Z'
+  const FEATURES = { features: true, osmTimestamp: TS, buildId: 'uk-20260927T0215Z' } // the build pois holds (its COMMENT)
+
+  beforeEach(() => {
+    _resetPoiState()
+    poolQuery.mockClear()
+    connQuery.mockClear()
+    getConnection.mockClear()
+    Object.assign(conns, { opened: 0, released: 0, destroyed: 0 })
+    build = { build_id: 'uk-20260927T0215Z', schema_version: POI_SCHEMA_VERSION, osm_timestamp: new Date(TS), coverage: JSON.stringify(GB), features_version: FEATURES_VERSION }
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('Discover plans (one unlimited output over a bbox) are ranked; towns and id lookups are not', () => {
+    expect(isRankable(plan)).toBe(true)
+    expect(isRankable(parseQuery(townOverpassQuery(51.7635, -0.2259)))).toBe(false)
+    expect(isRankable(parseQuery('[out:json][timeout:10];way(12);out body center;'))).toBe(false)
+  })
+
+  it('tiled and wide queries are never capped: 35 km tiles (the app\'s > 42 km search) and anything >= 34.5 km', async () => {
+    const q = (lat, lng, m, cat = null) => parseQuery(snapQueryBbox(buildDiscoverOverpassQuery(lat, lng, m, cat).query))
+    for (const km of [5, 15, 30]) expect(isRankable(q(51.5074, -0.1278, km * 1000)), `${km} km`).toBe(true)
+    for (const km of [35, 42, 75]) expect(isRankable(q(51.5074, -0.1278, km * 1000)), `${km} km`).toBe(false)
+    // the exact tiles fetchWithTiling sends for a 60 km search: all 35 km, all uncapped
+    const lat = 51.5074
+    const lng = -0.1278
+    const d = 30000 / 111320
+    for (const [la, ln] of [[lat, lng], [lat + d, lng], [lat - d, lng], [lat, lng + d / Math.cos(lat * Math.PI / 180)]]) {
+      expect(isRankable(q(la, ln, 35000))).toBe(false)
+    }
+    // and a dense tile on a features build is served in full, as today
+    answer = tableAnswer(denseRows(4500))
+    const tile = q(lat, lng, 35000)
+    const out = await queryPois(tile, FEATURES)
+    expect(out.scanned).toBeUndefined()
+    expect(getConnection).not.toHaveBeenCalled()
+    expect(MAX_CAP_RADIUS_KM).toBe(34.5)
+  })
+
+  it('phase 1 has the same WHERE as today, reads no el, and goes through the covering index', () => {
+    const today = buildSql(plan)
+    const p1 = buildCandidateSql(plan)
+    expect(p1.sql).toMatch(/^SELECT \/\*\+ MAX_EXECUTION_TIME\(800\) \*\/ osm_type, osm_id, min_lat, max_lat, min_lon, max_lon, q, cat, flags FROM pois FORCE INDEX \(ix_rank\) WHERE /)
+    expect(p1.sql).not.toMatch(/\bel\b|ORDER BY/)
+    const where = q => /WHERE (.*?)(?: ORDER BY| LIMIT)/.exec(q)[1]
+    expect(where(p1.sql)).toBe(where(today.sql))
+    expect(p1.params).toEqual([...today.params.slice(0, -1), RANK_SCAN_ROWS + 1])
+    // and it picks the same rows, on a table with bbox-crossing ways and filtered-out kinds
+    const rows = [...denseRows(300),
+      row(2, 1, { name: 'Big Park', leisure: 'park' }, { bounds: { minlat: n - 0.01, minlon: w + 0.05, maxlat: n + 0.15, maxlon: w + 0.1 } }),
+      row(1, 5, { name: 'Wrong kind', amenity: 'bank' }, { lat: (s + n) / 2, lon: (w + e) / 2 })]
+    const ids = list => list.map(r => `${r.osm_type}/${r.osm_id}`).sort()
+    expect(ids(runSql(p1, rows))).toEqual(ids(runSql(today, rows)))
+    expect(ids(runSql(p1, rows))).toContain('2/1')
+    expect(ids(runSql(p1, rows))).not.toContain('1/5')
+  })
+
+  it('phase 2 fetches el by (osm_type, osm_id) through uq_osm', () => {
+    const { sql, params } = buildElSql(2, [7, 8, 9])
+    expect(sql).toBe('SELECT /*+ MAX_EXECUTION_TIME(800) */ osm_type, osm_id, el FROM pois FORCE INDEX (uq_osm) WHERE osm_type = ? AND osm_id IN (?,?,?)')
+    expect(params).toEqual([2, 7, 8, 9])
+    expect(() => buildElSql(1, [1], 'users')).toThrow()
+  })
+
+  it('PARITY: at or under CAP rows the body is byte-identical to today: an index-only probe, then today\'s exact statement', async () => {
+    const rows = denseRows(CAP)
+    answer = tableAnswer(rows)
+    const capped = await queryPois(plan, FEATURES)
+    const today = await (async () => { poolQuery.mockClear(); return queryPois(plan, { osmTimestamp: TS }) })() // cap off: today
+    expect(poolQuery.mock.calls.map(c => c[0].sql)).toEqual([buildSql(plan).sql]) // cap off: exactly today, one statement
+    expect(capped.n).toBe(CAP)
+    expect(capped.body).toBe(today.body)
+    expect(capped.scanned).toBeUndefined()
+    poolQuery.mockClear()
+    await queryPois(plan, FEATURES)
+    expect(getConnection).toHaveBeenCalledTimes(0) // no transaction
+    const sent = poolQuery.mock.calls
+    expect(sent).toHaveLength(2)
+    // 1. the probe: ix_rank only, no el, stops at CAP + 1
+    expect(sent[0][0].sql).toBe(buildProbeSql(plan).sql)
+    expect(sent[0][0].sql).toMatch(/^SELECT \/\*\+ MAX_EXECUTION_TIME\(800\) \*\/ osm_type FROM pois FORCE INDEX \(ix_rank\) WHERE .* LIMIT \?$/)
+    expect(sent[0][0].sql).not.toMatch(/\bel\b/)
+    expect(sent[0][1].at(-1)).toBe(CAP + 1)
+    // 2. today's statement, today's params
+    expect(sent[1][0].sql).toBe(buildSql(plan).sql)
+    expect(sent[1][1]).toEqual(buildSql(plan).params)
+    const els = runSql(buildSql(plan), rows).map(r => r.el)
+    expect(capped.body).toBe('{"version":0.6,"generator":"roam-poi-db","osm3s":{"timestamp_osm_base":"2026-09-27T02:15:00Z","copyright":' +
+      `${JSON.stringify('The data included in this document is from www.openstreetmap.org. The data is made available under ODbL.')}},"elements":[${els.join(',')}]}`)
+  })
+
+  it('poiCapPct off (getPois without cap): a dense tile on a features build takes today\'s path, no probe', async () => {
+    answer = tableAnswer(denseRows(4500))
+    const out = await getPois(plan, Q)
+    expect(out).toMatchObject({ n: 4500, cached: false })
+    expect(out.scanned).toBeUndefined()
+    expect(statements()).toEqual([buildSql(plan).sql])
+  })
+
+  it('a build without features (older build, or a Vercel rollback target) is served exactly as today: uncapped', async () => {
+    answer = tableAnswer(denseRows(4500))
+    for (const features_version of [null, 0, FEATURES_VERSION + 1]) {
+      _resetPoiState()
+      poolQuery.mockClear()
+      build = { ...build, features_version }
+      const out = await getPois(plan, Q, { cap: true }) // the cap requested, and refused by the build
+      expect(out).toMatchObject({ n: 4500, cached: false })
+      expect(out.scanned).toBeUndefined()
+      expect(statements()).toEqual([buildSql(plan).sql]) // today's statement, today's SCAN_ROWS bound
+      expect(poolQuery.mock.calls.find(c => c[0].sql.startsWith('(SELECT'))[1].at(-1)).toBe(SCAN_ROWS + 1)
+    }
+    expect(getConnection).not.toHaveBeenCalled()
+  })
+
+  it('CAP: over CAP rows serves exactly the rankCap choice, in (osm_type, osm_id) order, same envelope', async () => {
+    const rows = denseRows(4500)
+    answer = tableAnswer(rows)
+    const out = await queryPois(plan, FEATURES)
+    expect(out.n).toBe(CAP)
+    expect(out.scanned).toBe(4500)
+    expect(out.rankMs).toBeTypeOf('number')
+    const sorted = runSql(buildSql(plan), rows) // today's order
+    // ranked from the snapped bbox centre, with half a snap cell of slack for the phones sharing it
+    const expected = rankCap(sorted, { lat: (s + n) / 2, lng: (w + e) / 2 }, CAP, SNAP_GRID_DEGREES / 2)
+    expect(out.ids).toEqual(expected.map(r => `${{ 1: 'node', 2: 'way', 3: 'relation' }[r.osm_type]}/${r.osm_id}`))
+    const body = JSON.parse(out.body)
+    expect(Object.keys(body)).toEqual(['version', 'generator', 'osm3s', 'elements'])
+    expect(body.elements).toEqual(expected.map(r => JSON.parse(r.el)))
+    const order = body.elements.map(el => [{ node: 1, way: 2, relation: 3 }[el.type], el.id])
+    expect(order).toEqual([...order].sort((a, b) => a[0] - b[0] || a[1] - b[1]))
+  })
+
+  it('dense: one probe statement, then both phases on one connection in one short read-only transaction', async () => {
+    answer = tableAnswer(denseRows(4500))
+    await queryPois(plan, FEATURES)
+    const sqls = statements()
+    expect(sqls[0]).toBe(buildProbeSql(plan).sql) // the probe (CAP + 1 rows says "dense"); no el read
+    expect(poolQuery.mock.calls[0][1].at(-1)).toBe(CAP + 1)
+    expect(sqls.filter(q => /\bel FROM/.test(q)).every(q => q.includes('uq_osm'))).toBe(true) // el only for the chosen
+    expect(connQuery.mock.calls.map(c => c[0].sql)).toEqual(sqls.slice(1))
+    // server-side bounds first, so MySQL itself ends a transaction this function abandons
+    expect(sqls[1]).toBe('SET SESSION wait_timeout = 5, lock_wait_timeout = 2, innodb_lock_wait_timeout = 2, max_execution_time = 800')
+    expect(sqls[2]).toBe('START TRANSACTION READ ONLY')
+    expect(sqls[3]).toContain('FORCE INDEX (ix_rank)')
+    // holding phase 1's metadata lock: which build IS this table? (its COMMENT)
+    expect(sqls[4]).toBe(TABLE_BUILD_SQL)
+    const phase2 = sqls.slice(5, -2)
+    expect(phase2.length).toBeGreaterThanOrEqual(3) // 3000 ids, <= 1000 per statement, per osm_type
+    for (const q of phase2) {
+      expect(q).toMatch(/FORCE INDEX \(uq_osm\) WHERE osm_type = \? AND osm_id IN \(/)
+      expect(q.match(/\?/g).length - 1).toBeLessThanOrEqual(1000)
+      expect(q).toMatch(/^SELECT \/\*\+ MAX_EXECUTION_TIME\(800\) \*\//)
+    }
+    expect(sqls.at(-2)).toBe('ROLLBACK')
+    // the pooled connection goes back with the server's own settings
+    expect(sqls.at(-1)).toMatch(/^SET SESSION wait_timeout = @@GLOBAL.wait_timeout, lock_wait_timeout = @@GLOBAL.lock_wait_timeout, innodb_lock_wait_timeout = @@GLOBAL.innodb_lock_wait_timeout, max_execution_time = @@GLOBAL.max_execution_time$/)
+    expect(conns).toEqual({ opened: 1, released: 1, destroyed: 0 })
+  })
+
+  it('DETERMINISM: the same table gives a byte-identical body whatever order the DB returns candidates in', async () => {
+    const rows = denseRows(4500)
+    answer = tableAnswer(rows)
+    const a = await queryPois(plan, FEATURES)
+    answer = (opts, params) => [...runSql({ sql: opts.sql, params }, rows)].reverse()
+    const b = await queryPois(plan, FEATURES)
+    expect(b.body).toBe(a.body)
+  })
+
+  it('any error inside the transaction DESTROYS the connection (no ROLLBACK queued behind a running statement)', async () => {
+    const rows = denseRows(4500)
+    for (const failOn of ['q, cat, flags FROM', 'uq_osm']) {
+      poolQuery.mockClear()
+      Object.assign(conns, { opened: 0, released: 0, destroyed: 0 })
+      answer = (opts, params) => {
+        if (opts.sql.includes(failOn)) throw Object.assign(new Error('Query inactivity timeout'), { code: 'PROTOCOL_SEQUENCE_TIMEOUT' })
+        return runSql({ sql: opts.sql, params }, rows)
+      }
+      await expect(queryPois(plan, FEATURES)).rejects.toThrow(/inactivity/)
+      expect(conns).toEqual({ opened: 1, released: 0, destroyed: 1 })
+      expect(statements()).not.toContain('ROLLBACK')
+    }
+  })
+
+  it('a failed ROLLBACK or settings restore destroys the connection: it is never reused', async () => {
+    const rows = denseRows(4500)
+    for (const failing of ['ROLLBACK', 'SET SESSION wait_timeout = @@GLOBAL']) {
+      Object.assign(conns, { opened: 0, released: 0, destroyed: 0 })
+      connQuery.mockImplementation(async (opts, params) => {
+        if (opts.sql.startsWith(failing)) throw Object.assign(new Error('Connection lost'), { code: 'PROTOCOL_CONNECTION_LOST', fatal: true })
+        return poolQuery(opts, params)
+      })
+      answer = tableAnswer(rows)
+      try {
+        await expect(queryPois(plan, FEATURES)).rejects.toThrow(/Connection lost/)
+      } finally {
+        connQuery.mockImplementation((...args) => poolQuery(...args))
+      }
+      expect(conns).toEqual({ opened: 1, released: 0, destroyed: 1 })
+    }
+  })
+
+  it('a paused reader: the function freezes mid-transaction; the session was already bounded server-side', async () => {
+    // Fluid suspends the instance inside phase 2. Nothing client-side can end the
+    // transaction now, so the settings sent before START TRANSACTION are what free the
+    // metadata lock: MySQL closes a session idle for wait_timeout (5 s) seconds
+    const rows = denseRows(4500)
+    let frozen
+    answer = (opts, params) => (opts.sql.includes('uq_osm') ? new Promise(() => { frozen = true }) : runSql({ sql: opts.sql, params }, rows))
+    const pending = queryPois(plan, FEATURES)
+    await vi.waitFor(() => expect(frozen).toBe(true))
+    const sent = connQuery.mock.calls.map(c => c[0].sql)
+    expect(sent.indexOf('SET SESSION wait_timeout = 5, lock_wait_timeout = 2, innodb_lock_wait_timeout = 2, max_execution_time = 800'))
+      .toBeLessThan(sent.indexOf('START TRANSACTION READ ONLY'))
+    expect(sent.indexOf('START TRANSACTION READ ONLY')).toBeGreaterThan(-1)
+    // (the loader side: a RENAME blocked by it times out after 5 s and retries; tests/unit/api/poiLoad.test.js)
+    void pending
+  })
+
+  it('a chosen row missing in phase 2 is an error (never a silently short answer)', async () => {
+    const rows = denseRows(4500)
+    answer = (opts, params) => { const got = runSql({ sql: opts.sql, params }, rows); return opts.sql.includes('uq_osm') ? got.slice(1) : got }
+    await expect(queryPois(plan, FEATURES)).rejects.toThrow(/phase 2 read/)
+    expect(conns.destroyed).toBe(1)
+  })
+
+  it('deadlines: the caller\'s, and the transaction\'s own bound when there is none (shadow)', async () => {
+    const rows = denseRows(4500)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      for (const [opts, late] of [[{ deadlineAt: Date.now() + 1000 }, 1000], [{}, 2000]]) {
+        poolQuery.mockClear()
+        const start = Date.now()
+        answer = (o, params) => {
+          if (o.sql.includes('q, cat, flags FROM')) vi.setSystemTime(start + late) // phase 1 took the whole budget
+          return runSql({ sql: o.sql, params }, rows)
+        }
+        await expect(queryPois(plan, { ...FEATURES, ...opts })).rejects.toThrow(/deadline/)
+        expect(statements().some(q => q.includes('uq_osm'))).toBe(false)
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('getPois: a capped answer is served, cached under the byte budget, and counted a success by both breakers', async () => {
+    answer = tableAnswer(denseRows(4500))
+    const first = await getPois(plan, Q, { cap: true })
+    expect(first).toMatchObject({ n: CAP, scanned: 4500, cached: false, buildId: 'uk-20260927T0215Z' })
+    expect(Object.keys(first.timings)).toEqual(['probe', 'candidates', 'rank', 'el'])
+    expect(await getPois(plan, Q, { cap: true })).toMatchObject({ n: CAP, cached: true, body: first.body })
+    expect([breakerState(), capBreakerState()]).toEqual(['closed', 'closed'])
+    expect(lruUsage().entries).toBe(1)
+    // capped and uncapped answers are cached apart: cap off gets today's (full) answer
+    expect(await getPois(plan, Q)).toMatchObject({ n: 4500, cached: false })
+  })
+
+  it('capped failures and slowness trip only the cap breaker: towns keep the DB, dense tiles go uncapped', async () => {
+    const rows = denseRows(4500)
+    answer = (opts, params) => {
+      if (opts.sql.includes('q, cat, flags FROM')) throw Object.assign(new Error('Query execution was interrupted'), { errno: 3024 })
+      return runSql({ sql: opts.sql, params }, rows)
+    }
+    for (let i = 0; i < 3; i++) expect(await getPois(plan, `dense${i}`, { cap: true })).toBeNull()
+    expect([breakerState(), capBreakerState()]).toEqual(['closed', 'open'])
+    // the cap breaker open: the dense tile is served uncapped (today's statement, no probe)
+    poolQuery.mockClear()
+    const out = await getPois(plan, 'dense-again', { cap: true })
+    expect(out).toMatchObject({ n: 4500 })
+    expect(statements()).toEqual([buildSql(plan).sql])
+    // too slow counts as a cap failure too, never a shared one
+    _resetPoiState()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      // each capped run SUCCEEDS but takes 1.1 s (past POI_DEADLINE_MS): the cap's failure only
+      answer = (opts, params) => {
+        if (opts.sql.includes('q, cat, flags FROM')) vi.setSystemTime(Date.now() + 1100)
+        return runSql({ sql: opts.sql, params }, rows)
+      }
+      for (let i = 0; i < 3; i++) expect(await getPois(plan, `slow${i}`, { cap: true })).toMatchObject({ n: CAP })
+      expect([breakerState(), capBreakerState()]).toEqual(['closed', 'open'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the table is not the build whose features we trust (a swap or rollback since coverage was read): uncapped, logged', async () => {
+    const rows = denseRows(4500)
+    answer = tableAnswer(rows)
+    for (const owner of ['uk-20260920T0215Z', '']) { // another build; a table with no build stamp
+      _resetPoiState()
+      poolQuery.mockClear()
+      tableOwner = owner
+      try {
+        const out = await getPois(plan, Q, { cap: true })
+        expect(out).toMatchObject({ n: 4500, capFallback: 'build_mismatch' })
+        expect(statements().some(q => q.includes('uq_osm'))).toBe(false)
+        expect(capBreakerState()).toBe('closed')
+      } finally {
+        tableOwner = null
+      }
+    }
+    expect(console.warn).toHaveBeenCalledWith(JSON.stringify({ evt: 'poi_cap_fallback', reason: 'build_mismatch', scanned: 4500, table: 'uk-20260920T0215Z' }))
+  })
+
+  it.each([
+    ['ix_rank missing (before phase12)', Object.assign(new Error("Key 'ix_rank' doesn't exist in table 'pois'"), { errno: 1176 })],
+    ['a server timeout', Object.assign(new Error('maximum statement execution time exceeded'), { errno: 3024 })],
+    ['a SQL error', Object.assign(new Error('You have an error in your SQL syntax'), { errno: 1064 })],
+  ])('the PROBE failing (%s) is the cap\'s alone: the shared breaker never moves, uncapped serving carries on', async (_label, failure) => {
+    answer = (opts, params) => {
+      if (opts.sql.includes('FORCE INDEX (ix_rank)')) throw failure
+      return runSql({ sql: opts.sql, params }, denseRows(4500))
+    }
+    for (let i = 0; i < 3; i++) expect(await getPois(plan, `probe${i}`, { cap: true })).toBeNull()
+    expect([breakerState(), capBreakerState()]).toEqual(['closed', 'open'])
+    // the cap breaker open: the same dense tile, cap requested, is served uncapped without probing
+    expect(await getPois(plan, 'probe-after', { cap: true })).toMatchObject({ n: 4500 })
+    // cap off (poiCapPct 0) never probed at all, and is served as today
+    expect(await getPois(plan, 'served', { cap: false })).toMatchObject({ n: 4500 })
+  })
+
+  it('probe SLOWNESS is the cap\'s too, and within the cap the probe\'s time never counts against today\'s statement', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const rows = denseRows(CAP) // within the cap: probe, then today's statement
+      answer = (opts, params) => {
+        if (opts.sql.includes('FORCE INDEX (ix_rank)')) vi.setSystemTime(Date.now() + 1500) // a slow probe
+        return runSql({ sql: opts.sql, params }, rows)
+      }
+      for (let i = 0; i < 3; i++) expect(await getPois(plan, `slowprobe${i}`, { cap: true })).toMatchObject({ n: CAP })
+      expect([breakerState(), capBreakerState()]).toEqual(['closed', 'open'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a cap fallback is never cached, answer or over-cap marker: the next request checks again', async () => {
+    const zero = denseRows(4500).map(r => ({ ...r, q: 0, cat: 0, flags: 0 }))
+    answer = tableAnswer(zero)
+    expect(await getPois(plan, Q, { cap: true })).toMatchObject({ capFallback: 'features', cached: false })
+    expect(await getPois(plan, Q, { cap: true })).toMatchObject({ capFallback: 'features', cached: false })
+    expect(lruUsage().entries).toBe(0)
+    // too dense for today's path too (over SCAN_ROWS): still no over-cap marker from a fallback
+    answer = tableAnswer(denseRows(SCAN_ROWS + 1).map(r => ({ ...r, q: 0, cat: 0, flags: 0 })))
+    expect(await getPois(plan, 'big', { cap: true })).toBeNull()
+    expect(lruUsage().entries).toBe(0)
+  })
+
+  it('shadow (shadowPois) never takes the pool, the admission slot, the LRU or the shared breaker', async () => {
+    const { shadowPois } = await import('../../../api/lib/poiQuery.js')
+    const OUT = '[out:json][timeout:20][bbox:48.8,2.3,48.9,2.4];nw["amenity"="cafe"];out tags center;'
+    await getPois(parseQuery(OUT), OUT) // coverage loaded
+    answer = tableAnswer(denseRows(4500))
+    poolQuery.mockClear()
+    // a shadow that hangs mid-run...
+    let release
+    shadowQuery.mockImplementationOnce(opts => (opts.sql.includes('ix_rank') ? new Promise(r => { release = () => r([[]]) }) : answerSql(opts)))
+    const shadow = shadowPois(plan, Q)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    // ...leaves served traffic exactly as it was: admitted at once, on the pool
+    expect(await getPois(plan, 'served-while-shadow', { cap: false })).toMatchObject({ n: 4500 })
+    await expect(shadowPois(plan, 'other')).resolves.toBeNull() // one shadow at a time
+    release()
+    await shadow
+    expect(poolQuery.mock.calls.some(c => c[0].sql.includes('ix_rank'))).toBe(false)
+    expect(lruUsage().entries).toBe(1) // only the served answer
+    // and a served query in flight means no shadow starts
+    let hold
+    answer = () => new Promise(r => { hold = () => r(denseRows(10)) })
+    const served = getPois(plan, 'slow-served', { cap: false })
+    await vi.waitFor(() => expect(hold).toBeTypeOf('function'))
+    expect(await shadowPois(plan, 'while-served')).toBeNull()
+    hold()
+    await served
+    expect([breakerState(), capBreakerState()]).toEqual(['closed', 'closed'])
+  })
+
+  it('shadow backs off 60 s after a failed connect (e.g. ER_CON_COUNT_ERROR), and never retries a connect inside a run', async () => {
+    const { shadowPois } = await import('../../../api/lib/poiQuery.js')
+    const OUT = '[out:json][timeout:20][bbox:48.8,2.3,48.9,2.4];nw["amenity"="cafe"];out tags center;'
+    await getPois(parseQuery(OUT), OUT) // coverage loaded
+    answer = tableAnswer(denseRows(10))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      dedicatedConnection.mockClear()
+      dedicatedConnection.mockRejectedValueOnce(Object.assign(new Error('Too many connections'), { code: 'ER_CON_COUNT_ERROR', errno: 1040 }))
+      expect(await shadowPois(plan, 'a')).toBeNull()
+      expect(dedicatedConnection).toHaveBeenCalledTimes(1) // no retry inside the run
+      vi.setSystemTime(Date.now() + 59_000)
+      expect(await shadowPois(plan, 'b')).toBeNull() // another tile, within 60 s: no connection at all
+      expect(dedicatedConnection).toHaveBeenCalledTimes(1)
+      vi.setSystemTime(Date.now() + 2_000)
+      expect(await shadowPois(plan, 'c')).toMatchObject({ n: 10 }) // after the backoff: shadow again
+      expect(dedicatedConnection).toHaveBeenCalledTimes(2)
+      expect(breakerState()).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('features zero or stale (under half the candidates deck-eligible): today\'s path, logged, never a thin capped deck', async () => {
+    const rows = denseRows(4500).map(r => ({ ...r, q: 0, cat: 0, flags: 0 })) // an older loader's rows
+    answer = tableAnswer(rows)
+    const out = await getPois(plan, Q, { cap: true })
+    expect(out).toMatchObject({ n: 4500, capFallback: 'features', cached: false })
+    expect(out.scanned).toBeUndefined()
+    expect(statements().some(q => q.includes('uq_osm'))).toBe(false)
+    expect(console.warn).toHaveBeenCalledWith(JSON.stringify({ evt: 'poi_cap_fallback', reason: 'features', scanned: 4500, eligible: 0 }))
+    expect(capBreakerState()).toBe('closed')
+  })
+
+  it('reads features_version from gate_report, a query that works before and after the phase12 migration', async () => {
+    answer = tableAnswer(denseRows(10))
+    await getPois(plan, Q)
+    const sql = poolQuery.mock.calls.find(c => c[0].sql.includes('poi_builds'))[0].sql
+    expect(sql).toContain("JSON_EXTRACT(gate_report, '$.features_version') AS features_version")
+    expect(sql).not.toMatch(/\b(q|cat|flags)\b/)
+    expect(POI_SCHEMA_VERSION).toBe(1) // unchanged: old code keeps serving new builds, new code old ones
   })
 })

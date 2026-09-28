@@ -58,6 +58,9 @@ describe('POST /api/admin/flags', () => {
     expect(res.body.flags).toMatchObject({ poiDbPct: 25, poiShadowPct: 10 })
     await post({ poiDbPct: 0 })
     expect(kv.value.poiDbPct).toBe(0)
+    // the dense-area cap: its own key, validated like the others
+    expect((await post({ poiCapPct: 5 })).body.flags).toMatchObject({ poiDbPct: 0, poiShadowPct: 10, poiCapPct: 5 })
+    expect((await post({ poiCapPct: 101 })).statusCode).toBe(400)
   })
 
   it.each([150, 12.7, '10', null, undefined])('kill switch writes 0 over a stored %j, and GET matches what is served', async (bad) => {

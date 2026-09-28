@@ -27,6 +27,7 @@ const DEFAULTS = Object.freeze({
   // Rollout percentages (0-100); 0 is off and the fail-closed default
   poiDbPct: 0,
   poiShadowPct: 0,
+  poiCapPct: 0,
 })
 
 const isPct = v => Number.isInteger(v) && v >= 0 && v <= 100

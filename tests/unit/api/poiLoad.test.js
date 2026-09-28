@@ -6,6 +6,7 @@ import process from 'node:process'
 import { Buffer } from 'node:buffer'
 import { gzipSync } from 'node:zlib'
 import { createHash } from 'node:crypto'
+import { execSync } from 'node:child_process'
 import { db, kv, resetDb } from './poiFakeDb.js'
 
 // api/admin/poi-load.js against the in-memory fake in poiFakeDb.js.
@@ -33,6 +34,7 @@ vi.mock('../../../shared/poiCell.mjs', async orig => ({
 }))
 
 const { poiCell } = await import('../../../shared/poiCell.mjs')
+const { poiFeatures, FEATURES_VERSION } = await import('../../../shared/poiRank.mjs')
 const mod = await import('../../../api/admin/poi-load.js')
 const handler = mod.default
 const { RELEASE_BASE, releaseUrl, INSERT_POIS, POI_COLS, MAX_DOWNLOAD_BYTES, toPoiRow } = mod
@@ -52,27 +54,29 @@ const OLDER = 'uk-20260929T0215Z'
 const SECRET = 'test-poi-secret-0123456789'
 const base = `${RELEASE_BASE}poi-${BUILD}/`
 
+// q, cat, flags as the build derives them from el (shared/poiRank.mjs)
+const withFeatures = row => ({ ...row, ...poiFeatures(JSON.parse(row.el)) })
 function poi(id, name, lat = 51.5 + id / 1000, lon = -0.12) {
   const el = JSON.stringify({ type: 'node', id, lat, lon, tags: { name, amenity: 'cafe' } })
-  return { cell: poiCell(lat, lon), osm_type: 1, osm_id: id, lat, lon, min_lat: lat, min_lon: lon, max_lat: lat, max_lon: lon,
+  return withFeatures({ cell: poiCell(lat, lon), osm_type: 1, osm_id: id, lat, lon, min_lat: lat, min_lon: lon, max_lat: lat, max_lon: lon,
     k_amenity: 'cafe', k_tourism: null, k_leisure: null, k_historic: null, k_shop: null, k_natural: null, k_man_made: null,
-    has_name: 1, has_name_tag: 1, has_wikidata: 0, el }
+    has_name: 1, has_name_tag: 1, has_wikidata: 0, el })
 }
 // A way whose bounds are wider than its centre, as the build emits them
 function park(id, name) {
   const [lat, lon] = [51.6, -0.2]
   const bounds = { minlat: 51.55, minlon: -0.3, maxlat: 51.65, maxlon: -0.1 }
   const el = JSON.stringify({ type: 'way', id, center: { lat, lon }, bounds, tags: { 'name:en': name, leisure: 'park' } })
-  return { ...poi(0, ''), cell: poiCell(lat, lon), osm_type: 2, osm_id: id, lat, lon,
-    min_lat: 51.55, min_lon: -0.3, max_lat: 51.65, max_lon: -0.1, k_amenity: null, k_leisure: 'park', has_name_tag: 0, el }
+  return withFeatures({ ...poi(0, ''), cell: poiCell(lat, lon), osm_type: 2, osm_id: id, lat, lon,
+    min_lat: 51.55, min_lon: -0.3, max_lat: 51.65, max_lon: -0.1, k_amenity: null, k_leisure: 'park', has_name_tag: 0, el })
 }
 // Wider than 2 x CELL_PAD_DEG: lives in the LARGE bucket (cell 0)
 function channel(id, name) {
   const [lat, lon] = [51.3, -3.8]
   const el = JSON.stringify({ type: 'relation', id, center: { lat, lon }, bounds: { minlat: 51, minlon: -5, maxlat: 51.6, maxlon: -2.6 },
     tags: { name, natural: 'water' } })
-  return { ...poi(0, ''), cell: 0, osm_type: 3, osm_id: id, lat, lon, min_lat: 51, min_lon: -5, max_lat: 51.6, max_lon: -2.6,
-    k_amenity: null, k_natural: 'water', el }
+  return withFeatures({ ...poi(0, ''), cell: 0, osm_type: 3, osm_id: id, lat, lon, min_lat: 51, min_lon: -5, max_lat: 51.6, max_lon: -2.6,
+    k_amenity: null, k_natural: 'water', el })
 }
 const gz = rows => gzipSync(rows.map(r => JSON.stringify(r)).join('\n') + '\n')
 const sha = buf => createHash('sha256').update(buf).digest('hex')
@@ -87,7 +91,7 @@ function release(chunks, manifestPatch = {}) {
     return { name, sha256: sha(buf), rows: rows.length }
   })
   const manifest = {
-    build_id: BUILD, schema_version: 1, osm_timestamp: '2026-10-01T02:15:00Z', chunks: metas,
+    build_id: BUILD, schema_version: 1, features_version: FEATURES_VERSION, osm_timestamp: '2026-10-01T02:15:00Z', chunks: metas,
     row_count: metas.reduce((n, c) => n + c.rows, 0), per_key_counts: { 'amenity=cafe': 3, 'leisure=park': 1 },
     photo_count: 0, large_count: 1, ...manifestPatch,
   }
@@ -120,6 +124,14 @@ const admin = { auth: 'Bearer admin-jwt', origin: 'https://go-roam.uk' }
 const load = async (chunks = CHUNKS.length) => {
   expect((await call({ step: 'begin' })).statusCode).toBe(200)
   for (let i = 0; i < chunks; i++) expect((await call({ step: 'chunk', i: String(i) })).statusCode).toBe(200)
+  // as scripts/poi/load.mjs: verify every feature once all chunks are in
+  if (chunks === CHUNKS.length) {
+    for (let v = { done: false }; !v.done;) {
+      const res = await call({ step: 'verify' })
+      expect(res.statusCode).toBe(200)
+      v = res.body
+    }
+  }
 }
 const statusOf = id => db.builds.get(id)?.status
 
@@ -287,8 +299,20 @@ describe('toPoiRow', () => {
     ['has_name_tag lies', { has_name_tag: 0 }, /has_name_tag/],
     ['has_name lies', { has_name: 0 }, /has_name disagrees/],
     ['bad flag', { has_name_tag: 2 }, /flags/],
+    // schema_version 1 rows have no features: they fail closed
+    ['a v1 row (no q)', { q: undefined }, /q disagrees with shared\/poiRank/],
+    ['a feature the deployed ranker would not derive', { flags: ok.flags ^ 64 }, /flags disagrees/],
+    ['a category off by one', { cat: ok.cat + 1 }, /cat disagrees/],
+    ['a quality score out of step', { q: ok.q - 1 }, /q disagrees/],
   ])('rejects %s', (_label, patch, re) => {
-    expect(() => toPoiRow({ ...ok, ...patch })).toThrow(re)
+    expect(() => toPoiRow({ ...ok, ...patch }, 0, true)).toThrow(re)
+  })
+  it('a build without features (no features_version) loads q, cat, flags as 0, unchecked', () => {
+    const { q: _q, cat: _c, flags: _f, ...v1 } = ok
+    const cols = toPoiRow(v1, 0, false)
+    expect(['q', 'cat', 'flags'].map(c => cols[POI_COLS.indexOf(c)])).toEqual([0, 0, 0])
+    expect(toPoiRow({ ...ok, q: 99 }, 0, false)[POI_COLS.indexOf('q')]).toBe(0)
+    expect(() => toPoiRow(v1, 0, true)).toThrow(/q disagrees/)
   })
   it('a wide element must be in the LARGE cell, and only a wide one may be', () => {
     expect(toPoiRow(channel(5, 'C'))[0]).toBe(0)
@@ -307,6 +331,43 @@ describe('toPoiRow', () => {
 // ─── Loading ────────────────────────────────────────────────────
 
 describe('loading', () => {
+  it('before the phase12 migration (no q/cat/flags or no full ix_rank): the load goes on WITHOUT features, logged, goes live uncapped, emails', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    for (const schema of [{ cols: 0, ix_parts: 0 }, { cols: 3, ix_parts: 15 }]) {
+      resetDb()
+      db.featureSchema = schema
+      withActive()
+      sendEmail.mockClear()
+      const begun = await call({ step: 'begin' })
+      expect(begun.statusCode).toBe(200)
+      expect(begun.body).toMatchObject({ resumed: false, features: false })
+      expect(errors).toHaveBeenCalledWith(expect.stringContaining('"evt":"poi_load_no_feature_schema"'))
+      for (let i = 0; i < CHUNKS.length; i++) expect((await call({ step: 'chunk', i: String(i) })).statusCode).toBe(200)
+      // the INSERT never names the feature columns the table may not have
+      const inserts = db.log.filter(q => q.startsWith('INSERT INTO pois_staging'))
+      expect(inserts.length).toBeGreaterThan(0)
+      for (const q of inserts) expect(q).not.toMatch(/\b(q|cat|flags)\b/)
+      expect((await call({ step: 'verify' })).body).toMatchObject({ done: true })
+      const res = await call({ step: 'finalize' })
+      expect(res.statusCode).toBe(200)
+      expect(res.body.report.gates.find(g => g.id === 'G9')).toMatchObject({ pass: null, detail: expect.stringMatching(/phase12-poi-features.sql not applied/) })
+      expect(db.builds.get(BUILD).gate_report).toMatchObject({ features_version: 0, schema_features: false })
+      // swapped live: the new build is `pois` (uncapped: features_version 0), the old one pois_prev
+      expect([db.tables.pois.comment, statusOf(BUILD), statusOf(ACTIVE)]).toEqual([BUILD, 'active', 'previous'])
+      expect(db.tables.pois.rows.size).toBe(5)
+      expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('phase12-poi-features.sql was not applied') }))
+    }
+    errors.mockRestore()
+  })
+
+  it('database/phase11 and phase12 ship with the code (not git-ignored)', () => {
+    for (const f of ['database/phase11-pois.sql', 'database/phase12-poi-features.sql']) {
+      let ignored = true
+      try { execSync(`git check-ignore -q ${f}`, { cwd: ROOT }) } catch (err) { ignored = err.status !== 1 }
+      expect(ignored, f).toBe(false)
+    }
+  })
+
   it('begin creates owned staging tables and a loading row', async () => {
     const res = await call({ step: 'begin' })
     expect(res.body).toMatchObject({ resumed: false, chunks_loaded: 0, chunks_total: 2 })
@@ -318,7 +379,7 @@ describe('loading', () => {
   it('every step takes the global lock on a dedicated connection', async () => {
     await load()
     await call({ step: 'photos' })
-    expect(db.log.filter(s => s === 'SELECT GET_LOCK(?, 0) AS got')).toHaveLength(4)
+    expect(db.log.filter(s => s === 'SELECT GET_LOCK(?, 0) AS got')).toHaveLength(5) // begin, 2 chunks, verify, photos
     expect(db.log).toContain('SET SESSION wait_timeout = 150, lock_wait_timeout = 5')
   })
 
@@ -525,7 +586,7 @@ describe('loading', () => {
 
 // ─── Finalize, gates, swap ──────────────────────────────────────
 
-const ALL_PASS = [['G1', true], ['G2', true], ['G3', true], ['G4', true], ['G5', true], ['G6', true], ['G7', true], ['G8', true]]
+const ALL_PASS = [['G1', true], ['G2', true], ['G3', true], ['G4', true], ['G5', true], ['G6', true], ['G7', true], ['G8', true], ['G9', true]]
 
 describe('finalize', () => {
   it('passes every gate and swaps without dropping anything first', async () => {
@@ -554,6 +615,211 @@ describe('finalize', () => {
     expect([statusOf(BUILD), statusOf(ACTIVE)]).toEqual(['active', 'previous'])
     expect(sendEmail).not.toHaveBeenCalled()
     expect(recordCronRun).toHaveBeenCalledWith(expect.objectContaining({ jobName: 'poi-load', failedCount: 0 }))
+  })
+
+  it('features: a build with this code\'s features_version goes live marked for the cap; its rows are checked', async () => {
+    withActive()
+    await load()
+    const res = await call({ step: 'finalize' })
+    expect(res.statusCode).toBe(200)
+    expect(db.builds.get(BUILD).gate_report.features_version).toBe(FEATURES_VERSION)
+    const row = db.tables.pois.rows.get('1/1')
+    expect({ q: row.q, cat: row.cat, flags: row.flags }).toEqual(poiFeatures(JSON.parse(row.el)))
+  })
+
+  it('features: a build without them (an older build.mjs) still loads and goes live, marked 0 (served uncapped)', async () => {
+    const strip = ({ q: _q, cat: _c, flags: _f, ...rest }) => rest
+    const m = release(CHUNKS.map(rows => rows.map(strip)))
+    delete m.features_version
+    files.set('manifest.json', Buffer.from(JSON.stringify(m)))
+    withActive()
+    await load()
+    const res = await call({ step: 'finalize' })
+    expect(res.statusCode).toBe(200)
+    expect(res.body.report.gates.find(g => g.id === 'G1').pass).toBe(true)
+    expect(db.builds.get(BUILD).gate_report.features_version).toBe(0)
+    expect(db.tables.pois.rows.get('1/1')).toMatchObject({ q: 0, cat: 0, flags: 0 })
+  })
+
+  it('features: a features_version this code cannot read fails G1 (its rows would load unchecked)', async () => {
+    release(CHUNKS, { features_version: FEATURES_VERSION + 1 })
+    withActive()
+    await load()
+    const res = await call({ step: 'finalize' })
+    expect(res.statusCode).toBe(422)
+    expect(res.body.report.gates.find(g => g.id === 'G1')).toMatchObject({ pass: false, detail: { features_version: FEATURES_VERSION + 1 } })
+    expect(statusOf(ACTIVE)).toBe('active')
+  })
+
+  // Astra round 1 item 1: an older loader (or a mid-load deploy) must never publish zero features
+  const zeroFeatures = () => { for (const r of db.tables.pois_staging.rows.values()) Object.assign(r, { q: 0, cat: 0, flags: 0 }) }
+
+  it('G9: rows an older loader wrote (q/cat/flags = 0) fail the features gate and are never activated', async () => {
+    withActive()
+    await load()
+    zeroFeatures()
+    const res = await call({ step: 'finalize' })
+    expect(res.statusCode).toBe(422)
+    const g9 = res.body.report.gates.find(g => g.id === 'G9')
+    expect(g9).toMatchObject({ pass: false, detail: { wrong: expect.any(Number), eligible_share: 0 } })
+    expect(g9.detail.wrong).toBeGreaterThan(0)
+    expect(statusOf(ACTIVE)).toBe('active')
+    expect(db.log.some(s => s.startsWith('RENAME'))).toBe(false)
+  })
+
+  it('G9 cannot be forced, even by an admin', async () => {
+    withActive()
+    await load()
+    zeroFeatures()
+    getUserFromRequest.mockResolvedValue({ id: 7, is_admin: true })
+    const res = await call({ step: 'finalize', force: '1' }, admin)
+    expect(res.statusCode).toBe(422)
+    expect(res.body.error).toMatch(/G9 cannot be forced/)
+  })
+
+  it('G9: a single wrong sampled row fails it; the eligible share must be plausible and near the live build\'s', async () => {
+    withActive() // no stored share on the live build: only the sample can fail G9 here
+    await load()
+    db.tables.pois_staging.rows.get('1/1').q += 1 // changed AFTER verify: only the fresh sample sees it
+    let res = await call({ step: 'finalize' })
+    expect(res.body.report.gates.find(g => g.id === 'G9')).toMatchObject({ pass: false,
+      detail: { sampled: 1, wrong: 1, wrong_sample: ['node/1'], verified: { done: true, wrong: 0 }, active_share: null } })
+    // a fresh load whose shares drift from the live build's
+    db.builds.delete(BUILD)
+    await load()
+    db.builds.get(ACTIVE).gate_report.eligible_share = 0.5
+    res = await call({ step: 'finalize' })
+    expect(res.body.report.gates.find(g => g.id === 'G9')).toMatchObject({ pass: false, detail: { active_share: 0.5 } })
+  })
+
+  it('G9 minimum share: features that are CORRECT for their el but leave under half the rows deck-eligible still fail', async () => {
+    // e.g. a build that lost its tag filter and loaded mostly banks; no live share to compare with
+    withActive()
+    await load()
+    for (const r of db.tables.pois_staging.rows.values()) {
+      const el = JSON.parse(r.el)
+      el.tags = { ...el.tags, amenity: 'bank' }
+      r.el = JSON.stringify(el)
+      Object.assign(r, poiFeatures(el))
+    }
+    const res = await call({ step: 'finalize' })
+    expect(res.body.report.gates.find(g => g.id === 'G9')).toMatchObject({ pass: false, detail: { wrong: 0, eligible_share: 0, active_share: null } })
+  })
+
+  it('a FRESHLY inserted build is stamped too: a retried begin resumes its progress (Astra round 3 item 2)', async () => {
+    expect(db.builds.get(BUILD)).toBeUndefined() // a brand-new build: the INSERT path, not ON DUPLICATE KEY
+    expect((await call({ step: 'begin' })).body).toMatchObject({ resumed: false })
+    expect(db.builds.get(BUILD).gate_report).toEqual({ loader_features: FEATURES_VERSION, schema_features: true })
+    await call({ step: 'chunk', i: '0' })
+    expect((await call({ step: 'begin' })).body).toMatchObject({ resumed: true, chunks_loaded: 1 })
+  })
+
+  it('verify re-derives EVERY row in PK-ordered batches, resumes across calls, and G9 needs it all', async () => {
+    withActive()
+    await load(CHUNKS.length - 1) // not every chunk yet
+    expect((await call({ step: 'verify' })).statusCode).toBe(409)
+    await call({ step: 'chunk', i: String(CHUNKS.length - 1) })
+    // 20,000 more valid rows (one full batch) plus the 5 loaded, and one wrong row in the SECOND batch,
+    // outside G9's 1% sample (MOD(osm_id, 97) = 1)
+    const more = Array.from({ length: 20000 }, (_, k) => poi(100 + k, `Cafe ${k}`, 51.4 + (k % 100) / 1000, -0.12 + Math.floor(k / 100) / 10000))
+    for (const r of more) db.tables.pois_staging.rows.set(`1/${r.osm_id}`, { ...r })
+    const bad = [...db.tables.pois_staging.rows.values()].sort((a, b) => a.cell - b.cell || a.osm_type - b.osm_type || a.osm_id - b.osm_id)[20002]
+    expect(bad.osm_id % 97).not.toBe(1)
+    bad.q = bad.q ? 0 : 1
+    // the first call runs out of its time budget after one batch: progress is kept
+    const t0 = Date.now()
+    let calls = 0
+    db.onSql = sql => { if (sql.startsWith('SELECT cell, osm_type')) { calls++; vi.setSystemTime(t0 + calls * 80000) } }
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(t0)
+    let first
+    try {
+      first = (await call({ step: 'verify' })).body
+    } finally {
+      vi.useRealTimers()
+      db.onSql = null
+    }
+    expect(first).toMatchObject({ verified_rows: 20000, done: false })
+    const second = (await call({ step: 'verify' })).body
+    expect(second).toMatchObject({ verified_rows: 20005, wrong: 1, done: true })
+    expect(db.log.filter(s => s.includes('WHERE cell > ? OR'))).toHaveLength(1) // resumed after the recorded key
+    const res = await call({ step: 'finalize' })
+    const g9 = res.body.report.gates.find(g => g.id === 'G9')
+    expect(g9).toMatchObject({ pass: false, detail: { wrong: 0, verified: { done: true, rows: 20005, wrong: 1 } } }) // the sample alone missed it
+  })
+
+  it('G9 needs verify to have covered EVERY staging row: a row added after it fails the gate', async () => {
+    withActive()
+    await load()
+    const extra = poi(7, 'Late Cafe') // 7 % 97 != 1: outside the fresh sample
+    db.tables.pois_staging.rows.set('1/7', extra)
+    const res = await call({ step: 'finalize' })
+    expect(res.body.report.gates.find(g => g.id === 'G9')).toMatchObject({ pass: false, detail: { wrong: 0, staging: 6, verified: { done: true, rows: 5, wrong: 0 } } })
+  })
+
+  it('verify halves a batch that runs out of time, persists it, and gives up retryably at the floor (never loops)', async () => {
+    withActive()
+    expect((await call({ step: 'begin' })).statusCode).toBe(200)
+    for (let i = 0; i < CHUNKS.length; i++) await call({ step: 'chunk', i: String(i) })
+    const timeout = () => Object.assign(new Error('Query execution was interrupted, maximum statement execution time exceeded'), { errno: 3024 })
+    const verifySql = /^SELECT cell, osm_type, osm_id, q, cat, flags, el FROM pois_staging/
+    db.fail.push({ re: verifySql, err: timeout(), once: true }, { re: verifySql, err: timeout(), once: true })
+    let res = await call({ step: 'verify' })
+    expect(res.body).toMatchObject({ done: true, verified_rows: 5, batch: 5000 }) // 20,000 -> 10,000 -> 5,000
+    expect(db.log.filter(q => q.includes('cell, osm_type, osm_id, q, cat, flags, el FROM pois_staging'))).toHaveLength(3)
+    // the floor: every batch times out -> 20,000, 10,000, 5,000, 2,500, then a clear retryable 503
+    db.builds.get(BUILD).gate_report = { loader_features: FEATURES_VERSION, schema_features: true }
+    db.log.length = 0
+    db.fail.push({ re: verifySql, err: timeout() })
+    res = await call({ step: 'verify' })
+    expect(res.statusCode).toBe(503)
+    expect(res.body).toMatchObject({ retry: true, error: expect.stringMatching(/2500-row batch ran out of time/) })
+    expect(db.log.filter(q => q.includes('cell, osm_type, osm_id, q, cat, flags, el FROM pois_staging'))).toHaveLength(4)
+    expect(db.builds.get(BUILD).gate_report.verify).toMatchObject({ batch: 2500, done: false, rows: 0 })
+    db.fail.length = 0
+  })
+
+  it('G9 refuses a feature build nobody verified, and a chunk re-sent after verify un-verifies it', async () => {
+    withActive()
+    expect((await call({ step: 'begin' })).statusCode).toBe(200)
+    for (let i = 0; i < CHUNKS.length; i++) await call({ step: 'chunk', i: String(i) })
+    let res = await call({ step: 'finalize' })
+    expect(res.body.report.gates.find(g => g.id === 'G9')).toMatchObject({ pass: false, detail: { verified: expect.stringMatching(/step=verify/) } })
+    db.builds.delete(BUILD)
+    await load()
+    await call({ step: 'chunk', i: '0' })
+    expect(db.builds.get(BUILD).gate_report.verify).toBeUndefined()
+    res = await call({ step: 'finalize' })
+    expect(res.body.report.gates.find(g => g.id === 'G9').pass).toBe(false)
+  })
+
+  it('a staging table an older loader began (no stamp) is never resumed: begin starts afresh', async () => {
+    await load(1)
+    db.builds.get(BUILD).gate_report = null // what the old begin writes
+    db.builds.get(BUILD).status = 'loading'
+    const res = await call({ step: 'begin' })
+    expect(res.body).toMatchObject({ resumed: false, chunks_loaded: 0 })
+    expect(db.builds.get(BUILD).gate_report).toEqual({ loader_features: FEATURES_VERSION, schema_features: true })
+    // and our own stamped staging is resumed as before
+    await call({ step: 'chunk', i: '0' })
+    expect((await call({ step: 'begin' })).body).toMatchObject({ resumed: true, chunks_loaded: 1 })
+  })
+
+  it('a paused reader holding the metadata lock: the RENAME times out (5 s), 503 retry, nothing swapped; the re-send swaps once MySQL has closed that idle session', async () => {
+    withActive({ prev: true })
+    await load()
+    // what MySQL answers a RENAME that waited lock_wait_timeout for a reader's shared MDL
+    db.fail.push({ re: /^RENAME TABLE/, err: Object.assign(new Error('Lock wait timeout exceeded'), { errno: 1205, code: 'ER_LOCK_WAIT_TIMEOUT' }), once: true })
+    const first = await call({ step: 'finalize' })
+    expect(first.statusCode).toBe(503)
+    expect(first.body).toMatchObject({ retry: true, error: expect.stringMatching(/Swap waited too long/) })
+    expect(first.headers['Retry-After']).toBe('5')
+    expect(db.tables.pois.comment).toBe(ACTIVE)
+    expect(statusOf(ACTIVE)).toBe('active')
+    // the reader's session hit its wait_timeout (5 s, poiQuery TXN_SESSION): the lock is gone
+    const again = await call({ step: 'finalize' })
+    expect(again.statusCode).toBe(200)
+    expect(db.tables.pois.comment).toBe(BUILD)
   })
 
   it('a swap INCRs roam:poiGen and never touches roam:flags', async () => {
@@ -794,7 +1060,8 @@ describe('finalize', () => {
     expect(res.headers['Retry-After']).toBe('5')
     expect(res.body.retry).toBe(true)
     expect(statusOf(BUILD)).toBe('loading')
-    expect(db.builds.get(BUILD).gate_report).toBeNull()
+    // begin's stamp and verify's progress only: no verdict
+    expect(db.builds.get(BUILD).gate_report).toEqual({ loader_features: FEATURES_VERSION, schema_features: true, verify: expect.objectContaining({ done: true, wrong: 0 }) })
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
@@ -888,7 +1155,12 @@ describe('finalize', () => {
     expect(res.body.report.gates.find(g => g.id === 'G4')).toMatchObject({ pass: false, detail: { unverified: [expect.stringMatching(/historic=castle/)] } })
     const scans = db.log.filter(s => /^SELECT (\/\*\+ MAX_EXECUTION_TIME\(\d+\) \*\/ )?SUM\(/.test(s))
     expect(scans).toHaveLength(1)
-    expect(scans[0].match(/SUM\(/g)).toHaveLength(12)
+    expect(scans[0].match(/SUM\(k_/g)).toHaveLength(12)
+    // G9's eligible share rides the same scan: no second full read of staging
+    expect(scans[0]).toMatch(/SUM\(flags & 64 <> 0\) AS eligible, COUNT\(\*\) AS n_all FROM pois_staging$/)
+    // full reads of staging (no WHERE): G2's count and this one scan, nothing more
+    expect(db.log.filter(s => /^SELECT .* FROM pois_staging$/.test(s)).map(s => s.includes('SUM(') ? 'G4 scan' : s))
+      .toEqual([expect.stringMatching(/COUNT\(\*\) AS n FROM pois_staging$/), 'G4 scan'])
   })
 
   it.each([['passes at', 1, 200, []], ['fails below', 2, 422, ['G5']]])('G5 %s 90%% of sentinels', async (_label, gone, status, failed) => {
@@ -911,6 +1183,53 @@ describe('finalize', () => {
 
 describe('scripts/poi/load.mjs', () => {
   const json = (status, body) => new Response(JSON.stringify(body), { status })
+  const NEW = { verify: true } // what this handler's begin advertises
+
+  it('an OLDER deployed handler (rollback, or the workflow ahead of the deploy): no verify capability, so no verify call, and it finalizes', async () => {
+    const { run } = await import('../../../scripts/poi/load.mjs')
+    const calls = []
+    const oldHandler = vi.fn(async url => {
+      const q = Object.fromEntries(new URL(url).searchParams)
+      calls.push(q.step + (q.i ?? ''))
+      if (q.step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 2 }) // no capabilities
+      if (q.step === 'verify') return json(400, { error: 'step must be begin, chunk, photos or finalize' })
+      if (q.step === 'finalize') return json(200, { status: 'active', report: { gates: [] } })
+      return json(200, { rows: 1 })
+    })
+    expect(await run({ build: BUILD, secret: 's', skipPhotos: true, fetchImpl: oldHandler, sleep: async () => {}, log: () => {} })).toBe(0)
+    expect(calls).toEqual(['begin', 'chunk0', 'chunk1', 'finalize'])
+  })
+
+  it('this handler, end to end through the real driver: verify is advertised, called, and required for a feature build', async () => {
+    const { run } = await import('../../../scripts/poi/load.mjs')
+    const steps = []
+    const viaHandler = async url => {
+      const q = Object.fromEntries(new URL(url).searchParams)
+      steps.push(q.step)
+      const res = await call({ step: q.step, ...(q.i != null ? { i: q.i } : {}), ...(q.offset != null ? { offset: q.offset } : {}) })
+      return json(res.statusCode, res.body)
+    }
+    withActive()
+    expect(await run({ build: BUILD, secret: SECRET, skipPhotos: true, fetchImpl: viaHandler, sleep: async () => {}, log: () => {} })).toBe(0)
+    expect(steps).toEqual(['begin', 'chunk', 'chunk', 'verify', 'finalize'])
+    expect(db.builds.get(BUILD)).toMatchObject({ status: 'active', gate_report: expect.objectContaining({ features_version: FEATURES_VERSION }) })
+  })
+
+  it('this handler before the phase12 migration, end to end through the real driver: begin, chunks, verify (skipped), finalize, live uncapped', async () => {
+    const { run } = await import('../../../scripts/poi/load.mjs')
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    db.featureSchema = { cols: 0, ix_parts: 0 }
+    const viaHandler = async url => {
+      const q = Object.fromEntries(new URL(url).searchParams)
+      const res = await call({ step: q.step, ...(q.i != null ? { i: q.i } : {}) })
+      return json(res.statusCode, res.body)
+    }
+    withActive()
+    expect(await run({ build: BUILD, secret: SECRET, skipPhotos: true, fetchImpl: viaHandler, sleep: async () => {}, log: () => {} })).toBe(0)
+    expect(db.tables.pois.comment).toBe(BUILD)
+    expect(db.builds.get(BUILD).gate_report).toMatchObject({ features_version: 0, schema_features: false })
+    errors.mockRestore()
+  })
   it('resumes, retries a 5xx and a busy lock, then finalizes', async () => {
     const { run } = await import('../../../scripts/poi/load.mjs')
     const calls = []
@@ -918,14 +1237,14 @@ describe('scripts/poi/load.mjs', () => {
     const fetchImpl = vi.fn(async url => {
       const q = Object.fromEntries(new URL(url).searchParams)
       calls.push(q.step + (q.i ?? ''))
-      if (q.step === 'begin') return json(200, { resumed: true, chunks_loaded: 2, chunks_total: 4 })
+      if (q.step === 'begin') return json(200, { resumed: true, chunks_loaded: 2, chunks_total: 4, capabilities: NEW })
       if (q.step === 'chunk' && q.i === '3' && chunk3++ === 0) return json(503, { error: 'blip', retry: true })
       if (q.step === 'chunk' && q.i === '3' && chunk3 === 2) return json(409, { error: 'busy', retry: true })
       if (q.step === 'finalize') return json(200, { status: 'active', report: { gates: [{ id: 'G1', name: 'schema', pass: true }] } })
       return json(200, { rows: 10 })
     })
     expect(await run({ build: BUILD, secret: 's', fetchImpl, sleep: async () => {}, log: () => {} })).toBe(0)
-    expect(calls).toEqual(['begin', 'chunk2', 'chunk3', 'chunk3', 'chunk3', 'photos', 'finalize'])
+    expect(calls).toEqual(['begin', 'chunk2', 'chunk3', 'chunk3', 'chunk3', 'photos', 'verify', 'finalize'])
     expect(fetchImpl.mock.calls[0][1].headers.Authorization).toBe('Bearer s')
   })
 
@@ -936,25 +1255,60 @@ describe('scripts/poi/load.mjs', () => {
     const fetchImpl = vi.fn(async url => {
       const q = Object.fromEntries(new URL(url).searchParams)
       calls.push(q.step + (q.offset ?? ''))
-      if (q.step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0 })
+      if (q.step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0, capabilities: NEW })
       if (q.step === 'photos' && q.offset === '10000' && blip++ === 0) return json(503, { error: 'blip', retry: true })
       if (q.step === 'photos') return json(200, { photos: 10000, total: 25000, next: q.offset === '20000' ? null : Number(q.offset) + 10000 })
       return json(200, { status: 'active', report: { gates: [] } })
     })
     expect(await run({ build: BUILD, secret: 's', fetchImpl, sleep: async () => {}, log: () => {} })).toBe(0)
-    expect(calls).toEqual(['begin', 'photos0', 'photos10000', 'photos10000', 'photos20000', 'finalize'])
+    expect(calls).toEqual(['begin', 'photos0', 'photos10000', 'photos10000', 'photos20000', 'verify', 'finalize'])
+  })
+
+  it('verify that never finishes is bounded: 100 calls, then exit 1 (the nightly fails, it does not spin)', async () => {
+    const { run } = await import('../../../scripts/poi/load.mjs')
+    let verifies = 0
+    const fetchImpl = vi.fn(async url => {
+      if (new URL(url).searchParams.get('step') !== 'verify') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0, capabilities: NEW })
+      // past the limit the server "breaks" (a 422 verdict), so an unbounded driver ends here instead of hanging the suite
+      return ++verifies > 150 ? json(422, { error: 'runaway' }) : json(200, { verified_rows: 0, wrong: 0, done: false })
+    })
+    expect(await run({ build: BUILD, secret: 's', skipPhotos: true, fetchImpl, sleep: async () => {}, log: () => {} })).toBe(1)
+    expect(fetchImpl.mock.calls.filter(c => new URL(c[0]).searchParams.get('step') === 'verify')).toHaveLength(100)
+    expect(fetchImpl.mock.calls.some(c => new URL(c[0]).searchParams.get('step') === 'finalize')).toBe(false)
+  })
+
+  it('re-sends verify until done, retrying a busy lock, and stops on a verify failure', async () => {
+    const { run } = await import('../../../scripts/poi/load.mjs')
+    const calls = []
+    let n = 0
+    const fetchImpl = vi.fn(async url => {
+      const step = new URL(url).searchParams.get('step')
+      calls.push(step)
+      if (step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0, capabilities: NEW })
+      if (step === 'verify') {
+        n++
+        if (n === 2) return json(409, { error: 'busy', retry: true })
+        return json(200, { verified_rows: n * 20000, wrong: 0, done: n === 4 })
+      }
+      return json(200, { status: 'active', report: { gates: [] } })
+    })
+    expect(await run({ build: BUILD, secret: 's', skipPhotos: true, fetchImpl, sleep: async () => {}, log: () => {} })).toBe(0)
+    expect(calls).toEqual(['begin', 'verify', 'verify', 'verify', 'verify', 'finalize'])
+    const bad = vi.fn(async url => (new URL(url).searchParams.get('step') === 'verify' ? json(409, { error: 'Load every chunk before verify' }) : json(200, { chunks_loaded: 0, chunks_total: 0, capabilities: NEW })))
+    expect(await run({ build: BUILD, secret: 's', skipPhotos: true, fetchImpl: bad, sleep: async () => {}, log: () => {} })).toBe(1)
+    expect(bad.mock.calls.map(c => new URL(c[0]).searchParams.get('step'))).toEqual(['begin', 'verify'])
   })
 
   it('stops on a verdict (gates failed) without retrying', async () => {
     const { run } = await import('../../../scripts/poi/load.mjs')
     const fetchImpl = vi.fn(async url => {
       const step = new URL(url).searchParams.get('step')
-      if (step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0 })
+      if (step === 'begin') return json(200, { resumed: false, chunks_loaded: 0, chunks_total: 0, capabilities: NEW })
       if (step === 'finalize') return json(422, { error: 'Gates failed', report: { gates: [] } })
       return json(200, {})
     })
     expect(await run({ build: BUILD, secret: 's', fetchImpl, sleep: async () => {}, log: () => {} })).toBe(1)
-    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(fetchImpl).toHaveBeenCalledTimes(4) // begin, photos, verify, finalize
   })
 
   // The workflow's Load step is `load.mjs ... && echo active=true`: exit codes are its contract
@@ -982,12 +1336,12 @@ describe('scripts/poi/load.mjs', () => {
     const r = await cli((q, n) => {
       if (n === 1) throw new TypeError('fetch failed')
       if (n === 2) throw new DOMException('The operation timed out.', 'TimeoutError')
-      if (q.step === 'begin') return json(200, { chunks_loaded: 0, chunks_total: 1 })
+      if (q.step === 'begin') return json(200, { chunks_loaded: 0, chunks_total: 1, capabilities: NEW })
       if (q.step === 'finalize') return json(200, { status: 'active', report: { gates: [] } })
       return json(200, { rows: 1 })
     })
     expect(r.code).toBe(0)
-    expect(r.calls).toEqual(['begin', 'begin', 'begin', 'chunk0', 'finalize'])
+    expect(r.calls).toEqual(['begin', 'begin', 'begin', 'chunk0', 'verify', 'finalize'])
   })
 
   it('gives up after MAX_ATTEMPTS with a non-zero exit', async () => {
@@ -999,7 +1353,7 @@ describe('scripts/poi/load.mjs', () => {
   it.each([
     [409, { error: 'Chunks load in order; next is 0' }], [409, { retry: false }], [422, { error: 'bad chunk' }], [401, null],
   ])('a chunk %i without retry:true fails at once, no retry, no finalize', async (status, body) => {
-    const r = await cli(q => (q.step === 'begin' ? json(200, { chunks_loaded: 0, chunks_total: 2 }) : json(status, body)))
+    const r = await cli(q => (q.step === 'begin' ? json(200, { chunks_loaded: 0, chunks_total: 2, capabilities: NEW }) : json(status, body)))
     expect(r.code).not.toBe(0)
     expect(r.calls).toEqual(['begin', 'chunk0'])
   })
@@ -1031,7 +1385,7 @@ describe('database/phase11-pois.sql', () => {
   it('has the planned columns and keys', () => {
     expect(tables.pois).toEqual(['cell', 'osm_type', 'osm_id', 'lat', 'lon', 'min_lat', 'min_lon', 'max_lat', 'max_lon',
       'k_amenity', 'k_tourism', 'k_leisure', 'k_historic', 'k_shop', 'k_natural', 'k_man_made',
-      'has_name', 'has_name_tag', 'has_wikidata', 'el'])
+      'has_name', 'has_name_tag', 'has_wikidata', 'q', 'cat', 'flags', 'el'])
     expect(tables.poi_photos).toEqual(['photo_key', 'url', 'width', 'height', 'source', 'artist', 'license',
       'license_url', 'page_url', 'checked_on'])
     expect(tables.poi_builds).toEqual(['build_id', 'release_tag', 'schema_version', 'osm_timestamp', 'chunks_total',
@@ -1039,6 +1393,12 @@ describe('database/phase11-pois.sql', () => {
       'gen_pending', 'created_at', 'activated_at'])
     expect(ddl).toMatch(/PRIMARY KEY \(cell, osm_type, osm_id\)/)
     expect(ddl).toMatch(/UNIQUE KEY uq_osm \(osm_type, osm_id\)/)
+    // The cap's phase 1 reads only this index: MySQL allows 16 parts; it must hold the whole
+    // Discover WHERE (bounds, ["name"], every k_ column) plus the features
+    const ix = /KEY ix_rank \(([^)]+)\)/.exec(ddl)[1].split(', ')
+    expect(ix).toEqual(['cell', 'min_lat', 'max_lat', 'min_lon', 'max_lon', 'has_name_tag',
+      'k_amenity', 'k_tourism', 'k_leisure', 'k_historic', 'k_shop', 'k_natural', 'k_man_made', 'q', 'cat', 'flags'])
+    for (const c of ['q', 'cat', 'flags']) expect(ddl).toMatch(new RegExp(`${c}\\s+TINYINT UNSIGNED NOT NULL`))
     expect(ddl).toMatch(/status ENUM\('loading','validating','active','previous','failed','rolled_back'\)/)
     // NO PAD binary: 'cafe ' must not equal 'cafe' (utf8mb4_bin is PAD SPACE)
     const kLines = ddl.split('\n').filter(l => /^\s+k_\w+/.test(l))
@@ -1056,6 +1416,26 @@ describe('database/phase11-pois.sql', () => {
   it('schema.sql carries the same three tables', () => {
     const schema = parseDdl(readFileSync(join(ROOT, 'database', 'schema.sql'), 'utf8'))
     for (const t of ['pois', 'poi_photos', 'poi_builds']) expect(schema[t]).toEqual(tables[t])
+    expect(readFileSync(join(ROOT, 'database', 'schema.sql'), 'utf8')).toContain(/ {2}KEY ix_rank \([^)]+\)/.exec(ddl)[0])
+  })
+
+  it('phase12 migrates an existing pois (and pois_prev) to the same shape, idempotently, touching nothing else', () => {
+    const mig = readFileSync(join(ROOT, 'database', 'phase12-poi-features.sql'), 'utf8').replace(/--.*$/gm, '')
+    // the same columns, in the same place, and the same index as a fresh phase11 table
+    expect(mig).toContain("ADD COLUMN q TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER has_wikidata,")
+    expect(mig).toContain("ADD COLUMN cat TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER q,")
+    expect(mig).toContain("ADD COLUMN flags TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER cat,")
+    const ix = s => /KEY ix_rank \(([^)]+)\)/.exec(s.replace(/',\s*'/g, ''))[1].split(/,\s*/)
+    expect(ix(mig)).toEqual(ix(ddl))
+    expect(mig).toContain('ALGORITHM=INPLACE, LOCK=NONE')
+    // bounded metadata-lock wait, set BEFORE any ALTER: it can't park every pois read behind it
+    expect(mig.indexOf('SET SESSION lock_wait_timeout = 5;')).toBeGreaterThan(-1)
+    expect(mig.indexOf('SET SESSION lock_wait_timeout = 5;')).toBeLessThan(mig.indexOf('PREPARE stmt'))
+    expect(mig).toContain('SET SESSION innodb_lock_wait_timeout = 5;')
+    expect([...mig.matchAll(/REPLACE\(@alter_pois, '%s', '(\w+)'\)/g)].map(m => m[1])).toEqual(['pois', 'pois_prev', 'pois_staging'])
+    // each ALTER only when its table exists without q; nothing is dropped or renamed
+    expect(mig.match(/column_name = 'q'\) = 0/g)).toHaveLength(3)
+    expect(mig).not.toMatch(/\b(DROP|RENAME|TRUNCATE|DELETE|UPDATE|INSERT)\b/)
   })
 })
 

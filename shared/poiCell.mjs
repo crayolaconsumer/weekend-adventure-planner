@@ -11,7 +11,12 @@
  * superset. lat 90 and lon 180 are clamped into the last row/column.
  */
 
-/** Must equal poi_builds.schema_version and the build manifest (loader gate G1). */
+/**
+ * Must equal poi_builds.schema_version and the build manifest (loader gate G1).
+ * The relevance-cap features are versioned separately (FEATURES_VERSION in
+ * shared/poiRank.mjs), so builds with and without them stay servable by old
+ * and new code alike.
+ */
 export const SCHEMA_VERSION = 1
 
 /** pois.osm_type codes, both ways. */
