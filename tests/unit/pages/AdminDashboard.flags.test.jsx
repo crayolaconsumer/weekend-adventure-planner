@@ -15,7 +15,7 @@ const { default: AdminDashboard } = await import('../../../src/pages/AdminDashbo
 let flags, fetchMock
 beforeEach(() => {
   toast.success.mockReset()
-  flags = { overpassProxy: true, contributionsUpload: true, pushNudges: true, poiDbPct: 5, poiShadowPct: 0, poiCapPct: 0 }
+  flags = { overpassProxy: true, contributionsUpload: true, pushNudges: true, promotedEvents: true, promotedEventPush: true, poiDbPct: 5, poiShadowPct: 0, poiCapPct: 0 }
   fetchMock = vi.fn(async (url, opts = {}) => {
     if (url === '/api/admin/flags' && opts.method === 'POST') {
       flags = { ...flags, ...JSON.parse(opts.body).flags }

@@ -42,6 +42,19 @@ describe('POST /api/admin/flags', () => {
     expect(res.body.flags).toMatchObject({ overpassProxy: false, pushNudges: false })
   })
 
+  it('every flag the server reads can be switched off here, and has a dashboard control', async () => {
+    const { DEFAULTS } = await import('../../../api/lib/flags.js')
+    const { readFileSync } = await import('node:fs')
+    const dashboard = readFileSync('src/pages/AdminDashboard.jsx', 'utf8')
+    for (const [key, def] of Object.entries(DEFAULTS)) {
+      const off = typeof def === 'number' ? 0 : false
+      const res = await post({ [key]: off })
+      expect(res.statusCode).toBe(200)
+      expect(res.body.flags[key]).toBe(off)
+      expect(dashboard).toContain(`key: '${key}'`)
+    }
+  })
+
   it('a KV read error writes nothing', async () => {
     kv.value = { poiDbPct: 25 }
     kv.getError = new Error('upstash down')

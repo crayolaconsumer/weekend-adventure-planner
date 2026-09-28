@@ -25,7 +25,8 @@ export default async function handler(req, res) {
   if (!isAuthorizedCron(req)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
-  if (!(await isFeatureEnabled('promotedEventPush'))) {
+  // promotedEvents is the kill switch for the whole feature: never push an event the feed hides
+  if (!(await isFeatureEnabled('promotedEvents')) || !(await isFeatureEnabled('promotedEventPush'))) {
     return res.status(200).json({ success: true, skipped: 'flag off' })
   }
   if (isQuietHoursUk()) {

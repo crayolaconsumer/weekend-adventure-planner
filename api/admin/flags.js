@@ -14,23 +14,13 @@ import { withCors } from '../lib/cors.js'
 import { RATE_LIMITS } from '../lib/rateLimit.js'
 import { guardAdmin, NOT_FOUND } from '../lib/adminGuard.js'
 import { cacheGet, cacheSet, isCacheEnabled, getClient } from '../lib/kvCache.js'
+import { DEFAULTS } from '../lib/flags.js' // the one list of flag names: one missing here can't be set
 
 const KV_FLAGS_KEY = 'roam:flags'
 // Effectively persistent — a kill-switch must not silently expire. If KV
 // ever drops the key, warm instances keep their last-known-good flags and
 // cold ones start from DEFAULTS (all-ON, POI percentages 0).
 const FLAG_TTL_SECONDS = 10 * 365 * 24 * 60 * 60
-// Mirrors DEFAULTS in api/lib/flags.js — every feature ON by default.
-const DEFAULTS = Object.freeze({
-  overpassProxy: true,
-  contributionsUpload: true,
-  pushNudges: true,
-  // Rollout percentages (0-100); 0 is off and the fail-closed default
-  poiDbPct: 0,
-  poiShadowPct: 0,
-  poiCapPct: 0,
-})
-
 const isPct = v => Number.isInteger(v) && v >= 0 && v <= 100
 const valid = (k, v) => (typeof DEFAULTS[k] === 'number' ? isPct(v) : typeof v === 'boolean')
 

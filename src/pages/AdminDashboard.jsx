@@ -18,12 +18,13 @@ import { timeAgo, describeAction } from '../components/adminFormat'
 import './AdminDashboard.css'
 import { authHeaders } from '../utils/authToken'
 
-// Runtime kill-switches. Keys MUST match api/lib/flags.js DEFAULTS and
-// api/admin/flags.js.
+// Runtime kill-switches. Keys MUST match api/lib/flags.js DEFAULTS.
 const FLAG_META = [
   { key: 'overpassProxy', label: 'Overpass proxy (live places)', desc: 'Off serves cached Discover only, with no live upstream calls. Sheds Overpass load and cost.' },
   { key: 'contributionsUpload', label: 'Photo uploads', desc: 'Off rejects new contribution photo uploads (abuse or storage-cost control).' },
   { key: 'pushNudges', label: 'Marketing push nudges', desc: 'Off pauses the re-engagement and weekend nudge crons. Visit reminders are unaffected.' },
+  { key: 'promotedEvents', label: 'Promoted events', desc: 'Off switches the whole feature off: hides promoted events, stops their pushes and closes the partner portal API (account, events, quote, checkout).' },
+  { key: 'promotedEventPush', label: 'Promoted event pushes', desc: 'Off pauses only the promoted-event and local-events digest pushes; events stay visible.' },
 ]
 // Place database rollout, 0-100% of Discover/town requests. 0 is the kill switch.
 const PCT_META = [

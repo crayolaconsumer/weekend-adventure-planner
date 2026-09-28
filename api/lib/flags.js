@@ -28,7 +28,7 @@ const KV_FLAGS_KEY = 'roam:flags'
 // Safe defaults — every feature ON. This object is the source of truth for
 // which flag names exist; the KV blob is merged OVER it, so unknown keys in
 // KV are ignored and missing keys keep their default.
-const DEFAULTS = Object.freeze({
+export const DEFAULTS = Object.freeze({
   overpassProxy: true,
   contributionsUpload: true,
   pushNudges: true,
