@@ -108,22 +108,37 @@ async function handlePost(req, res, user) {
 
     // Validate all swipes
     for (const swipe of swipes) {
-      if (!swipe.placeId || (swipe.action !== 'like' && swipe.action !== 'skip')) {
+      const idOk = (typeof swipe?.placeId === 'string' || typeof swipe?.placeId === 'number') && swipe.placeId !== ''
+      if (!idOk || (swipe.action !== 'like' && swipe.action !== 'skip')) {
         return res.status(400).json({ error: 'Each swipe must have placeId and action (like/skip)' })
       }
     }
 
-    // Process batch using INSERT ... ON DUPLICATE KEY UPDATE
-    const values = swipes.map(s => [user.id, s.placeId, s.action])
+    // Process batch using INSERT ... ON DUPLICATE KEY UPDATE. One row per place
+    // (last action wins) in a fixed order, so two batches for the same user (two
+    // tabs, a retry) take their row locks in the same order; the load test's
+    // concurrent batches deadlocked 5 times in 75k requests without this.
+    const latest = new Map(swipes.map(s => [String(s.placeId), s.action]))
+    const values = [...latest].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([id, act]) => [user.id, id, act])
     const placeholders = values.map(() => '(?, ?, ?, NOW())').join(', ')
     const flatValues = values.flatMap(v => v)
 
-    await query(
-      `INSERT INTO swiped_places (user_id, place_id, action, swiped_at)
-       VALUES ${placeholders}
-       ON DUPLICATE KEY UPDATE action = VALUES(action), swiped_at = NOW()`,
-      flatValues
-    )
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await query(
+          `INSERT INTO swiped_places (user_id, place_id, action, swiped_at)
+           VALUES ${placeholders}
+           ON DUPLICATE KEY UPDATE action = VALUES(action), swiped_at = NOW()`,
+          flatValues
+        )
+        break
+      } catch (err) {
+        // InnoDB rolled the statement back; retrying it is safe (idempotent upsert)
+        if (err?.errno !== 1213 || attempt >= 3) throw err
+        // Jitter, so the two batches that deadlocked don't collide again
+        await new Promise(r => setTimeout(r, 10 + Math.random() * 40))
+      }
+    }
 
     return res.status(200).json({ success: true, processed: swipes.length })
   }

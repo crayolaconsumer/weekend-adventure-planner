@@ -535,11 +535,16 @@ async function followUser(req, res, user) {
         )
       }
     } else {
-      // Create follow request
-      await insert(
-        'INSERT INTO follow_requests (requester_id, target_id, status) VALUES (?, ?, ?)',
-        [user.id, targetUserId, 'pending']
-      )
+      // Create follow request (a double tap hits the unique key: same answer as above)
+      try {
+        await insert(
+          'INSERT INTO follow_requests (requester_id, target_id, status) VALUES (?, ?, ?)',
+          [user.id, targetUserId, 'pending']
+        )
+      } catch (err) {
+        if (err?.code !== 'ER_DUP_ENTRY') throw err
+        return res.status(200).json({ success: true, message: 'Request already pending', status: 'requested' })
+      }
     }
 
     // Get follower's username for notification
@@ -563,11 +568,18 @@ async function followUser(req, res, user) {
     })
   }
 
-  // Public account - create follow directly
-  await insert(
-    'INSERT INTO follows (follower_id, following_id) VALUES (?, ?)',
-    [user.id, targetUserId]
-  )
+  // Public account - create follow directly. A double tap races past the
+  // "already following" check above; the unique key catches it, and the
+  // answer is the same one that check gives (no second notification).
+  try {
+    await insert(
+      'INSERT INTO follows (follower_id, following_id) VALUES (?, ?)',
+      [user.id, targetUserId]
+    )
+  } catch (err) {
+    if (err?.code !== 'ER_DUP_ENTRY') throw err
+    return res.status(200).json({ success: true, message: 'Already following', status: 'following' })
+  }
 
   // Get follower's username for notification
   const followerInfo = await queryOne('SELECT username, display_name FROM users WHERE id = ?', [user.id])
