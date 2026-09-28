@@ -79,11 +79,34 @@ describe('trending: global ranking memoized per instance', () => {
     expect(calls('rank')).toBe(2)
   })
 
-  it('a signed-in viewer still gets the per-request block filter on tips', async () => {
+  const tipsAndPhotos = () => query.mock.calls.filter(([sql]) => /contribution_type = '(tip|photo)'/.test(sql))
+  const placeholders = sql => (sql.match(/\?/g) || []).length
+
+  it('anonymous viewers only ever get public tips and photos, never a banned author\'s', async () => {
+    await get()
+    const calls = tipsAndPhotos()
+    expect(calls).toHaveLength(2)
+    for (const [sql, params] of calls) {
+      expect(sql).toContain("c.visibility = 'public'")
+      expect(sql).not.toContain('followers_only')
+      expect(sql).toContain('u.is_banned = FALSE')
+      expect(placeholders(sql)).toBe(params.length)
+    }
+  })
+
+  it('a signed-in viewer gets their own and followed followers_only tips/photos, block filter intact', async () => {
     viewer = { id: 42 }
     await get()
-    const tips = query.mock.calls.find(([sql]) => sql.includes("contribution_type = 'tip'"))
-    expect(tips[0]).toContain('blocked_users')
-    expect(tips[1]).toEqual(['p1', 42, 42])
+    const calls = tipsAndPhotos()
+    expect(calls).toHaveLength(2)
+    for (const [sql, params] of calls) {
+      expect(sql).toMatch(/c\.visibility = 'public'\s+OR c\.user_id = \?/)
+      expect(sql).toContain("c.visibility = 'followers_only' AND EXISTS")
+      expect(sql).toContain('FROM follows WHERE follower_id = ? AND following_id = c.user_id')
+      expect(sql).toContain('blocked_users')
+      expect(sql).toContain('u.is_banned = FALSE')
+      expect(placeholders(sql)).toBe(params.length)
+      expect(params).toEqual(['p1', 42, 42, 42, 42])
+    }
   })
 })

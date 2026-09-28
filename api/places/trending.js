@@ -63,7 +63,7 @@ async function handler(req, res) {
       FROM (
         SELECT place_id, 1 as contribution_score, 0 as save_score, 0 as visit_score, 3 as weight, created_at as activity_at
         FROM contributions
-        WHERE status = 'approved' AND created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
+        WHERE status = 'approved' AND visibility = 'public' AND created_at > DATE_SUB(NOW(), INTERVAL ? DAY)
         UNION ALL
         SELECT place_id, 0, 1, 0, 1, saved_at FROM saved_places
         WHERE saved_at > DATE_SUB(NOW(), INTERVAL ? DAY)
@@ -102,6 +102,21 @@ async function handler(req, res) {
         : ''
 
       // Fetch top tip contributions (used for the card subtitle)
+      // Same visibility rule as GET /api/contributions and /batch: anonymous
+      // viewers see public contributions; signed-in viewers also see their own
+      // and followers_only ones from people they follow. private only ever
+      // reaches its author.
+      const visibilityFilter = currentUser
+        ? `AND (
+             c.visibility = 'public'
+             OR c.user_id = ?
+             OR (c.visibility = 'followers_only' AND EXISTS (
+               SELECT 1 FROM follows WHERE follower_id = ? AND following_id = c.user_id
+             ))
+           )`
+        : `AND c.visibility = 'public'`
+      const viewerParams = currentUser ? [currentUser.id, currentUser.id, currentUser.id, currentUser.id] : []
+
       contributions = await query(
         `SELECT
           c.place_id,
@@ -116,9 +131,10 @@ async function handler(req, res) {
           AND c.contribution_type = 'tip'
           AND c.status = 'approved'
           AND u.is_banned = FALSE
+          ${visibilityFilter}
           ${blockFilter}
         ORDER BY (c.upvotes - c.downvotes) DESC`,
-        currentUser ? [...placeIds, currentUser.id, currentUser.id] : placeIds
+        [...placeIds, ...viewerParams]
       )
 
       // Fetch top user-uploaded photo per place. Real user photos beat
@@ -129,12 +145,15 @@ async function handler(req, res) {
       const photoRows = await query(
         `SELECT c.place_id, c.metadata, c.created_at
          FROM contributions c
+         JOIN users u ON c.user_id = u.id
          WHERE c.place_id IN (${placeholders})
            AND c.contribution_type = 'photo'
            AND c.status = 'approved'
+           AND u.is_banned = FALSE
+           ${visibilityFilter}
            ${blockFilter}
          ORDER BY c.created_at DESC`,
-        currentUser ? [...placeIds, currentUser.id, currentUser.id] : placeIds
+        [...placeIds, ...viewerParams]
       )
       for (const row of photoRows) {
         if (photoByPlace[row.place_id]) continue // most recent first; skip rest
