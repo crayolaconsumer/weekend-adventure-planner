@@ -704,20 +704,23 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
         return []
       })
 
-  // Fetch from ALL sources in parallel with individual failure handling
-  const [osmPlaces, ...wikiResults] = await Promise.all([
-    osmFetcher,
-    ...wikiPromises
-  ])
+  // Only the OSM fetch is on the critical path. Wikipedia is enrichment,
+  // not the primary source — streaming it via onProgress keeps the first
+  // usable card from waiting on the slow wiki queue.
+  const osmPlaces = await osmFetcher
 
-  // Merge all wiki results
-  const wikiPlaces = wikiResults.flat()
+  wikiPromises.forEach(p =>
+    p.then(wikiPlaces => {
+      if (wikiPlaces?.length > 0 && onProgress) onProgress(wikiPlaces)
+    }).catch(() => {})
+  )
+
   osmPlacesForMerge = [...osmPlaces, ...progressiveOsmPlaces]
-  wikiPlacesForMerge = wikiPlaces
+  wikiPlacesForMerge = []
   canCommitProgress = true
 
-  // Merge and deduplicate all sources
-  let merged = mergeAndDedupe(osmPlacesForMerge, wikiPlaces)
+  // Merge and deduplicate (wiki already streamed via onProgress above)
+  let merged = mergeAndDedupe(osmPlacesForMerge, wikiPlacesForMerge)
 
   // Overpass is the only real place source. If it failed, show the connection
   // error with retry rather than a deck of Wikipedia areas and seed landmarks,

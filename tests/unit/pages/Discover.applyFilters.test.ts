@@ -12,6 +12,9 @@ function p(overrides: Record<string, unknown> = {}) {
   }
 }
 
+// A spread of types so diversity weaving can't cull a single-type fixture
+const TYPE_CYCLE = ['restaurant', 'cafe', 'park', 'museum', 'pub', 'garden', 'library', 'cinema']
+
 const defaults = {
   selectedCategories: [],
   showFreeOnly: false,
@@ -191,7 +194,46 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
     })
   })
 
-  describe('distance bands', () => {
+    // Parks/viewpoints are treated as free by the free-only predicate, so a
+  // "paid" fixture must never use those types or it survives the filter.
+  const NO_PARK_TYPES = ['restaurant', 'cafe', 'museum', 'pub', 'garden', 'library', 'cinema']
+
+  describe('eligibility before the final 50-limit (false scarcity)', () => {
+    it('keeps eligible places that sit beyond a cap of high-ranked ineligible ones', () => {
+      // 50 ticketed places that all outrank the 10 free ones (same category,
+      // so diversity weaving can't interleave the free ones in). With the old
+      // order the 50 paid places filled the 50-result cap and the free filter
+      // removed all of them, so the eligible places beyond the cap were never
+      // seen. The attribute boosts (heritage/website/description/…) give the
+      // paid places a deterministic score gap over the bare free ones.
+      const ineligible = Array.from({ length: 50 }, (_, i) =>
+        p({ id: `paid-${i}`, name: `The Old Paid ${i}`, type: 'restaurant', fee: 'yes', heritage: 'yes', website: 'w', description: 'A long description of a notable paid venue that is well documented', openingHours: 'Su-Mo 09:00-18:00', phone: '1', address: 'a' }))
+      const eligible = Array.from({ length: 10 }, (_, i) =>
+        p({ id: `free-${i}`, name: `The Old Free ${i}`, type: 'restaurant', fee: 'no' }))
+      const out = applyDiscoverFilters([...ineligible, ...eligible], { ...defaults, showFreeOnly: true })
+      expect(out.length).toBeGreaterThan(0)
+      // every survivor is eligible (free); none of the paid ones made it in
+      expect(out.every(x => x.fee === 'no')).toBe(true)
+      expect(out.find(x => x.id.startsWith('paid-'))).toBeUndefined()
+    })
+
+    it('same for accessibility: accessible places beyond a cap of wheelchair=no', () => {
+      // Same shape as the free-only case: 50 inaccessible places that all
+      // outrank the 10 accessible ones (same category so diversity weaving
+      // can't interleave the accessible ones in). The attribute boosts give
+      // the inaccessible places a deterministic score gap.
+      const ineligible = Array.from({ length: 50 }, (_, i) =>
+        p({ id: `no-${i}`, name: `The Old Stairs ${i}`, type: 'restaurant', wheelchair: 'no', heritage: 'yes', website: 'w', description: 'A long description of a notable venue that is well documented', openingHours: 'Su-Mo 09:00-18:00', phone: '1', address: 'a' }))
+      const eligible = Array.from({ length: 10 }, (_, i) =>
+        p({ id: `yes-${i}`, name: `The Old Stepfree ${i}`, type: 'restaurant', wheelchair: 'yes' }))
+      const out = applyDiscoverFilters([...ineligible, ...eligible], { ...defaults, accessibilityMode: true })
+      expect(out.length).toBeGreaterThan(0)
+      expect(out.every(x => x.wheelchair === 'yes')).toBe(true)
+      expect(out.find(x => x.id.startsWith('no-'))).toBeUndefined()
+    })
+  })
+
+describe('distance bands', () => {
     it('applies Day Trip bands to premium-radius results', () => {
       const places = [
         p({ id: 'near', name: 'Nearby Spot', type: 'park', distance: 35 }),

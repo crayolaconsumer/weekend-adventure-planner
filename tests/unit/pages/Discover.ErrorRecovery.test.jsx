@@ -4,9 +4,10 @@ import userEvent from '@testing-library/user-event'
 import ErrorRecovery, { classifyLoadError } from '../../../src/pages/Discover/ErrorRecovery'
 
 describe('Discover/ErrorRecovery.classifyLoadError', () => {
-  it("classifies network errors", () => {
-    expect(classifyLoadError('Failed to fetch').kind).toBe('network')
-    expect(classifyLoadError('A network problem occurred').kind).toBe('network')
+  it("classifies online fetch failures as upstream (not network)", () => {
+    // Without isOffline, a fetch failure is upstream, not the user's connection.
+    expect(classifyLoadError('Failed to fetch').kind).toBe('upstream')
+    expect(classifyLoadError('A network problem occurred').kind).toBe('upstream')
   })
 
   it("classifies timeout errors", () => {
@@ -42,10 +43,10 @@ describe('Discover/ErrorRecovery.classifyLoadError', () => {
 })
 
 describe('Discover/ErrorRecovery component', () => {
-  it('renders network-error title for network errors', () => {
+  it('renders upstream copy for online fetch failures (not "Can\'t reach the internet")', () => {
+    // navigator.onLine is true in jsdom, so a fetch failure is upstream.
     render(<ErrorRecovery loadError="Failed to fetch" onRetry={() => {}} onOpenFilters={() => {}} />)
-    expect(screen.getByText(/Can't reach the internet/i)).toBeInTheDocument()
-    expect(screen.getByText('Check your connection and try again.')).toBeInTheDocument()
+    expect(screen.getByText(/unavailable right now/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Try again/i })).toBeInTheDocument()
   })
 

@@ -5,9 +5,13 @@ import { motion } from 'framer-motion'
  * Pure — pulled out so the error-class detection is testable in isolation
  * (see tests/unit/pages/Discover.ErrorRecovery.test.ts). Kept in this
  * file so the recovery component and its classifier evolve together.
+ *
+ * isOffline: whether the device is actually offline (navigator.onLine ===
+ * false). A fetch failure while online is our server or the places
+ * provider, not the user's connection, so it must not blame the internet.
  */
 // eslint-disable-next-line react-refresh/only-export-components
-export function classifyLoadError(loadError) {
+export function classifyLoadError(loadError, { isOffline = false } = {}) {
   if (!loadError || typeof loadError !== 'string') {
     return {
       kind: 'generic',
@@ -19,10 +23,20 @@ export function classifyLoadError(loadError) {
   const lower = loadError.toLowerCase()
 
   if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
+    // "Can't reach the internet" is only honest when the device is offline.
+    // Online, a fetch failure is upstream (our server / the places
+    // provider), so say so instead of blaming the user's connection.
+    if (isOffline) {
+      return {
+        kind: 'network',
+        title: "Can't reach the internet",
+        message: 'Check your connection and try again.',
+      }
+    }
     return {
-      kind: 'network',
-      title: "Can't reach the internet",
-      message: 'Check your connection and try again.',
+      kind: 'upstream',
+      title: 'Places are unavailable right now',
+      message: 'Our places service is having trouble. Try again in a minute.',
     }
   }
 
@@ -94,7 +108,8 @@ function actionsForError({ kind }, { onRetry, onOpenFilters }) {
  * Picks user-friendly copy + actions based on the error class.
  */
 export default function ErrorRecovery({ loadError, onRetry, onOpenFilters }) {
-  const config = classifyLoadError(loadError)
+  const isOffline = typeof navigator !== 'undefined' && !navigator.onLine
+  const config = classifyLoadError(loadError, { isOffline })
   const { primary, secondary } = actionsForError(config, { onRetry, onOpenFilters })
 
   return (

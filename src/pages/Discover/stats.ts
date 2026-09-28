@@ -37,7 +37,15 @@ export function computeStreakRollover(
   now: Date = new Date(),
 ): StreakResult {
   const todayStr = now.toDateString()
-  const lastStr = stats.lastStreakDate ? new Date(stats.lastStreakDate).toDateString() : null
+  // MySQL DATE columns return date-only strings ("2026-05-12"), which
+  // Date parses as UTC midnight. In UTC-behind timezones .toDateString()
+  // yields the previous day, breaking the same-day no-op guard. Noon UTC
+  // is the same calendar day in every timezone (UTC-12 to UTC+12).
+  const lastStr = stats.lastStreakDate
+    ? /^\d{4}-\d{2}-\d{2}$/.test(stats.lastStreakDate)
+      ? new Date(stats.lastStreakDate + 'T12:00:00').toDateString()
+      : new Date(stats.lastStreakDate).toDateString()
+    : null
   let currentStreak = stats.currentStreak || 0
   let bestStreak = stats.bestStreak || 0
 
@@ -57,6 +65,32 @@ export interface WentOutOptions {
 }
 
 /**
+ * Qualifying events for the daily streak — active use of the app:
+ *   - "went out" (Let's Go swipe)
+ *   - "Just Go"
+ *   - saving a place
+ * Merely opening the app (passive) does NOT count.
+ *
+ * One increment per local calendar day: computeStreakRollover is a no-op
+ * when lastStreakDate is already today, so repeated same-day activity never
+ * double-counts.
+ */
+export function buildStreakPatch(
+  stats: PersistedStats,
+  now: Date = new Date(),
+): PersistedStats {
+  const { currentStreak, bestStreak } = computeStreakRollover(stats, now)
+
+  return {
+    currentStreak,
+    bestStreak,
+    lastActivityAt: now.toISOString(),
+    // ISO so server's DATE column parses correctly; mysql2 coerces.
+    lastStreakDate: now.toISOString(),
+  }
+}
+
+/**
  * Build the patch object to pass to updateStats() when the user
  * "goes out" to a place. Caller MUST pass `stats` from the
  * useUserStats hook so the patch is computed against the same source
@@ -64,26 +98,19 @@ export interface WentOutOptions {
  * bypassed useUserStats and read directly from localStorage which
  * meant authenticated users on a fresh device would compute against
  * empty data even though the server had their real numbers.
+ *
+ * Streak logic is shared with buildStreakPatch (any qualifying event);
+ * only the "went out" counters (timesWentOut / boredomBusts) are
+ * specific to this action.
  */
 export function buildWentOutPatch(
   stats: PersistedStats,
   options: WentOutOptions = {},
   now: Date = new Date(),
 ): PersistedStats {
-  const { currentStreak, bestStreak } = computeStreakRollover(stats, now)
-
-  const patch: PersistedStats = {
+  return {
+    ...buildStreakPatch(stats, now),
     timesWentOut: (stats.timesWentOut || 0) + 1,
-    lastActivityAt: now.toISOString(),
-    currentStreak,
-    bestStreak,
-    // ISO so server's DATE column parses correctly; mysql2 coerces.
-    lastStreakDate: now.toISOString(),
+    ...(options.fromJustGo ? { boredomBusts: (stats.boredomBusts || 0) + 1 } : {}),
   }
-
-  if (options.fromJustGo) {
-    patch.boredomBusts = (stats.boredomBusts || 0) + 1
-  }
-
-  return patch
 }

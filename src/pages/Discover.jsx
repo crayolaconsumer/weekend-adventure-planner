@@ -32,10 +32,10 @@ import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
 import { buildFreshDeck, excludeSeen, recordSeen } from '../utils/seenPlaces'
 import DeckRunningDryNotice, { nextWider } from './Discover/DeckRunningDryNotice'
-import { applyDiscoverFilters, buildFilterKey as buildFilterKeyPure, firstOpening, MIN_OPEN_CARDS } from './Discover/applyFilters'
+import { applyDiscoverFilters, passesEligibility, buildFilterKey as buildFilterKeyPure, firstOpening, MIN_OPEN_CARDS } from './Discover/applyFilters'
 import ClosedNowNotice from './Discover/ClosedNowNotice'
 import { DEFAULT_BAND, bandStorageKey, getBandsFor } from './Discover/distanceBands'
-import { buildWentOutPatch } from './Discover/stats'
+import { buildWentOutPatch, buildStreakPatch } from './Discover/stats'
 import { shouldShowPlanPrompt, PLAN_PROMPT_FIRST_SAVE } from './Discover/planPrompt'
 import ErrorRecovery from './Discover/ErrorRecovery'
 import DiscoverHeader from './Discover/DiscoverHeader'
@@ -409,9 +409,10 @@ export default function Discover({ location }) {
       // Render cached data immediately - no loading spinner!
       const enhanced = cacheCheck.data.map(p => enhancePlace(p, effectiveLocation, { weather: resolvedWeather }))
       setBasePlaces(enhanced)
-      // Only set loading for background refresh if cache is stale
+      // Stale cache: show it now, refresh in the background. loading must be
+      // false or the spinner overlays the usable cache (SWR: stale-while-revalidate).
       if (cacheCheck.stale) {
-        // Don't set loading - just let background refresh happen silently
+        setLoading(false)
         setLoadError(null)
       } else {
         // Fresh cache - we're done
@@ -510,8 +511,15 @@ export default function Discover({ location }) {
       // Enhance and filter
       const enhanced = rawPlaces.map(p => enhancePlace(p, effectiveLocation, { weather }))
 
-      // Swiped places stay out of the extra cards too
-      let filtered = filterPlaces(excludeSeen(enhanced), {
+      // Swiped places stay out of the extra cards too. Eligibility (free/
+      // accessibility) and closed-now run BEFORE the cap, so ineligible
+      // places can't crowd out eligible ones (same order fix as
+      // applyDiscoverFilters).
+      const eligible = excludeSeen(enhanced).filter(p =>
+        passesEligibility(p, { showFreeOnly, accessibilityMode, showLocalsPicks: false, showOffPeak: false, isPremium })
+        && (includeClosed || isPlaceOpen(p) !== false)
+      )
+      let filtered = filterPlaces(eligible, {
         categories: selectedCategories.length > 0 ? selectedCategories : null,
         minScore: 25, // Lower threshold for more results
         maxResults: 100,
@@ -521,33 +529,19 @@ export default function Discover({ location }) {
         userProfile // Personalize based on user's taste profile
       })
 
-      // Apply user filters
-      if (showFreeOnly) {
-        filtered = filtered.filter(p =>
-          !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
-        )
-      }
-      if (accessibilityMode) {
-        filtered = filtered.filter(p =>
-          p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-        )
-      }
-      // Closed-right-now places stay out unless the user opted in to them
-      if (!includeClosed) {
-        filtered = filtered.filter(p => {
-          const openStatus = isPlaceOpen(p)
-          return openStatus === true || openStatus === null
-        })
-      }
-
       if (filterKeyAtStart !== latestFilterKeyRef.current) {
         return
       }
 
+      // Merge only eligible places into basePlaces (not the full enhanced
+      // array, which includes ineligible places that would bloat memory on
+      // repeated "load more" calls). The sync effect below handles
+      // setPlaces / setSeenPlaceIds / setFetchOffset from the memoized
+      // filteredPlaces.
       setBasePlaces(prev => {
         const existing = new Set(prev.map(p => p.id))
         const merged = [...prev]
-        for (const place of enhanced) {
+        for (const place of eligible) {
           if (!existing.has(place.id)) {
             existing.add(place.id)
             merged.push(place)
@@ -555,20 +549,6 @@ export default function Discover({ location }) {
         }
         return merged
       })
-
-      // Filter out places we've already shown
-      const newPlaces = filtered.filter(p => !seenPlaceIds.has(p.id))
-
-      if (newPlaces.length > 0) {
-        // Update seen IDs
-        const updatedSeenIds = new Set(seenPlaceIds)
-        newPlaces.forEach(p => updatedSeenIds.add(p.id))
-        setSeenPlaceIds(updatedSeenIds)
-        setFetchOffset(prev => prev + newPlaces.length)
-
-        // Append new places to existing list
-        setPlaces(prev => [...prev, ...newPlaces])
-      }
     } catch (error) {
       console.error('Failed to load more places:', error)
     } finally {
@@ -710,6 +690,10 @@ export default function Discover({ location }) {
         toast.error('Failed to save place. Please try again.')
       } else if (place?.id != null) {
         recordSeen(place.id, 'like')
+        // Saving a place is active use of the app, so it counts toward the
+        // daily streak (same-day protection in computeStreakRollover stops
+        // double-counting if the user also went out today).
+        updateStats(buildStreakPatch(stats))
       }
 
       // SOFT PROMPT AT 5TH SAVE (success moment)

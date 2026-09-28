@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   computeStreakRollover,
   buildWentOutPatch,
+  buildStreakPatch,
 } from '../../../src/pages/Discover/stats'
 
 const TUE = new Date('2026-05-12T12:00:00Z') // Tuesday
@@ -81,5 +82,54 @@ describe('Discover/stats.buildWentOutPatch', () => {
     expect(patch.timesWentOut).toBe(1)
     expect(patch.boredomBusts).toBe(1)
     expect(patch.currentStreak).toBe(1)
+  })
+})
+
+describe('Discover/stats.buildStreakPatch (any qualifying active event)', () => {
+  it('increments the streak the same way buildWentOutPatch does', () => {
+    const patch = buildStreakPatch(
+      { currentStreak: 2, bestStreak: 4, lastStreakDate: MON.toDateString() },
+      TUE,
+    )
+    expect(patch.currentStreak).toBe(3)
+    expect(patch.bestStreak).toBe(4)
+    expect(patch.lastStreakDate).toBe(TUE.toISOString())
+    expect(patch.lastActivityAt).toBe(TUE.toISOString())
+  })
+
+  // The distinction: a qualifying event (e.g. saving a place) counts the
+  // streak day WITHOUT bumping the "went out" counters. This is what lets
+  // "days the user uses the app" be broader than "days the user went out"
+  // while keeping timesWentOut honest.
+  it('does NOT bump timesWentOut or boredomBusts', () => {
+    const patch = buildStreakPatch(
+      { timesWentOut: 7, boredomBusts: 3, currentStreak: 2, lastStreakDate: MON.toDateString() },
+      TUE,
+    )
+    expect(patch.timesWentOut).toBeUndefined()
+    expect(patch.boredomBusts).toBeUndefined()
+  })
+
+  // Same-day repeat protection: two qualifying events on the same local
+  // calendar day produce one increment, not two.
+  it('same-day repeat protection: second event on the same day is a no-op', () => {
+    const first = buildStreakPatch({}, TUE) // starts the streak
+    const second = buildStreakPatch({ ...first, lastStreakDate: TUE.toISOString() }, TUE)
+    expect(first.currentStreak).toBe(1)
+    expect(second.currentStreak).toBe(1) // no double-count
+  })
+
+  // Regression: MySQL DATE columns return date-only strings ("2026-05-12"),
+  // which Date parses as UTC midnight. In UTC-behind timezones .toDateString()
+  // yields the previous day, breaking the same-day no-op guard and
+  // double-counting the streak. The fix parses date-only strings as noon UTC
+  // (same calendar day in every timezone).
+  it('same-day no-op holds for date-only strings (MySQL DATE round-trip)', () => {
+    const r = computeStreakRollover(
+      { currentStreak: 5, bestStreak: 9, lastStreakDate: '2026-05-12' },
+      new Date('2026-05-12T18:00:00Z'),
+    )
+    expect(r.currentStreak).toBe(5) // no increment
+    expect(r.bestStreak).toBe(9)
   })
 })
