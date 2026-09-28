@@ -108,3 +108,132 @@ describe('overpass nearby: shared rate limit', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+describe('overpass nearby: single flight across instances', () => {
+  let fetchMock, locks
+  const lockClient = () => ({
+    pipeline: () => ({ incr() { return this }, expire() { return this }, exec: async () => [1, 1] }),
+    set: vi.fn(async (key, _v, opts) => {
+      if (opts?.nx && locks.has(key)) return null
+      locks.add(key)
+      return 'OK'
+    }),
+    del: vi.fn(async key => { locks.delete(key); return 1 }),
+    exists: vi.fn(async key => (locks.has(key) ? 1 : 0))
+  })
+  const query = () => buildDiscoverOverpassQuery(53.9600, -1.0873, 5000, null).query // York
+  beforeEach(() => {
+    store.clear()
+    locks = new Set()
+    kvClient = lockClient()
+  })
+  afterEach(() => { kvClient = null; vi.useRealTimers(); vi.unstubAllGlobals() })
+
+  it('ten concurrent misses on one new tile make ONE upstream call; the rest get its answer', async () => {
+    let release
+    fetchMock = vi.fn(() => new Promise(r => { release = () => r({ ok: true, status: 200, json: async () => ELEMENTS }) }))
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = Array.from({ length: 10 }, () => call(query()))
+    await new Promise(r => setTimeout(r, 50))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    release()
+    const out = await Promise.all(pending)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(out.every(o => o.status === 200 && o.body.elements.length === 1)).toBe(true)
+    expect(out.filter(o => o.headers['x-overpass-cache'] === 'PEER')).toHaveLength(9)
+    await new Promise(r => setTimeout(r, 0))
+    expect(locks.size).toBe(0)
+  })
+
+  it('the lock is released only after the fresh copy is written (no gap for a second upstream call)', async () => {
+    let landWrite
+    cacheSet.mockImplementationOnce(async (key, value) => { await new Promise(r => { landWrite = r }); store.set(key, value); return true })
+    fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ELEMENTS }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect((await call(query())).status).toBe(200)
+    await new Promise(r => setTimeout(r, 10))
+    expect(locks.size).toBe(1) // write still in flight: lock held
+    landWrite()
+    await new Promise(r => setTimeout(r, 10))
+    expect(locks.size).toBe(0)
+  })
+
+  it('when the peer fails fast, waiters stop waiting at once (503 in well under a second, no second call)', async () => {
+    let fail
+    const r429 = { ok: false, status: 429, text: async () => '' }
+    fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise(r => { fail = () => r(r429) })) // first endpoint: held until we fail it
+      .mockImplementation(async () => r429) // second endpoint: fails at once
+    vi.stubGlobal('fetch', fetchMock)
+    const holder = call(query())
+    await new Promise(r => setTimeout(r, 20))
+    const t = Date.now()
+    const waiter = call(query())
+    await new Promise(r => setTimeout(r, 20))
+    fail()
+    const [, w] = await Promise.all([holder, waiter])
+    expect(w.status).toBe(503)
+    expect(Date.now() - t).toBeLessThan(1500)
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(2) // the holder's two endpoints, nothing from the waiter
+  })
+
+  it('a waiter with a last-known-good copy gets it at once, without waiting', async () => {
+    const { createHash } = await import('node:crypto')
+    const { snapQueryBbox } = await import('../../../api/lib/bboxSnap.js')
+    const h = createHash('sha1').update(snapQueryBbox(query())).digest('hex')
+    locks.add(`overpass:lock:${h}`)
+    store.set(`overpass:stale:${h}`, ELEMENTS)
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const t = Date.now()
+    const out = await call(query())
+    expect(out.status).toBe(200)
+    expect(out.headers['x-overpass-fallback']).toBe('peer')
+    expect(Date.now() - t).toBeLessThan(200)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('a failed fetch releases the lock, so the next request retries upstream', async () => {
+    fetchMock = vi.fn(async () => ({ ok: false, status: 504, text: async () => '' }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect((await call(query())).status).toBe(503)
+    await new Promise(r => setTimeout(r, 0))
+    expect(locks.size).toBe(0)
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ELEMENTS }))
+    expect((await call(query())).status).toBe(200)
+  })
+
+  it('a waiter whose peer is still fetching after 6 s gets last-known-good, else a quick 503, never a second upstream call', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] })
+    fetchMock = vi.fn(() => new Promise(() => {})) // the peer's fetch hangs
+    vi.stubGlobal('fetch', fetchMock)
+    const { createHash } = await import('node:crypto')
+    const { snapQueryBbox } = await import('../../../api/lib/bboxSnap.js')
+    const q = query()
+    const h = createHash('sha1').update(snapQueryBbox(q)).digest('hex') // keys use the grid-snapped query
+    locks.add(`overpass:lock:${h}`) // a peer holds the lock
+    const noStale = call(q)
+    await vi.advanceTimersByTimeAsync(6500)
+    const out = await noStale
+    expect(out.status).toBe(503)
+    expect(fetchMock).not.toHaveBeenCalled()
+    store.set(`overpass:stale:${h}`, ELEMENTS)
+    const withStale = call(q)
+    await vi.advanceTimersByTimeAsync(6500)
+    const out2 = await withStale
+    expect(out2.status).toBe(200)
+    expect(out2.headers['x-overpass-fallback']).toBe('peer')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('KV unavailable or erroring: fetches as before', async () => {
+    fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ELEMENTS }))
+    vi.stubGlobal('fetch', fetchMock)
+    kvClient = { ...lockClient(), set: async () => { throw new Error('KV down') } }
+    expect((await call(query())).status).toBe(200)
+    store.clear()
+    kvClient = null
+    expect((await call(query())).status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})

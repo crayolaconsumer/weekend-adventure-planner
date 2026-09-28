@@ -26,7 +26,7 @@ export const config = {
   runtime: 'nodejs'
 }
 
-import { cacheGet, cacheSet, hashKey, isCacheEnabled } from '../../lib/kvCache.js'
+import { cacheGet, cacheSet, hashKey, isCacheEnabled, getClient } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
 import { parseQuery, getPois, shadowPois, isCovered, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
@@ -55,6 +55,43 @@ const OVERPASS_SHARED_LIMIT = { max: 300, windowSec: 60 }
 // tradeoff between freshness and upstream load. Matches the
 // `s-maxage` header we already advertise to CDN-style intermediaries.
 const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
+
+// Single flight across instances: while one request fetches a tile from
+// Overpass, the others wait for its answer instead of sending the same query
+// (a campaign spike on a new area would otherwise fire it once per request).
+// The lock outlives the slowest fetch (2 x 28 s) and is released when it ends.
+// It must be >= this function's maxDuration (vercel.json, 60): the release
+// has no owner token, so a lock expiring under a live holder could let that
+// holder delete the next one's.
+const FETCH_LOCK_SECONDS = 60
+const WAIT_FOR_PEER_MS = 6000 // under the app's 8 s proxy timeout
+const PEER_POLL_MS = 500
+const hasPlaces = d => Boolean(d) && Array.isArray(d.elements) && d.elements.length > 0
+
+// true when this request should fetch: it won the lock, or KV can't say (fetch as before)
+async function claimFetch(lockKey) {
+  const client = getClient()
+  if (!client) return true
+  try {
+    return (await client.set(lockKey, '1', { nx: true, ex: FETCH_LOCK_SECONDS })) === 'OK'
+  } catch {
+    return true
+  }
+}
+
+// false only when KV says the lock is gone; unknown counts as held (keep waiting)
+async function lockHeld(lockKey) {
+  try {
+    return (await getClient()?.exists(lockKey)) !== 0
+  } catch {
+    return true
+  }
+}
+
+function releaseFetch(lockKey, after = Promise.resolve()) {
+  const client = getClient()
+  if (client) waitUntil(after.catch(() => {}).then(() => client.del(lockKey)).catch(() => {}))
+}
 
 // Overpass endpoints with failover.
 // All accept the same query format; endpointsByPriority() orders them
@@ -464,6 +501,44 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Discover temporarily in cache-only mode' })
   }
 
+  const lockKey = `overpass:lock:${hashKey(upstreamQuery)}`
+  if (!(await claimFetch(lockKey))) {
+    // Another request is fetching this tile from Overpass. A last-known-good
+    // copy answers at once; else wait for the peer's answer while it still
+    // holds the lock (a failed fetch releases it at once), never a second call
+    let staleData = await readStale()
+    const serveStale = () => {
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('X-Overpass-Cache', 'STALE')
+      res.setHeader('X-Overpass-Fallback', 'peer')
+      logPlaces(req, t0, 'stale', staleData.elements.length, Object.assign(poiLog, { fallback: 'peer' }))
+      return res.status(200).json(staleData)
+    }
+    if (hasPlaces(staleData)) return serveStale()
+    for (const until = Date.now() + WAIT_FOR_PEER_MS; Date.now() < until;) {
+      await new Promise(resolve => setTimeout(resolve, PEER_POLL_MS))
+      // Lock first, then answer: a peer writes its answer before releasing, so
+      // "released" read first can't miss an answer that has landed
+      const held = await lockHeld(lockKey)
+      const cached = await cacheGet(cacheKey)
+      if (hasPlaces(cached)) {
+        dropRateLimitHeaders(res)
+        res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+        res.setHeader('X-Overpass-Cache', 'PEER')
+        shadowPoi(cached, 'kv')
+        logPlaces(req, t0, 'peer', cached.elements.length, Object.assign(poiLog, { waited_ms: Date.now() - t0 }))
+        return res.status(200).json(cached)
+      }
+      if (!held) break // the peer failed: no answer is coming
+    }
+    staleData = await readStale() // the peer may have written one meanwhile
+    if (hasPlaces(staleData)) return serveStale()
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Retry-After', '10')
+    logPlaces(req, t0, '503', 0, Object.assign(poiLog, { waited_ms: Date.now() - t0 }))
+    return res.status(503).json({ error: 'Overpass API unavailable', message: 'This area is loading. Please retry in a moment.' })
+  }
+
   let lastError = null
   let emptyResponse = null
   const PER_ENDPOINT_TIMEOUT_MS = 28000
@@ -520,7 +595,9 @@ export default async function handler(req, res) {
       // fallback below. Only non-empty results reach here, so we never
       // cache a degraded-empty response.
       if (isCacheEnabled()) {
-        waitUntil(cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {}))
+        const cachedFresh = cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {})
+        waitUntil(cachedFresh)
+        releaseFetch(lockKey, cachedFresh) // after the copy peers are polling for lands
         // 7-day outage copy: long enough to ride out an Overpass outage without
         // filling the KV store with month-old tiles
         waitUntil(cacheSet(staleKey, data, 7 * 24 * 60 * 60).catch(() => {}))
@@ -550,6 +627,7 @@ export default async function handler(req, res) {
 
   // All attempts failed.
   console.error('[Overpass Proxy] All endpoints failed:', lastError?.message)
+  releaseFetch(lockKey)
 
   // Never-empty fallback: serve the last known good result for this exact
   // query (up to 7 days old, written on every success above) instead of 503.

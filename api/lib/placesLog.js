@@ -3,7 +3,8 @@ import { isSearchCrawler } from './bots.js'
 /**
  * One structured line per Discover/places response, for the POI rollout
  * baseline (source mix, latency, empties). Query it in Vercel Observability:
- * evt=places, src = db | kv | overpass | stale | empty | 503. `extra` adds
+ * evt=places, src = db | kv | peer | overpass | stale | empty | 503 (peer: waited for another
+ * request's Overpass fetch of the same tile). `extra` adds
  * per-endpoint fields (nearby.js: POI rollout bucket and coverage).
  * Never throws: logging must not be able to break a response.
  */
