@@ -5,6 +5,17 @@ vi.mock('../../../api/lib/rateLimit.js', () => ({
   dropRateLimitHeaders: () => {},
   RATE_LIMITS: { API_GENERAL: {} },
 }))
+// Website pages come through the SSRF-guarded fetcher (tested in safeFetch.test.js);
+// here it reads through the same fetch mock as every other upstream
+vi.mock('../../../api/lib/safeFetch.js', () => ({
+  fetchPublicPage: async url => {
+    const r = await fetch(url)
+    const reader = r.body?.getReader?.()
+    let body = ''
+    for (let chunk = await reader?.read(); chunk && !chunk.done; chunk = await reader.read()) body += new TextDecoder().decode(chunk.value)
+    return { url, status: r.status, contentType: r.headers.get('content-type') || '', body }
+  }
+}))
 vi.mock('../../../api/lib/cors.js', () => ({ withCors: h => h }))
 
 const { default: handler } = await import('../../../api/places/image-resolve.js')
@@ -190,5 +201,21 @@ describe('edge cache headers', () => {
     const res = await callWithHeaders({})
     expect(res.status).toBe(400)
     expect(res.headers['cache-control']).toBeUndefined() // withCors' private, no-store stands
+  })
+})
+
+describe('SSRF: the wikipedia language prefix can never change the host', () => {
+  it.each(['attacker.example/x?:Foo', 'evil.com#:Foo', '127.0.0.1:Foo', 'a.b:Foo', 'en.x/y:Foo', 'EN@evil:Foo', ' en:Foo'])('%s', async wikipedia => {
+    const fetch = upstream([])
+    await call({ name: 'X', category: 'culture', wikipedia })
+    const hosts = fetch.mock.calls.map(([u]) => new URL(u).hostname)
+    expect(hosts.filter(h => h.endsWith('.wikipedia.org') && !/^[a-z][a-z-]{1,15}\.wikipedia\.org$/.test(h))).toEqual([])
+    expect(hosts.every(h => /(^|\.)(wikipedia|wikidata|wikimedia)\.org$/.test(h))).toBe(true)
+  })
+
+  it('real language codes still work (en, zh-min-nan)', async () => {
+    const fetch = upstream([])
+    await call({ name: 'X', category: 'culture', wikipedia: 'zh-min-nan:Foo' })
+    expect(fetch.mock.calls.some(([u]) => u.startsWith('https://zh-min-nan.wikipedia.org/'))).toBe(true)
   })
 })

@@ -1,3 +1,4 @@
+import { fetchPublicPage } from '../lib/safeFetch.js'
 import { refuseBotUpstream } from '../lib/bots.js'
 /**
  * GET /api/places/image-resolve?wikipedia=&wikidata=&lat=&lng=
@@ -123,7 +124,9 @@ async function tryWikipedia(tag, placeName) {
   const colonIdx = tag.indexOf(':')
   const lang = colonIdx > 0 ? tag.slice(0, colonIdx).toLowerCase() : 'en'
   const title = colonIdx > 0 ? tag.slice(colonIdx + 1) : tag
-  if (!title) return null
+  // lang becomes part of the hostname: a real language code only (en, zh-min-nan),
+  // never "attacker.example/x?" (SSRF through a redirect from their server)
+  if (!title || !/^[a-z][a-z-]{1,15}$/.test(lang)) return null
   try {
     const res = await fetchWithTimeout(
       `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
@@ -271,20 +274,8 @@ async function tryWebsiteOgImage(website) {
   if (pageUrl.protocol !== 'https:' && pageUrl.protocol !== 'http:') return null
 
   try {
-    const res = await fetchWithTimeout(pageUrl.toString(), {
-      headers: {
-        ...POLITE_HEADERS,
-        // Most CSPs whitelist normal browsers; mimic so we get HTML
-        // instead of being shown an API-only stub.
-        'Accept': 'text/html,application/xhtml+xml',
-        // Some sites gate on UA. We're an honest crawler — keep our
-        // brand UA but make sure the page knows we want HTML.
-      }
-    })
-    if (!res.ok) return null
-    const ct = res.headers.get('content-type') || ''
-    if (!/text\/html|application\/xhtml/i.test(ct)) return null
-
+    // The website comes from the caller (OSM data or a client): fetchPublicPage
+    // only ever connects to public addresses, on every redirect hop (SSRF guard)
     // Stream-read the <head> then bail. Site builders (Wix, Squarespace,
     // GoDaddy) inject enormous inline script/CSS into <head> *before* the
     // og tags — measured og:image at ~108–112 KB on real venue sites — so
@@ -292,21 +283,21 @@ async function tryWebsiteOgImage(website) {
     // photo instead of their own hero/food image. Read up to 256 KB, but
     // stop the moment we've seen the share image (the common case) or
     // </head>, so ordinary small sites still bail after a few KB.
-    const reader = res.body?.getReader()
-    if (!reader) return null
-    let html = ''
-    let received = 0
-    const decoder = new TextDecoder('utf-8', { fatal: false })
-    while (received < 256 * 1024) {
-      const { value, done } = await reader.read()
-      if (done) break
-      html += decoder.decode(value, { stream: true })
-      received += value.byteLength
-      if (/<\/head>/i.test(html)) break
-      // Got the share image — no need to keep pulling a huge body.
-      if (/property=["']og:image["']|name=["']twitter:image["']/i.test(html)) break
-    }
-    try { reader.cancel() } catch { /* noop */ }
+    const page = await fetchPublicPage(pageUrl.toString(), {
+      headers: {
+        ...POLITE_HEADERS,
+        // Most CSPs whitelist normal browsers; mimic so we get HTML
+        // instead of being shown an API-only stub.
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      timeoutMs: UPSTREAM_TIMEOUT_MS,
+      maxBytes: 256 * 1024,
+      stopWhen: html => /<\/head>/i.test(html) || /property=["']og:image["']|name=["']twitter:image["']/i.test(html),
+    })
+    if (!page || page.status < 200 || page.status >= 300) return null
+    if (!/text\/html|application\/xhtml/i.test(page.contentType)) return null
+    const html = page.body
+    pageUrl = new URL(page.url) // after redirects: relative image URLs resolve against it
 
     // Try og:image first (Facebook convention), then twitter:image
     // (some sites only set this), then itemprop=image.

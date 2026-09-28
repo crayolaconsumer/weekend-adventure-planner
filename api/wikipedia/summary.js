@@ -37,7 +37,9 @@ function parseTag(tag) {
   if (tag.includes(':')) {
     const [lang, ...rest] = tag.split(':')
     const title = rest.join(':')
-    if (!title) return null
+    // lang becomes part of the hostname: a real language code only (en, zh-min-nan),
+    // never "attacker.example/x?" (SSRF through a redirect from their server)
+    if (!title || !/^[a-z][a-z-]{1,15}$/.test(lang.toLowerCase())) return null
     return { lang: lang.toLowerCase(), title }
   }
   return { lang: 'en', title: tag }

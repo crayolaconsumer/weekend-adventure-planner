@@ -89,3 +89,19 @@ describe('GET /api/wikipedia/summary upstream errors', () => {
     expect(res.headers['cache-control']).toBe('no-store')
   })
 })
+
+describe('SSRF: the language prefix can never change the host', () => {
+  it.each(['attacker.example/x?:Foo', 'evil.com#:Foo', '127.0.0.1:Foo', 'a.b:Foo'])('%s is refused without any fetch', async tag => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const { status } = await call(tag)
+    expect(status).toBe(400)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('zh-min-nan still reaches its Wikipedia', async () => {
+    upstream({ title: 'Foo', extract: 'x' })
+    await call('zh-min-nan:Foo ssrf-ok')
+    expect(globalThis.fetch.mock.calls[0][0]).toMatch(/^https:\/\/zh-min-nan\.wikipedia\.org\//)
+  })
+})

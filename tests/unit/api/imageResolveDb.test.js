@@ -12,6 +12,17 @@ vi.mock('../../../api/lib/rateLimit.js', () => ({
   dropRateLimitHeaders: () => {},
   RATE_LIMITS: { API_GENERAL: {} },
 }))
+// Website pages come through the SSRF-guarded fetcher (tested in safeFetch.test.js);
+// here it reads through the same fetch mock as every other upstream
+vi.mock('../../../api/lib/safeFetch.js', () => ({
+  fetchPublicPage: async url => {
+    const r = await fetch(url)
+    const reader = r.body?.getReader?.()
+    let body = ''
+    for (let chunk = await reader?.read(); chunk && !chunk.done; chunk = await reader.read()) body += new TextDecoder().decode(chunk.value)
+    return { url, status: r.status, contentType: r.headers.get('content-type') || '', body }
+  }
+}))
 vi.mock('../../../api/lib/cors.js', () => ({ withCors: h => h }))
 // The tier rides the poiDbPct rollout flag; 100 unless a test says otherwise
 const flagState = vi.hoisted(() => ({ flags: { poiDbPct: 100 }, getFlags: null }))
