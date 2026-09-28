@@ -10,6 +10,25 @@ import { getUserFromRequest } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 
+// The ranking and the place data are global (the same for every viewer) and
+// move slowly, but the ranking is a 30-day UNION/GROUP BY over three tables:
+// run each at most once per 5 min per instance, one run at a time. Only the
+// viewer-specific block filter on tips and photos runs per request.
+// ponytail: per-instance memo capped at 200 keys; move to KV (one run fleet-wide) if instances multiply
+const MEMO_MS = 5 * 60 * 1000
+const memo = new Map()
+function memoized(key, load) {
+  const hit = memo.get(key)
+  if (hit && Date.now() - hit.at < MEMO_MS) return hit.value
+  if (memo.size >= 200) for (const [k, v] of memo) if (Date.now() - v.at >= MEMO_MS) memo.delete(k)
+  if (memo.size >= 200) memo.delete(memo.keys().next().value) // hard cap: oldest first
+  const value = Promise.resolve().then(load)
+  memo.set(key, { at: Date.now(), value })
+  value.catch(() => { if (memo.get(key)?.value === value) memo.delete(key) }) // never keep a failure
+  return value
+}
+export function _resetTrendingMemo() { memo.clear() }
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -58,7 +77,7 @@ async function handler(req, res) {
       LIMIT ?
     `
 
-    const trending = await query(sql, [safeDays, safeDays, safeDays, safeLimit])
+    const trending = await memoized(`rank:${safeDays}:${safeLimit}`, () => query(sql, [safeDays, safeDays, safeDays, safeLimit]))
 
     // Get top contribution content for each trending place
     const placeIds = trending.map(t => t.place_id)
@@ -131,7 +150,7 @@ async function handler(req, res) {
       // Fetch place data from saved_places OR visited_places — visits write
       // place_data too and might be the only source for a trending place
       // that nobody has saved yet.
-      placeData = await query(
+      placeData = await memoized(`data:${JSON.stringify(placeIds)}`, () => query(
         `SELECT place_id, place_data FROM (
           SELECT place_id, place_data, saved_at as activity_at FROM saved_places
           WHERE place_id IN (${placeholders}) AND place_data IS NOT NULL
@@ -141,7 +160,7 @@ async function handler(req, res) {
         ) all_data
         GROUP BY place_id`,
         [...placeIds, ...placeIds]
-      )
+      ))
     }
 
     // Group contributions by place
