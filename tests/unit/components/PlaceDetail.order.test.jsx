@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { renderToStaticMarkup } from 'react-dom/server'
+import FilterIcon from '../../../src/components/icons/FilterIcon'
 
 const place = {
   id: 'p1', name: 'Tower of London', type: 'castle', lat: 51.508, lng: -0.076,
@@ -35,6 +37,14 @@ vi.mock('../../../src/utils/placeImage', () => ({ fetchWikipediaSummary: vi.fn(a
 const { default: PlaceDetail } = await import('../../../src/components/PlaceDetail.jsx')
 
 const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+it('uses the same wheelchair symbol as Discover for an accessible place', () => {
+  const { container } = render(<MemoryRouter><PlaceDetail place={{ ...place, wheelchair: 'yes' }} onClose={() => {}} /></MemoryRouter>)
+  const actual = container.querySelector('.place-detail-pill.accessible svg')
+  const expected = document.createElement('div')
+  expected.innerHTML = renderToStaticMarkup(<FilterIcon name="accessibility" size={18} />)
+  expect(actual?.outerHTML).toBe(expected.querySelector('svg').outerHTML)
+})
 
 describe.each(['modal', 'page'])('PlaceDetail %s: the photo leads, the map follows the key info', (variant) => {
   it('orders photo, title, hours and actions before the map', () => {

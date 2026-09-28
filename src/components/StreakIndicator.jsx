@@ -45,18 +45,20 @@ function getStreakMessage(streak) {
  */
 const FlameIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-    {/* Outer flame body — gold */}
-    <path
-      d="M12 3.4 c-0.8 2.6 -4.4 4.2 -4.4 8.6 c0 4.4 3.5 8.4 8 8.4 c4.5 0 7.4 -3.4 7.4 -7.6 c0 -2 -0.7 -3.7 -2 -5.4 c-0.6 1.4 -1.8 2.2 -3.2 2.2 c0 -2.6 -1.8 -4.2 -5.8 -6.2 z"
-      fill="#d4a855"
-    />
-    {/* Inner ember — terracotta */}
-    <path
-      d="M12 11.5 c-0.6 1.2 -2.2 2.4 -2.2 4.4 c0 1.9 1.5 3.4 3.4 3.4 c1.9 0 3.4 -1.5 3.4 -3.4 c0 -1.4 -1 -2.6 -2.4 -3.2 c-0.6 -0.4 -1.4 -0.7 -2.2 -1.2 z"
-      fill="#c45c3e"
-    />
-    {/* Cream highlight pip — gives the flame depth at small sizes */}
-    <circle cx="13.4" cy="16" r="0.9" fill="#fdfcf8" opacity="0.7" />
+    <g transform="translate(-3.3 0.1)">
+      {/* Outer flame body — gold */}
+      <path
+        d="M12 3.4 c-0.8 2.6 -4.4 4.2 -4.4 8.6 c0 4.4 3.5 8.4 8 8.4 c4.5 0 7.4 -3.4 7.4 -7.6 c0 -2 -0.7 -3.7 -2 -5.4 c-0.6 1.4 -1.8 2.2 -3.2 2.2 c0 -2.6 -1.8 -4.2 -5.8 -6.2 z"
+        fill="#d4a855"
+      />
+      {/* Inner ember — terracotta */}
+      <path
+        d="M12 11.5 c-0.6 1.2 -2.2 2.4 -2.2 4.4 c0 1.9 1.5 3.4 3.4 3.4 c1.9 0 3.4 -1.5 3.4 -3.4 c0 -1.4 -1 -2.6 -2.4 -3.2 c-0.6 -0.4 -1.4 -0.7 -2.2 -1.2 z"
+        fill="#c45c3e"
+      />
+      {/* Cream highlight pip — gives the flame depth at small sizes */}
+      <circle cx="13.4" cy="16" r="0.9" fill="#fdfcf8" opacity="0.7" />
+    </g>
   </svg>
 )
 

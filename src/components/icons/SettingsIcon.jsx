@@ -41,7 +41,7 @@ const ICONS = {
 
   /* Bell — notifications */
   bell: (
-    <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <g transform="translate(0 -2)" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 16 v-4 a6 6 0 0 1 12 0 v4 l1.5 2 h-15 z" />
       <path d="M10 20 a2 2 0 0 0 4 0" />
     </g>
@@ -59,8 +59,8 @@ const ICONS = {
   map: (
     <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 6 l6 -2 6 2 6 -2 v14 l-6 2 -6 -2 -6 2 z" />
-      <path d="M9 4 v16" />
-      <path d="M15 6 v16" />
+      <path d="M9 4 v14" />
+      <path d="M15 6 v14" />
     </g>
   ),
 

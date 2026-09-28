@@ -49,7 +49,7 @@ const ILLUSTRATIONS = {
 
   // First adventure: sapling — two leaves on a curved stem
   first_adventure: (
-    <g fill={GOLD}>
+    <g transform="translate(0 -5)" fill={GOLD}>
       {/* Stem */}
       <path d="M32 44 c0 -6 0.4 -12 1 -16" stroke={GOLD} strokeWidth="1.6" fill="none" strokeLinecap="round" />
       {/* Left leaf */}
@@ -130,7 +130,7 @@ const ILLUSTRATIONS = {
 
   // Getting Into It (3-day streak): flame
   streak_3: (
-    <g fill={GOLD}>
+    <g transform="translate(-4.5 1)" fill={GOLD}>
       <path d="M32 18 c-1 4 -7 6 -7 14 c0 7 6 12 12 12 c6 0 11 -5 11 -11 c0 -3 -1 -6 -3 -9 c-1 2 -3 3 -5 3 c0 -4 -3 -7 -8 -9 z" />
       {/* Inner ember (cream) */}
       <path d="M32 32 c-1 2 -3 4 -3 6 c0 3 2 5 5 5 c3 0 5 -2 5 -5 c0 -2 -2 -4 -4 -5 c-1 -1 -2 -1 -3 -1 z" fill={CREAM} opacity="0.85" />
@@ -177,7 +177,7 @@ const ILLUSTRATIONS = {
 
   // Curator: stack of books
   curator: (
-    <g fill={GOLD}>
+    <g transform="translate(0 -3)" fill={GOLD}>
       <rect x="18" y="40" width="28" height="6" rx="0.5" />
       <rect x="20" y="32" width="24" height="6" rx="0.5" />
       <rect x="22" y="24" width="20" height="6" rx="0.5" />
@@ -251,7 +251,7 @@ const ILLUSTRATIONS = {
 
   // Community Pillar (50 contributions): Greek column
   contributor_50: (
-    <g fill={GOLD}>
+    <g transform="translate(0 -3)" fill={GOLD}>
       {/* Capital */}
       <rect x="22" y="20" width="20" height="3" />
       <rect x="20" y="23" width="24" height="2" />

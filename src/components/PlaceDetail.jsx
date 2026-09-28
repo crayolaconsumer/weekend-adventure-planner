@@ -9,6 +9,7 @@ import { formatDistanceToNow } from '../utils/dateUtils'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
 import PlaceReviews from './PlaceReviews'
 import CategoryIcon from './icons/CategoryIcon'
+import FilterIcon from './icons/FilterIcon'
 import SocialProof from './SocialProof'
 import PlaceBadges from './PlaceBadges'
 import ShareButton from './ShareButton'
@@ -139,7 +140,7 @@ const NavigationIcon = () => (
 )
 
 const WikiIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+  <svg width="18" height="18" viewBox="-1.6 -1.7 30 30" fill="currentColor" aria-hidden="true">
     <path d="M12.09 13.119c-.936 1.932-2.217 4.548-2.853 5.728-.616 1.074-1.127.931-1.532.029-1.406-3.321-4.293-9.144-5.651-12.409-.251-.601-.441-.987-.619-1.139-.181-.15-.554-.24-1.122-.271C.103 5.033 0 4.982 0 4.898v-.455l.052-.045c.924-.005 5.401 0 5.401 0l.051.045v.434c0 .119-.075.176-.225.176l-.564.031c-.485.029-.727.164-.727.436 0 .135.053.33.166.601 1.082 2.646 4.818 10.521 4.818 10.521l.136.046 2.411-4.81-.482-1.067-1.658-3.264s-.318-.654-.428-.872c-.728-1.443-.712-1.518-1.447-1.617-.207-.023-.313-.05-.313-.149v-.468l.06-.045h4.292l.113.037v.451c0 .105-.076.15-.227.15l-.308.047c-.792.061-.661.381-.136 1.422l1.582 3.252 1.758-3.504c.293-.64.233-.801-.3-.852l-.29-.04c-.207-.03-.306-.068-.306-.179v-.418l.06-.045h3.704l.054.037v.477c0 .082-.089.137-.264.137-.599.053-1.023.17-1.277.653-.213.405-2.021 4.153-2.653 5.35l.127.045 4.829 9.146.125-.023 4.795-11.448c.166-.391.245-.71.245-.939 0-.345-.238-.555-.711-.626l-.474-.049c-.238-.022-.354-.075-.354-.174v-.435l.052-.045h5.09l.039.045v.416c0 .135-.089.194-.264.194-.915.078-1.352.332-1.766 1.169-.31.62-5.61 12.86-5.61 12.86-.403.939-.753 1.06-1.148.022-.623-1.578-2.525-5.096-3.376-6.879z"/>
   </svg>
 )
@@ -147,14 +148,6 @@ const WikiIcon = () => (
 const StarIcon = ({ filled }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-  </svg>
-)
-
-const WheelchairIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <path d="M9 12h6"/>
-    <path d="M12 9v6"/>
   </svg>
 )
 
@@ -545,7 +538,7 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
                 )}
                 {enrichedPlace.wheelchair === 'yes' && (
                   <span className="place-detail-pill accessible">
-                    <WheelchairIcon />
+                    <FilterIcon name="accessibility" size={18} />
                     Accessible
                   </span>
                 )}

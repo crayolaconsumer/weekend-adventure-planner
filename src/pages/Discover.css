@@ -47,31 +47,7 @@
   line-height: 0.85;
   margin-bottom: var(--space-xs);
   position: relative;
-  /* Inline-block so the shimmer pseudo-element (inset: 0) clips to the
-     glyph width rather than the full header row — otherwise the gold
-     gradient sweeps the empty space beside the wordmark instead of the
-     letters themselves. */
   display: inline-block;
-}
-
-/* Subtle shimmer on the wordmark */
-.discover-wordmark::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    120deg,
-    transparent 30%,
-    rgba(212, 168, 85, 0.15) 50%,
-    transparent 70%
-  );
-  animation: wordmark-shimmer 4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes wordmark-shimmer {
-  0%, 100% { transform: translateX(-100%); opacity: 0; }
-  50% { transform: translateX(100%); opacity: 1; }
 }
 
 .discover-tagline {
