@@ -1,5 +1,7 @@
 /**
- * Weather lookup via Open-Meteo (free, no API key).
+ * Weather lookup via our /api/weather (MET Norway data, licensed for commercial
+ * use; credit "Data from MET Norway"). Open-Meteo's free tier excludes apps
+ * with ads, so the app no longer calls it.
  *
  * Heavily cached in-memory (30 min) because the Discover page calls
  * fetchWeather on every refresh + every time the user pans, and the
@@ -53,10 +55,14 @@ export function getWeatherDescription(code: number | null | undefined): string {
 
 /**
  * Fetch weather for a location. In-memory cached 30 minutes per
- * 0.01° lat/lng bucket; on fetch failure returns stale cache if any.
+ * 0.1° lat/lng cell (the proxy's); on fetch failure returns stale cache if any.
  */
 export async function fetchWeather(lat: number, lng: number): Promise<WeatherData | null> {
-  const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`
+  // The proxy's 0.1° cell (~10 km): every user in it shares one CDN entry,
+  // and sending the cell's exact values avoids the proxy's redirect
+  const cellLat = Math.round(lat * 10) / 10
+  const cellLng = Math.round(lng * 10) / 10
+  const cacheKey = `${cellLat},${cellLng}`
 
   // Check in-memory cache first
   const cached = weatherCache.get(cacheKey)
@@ -65,18 +71,14 @@ export async function fetchWeather(lat: number, lng: number): Promise<WeatherDat
   }
 
   try {
-    const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&timezone=auto`,
-    )
+    const response = await fetch(`/api/weather?lat=${cellLat}&lng=${cellLng}`)
 
     if (response.ok) {
-      const data = await response.json() as {
-        current: { temperature_2m: number; weather_code: number }
-      }
+      const data = await response.json() as { temperature: number; weatherCode: number }
       const weather: WeatherData = {
-        temperature: data.current.temperature_2m,
-        weatherCode: data.current.weather_code,
-        description: getWeatherDescription(data.current.weather_code),
+        temperature: data.temperature,
+        weatherCode: data.weatherCode,
+        description: getWeatherDescription(data.weatherCode),
       }
 
       // Cache the result

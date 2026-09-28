@@ -59,6 +59,9 @@ export default function Terms() {
         <p>
           ROAM's place data derives from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, © OpenStreetMap contributors, and is available under the <a href="https://opendatacommons.org/licenses/odbl/">Open Database License (ODbL)</a>. The derived database we build from it is published at <a href="https://github.com/crayolaconsumer/weekend-adventure-planner/releases">github.com/crayolaconsumer/weekend-adventure-planner/releases</a>. Photos belong to their creators and are credited on each place with their licence.
         </p>
+        <p>
+          Weather: data from <a href="https://www.met.no/en">MET Norway</a> (the Norwegian Meteorological Institute), under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+        </p>
 
         <h2>Acceptable use</h2>
         <p>

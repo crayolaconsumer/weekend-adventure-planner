@@ -47,6 +47,8 @@ const shadowConns = { opened: 0, ended: 0 }
 vi.mock('../../../api/lib/db.js', () => ({
   getPool: () => ({ query: poolQuery, getConnection: async () => ({ query: poolQuery, release() {}, destroy() {} }) }),
   dedicatedConnection: async () => { shadowConns.opened++; return { query: shadowQuery, end: async () => { shadowConns.ended++ }, destroy() {} } },
+  // api/lib/db.js runQuery: the pool path poiQuery uses (7be9cc1), same fake pool
+  runQuery: (sql, values = [], timeout) => poolQuery({ sql, values, timeout }, values),
 }))
 
 const { default: handler } = await import('../../../api/places/overpass/nearby.js')

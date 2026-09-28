@@ -229,7 +229,9 @@ async function downloadTiles(coords, radiusKm, onProgress, signal) {
     lng: coords.lng,
     radiusKm,
     minZoom: 12,
-    maxZoom: 16,
+    // Zoom 16 alone is ~75% of a pack's tiles (~900 for 5 km), and CARTO's free
+    // commercial tier is 1M tiles a month: zoom 15 still reads street by street
+    maxZoom: 15,
     onProgress: ({ current, total, byteSize }) => {
       totalBytes = byteSize ?? totalBytes
       onProgress({ phase: 'tiles', current, total })

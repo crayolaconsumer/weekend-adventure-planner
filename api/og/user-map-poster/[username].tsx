@@ -29,6 +29,9 @@ import { getUserFromRequest } from '../../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../../lib/rateLimit.js'
 import { withCors } from '../../lib/cors.js'
 
+// CARTO stamps keyless tiles "API KEY REQUIRED"; the same (public) key the app's maps use
+const CARTO_KEY = process.env.VITE_CARTO_BASEMAPS_KEY || ''
+
 const FOREST = '#1a3a2f'
 const FOREST_INK = '#0f2a22'
 const CREAM = '#fdfcf8'
@@ -228,7 +231,7 @@ async function handler(req, res) {
           {tiles.map(({ dx, dy, tx, ty }) => (
             <img
               key={`${dx}-${dy}`}
-              src={`https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${tx}/${ty}.png`}
+              src={`https://a.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${tx}/${ty}.png${CARTO_KEY ? `?key=${CARTO_KEY}` : ''}`}
               width={TILE_SIZE}
               height={TILE_SIZE}
               style={{

@@ -55,6 +55,7 @@ const PUBLIC_API_PATHS = new Set([
   '/api/events/ticketmaster',
   '/api/events/skiddle',
   '/api/flags',
+  '/api/weather',
   '/api/push/vapid-public-key',
 ])
 

@@ -129,7 +129,7 @@ export default function DiscoverHeader({
       {/* Weather & Mode indicator */}
       <div className="discover-status">
         {weather && (
-          <div className="discover-weather">
+          <div className="discover-weather" title="Weather: data from MET Norway">
             <span>{Math.round(weather.temperature)}°</span>
             <span>{weather.description}</span>
           </div>

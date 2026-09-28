@@ -693,8 +693,8 @@ export default function PlaceDetail({ place, onClose, onGo, userLocation = null,
             </motion.div>
 
             {/* Google rating, reviews, photo and live hours via Google's
-                UI Kit element. Loads only when scrolled near; hidden on any
-                failure. Below the actions so its late arrival never moves a
+                UI Kit element. Loads only when the user taps for it (each load
+                is billed). Below the actions so its late arrival never moves a
                 button the user is about to tap. Keyed so each place gets a fresh lookup. */}
             <GooglePlaceCard key={enrichedPlace.id} place={enrichedPlace} />
 
