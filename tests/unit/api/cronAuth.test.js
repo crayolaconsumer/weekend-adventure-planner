@@ -38,7 +38,7 @@ describe('isAuthorizedCron', () => {
 })
 
 describe('every cron rejects a spoofed x-vercel-cron request', () => {
-  const crons = ['visit-reminders', 're-engagement-nudge', 'weekend-plans-nudge', 'prewarm-overpass', 'discover-probe', 'promoted-event-push', 'local-events-digest']
+  const crons = ['visit-reminders', 're-engagement-nudge', 'weekend-plans-nudge', 'prewarm-overpass', 'discover-probe', 'promoted-event-push', 'local-events-digest', 'gh-dispatch']
   beforeEach(() => { process.env.CRON_SECRET = 's3cret'; touched.mockClear() })
 
   it.each(crons)('%s', async name => {

@@ -28,6 +28,14 @@
     {
       "path": "/api/cron/local-events-digest",
       "schedule": "0 17 * * 4"
+    },
+    {
+      "path": "/api/cron/gh-dispatch?workflow=synthetic",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/gh-dispatch?workflow=poi-build",
+      "schedule": "15 2 * * *"
     }
   ],
   "functions": {
