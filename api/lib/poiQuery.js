@@ -554,30 +554,46 @@ async function cappedAnswer(plan, osmTimestamp, run, buildId) {
 // Kept out of roam:flags so writing one can never clobber the other.
 export const POI_GEN_KEY = 'roam:poiGen'
 const GEN_TTL_MS = 30 * 1000
-const genCache = { value: 0, at: 0, loading: null }
+const GEN_KV_TIMEOUT_MS = 2000 // the Upstash client has no timeout of its own
+const genCache = { value: 0, at: 0, loading: null, loadingAt: 0 }
 
-/** The cached generation if fresh, else null. Synchronous. */
+/**
+ * The last known generation (0 before any bump), null only before this
+ * instance's first read. Synchronous. Past its ~30 s TTL it is still returned
+ * and starts the background refresh, so a hung or failing KV never turns the
+ * Discover POI path off (the generation only busts caches; serving an old one
+ * for a while is safe, and it only ever goes up).
+ */
 export function peekPoiGen() {
-  return Date.now() - genCache.at < GEN_TTL_MS ? genCache.value : null
+  if (!genCache.at) return null
+  if (Date.now() - genCache.at >= GEN_TTL_MS) getPoiGen().catch(() => {})
+  return genCache.value
 }
 
 /**
- * The generation, cached ~30 s. Never throws: a miss, a KV failure or a junk
- * value keeps the last known one (0 before any bump).
+ * The generation, cached ~30 s. Never throws: a miss, a KV failure, a junk
+ * value or a read slower than 2 s keeps the last known one. One read at a time
+ * per instance; one outliving its timeout (frozen with the function) is replaced.
  */
 export async function getPoiGen() {
-  const fresh = peekPoiGen()
-  if (fresh !== null) return fresh
-  genCache.loading ||= (async () => {
-    try {
-      const n = Number(await cacheGet(POI_GEN_KEY))
-      // cacheGet is null on a miss and on failure alike; both keep the last known
-      if (Number.isSafeInteger(n) && n > 0) genCache.value = n
-    } catch {
-      // keep the last known
-    }
-    genCache.at = Date.now()
-  })().finally(() => { genCache.loading = null })
+  const now = Date.now()
+  if (genCache.at && now - genCache.at < GEN_TTL_MS) return genCache.value
+  if (!genCache.loading || now - genCache.loadingAt > GEN_KV_TIMEOUT_MS) {
+    const read = Promise.resolve().then(() => cacheGet(POI_GEN_KEY)).then(v => {
+      const n = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN
+      // cacheGet is null on a miss and on failure alike; both keep the last known.
+      // Applied even if it lands after the timeout: the generation only goes up
+      if (Number.isSafeInteger(n) && n > genCache.value) genCache.value = n
+    }, () => {})
+    let timer
+    const loading = Promise.race([read, new Promise(resolve => { timer = setTimeout(resolve, GEN_KV_TIMEOUT_MS) })])
+      .then(() => {
+        clearTimeout(timer)
+        genCache.at = Math.max(genCache.at, now) // restart the window from the read's start
+      })
+      .finally(() => { if (genCache.loading === loading) genCache.loading = null })
+    Object.assign(genCache, { loading, loadingAt: now })
+  }
   await genCache.loading
   return genCache.value
 }
@@ -875,7 +891,7 @@ export async function shadowPois(plan, key, { gen = 0 } = {}) {
 export function _resetPoiState() {
   Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null, features: false, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false })
   active = 0
-  Object.assign(genCache, { value: 0, at: 0, loading: null })
+  Object.assign(genCache, { value: 0, at: 0, loading: null, loadingAt: 0 })
   Object.assign(breaker, { fails: 0, openUntil: 0, probing: false })
   Object.assign(capBreaker, { fails: 0, openUntil: 0 })
   shadowSeen.clear()

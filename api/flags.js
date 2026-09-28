@@ -17,7 +17,7 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // getFlags never throws (fails open to defaults), so no try/catch needed.
+  // getFlags never throws (last-known-good, else defaults), so no try/catch needed.
   const flags = await getFlags()
 
   res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60')

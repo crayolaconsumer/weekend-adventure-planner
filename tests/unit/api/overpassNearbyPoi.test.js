@@ -351,8 +351,10 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
       vi.setSystemTime(Date.now() + 31_000) // past the 30 s generation cache
+      await call(LONDON) // last-known gen 0 (never waits on KV), starts the refresh
+      await new Promise(resolve => setTimeout(resolve, 0))
       await call(LONDON)
-      // Never the gen 0 LRU copy: a fresh query under gen 1 (or the old path)
+      // From the next request on, never the gen 0 LRU copy: a fresh query under gen 1 (or the old path)
       const poiQueries = dbRuns().length
       expect(poiQueries + fetchMock.mock.calls.length).toBe(2)
       expect(poolQuery.mock.calls.filter(c => c[0].sql.includes('poi_builds'))).toHaveLength(2) // coverage reloaded for gen 1

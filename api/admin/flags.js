@@ -17,7 +17,8 @@ import { cacheGet, cacheSet, isCacheEnabled, getClient } from '../lib/kvCache.js
 
 const KV_FLAGS_KEY = 'roam:flags'
 // Effectively persistent — a kill-switch must not silently expire. If KV
-// ever drops the key, getFlags() falls back to all-ON (safe by design).
+// ever drops the key, warm instances keep their last-known-good flags and
+// cold ones start from DEFAULTS (all-ON, POI percentages 0).
 const FLAG_TTL_SECONDS = 10 * 365 * 24 * 60 * 60
 // Mirrors DEFAULTS in api/lib/flags.js — every feature ON by default.
 const DEFAULTS = Object.freeze({
