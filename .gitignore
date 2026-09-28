@@ -35,6 +35,7 @@ database/*
 # they must ship with it
 !database/phase11-pois.sql
 !database/phase12-poi-features.sql
+!database/phase13-scale-indexes.sql
 docs/
 **/screenshots/
 
