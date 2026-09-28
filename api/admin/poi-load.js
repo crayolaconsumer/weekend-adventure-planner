@@ -47,7 +47,7 @@ import { LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, isLarge, poiCell } from '../.
 import { poiFeatures, FEATURES_VERSION, ELIGIBLE } from '../../shared/poiRank.mjs'
 
 export const RELEASE_BASE = 'https://github.com/crayolaconsumer/weekend-adventure-planner/releases/download/'
-export const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z$/
+export const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z(-f\d+)?$/
 const CHUNK_RE = /^chunk-\d{3}\.ndjson\.gz$/
 const FIXED_FILES = new Set(['manifest.json', 'coverage.json', 'photos.ndjson.gz'])
 const JOB_NAME = 'poi-load'

@@ -353,10 +353,16 @@ export function coverageCells(polys) {
 
 // ─── Manifest + gates ────────────────────────────────────────────
 
-export function buildId(region, osmTimestamp) {
+export function buildId(region, osmTimestamp, featuresVersion) {
   const d = new Date(osmTimestamp)
   if (Number.isNaN(d.getTime())) throw new Error(`bad --osm-timestamp ${osmTimestamp}`)
-  return `${region}-${d.toISOString().replace(/[-:]/g, '').slice(0, 13)}Z`
+  const base = `${region}-${d.toISOString().replace(/[-:]/g, '').slice(0, 13)}Z`
+  // Row content (q/cat/flags) is pinned to featuresVersion. A change to the
+  // ranker's features must yield a new build_id: the loader noops on a build_id
+  // it already has live, and the publish gate refuses a tag whose published
+  // chunks differ from this build's. Without this, a same-day extract rebuilt
+  // under new row content would collide with the live build and stall the swap.
+  return featuresVersion ? `${base}-f${featuresVersion}` : base
 }
 
 const MAX_DRIFT = 0.1 // per-key change vs the previous build
@@ -391,7 +397,7 @@ export async function build({ inputs, relations = [], polys, osmTimestamp, regio
   writeFileSync(join(outDir, 'coverage.json'), JSON.stringify(coverage))
   const missing = missingSentinels(rows, sentinels)
   const manifest = {
-    build_id: buildId(region, osmTimestamp),
+    build_id: buildId(region, osmTimestamp, FEATURES_VERSION),
     schema_version: SCHEMA_VERSION,
     features_version: FEATURES_VERSION, // rows carry q, cat, flags (shared/poiRank.mjs)
     osm_timestamp: new Date(osmTimestamp).toISOString(),

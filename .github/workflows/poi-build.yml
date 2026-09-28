@@ -6,8 +6,6 @@
 name: POI build
 
 on:
-  schedule:
-    - cron: '15 2 * * *'
   workflow_dispatch:
     inputs:
       load:
@@ -62,7 +60,7 @@ jobs:
               -H "Authorization: Bearer ${POI_LOAD_SECRET}" "https://www.go-roam.uk/api/admin/poi-load?step=status"); then
             [ "$code" = 200 ] && active=$(jq -r '.active_release_tag // ""' "$RUNNER_TEMP/status.json" 2>/dev/null || true)
           fi
-          if [[ "$active" =~ ^poi-[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z$ ]]; then
+          if [[ "$active" =~ ^poi-[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z(-f[0-9]+)?$ ]]; then
             prev="$active"
             echo "Drift baseline: active release $active"
           else
@@ -174,7 +172,7 @@ jobs:
       # other 4xx (bad build, 422 gate) stops. Exit 0 only when the build is live.
       - name: Load into the database
         id: load
-        if: ${{ github.event_name == 'schedule' || inputs.load }}
+        if: ${{ inputs.load }}
         env:
           POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
           BUILD_ID: ${{ steps.publish.outputs.build_id }}
@@ -196,7 +194,7 @@ jobs:
           POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
           BUILD_ID: ${{ steps.publish.outputs.build_id }}
         run: |
-          tag_re='^poi-[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z$'
+          tag_re='^poi-[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z(-f[0-9]+)?$'
           if ! code=$(curl -sS -o "$RUNNER_TEMP/status.json" -w '%{http_code}' --max-time 30 \
               -H "Authorization: Bearer ${POI_LOAD_SECRET}" "https://www.go-roam.uk/api/admin/poi-load?step=status") || [ "$code" != 200 ]; then
             echo "Loader status unavailable: not pruning"

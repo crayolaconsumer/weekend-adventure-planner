@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS poi_photos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS poi_builds (
-  build_id       VARCHAR(40) NOT NULL,                -- 'uk-20261001T0215Z'
+  build_id       VARCHAR(40) NOT NULL,                -- 'uk-20261001T0215Z-f1' (region-osmTs[-fFeaturesVersion])
   release_tag    VARCHAR(64) NOT NULL,                -- 'poi-<build_id>'
   schema_version SMALLINT    NOT NULL,                -- must equal POI_SCHEMA_VERSION (api/lib/poiQuery.js)
   osm_timestamp  DATETIME    NOT NULL,                -- data freshness (UTC)

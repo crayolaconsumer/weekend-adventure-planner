@@ -6,7 +6,13 @@ import { describe, it, expect, vi } from 'vitest'
 // releases idle connections before suspending the instance.
 const attach = vi.fn()
 const inner = { on: vi.fn() }
-const fakePool = { query: vi.fn(), execute: vi.fn(), pool: inner }
+const fakeConn = { query: vi.fn(), release: vi.fn(), destroy: vi.fn() }
+const fakePool = {
+  query: vi.fn(),
+  execute: vi.fn(),
+  pool: inner,
+  getConnection: vi.fn(() => Promise.resolve(fakeConn)),
+}
 vi.mock('@vercel/functions', () => ({ attachDatabasePool: (p) => attach(p) }))
 vi.mock('mysql2/promise', () => ({ default: { createPool: vi.fn(() => fakePool) } }))
 
@@ -18,6 +24,57 @@ describe('db pool', () => {
     expect(attach).toHaveBeenCalledTimes(1)
     // the callback pool inside mysql2/promise: the promise wrapper is rejected
     expect(attach).toHaveBeenCalledWith(inner)
+  })
+})
+
+describe('query timeout (a stuck query must free the pool connection)', () => {
+  beforeEach(() => {
+    fakeConn.query.mockReset()
+    fakeConn.release.mockClear()
+    fakeConn.destroy.mockClear()
+  })
+
+  it('passes a per-query timeout to the connection and releases it on success', async () => {
+    const { query } = await import('../../../api/lib/db.js')
+    fakeConn.query.mockResolvedValue([[{ n: 1 }], []])
+    await query('SELECT 1 n')
+    expect(fakeConn.query).toHaveBeenCalledTimes(1)
+    const [opts] = fakeConn.query.mock.calls[0]
+    expect(opts).toMatchObject({ sql: 'SELECT 1 n', values: [] })
+    expect(typeof opts.timeout).toBe('number')
+    expect(opts.timeout).toBeGreaterThan(0)
+    expect(fakeConn.release).toHaveBeenCalledTimes(1)
+    expect(fakeConn.destroy).not.toHaveBeenCalled()
+  })
+
+  it('destroys the connection on timeout so the pool slot is freed for the next request', async () => {
+    const { query } = await import('../../../api/lib/db.js')
+    fakeConn.query.mockRejectedValue(Object.assign(new Error('timeout'), { code: 'PROTOCOL_SEQUENCE_TIMEOUT' }))
+    await expect(query('SELECT SLEEP(60)')).rejects.toMatchObject({ code: 'PROTOCOL_SEQUENCE_TIMEOUT' })
+    // destroy, not release: a released connection is still wedged on the
+    // stuck query, so the next request would inherit the hang
+    expect(fakeConn.destroy).toHaveBeenCalledTimes(1)
+    expect(fakeConn.release).not.toHaveBeenCalled()
+  })
+
+  it('releases (not destroys) the connection on ordinary errors', async () => {
+    const { query } = await import('../../../api/lib/db.js')
+    fakeConn.query.mockRejectedValue(Object.assign(new Error('bad table'), { code: 'ER_BAD_TABLE_ERROR' }))
+    await expect(query('SELECT 1')).rejects.toMatchObject({ code: 'ER_BAD_TABLE_ERROR' })
+    expect(fakeConn.release).toHaveBeenCalledTimes(1)
+    expect(fakeConn.destroy).not.toHaveBeenCalled()
+  })
+
+  it('queryOne, insert and update all route through the timed query', async () => {
+    const { queryOne, insert, update } = await import('../../../api/lib/db.js')
+    fakeConn.query.mockReset()
+    fakeConn.query.mockResolvedValueOnce([[{ a: 1 }], []])
+    fakeConn.query.mockResolvedValueOnce([{ insertId: 7 }])
+    fakeConn.query.mockResolvedValueOnce([{ affectedRows: 3 }])
+    await expect(queryOne('SELECT 1 a')).resolves.toEqual({ a: 1 })
+    await expect(insert('INSERT')).resolves.toBe(7)
+    await expect(update('UPDATE')).resolves.toBe(3)
+    for (const [opts] of fakeConn.query.mock.calls) expect(opts.timeout).toBeGreaterThan(0)
   })
 })
 

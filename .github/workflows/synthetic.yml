@@ -4,10 +4,7 @@
 # scripts/monitor/synthetic.mjs retries each check once before failing.
 name: Synthetic monitor
 
-on:
-  schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch:
+on: workflow_dispatch
 
 permissions:
   contents: read

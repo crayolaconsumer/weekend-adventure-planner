@@ -291,6 +291,15 @@ describe('gates and ids', () => {
     expect(() => buildId('uk', 'nope')).toThrow()
   })
 
+  it('buildId folds the features version in, so row-content changes yield a new id', () => {
+    // 3-arg: the ranker's features are pinned, so a features bump must not
+    // collide with a live build of the same extract
+    expect(buildId('uk', '2026-09-26T20:22:51Z', 1)).toBe('uk-20260926T2022Z-f1')
+    expect(buildId('uk', '2026-09-26T20:22:51Z', 1)).toMatch(/^[a-z]{2,8}-\d{8}T\d{4}Z-f\d+$/)
+    // 2-arg stays the legacy form (no version)
+    expect(buildId('uk', '2026-09-26T20:22:51Z')).toBe('uk-20260926T2022Z')
+  })
+
   it('drift applies to every key with 50+ rows before, not below', () => {
     expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 60 } })).toEqual(['historic=castle 60 -> 100 (over ±10%)'])
     expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 49 } })).toEqual([])
@@ -348,7 +357,7 @@ describe('build (end to end on files)', () => {
     expect(onDisk).toEqual(manifest)
     expect(Object.keys(manifest)).toEqual(['build_id', 'schema_version', 'features_version', 'osm_timestamp', 'chunks', 'row_count', 'per_key_counts', 'photo_count', 'sentinels_found', 'sentinels_total', 'large_count'])
     expect(manifest.large_count).toBe(0)
-    expect(manifest).toMatchObject({ build_id: 'uk-20260926T2022Z', schema_version: 1, features_version: FEATURES_VERSION, osm_timestamp: '2026-09-26T20:22:51.000Z', row_count: 3, photo_count: 0, sentinels_found: 1, sentinels_total: 1 })
+    expect(manifest).toMatchObject({ build_id: `uk-20260926T2022Z-f${FEATURES_VERSION}`, schema_version: 1, features_version: FEATURES_VERSION, osm_timestamp: '2026-09-26T20:22:51.000Z', row_count: 3, photo_count: 0, sentinels_found: 1, sentinels_total: 1 })
     expect(manifest.per_key_counts).toEqual({ 'amenity=cafe': 1, 'historic=castle': 1, 'natural=wood': 1 })
     expect(manifest.chunks).toHaveLength(1)
     const coverage = JSON.parse(readFileSync(join(out, 'coverage.json'), 'utf8'))

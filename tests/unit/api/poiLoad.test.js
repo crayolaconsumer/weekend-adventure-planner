@@ -406,6 +406,28 @@ describe('loading', () => {
     expect(db.log.some(s => s.startsWith('DROP'))).toBe(false)
   })
 
+  it('a versioned build id (features folded in) loads end to end and goes live', async () => {
+    const B = 'uk-20261001T0215Z-f1'
+    release(CHUNKS, { build_id: B })
+    // the workflow's release is tagged poi-<build_id>, so serve from the versioned tag
+    const vbase = `${RELEASE_BASE}poi-${B}/`
+    vi.stubGlobal('fetch', vi.fn(async url => {
+      const name = String(url).startsWith(vbase) ? String(url).slice(vbase.length) : null
+      const buf = name && files.get(name)
+      return buf ? new Response(buf, { status: 200 }) : new Response('nope', { status: 404 })
+    }))
+    withActive()
+    const step = q => call({ ...q, build: B })
+    expect((await step({ step: 'begin' })).statusCode).toBe(200) // was 400 "Bad build id" before the validator widened
+    for (let i = 0; i < CHUNKS.length; i++) expect((await step({ step: 'chunk', i: String(i) })).statusCode).toBe(200)
+    let v = { done: false }
+    while (!v.done) { const r = await step({ step: 'verify' }); expect(r.statusCode).toBe(200); v = r.body }
+    const res = await step({ step: 'finalize' })
+    expect(res.statusCode).toBe(200)
+    expect(db.tables.pois.comment).toBe(B)
+    expect(statusOf(B)).toBe('active')
+  })
+
   it('upserts in 1,000-row multi-VALUES statements', async () => {
     release([Array.from({ length: 2500 }, (_, n) => poi(n + 1, `P${n}`, 51 + n / 100000))])
     await load(1)

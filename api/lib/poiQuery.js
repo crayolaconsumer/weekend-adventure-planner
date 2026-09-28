@@ -29,7 +29,7 @@
  *   whatever the `out` mode, so `out tags bb` answers include coordinates
  *   Overpass leaves out. Every parser reads them the same (tested).
  */
-import { getPool, dedicatedConnection } from './db.js'
+import { getPool, dedicatedConnection, runQuery } from './db.js'
 import { cacheGet } from './kvCache.js'
 import { cellRanges, CELL_PAD_DEG, LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, SCHEMA_VERSION } from '../../shared/poiCell.mjs'
 // The build's own osmium filter: a key=value outside it isn't in the table
@@ -398,7 +398,7 @@ const byOsm = (a, b) => a.osm_type - b.osm_type || a.osm_id - b.osm_id
  */
 export async function queryPois(plan, { osmTimestamp = coverage.osmTimestamp, deadlineAt = Infinity, features = false, buildId = coverage.buildId, conn = null } = {}) {
   // `conn`: a dedicated connection (shadow); otherwise the instance's pool
-  const send = conn ? (o, p) => conn.query(o, p) : (o, p) => getPool().query(o, p)
+  const send = conn ? (o, p) => conn.query(o, p) : (o, p) => runQuery(o.sql, p, o.timeout)
   // Time spent in today's statement: all the shared breaker may judge (sharedMs). Everything
   // else (probe, capped transaction) is the cap's, and every error it throws carries cap: true
   let sharedMs = null // null: today's statement never ran (a capped answer)
@@ -611,13 +611,13 @@ function isoSeconds(v) {
 async function loadCoverage(gen) {
   active++
   try {
-    const [rows] = await getPool().query({
+    const [rows] = await runQuery(
       // features_version: written into gate_report by the loader (no new column, so this
       // read works before and after database/phase12-poi-features.sql)
-      sql: `SELECT ${HINT} build_id, schema_version, osm_timestamp, coverage, JSON_EXTRACT(gate_report, '$.features_version') AS features_version ` +
+      `SELECT ${HINT} build_id, schema_version, osm_timestamp, coverage, JSON_EXTRACT(gate_report, '$.features_version') AS features_version ` +
         "FROM poi_builds WHERE status = 'active' ORDER BY activated_at DESC LIMIT 1",
-      timeout: 2500
-    })
+      [], 2500
+    )
     const row = rows[0]
     const cells = typeof row?.coverage === 'string' ? JSON.parse(row.coverage) : row?.coverage
     if (!row || row.schema_version !== POI_SCHEMA_VERSION || !Array.isArray(cells)) {

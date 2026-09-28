@@ -122,8 +122,8 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       expect(r.all).toMatch(/load=false to publish only/)
     })
 
-    it('only runs when scheduled or load is requested (load=false publishes only), via load.mjs', () => {
-      expect(step('Load into the database')).toMatch(/if: \$\{\{ github\.event_name == 'schedule' \|\| inputs\.load \}\}/)
+    it('only runs when load is requested (load=false publishes only), via load.mjs', () => {
+      expect(step('Load into the database')).toMatch(/if: \$\{\{ inputs\.load \}\}/)
       expect(runScript(step('Load into the database'))).toMatch(/node scripts\/poi\/load\.mjs --build "\$BUILD_ID" && echo active=true >> "\$GITHUB_OUTPUT"/)
     })
   })

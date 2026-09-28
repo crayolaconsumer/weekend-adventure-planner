@@ -17,7 +17,7 @@
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 
-const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z$/
+const BUILD_RE = /^[a-z]{2,8}-\d{8}T\d{4}Z(-f\d+)?$/
 const BASE = 'https://www.go-roam.uk'
 export const MAX_ATTEMPTS = 8 // backoff 2..128 s outlasts a lock held ~150 s by a killed function
 

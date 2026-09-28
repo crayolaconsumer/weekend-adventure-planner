@@ -71,6 +71,36 @@ export function getPool() {
   return pool
 }
 
+// A stuck query (lock wait, deadlock, a slow scan) would otherwise hold the
+// pool's one connection for the whole function duration. Fail fast so the
+// connection is released. Generous by design: the DB answers in ms (p95
+// ~170 ms), so this only trips on a genuinely wedged query.
+const QUERY_TIMEOUT_MS = Math.max(1000, parseInt(process.env.DB_QUERY_TIMEOUT_MS, 10) || 15000)
+
+// Every pool query carries a per-query timer. The object form
+// { sql, values, timeout } is honoured by mysql2's createQuery. On a timeout
+// mysql2 rejects the promise but does NOT release the pool connection (it
+// releases on the query's 'end' event, which the timeout path never emits) —
+// with connectionLimit: 1 that would wedge the single connection and block
+// every later request. So acquire the connection explicitly and destroy it on
+// timeout: a destroyed connection is removed from the pool, so the next
+// request gets a fresh one. On success and on ordinary errors, release it.
+export async function runQuery(sql, params = [], timeout = QUERY_TIMEOUT_MS) {
+  const pool = getPool()
+  const conn = await pool.getConnection()
+  let timedOut = false
+  try {
+    const [result, fields] = await conn.query({ sql, values: params, timeout })
+    return [result, fields]
+  } catch (err) {
+    timedOut = !!(err && err.code === 'PROTOCOL_SEQUENCE_TIMEOUT')
+    throw err
+  } finally {
+    if (timedOut) conn.destroy()
+    else conn.release()
+  }
+}
+
 /**
  * Execute a query with automatic connection handling
  * @param {string} sql - SQL query
@@ -78,10 +108,7 @@ export function getPool() {
  * @returns {Promise<Array>} Query results
  */
 export async function query(sql, params = []) {
-  const pool = getPool()
-  // Use query() instead of execute() for better type handling
-  // execute() uses prepared statements which have strict type requirements
-  const [rows] = await pool.query(sql, params)
+  const [rows] = await runQuery(sql, params)
   return rows
 }
 
@@ -103,8 +130,7 @@ export async function queryOne(sql, params = []) {
  * @returns {Promise<number>} Inserted row ID
  */
 export async function insert(sql, params = []) {
-  const pool = getPool()
-  const [result] = await pool.query(sql, params)
+  const [result] = await runQuery(sql, params)
   return result.insertId
 }
 
@@ -115,8 +141,7 @@ export async function insert(sql, params = []) {
  * @returns {Promise<number>} Number of affected rows
  */
 export async function update(sql, params = []) {
-  const pool = getPool()
-  const [result] = await pool.query(sql, params)
+  const [result] = await runQuery(sql, params)
   return result.affectedRows
 }
 
@@ -156,4 +181,4 @@ export async function testConnection() {
   }
 }
 
-export default { getPool, query, queryOne, insert, update, transaction, testConnection }
+export default { getPool, query, queryOne, insert, update, transaction, testConnection, runQuery }
