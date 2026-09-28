@@ -1,0 +1,34 @@
+# Synthetic monitor: every 15 min, the user paths a campaign depends on
+# (home, health incl. DB + KV, a Discover query, a town page, trending).
+# A failed run makes GitHub email the repo owner: outage alerts at £0.
+# scripts/monitor/synthetic.mjs retries each check once before failing.
+name: Synthetic monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/monitor
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Check www.go-roam.uk
+        run: node scripts/monitor/synthetic.mjs

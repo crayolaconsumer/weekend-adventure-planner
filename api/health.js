@@ -19,7 +19,7 @@
  */
 
 import { testConnection } from './lib/db.js'
-import { isCacheEnabled, cacheGet } from './lib/kvCache.js'
+import { isCacheEnabled, getClient } from './lib/kvCache.js'
 
 const CHECK_TIMEOUT_MS = 2000
 
@@ -44,14 +44,14 @@ async function handler(req, res) {
   // with a timeout anyway in case the underlying connect/query wedges.
   const dbOk = await withTimeout(testConnection(), CHECK_TIMEOUT_MS, false)
 
-  // KV: not provisioned → 'disabled'. Otherwise probe with a cheap read.
-  // cacheGet fails open (returns null on error), so distinguish a genuine
-  // read failure by racing a sentinel: if the probe out-times or throws we
-  // mark it 'fail', but this never affects the overall status.
+  // KV: not provisioned → 'disabled'. Otherwise probe with a cheap read on
+  // the RAW client: cacheGet fails open (null on any error), so probing
+  // through it always said 'ok' (scale audit). A timeout or throw is 'fail';
+  // it never affects the overall status.
   let kv = 'disabled'
   if (isCacheEnabled()) {
     const FAIL = Symbol('kv-fail')
-    const probe = cacheGet('healthcheck').then(
+    const probe = Promise.resolve().then(() => getClient().get('healthcheck')).then(
       () => 'ok',
       () => FAIL
     )
