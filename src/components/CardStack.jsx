@@ -93,7 +93,8 @@ export default function CardStack({
   activeFiltersCount = 0, // Number of active filters (for contextual messaging)
   travelMode = 'walking', // Current travel mode (for contextual messaging)
   friendActivity = {}, // Map of placeId -> friend activity data
-  savesCount = 0 // Total saved places — drives the save-cap nudge bubble
+  savesCount = 0, // Total saved places — drives the save-cap nudge bubble
+  lifted = null // The place object whose detail is open (drives the card lift)
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0)
@@ -801,6 +802,7 @@ export default function CardStack({
                     topContribution={topContributions?.[place.id] || null}
                     friendActivity={friendActivity?.[place.id] || null}
                     saveCapNudge={isTop && !isPremium && savesCount >= 10}
+                    lifted={isTop && lifted?.id === place.id}
                   />
                 )}
               </motion.div>

@@ -90,6 +90,9 @@ export const TAG_WHITELIST = new Set([
   'takeaway',
   'website',
   'wheelchair',
+  // bring-the-dog filter (premium) reads dog=* + the conditional terms
+  'dog',
+  'dog:conditional',
   // access=private / access=no places are dropped from the deck (placeFilter)
   'access',
   // heritage/listed-building filters read these two via bracket notation

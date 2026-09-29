@@ -25,7 +25,7 @@
    ═══════════════════════════════════════════════════════ */
 
 .discover-header {
-  padding: var(--space-xl) var(--space-lg) var(--space-lg);
+  padding: var(--space-lg) var(--space-lg) var(--space-sm);
   text-align: center;
   position: relative;
   display: flex;
@@ -33,30 +33,54 @@
   align-items: center;
 }
 
-/* Wordmark Hero */
-.discover-hero {
-  margin-bottom: var(--space-xl);
-}
-
-.discover-wordmark {
-  font-family: var(--font-display);
-  font-size: var(--text-hero);
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  color: var(--roam-forest);
-  line-height: 0.85;
-  margin-bottom: var(--space-xs);
-  position: relative;
+/* Town hero — the identity of the screen (replaces the ROAM wordmark). */
+.discover-town-name {
   display: inline-block;
+  font-family: var(--font-display);
+  font-size: 2.375rem; /* 38px, per approved prototype */
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--roam-forest);
+  text-decoration: none;
+  margin-bottom: 0;
 }
 
-.discover-tagline {
-  font-family: var(--font-display);
-  font-size: var(--text-base);
-  color: var(--color-text-secondary);
-  font-style: italic;
-  font-weight: 400;
+.discover-town-name:active { opacity: 0.7; }
+
+/* Hairline rule under the hero (per approved prototype). */
+.discover-rule {
+  display: block;
+  height: 1px;
+  width: 100%;
+  max-width: 320px;
+  background: var(--color-border);
+  margin: 12px 0 0;
 }
+
+/* One quiet line: weather · mode · streak. Tappable -> filters. */
+.discover-quiet {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 44px; /* hit area */
+}
+
+.discover-quiet:active { color: var(--roam-forest); }
+.discover-quiet-sep,
+.discover-quiet-streak { color: var(--roam-gold); }
 
 /* ═══════════════════════════════════════════════════════
    SETTINGS BUTTON - Minimal, unobtrusive
@@ -199,64 +223,6 @@
 }
 
 /* ═══════════════════════════════════════════════════════
-   STATUS BAR - Weather & Mode
-   ═══════════════════════════════════════════════════════ */
-
-/* One row that scrolls sideways if it ever overflows (BRAND.md: filter
-   rows never wrap). "safe center" keeps the first chip reachable. */
-.discover-status {
-  display: flex;
-  justify-content: safe center;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: var(--space-sm);
-  margin-top: var(--space-xl);
-  margin-bottom: var(--space-md);
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 2px 2px 4px;
-}
-
-.discover-status::-webkit-scrollbar { display: none; }
-
-.discover-weather,
-.discover-mode {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  padding: 8px 14px;
-  background: var(--color-surface-elevated);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.discover-weather:hover,
-.discover-mode:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
-.discover-mode {
-  background: #1a3a2f;
-  color: white;
-}
-
-[data-theme="dark"] .discover-mode {
-  box-shadow: inset 0 0 0 1px var(--roam-forest);
-}
-
-.discover-mode-icon {
-  font-size: var(--text-base);
-}
-
-/* ═══════════════════════════════════════════════════════
    SETTINGS PANEL - Glassmorphism overlay
    ═══════════════════════════════════════════════════════ */
 
@@ -313,41 +279,16 @@
 }
 
 @media (max-width: 767px) {
-  /* Mobile vertical budget — every above-card pixel matters. The brand
-     wordmark stays (identity preserved) but proportional to mobile chrome
-     conventions instead of desktop hero sizing, so the swipe deck +
-     action buttons + counter + bottom nav all fit on a single screen
-     down to iPhone SE / mini class viewports. */
+  /* Mobile vertical budget — every above-card pixel matters. The town
+     hero is smaller than the old wordmark, so the swipe deck + action
+     buttons + counter + bottom nav all fit on a single screen down to
+     iPhone SE / mini class viewports. */
   .discover-header {
     padding: var(--space-sm) var(--space-md) var(--space-xs);
   }
 
-  /* Wordmark scales hard on mobile — 4rem desktop → 2.25rem mobile.
-     Still reads as a hero, but takes ~30pt vs ~80pt of vertical space. */
-  .discover-wordmark {
-    font-size: 2.25rem;
-    margin-bottom: 2px;
-  }
-
-  .discover-tagline {
-    font-size: var(--text-sm);
-  }
-
-  .discover-hero {
-    margin-bottom: var(--space-xs);
-  }
-
-  .discover-status {
-    margin-top: var(--space-sm);
-    margin-bottom: var(--space-xs);
-    gap: var(--space-xs);
-  }
-
-  .discover-weather,
-  .discover-mode,
-  .discover-filters-trigger {
-    padding: 7px 12px;
-    font-size: var(--text-sm);
+  .discover-town-name {
+    font-size: 2rem; /* 32px on small phones */
   }
 
   .discover-active-filters {
@@ -638,12 +579,6 @@
   }
 }
 
-.discover-town {
-  text-decoration: none;
-  background: var(--color-surface-elevated);
-  color: var(--color-text-secondary);
-}
-
 /* ═══════════════════════════════════════════════════════
    DESKTOP SWIPE LAYOUT (>= 1024px)
    Hero and controls on the left, the card deck on the right, in one
@@ -688,25 +623,6 @@
     padding: var(--space-lg) 0 0;
     min-height: min(640px, calc(100dvh - 96px));
     display: flex;
-  }
-}
-
-/* Desktop: the top nav already carries the ROAM lockup, so the hero
-   wordmark would be the second ROAM on screen. Keep it for screen readers
-   (it is the page's h1) and let the tagline lead the hero. */
-@media (min-width: 1024px) {
-  .discover-hero .discover-wordmark {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
-  .discover-hero .discover-tagline {
-    font-size: var(--text-2xl);
   }
 }
 

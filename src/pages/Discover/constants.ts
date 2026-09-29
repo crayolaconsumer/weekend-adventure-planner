@@ -27,3 +27,16 @@ export const TRAVEL_MODES: Record<string, TravelMode> = {
 export const DEFAULT_LOCATION = { lat: 51.5074, lng: -0.1278 } as const
 
 export const LOCATION_TIMEOUT_MS = 15000 // 15 seconds
+
+/**
+ * A saved premium mode must not leak its radius (or its bands) to a
+ * non-premium user: clamp to the free default when the entitlement is
+ * gone. Unknown modes clamp too, so a corrupt saved value can't break
+ * the fetch.
+ */
+export function effectiveTravelMode(travelMode: string, isPremium: boolean): string {
+  const mode = TRAVEL_MODES[travelMode]
+  if (!mode) return 'walking'
+  if (mode.premium && !isPremium) return 'walking'
+  return travelMode
+}

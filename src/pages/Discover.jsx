@@ -20,7 +20,7 @@ import { useSubscription } from '../hooks/useSubscription'
 import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
 import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
-import { filterPlaces, enhancePlace } from '../utils/placeFilter'
+import { enhancePlace } from '../utils/placeFilter'
 import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
@@ -28,7 +28,7 @@ import { openDirections } from '../utils/navigation'
 import { useRouteLine, routeForPlaces } from '../hooks/useRouteLine'
 import { routeRequest, routeResetKey } from './Discover/routeRequest'
 import { getTopRecommendations } from '../utils/tasteProfile'
-import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS } from './Discover/constants'
+import { TRAVEL_MODES, DEFAULT_LOCATION, LOCATION_TIMEOUT_MS, effectiveTravelMode } from './Discover/constants'
 import { StackIcon, MapIcon, ListIcon } from './Discover/icons'
 import { buildFreshDeck, excludeSeen, recordSeen } from '../utils/seenPlaces'
 import DeckRunningDryNotice, { nextWider } from './Discover/DeckRunningDryNotice'
@@ -110,6 +110,7 @@ export default function Discover({ location }) {
   const [isDesktop, setIsDesktop] = useState(false)
   const latestLoadRequestRef = useRef(0)
   const latestFilterKeyRef = useRef('')
+  const effectiveLocationRef = useRef(null)
   const basePlacesRef = useRef([])
   const weatherKeyRef = useRef('')
   const categoryDebounceRef = useRef(null) // Debounce timer for category changes
@@ -179,6 +180,9 @@ export default function Discover({ location }) {
   const [showOffPeak, setShowOffPeak] = useState(() => {
     return localStorage.getItem('roam_off_peak') === 'true'
   })
+  const [showDogs, setShowDogs] = useState(() => {
+    return localStorage.getItem('roam_dogs') === 'true'
+  })
 
   // Persist premium filter settings
   useEffect(() => {
@@ -188,6 +192,10 @@ export default function Discover({ location }) {
   useEffect(() => {
     localStorage.setItem('roam_off_peak', showOffPeak.toString())
   }, [showOffPeak])
+
+  useEffect(() => {
+    localStorage.setItem('roam_dogs', showDogs.toString())
+  }, [showDogs])
 
   // Location timeout effect - show recovery options if location takes too long
   useEffect(() => {
@@ -255,9 +263,10 @@ export default function Discover({ location }) {
       accessibilityMode,
       showLocalsPicks,
       showOffPeak,
+      showDogs,
       selectedCategories,
     }),
-    [travelMode, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, selectedCategories],
+    [travelMode, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, showDogs, selectedCategories],
   )
 
   useEffect(() => {
@@ -267,6 +276,12 @@ export default function Discover({ location }) {
   useEffect(() => {
     basePlacesRef.current = basePlaces
   }, [basePlaces])
+
+  // Kept current so the in-flight loadMorePlaces guard can compare
+  // against the LATEST location, not the one from its own closure.
+  useEffect(() => {
+    effectiveLocationRef.current = effectiveLocation
+  }, [effectiveLocation])
 
   // Memoized filter function - thin closure around the pure applyDiscoverFilters
   // helper. All filter state is passed through explicitly so the helper stays
@@ -279,6 +294,7 @@ export default function Discover({ location }) {
         accessibilityMode,
         showLocalsPicks,
         showOffPeak,
+        showDogs,
         isPremium,
         userProfile,
         weather: currentWeather,
@@ -288,8 +304,16 @@ export default function Discover({ location }) {
         includeClosed,
         ...overrides,
       }),
-    [selectedCategories, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand, includeClosed],
+    [selectedCategories, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, showDogs, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand, includeClosed],
   )
+
+  // Off-peak reads the destination clock; the deck must recompute as time
+  // passes or a place dealt just before a peak window stays dealt. Tick per minute.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
 
   // The deck: places already swiped (this device, or the server's list) are
   // taken out BEFORE the picker ranks, so a reload never re-deals them.
@@ -297,12 +321,14 @@ export default function Discover({ location }) {
   // (the deck in hand must not reshuffle); seenVersion covers server merges.
   // Old skips only come back when there is no wider radius to offer and no
   // filter to clear (the running-dry notice offers those first).
-  const hasDeckFilters = selectedCategories.length > 0 || showFreeOnly || accessibilityMode || showLocalsPicks || showOffPeak
+  // Premium toggles gated on isPremium here too (matches the predicate and
+  // the badge): a free user with saved premium toggles has an unfiltered deck.
+  const hasDeckFilters = selectedCategories.length > 0 || showFreeOnly || accessibilityMode || (showLocalsPicks && isPremium) || (showOffPeak && isPremium) || (showDogs && isPremium)
   const canRecycle = !hasDeckFilters && !nextWider(travelMode, selectedBand, isPremium)
   const freshDeck = useMemo(
     () => buildFreshDeck(basePlaces, list => applyFilters(list, weather, friendActivity), { recycle: canRecycle }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seenVersion: the seen store changed
-    [basePlaces, applyFilters, weather, friendActivity, seenVersion, canRecycle],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seenVersion: the seen store changed; now: recompute the off-peak clock as time passes
+    [basePlaces, applyFilters, weather, friendActivity, seenVersion, canRecycle, now],
   )
   const filteredPlaces = freshDeck.places
   // New cards in this deck the user hasn't swiped yet (the running-dry count)
@@ -371,10 +397,15 @@ export default function Discover({ location }) {
     // Check on mount
     checkPendingVisit()
 
-    // Check when page becomes visible again (user returns from maps)
+    // Check when page becomes visible again (user returns from maps).
+    // No 30s grace here: returning from Maps is the "you went" signal,
+    // so the prompt fires immediately, even on a 10-second detour.
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkPendingVisit()
+        const pending = getPendingVisit({ minElapsedMs: 0 })
+        if (pending) {
+          setVisitedPromptPlace(pending)
+        }
       }
     }
 
@@ -393,7 +424,9 @@ export default function Discover({ location }) {
     const requestKey = buildFilterKey()
     latestFilterKeyRef.current = requestKey
 
-    const mode = TRAVEL_MODES[travelMode]
+    // A saved premium mode (dayTrip/explorer) must not fetch its radius
+    // for a non-premium user — clamp to the free default.
+    const mode = TRAVEL_MODES[effectiveTravelMode(travelMode, isPremium)]
     const resolvedWeather = currentWeather ?? weather
 
     // OPTIMIZATION: Check cache synchronously BEFORE setting loading state
@@ -465,7 +498,11 @@ export default function Discover({ location }) {
       // Enhance places with context
       const enhanced = rawPlaces.map(p => enhancePlace(p, effectiveLocation, scoringContext))
 
-      if (requestId !== latestLoadRequestRef.current || requestKey !== latestFilterKeyRef.current) {
+      // A result is stale only when a NEWER REQUEST was issued (requestId).
+      // A filter-key change without a new request is a client-side toggle
+      // (free/access/locals/off-peak/dogs): the memo re-filters the applied
+      // result, so discarding here would strand the spinner and the deck.
+      if (requestId !== latestLoadRequestRef.current) {
         return
       }
 
@@ -485,15 +522,19 @@ export default function Discover({ location }) {
     if (requestId === latestLoadRequestRef.current) {
       setLoading(false)
     }
-  }, [effectiveLocation, travelMode, selectedCategories, toast, buildFilterKey, weather])
+  }, [effectiveLocation, travelMode, selectedCategories, toast, buildFilterKey, weather, isPremium])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
     if (!effectiveLocation || loadingMore) return
 
+    // A load-more is stale if the filter key OR the location moved while
+    // it was in flight: the merged places carry distances computed from
+    // the location it started from.
     const filterKeyAtStart = latestFilterKeyRef.current
+    const locationAtStart = effectiveLocation
     setLoadingMore(true)
-    const mode = TRAVEL_MODES[travelMode]
+    const mode = TRAVEL_MODES[effectiveTravelMode(travelMode, isPremium)]
 
     try {
       // Expand the radius slightly to find more places
@@ -514,22 +555,15 @@ export default function Discover({ location }) {
       // Swiped places stay out of the extra cards too. Eligibility (free/
       // accessibility) and closed-now run BEFORE the cap, so ineligible
       // places can't crowd out eligible ones (same order fix as
-      // applyDiscoverFilters).
+      // applyDiscoverFilters). The premium toggles (locals/off-peak/
+      // dogs) are client-side: the memo re-filters the merged base, so
+      // they must not narrow what we merge here.
       const eligible = excludeSeen(enhanced).filter(p =>
-        passesEligibility(p, { showFreeOnly, accessibilityMode, showLocalsPicks: false, showOffPeak: false, isPremium })
+        passesEligibility(p, { showFreeOnly, accessibilityMode, showLocalsPicks: false, showOffPeak: false, showDogs: false, isPremium })
         && (includeClosed || isPlaceOpen(p) !== false)
       )
-      let filtered = filterPlaces(eligible, {
-        categories: selectedCategories.length > 0 ? selectedCategories : null,
-        minScore: 25, // Lower threshold for more results
-        maxResults: 100,
-        sortBy: 'smart',
-        weather,
-        ensureDiversity: true,  // Always ensure category mix
-        userProfile // Personalize based on user's taste profile
-      })
 
-      if (filterKeyAtStart !== latestFilterKeyRef.current) {
+      if (filterKeyAtStart !== latestFilterKeyRef.current || locationAtStart !== effectiveLocationRef.current) {
         return
       }
 
@@ -637,6 +671,12 @@ export default function Discover({ location }) {
   }, [effectiveLocation, selectedCategories.length])
 
 
+  // The debounced category callback must call the LATEST loadPlaces (its
+  // closure carries the new selectedCategories); a captured one would
+  // fetch the pre-toggle category.
+  const loadPlacesRef = useRef(loadPlaces)
+  useEffect(() => { loadPlacesRef.current = loadPlaces }, [loadPlaces])
+
   // Handle category filter changes with debouncing
   // Rapid toggles won't spam the API - we wait for user to finish selecting
   const toggleCategory = (categoryKey) => {
@@ -650,7 +690,7 @@ export default function Discover({ location }) {
     // Debounce the API call - wait for user to finish toggling
     clearTimeout(categoryDebounceRef.current)
     categoryDebounceRef.current = setTimeout(() => {
-      loadPlaces(weather)
+      loadPlacesRef.current(weather)
     }, 300) // 300ms debounce - fast enough to feel responsive
   }
 
@@ -660,8 +700,20 @@ export default function Discover({ location }) {
     setAccessibilityMode(false)
     setShowLocalsPicks(false)
     setShowOffPeak(false)
+    setShowDogs(false)
     setSelectedBand(DEFAULT_BAND)
     localStorage.setItem(bandStorageKey(travelMode), DEFAULT_BAND)
+
+    // The base pool is scoped to the last selected category. Clearing
+    // filters must refetch the unscoped pool, not just re-filter the
+    // scoped base client-side (that would leave a nature-only deck
+    // after the user cleared every filter).
+    if (selectedCategories.length > 0) {
+      clearTimeout(categoryDebounceRef.current)
+      categoryDebounceRef.current = setTimeout(() => {
+        loadPlacesRef.current(weather)
+      }, 300)
+    }
   }
 
   // Handle swipe actions
@@ -931,7 +983,7 @@ export default function Discover({ location }) {
             openCount={filteredPlaces.length}
             firstOpens={closedOffer?.firstOpens}
             closedCount={closedOffer?.closedCount ?? 0}
-            filtered={selectedCategories.length > 0 || showFreeOnly || accessibilityMode || showLocalsPicks || showOffPeak}
+            filtered={hasDeckFilters}
             includeClosed={includeClosed}
             onToggle={() => setIncludeClosed(v => !v)}
           />
@@ -975,7 +1027,7 @@ export default function Discover({ location }) {
             emptyReason={
               // Provide contextual reason for empty state
               basePlaces.length === 0 ? 'no-places' :
-              selectedCategories.length > 0 || showFreeOnly || accessibilityMode ? 'filters' :
+              hasDeckFilters ? 'filters' :
               'swiped'
             }
             activeFiltersCount={
@@ -983,9 +1035,11 @@ export default function Discover({ location }) {
               (showFreeOnly ? 1 : 0) +
               (accessibilityMode ? 1 : 0) +
               (showLocalsPicks && isPremium ? 1 : 0) +
-              (showOffPeak && isPremium ? 1 : 0)
+              (showOffPeak && isPremium ? 1 : 0) +
+              (showDogs && isPremium ? 1 : 0)
             }
             travelMode={travelMode}
+            lifted={selectedPlace}
           />
         )}
 
@@ -1097,6 +1151,8 @@ export default function Discover({ location }) {
         onToggleLocalsPicks={() => setShowLocalsPicks(prev => !prev)}
         showOffPeak={showOffPeak}
         onToggleOffPeak={() => setShowOffPeak(prev => !prev)}
+        showDogs={showDogs}
+        onToggleDogs={() => setShowDogs(prev => !prev)}
         onClearAll={clearAllFilters}
         isPremium={isPremium}
         onShowUpgrade={(type = 'filters') => {

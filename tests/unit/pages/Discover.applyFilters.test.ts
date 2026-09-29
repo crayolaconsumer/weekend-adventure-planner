@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { applyDiscoverFilters, buildFilterKey } from '../../../src/pages/Discover/applyFilters'
+import { applyDiscoverFilters, buildFilterKey, isDogFriendly } from '../../../src/pages/Discover/applyFilters'
 
-function p(overrides: Record<string, unknown> = {}) {
+function p(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'p1',
     name: 'The Old Bakery',
@@ -19,9 +19,10 @@ const defaults = {
   selectedCategories: [],
   showFreeOnly: false,
   accessibilityMode: false,
- 
+
   showLocalsPicks: false,
   showOffPeak: false,
+  showDogs: false,
   isPremium: false,
   userProfile: null,
   weather: null,
@@ -37,6 +38,7 @@ describe('Discover/applyFilters.buildFilterKey', () => {
      
       showLocalsPicks: false,
       showOffPeak: false,
+      showDogs: false,
       selectedCategories: ['food', 'culture'],
     }
     const a = buildFilterKey(opts)
@@ -45,14 +47,19 @@ describe('Discover/applyFilters.buildFilterKey', () => {
   })
 
   it("doesn't depend on selectedCategories input order", () => {
-    const k1 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: ['food', 'culture'] })
-    const k2 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: ['culture', 'food'] })
+    const k1 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, showDogs: false, selectedCategories: ['food', 'culture'] })
+    const k2 = buildFilterKey({ travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, showDogs: false, selectedCategories: ['culture', 'food'] })
     expect(k1).toBe(k2)
   })
 
   it('changes when travelMode changes', () => {
-    const base = { showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: [] }
+    const base = { showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, showDogs: false, selectedCategories: [] }
     expect(buildFilterKey({ ...base, travelMode: 'walking' })).not.toBe(buildFilterKey({ ...base, travelMode: 'driving' }))
+  })
+
+  it('changes when showDogs changes', () => {
+    const base = { travelMode: 'walking', showFreeOnly: false, accessibilityMode: false, showLocalsPicks: false, showOffPeak: false, selectedCategories: [] }
+    expect(buildFilterKey({ ...base, showDogs: false })).not.toBe(buildFilterKey({ ...base, showDogs: true }))
   })
 })
 
@@ -84,27 +91,28 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
       expect(out.find(x => x.id === 'b')).toBeUndefined()
     })
 
-    it('keeps parks regardless of fee tag', () => {
-      const places = [p({ id: 'p', type: 'park', name: 'Hyde Park', fee: 'yes' })]
+    it('drops a ticketed park (fee="yes"), keeps an untagged one', () => {
+      const places = [
+        p({ id: 'paid', type: 'park', name: 'Kew Gardens', fee: 'yes' }),
+        p({ id: 'free', type: 'park', name: 'Hyde Park' }),
+      ]
       const out = applyDiscoverFilters(places, { ...defaults, showFreeOnly: true })
-      expect(out).toHaveLength(1)
+      expect(out.map(x => x.id)).toEqual(['free'])
     })
   })
 
   describe('accessibilityMode', () => {
-    it('drops places explicitly marked wheelchair=no', () => {
+    it('keeps only confirmed step-free places (wheelchair="yes")', () => {
+      // The label promises accessible, so the predicate matches: "no",
+      // "limited" and a missing tag are all not accessible.
       const places = [
-        p({ id: 'a', name: 'Accessible Cafe', type: 'cafe', wheelchair: 'yes' }),
-        p({ id: 'b', name: 'Stairs Only Cafe', type: 'cafe', wheelchair: 'no' }),
+        p({ id: 'yes', name: 'Step Free Cafe', type: 'cafe', wheelchair: 'yes', heritage: 'yes', website: 'w', description: 'A long description of a notable cafe that is well documented', openingHours: '24/7', phone: '1', address: 'a' }),
+        p({ id: 'no', name: 'Stairs Only Cafe', type: 'cafe', wheelchair: 'no' }),
+        p({ id: 'limited', name: 'Ramp Cafe', type: 'cafe', wheelchair: 'limited' }),
+        p({ id: 'unknown', name: 'The Old Pub', type: 'pub' }),
       ]
       const out = applyDiscoverFilters(places, { ...defaults, accessibilityMode: true })
-      expect(out.find(x => x.id === 'b')).toBeUndefined()
-    })
-
-    it("doesn't drop places without wheelchair tag (unknown = treat as accessible)", () => {
-      const places = [p({ id: 'a', name: 'The Old Pub', type: 'pub' })]
-      const out = applyDiscoverFilters(places, { ...defaults, accessibilityMode: true })
-      expect(out).toHaveLength(1)
+      expect(out.map(x => x.id)).toEqual(['yes'])
     })
   })
 
@@ -129,13 +137,22 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
       expect(out.find(x => x.id === 'indie')).toBeDefined()
     })
 
-    it('drops tourist traps when premium', () => {
+    it('keeps non-chain attractions (the scorer rewards them)', () => {
+      // tourism=attraction is NOT a veto: the scorer rewards famous
+      // places, so a historic castle is exactly what locals pick.
       const places = [
-        p({ id: 'tt', name: 'Generic Tourist Trap', type: 'amusement_park', tourism: 'attraction' }),
-        p({ id: 'good', name: 'Local Spot', type: 'cafe' }),
+        p({ id: 'castle', name: 'Historic Castle', type: 'castle', tourism: 'attraction', qualityScore: 60, heritage: 'yes', website: 'w', description: 'A long description of a notable castle that is well documented', openingHours: '24/7', phone: '1', address: 'a' }),
       ]
       const out = applyDiscoverFilters(places, { ...defaults, showLocalsPicks: true, isPremium: true })
-      expect(out.find(x => x.id === 'tt')).toBeUndefined()
+      expect(out.map(x => x.id)).toEqual(['castle'])
+    })
+
+    it('drops low-quality non-chain places (qualityScore < 30)', () => {
+      const places = [
+        p({ id: 'low', name: 'The Dull Diner', type: 'cafe', qualityScore: 10, heritage: 'yes', website: 'w', description: 'A long description of a notable diner that is well documented', openingHours: 'Su-Mo 09:00-18:00', phone: '1', address: 'a' }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults, showLocalsPicks: true, isPremium: true })
+      expect(out).toHaveLength(0)
     })
 
     it('matches the chain regex on common UK names', () => {
@@ -161,14 +178,14 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
 
     it('drops restaurants during peak lunch (12-14)', () => {
       // Tuesday at 13:00
-      vi.setSystemTime(new Date('2026-05-12T13:00:00'))
+      vi.setSystemTime(new Date('2026-05-12T13:00:00Z'))
       const places = [p({ id: 'r', name: 'The Old Bakery', type: 'restaurant' })]
       const out = applyDiscoverFilters(places, { ...defaults, showOffPeak: true, isPremium: true })
       expect(out).toHaveLength(0)
     })
 
     it('keeps restaurants outside peak times', () => {
-      vi.setSystemTime(new Date('2026-05-12T15:30:00'))
+      vi.setSystemTime(new Date('2026-05-12T15:30:00Z'))
       const places = [p({ id: 'r', name: 'The Old Bakery', type: 'restaurant' })]
       const out = applyDiscoverFilters(places, { ...defaults, showOffPeak: true, isPremium: true })
       expect(out).toHaveLength(1)
@@ -176,10 +193,76 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
 
     it('drops parks during weekend daytime', () => {
       // Saturday at noon
-      vi.setSystemTime(new Date('2026-05-09T12:00:00'))
+      vi.setSystemTime(new Date('2026-05-09T12:00:00Z'))
       const places = [p({ id: 'p', name: 'Hyde Park', type: 'park' })]
       const out = applyDiscoverFilters(places, { ...defaults, showOffPeak: true, isPremium: true })
       expect(out).toHaveLength(0)
+    })
+
+    it('drops fast food at lunch too (type coverage)', () => {
+      vi.setSystemTime(new Date('2026-05-12T13:00:00Z'))
+      const places = [p({ id: 'ff', name: 'The Chip Shop', type: 'fast_food' })]
+      const out = applyDiscoverFilters(places, { ...defaults, showOffPeak: true, isPremium: true })
+      expect(out).toHaveLength(0)
+    })
+
+    it('vetoes on the destination clock, not the phone clock', () => {
+      // 13:00 UTC is peak lunch in London (offset 0) but 09:00 in New
+      // York (UTC-4 in May): the NY diner survives.
+      vi.setSystemTime(new Date('2026-05-12T13:00:00Z'))
+      const places = [p({ id: 'ny', name: 'NY Diner', type: 'restaurant', lat: 40.7, lng: -74 })]
+      const out = applyDiscoverFilters(places, { ...defaults, showOffPeak: true, isPremium: true })
+      expect(out.map(x => x.id)).toEqual(['ny'])
+    })
+  })
+
+  describe('isDogFriendly', () => {
+    it('accepts the dog-friendly OSM values only', () => {
+      for (const v of ['yes', 'conditional', 'leashed', 'unleashed', 'outside']) {
+        expect(isDogFriendly(v), v).toBe(true)
+      }
+      for (const v of ['no', 'designated', undefined, null, '']) {
+        expect(isDogFriendly(v), String(v)).toBe(false)
+      }
+    })
+  })
+
+  describe('showDogs (premium)', () => {
+    it('only applies when isPremium=true', () => {
+      const places = [p({ id: 'a', name: 'The Old Bakery', type: 'cafe' })]
+      const free = applyDiscoverFilters(places, { ...defaults, showDogs: true, isPremium: false })
+      expect(free.find(x => x.id === 'a')).toBeDefined()
+    })
+
+    it('keeps only explicitly dog-friendly places', () => {
+      const places = [
+        p({ id: 'yes', name: 'Dog Yes', type: 'cafe', dog: 'yes' }),
+        p({ id: 'cond', name: 'Dog Conditional', type: 'cafe', dog: 'conditional' }),
+        p({ id: 'leash', name: 'Dog Leashed', type: 'cafe', dog: 'leashed' }),
+        p({ id: 'unleash', name: 'Dog Unleashed', type: 'cafe', dog: 'unleashed' }),
+        p({ id: 'outside', name: 'Dog Outside', type: 'cafe', dog: 'outside' }),
+        p({ id: 'no', name: 'Dog No', type: 'cafe', dog: 'no' }),
+        p({ id: 'care', name: 'Dog Groomer', type: 'cafe', dog: 'designated' }),
+        p({ id: 'unknown', name: 'Dog Unknown', type: 'cafe' }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults, showDogs: true, isPremium: true })
+      expect(out.map(x => x.id).sort()).toEqual(['cond', 'leash', 'outside', 'unleash', 'yes'])
+    })
+
+    it('drops dog-unknown places beyond the cap too (false scarcity)', () => {
+      // Same shape as the free-only case: 50 untagged places outrank the 2
+      // dog-friendly ones. Eligibility runs before the 50-result cap, so
+      // the dog-friendly places are not crowded out.
+      const ineligible = Array.from({ length: 50 }, (_, i) =>
+        p({ id: `unknown-${i}`, name: `The Old Cafe ${i}`, type: 'restaurant', heritage: 'yes', website: 'w', description: 'A long description of a notable venue that is well documented', openingHours: 'Su-Mo 09:00-18:00', phone: '1', address: 'a' }))
+      const eligible = [
+        p({ id: 'yes', name: 'Dog Yes', type: 'restaurant', dog: 'yes' }),
+        p({ id: 'leash', name: 'Dog Leashed', type: 'restaurant', dog: 'leashed' }),
+      ]
+      const out = applyDiscoverFilters([...ineligible, ...eligible], { ...defaults, showDogs: true, isPremium: true })
+      expect(out.length).toBeGreaterThan(0)
+      expect(out.every(x => x.dog === 'yes' || x.dog === 'leashed')).toBe(true)
+      expect(out.find(x => String(x.id).startsWith('unknown-'))).toBeUndefined()
     })
   })
 
@@ -214,7 +297,7 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
       expect(out.length).toBeGreaterThan(0)
       // every survivor is eligible (free); none of the paid ones made it in
       expect(out.every(x => x.fee === 'no')).toBe(true)
-      expect(out.find(x => x.id.startsWith('paid-'))).toBeUndefined()
+      expect(out.find(x => String(x.id).startsWith('paid-'))).toBeUndefined()
     })
 
     it('same for accessibility: accessible places beyond a cap of wheelchair=no', () => {
@@ -229,7 +312,7 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
       const out = applyDiscoverFilters([...ineligible, ...eligible], { ...defaults, accessibilityMode: true })
       expect(out.length).toBeGreaterThan(0)
       expect(out.every(x => x.wheelchair === 'yes')).toBe(true)
-      expect(out.find(x => x.id.startsWith('no-'))).toBeUndefined()
+      expect(out.find(x => String(x.id).startsWith('no-'))).toBeUndefined()
     })
   })
 

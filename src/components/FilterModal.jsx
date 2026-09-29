@@ -97,6 +97,8 @@ export function FilterModal({
   onToggleLocalsPicks = () => {},
   showOffPeak = false,
   onToggleOffPeak = () => {},
+  showDogs = false,
+  onToggleDogs = () => {},
   onClearAll = null,
   isPremium = false,
   onShowUpgrade = () => {}
@@ -173,7 +175,9 @@ export function FilterModal({
   }
 
   const hasDistanceBandFilter = selectedBand && selectedBand !== 'medium'
-  const activeCount = selectedCategories.length + (hasDistanceBandFilter ? 1 : 0) + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showLocalsPicks ? 1 : 0) + (showOffPeak ? 1 : 0)
+  // Premium toggles only count when the user can actually use them:
+  // a free user's saved-but-locked premium filter is not an active filter.
+  const activeCount = selectedCategories.length + (hasDistanceBandFilter ? 1 : 0) + (showFreeOnly ? 1 : 0) + (accessibilityMode ? 1 : 0) + (showLocalsPicks && isPremium ? 1 : 0) + (showOffPeak && isPremium ? 1 : 0) + (showDogs && isPremium ? 1 : 0)
   const categories = Object.entries(GOOD_CATEGORIES)
 
   const handleDragStart = (event) => {
@@ -210,8 +214,9 @@ export function FilterModal({
     selectedCategories.forEach(cat => onToggleCategory(cat))
     if (showFreeOnly) onToggleFreeOnly()
     if (accessibilityMode) onToggleAccessibility()
-    if (showLocalsPicks) onToggleLocalsPicks()
-    if (showOffPeak) onToggleOffPeak()
+    if (showLocalsPicks && isPremium) onToggleLocalsPicks()
+    if (showOffPeak && isPremium) onToggleOffPeak()
+    if (showDogs && isPremium) onToggleDogs()
   }
 
   return (
@@ -474,6 +479,29 @@ export function FilterModal({
                   <span className="filter-extra-label">Off-peak times</span>
                   {isPremium ? (
                     <span className={`filter-extra-toggle ${showOffPeak ? 'on' : ''}`}>
+                      <span className="filter-extra-toggle-knob" />
+                    </span>
+                  ) : (
+                    <span className="filter-premium-badge">ROAM+</span>
+                  )}
+                </button>
+                <button
+                  className={`filter-extra-item ${showDogs ? 'selected' : ''} ${!isPremium ? 'locked' : ''}`}
+                  onClick={() => {
+                    if (isPremium) {
+                      onToggleDogs()
+                    } else {
+                      onShowUpgrade()
+                    }
+                  }}
+                  aria-pressed={showDogs}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="dog" size={22} />
+                  </span>
+                  <span className="filter-extra-label">Bring the dog</span>
+                  {isPremium ? (
+                    <span className={`filter-extra-toggle ${showDogs ? 'on' : ''}`}>
                       <span className="filter-extra-toggle-knob" />
                     </span>
                   ) : (

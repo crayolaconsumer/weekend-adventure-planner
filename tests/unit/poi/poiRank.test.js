@@ -60,9 +60,9 @@ describe('pinned to the client: the lists are the same lists', () => {
     const src = f => readFileSync(join(process.cwd(), f), 'utf8')
     expect(Number(/function getGeoZone\(place, precision = ([\d.]+)\)/.exec(src('src/utils/placeFilter.js'))[1])).toBe(ZONE_DEG)
     expect(src('src/utils/placeFilter.js')).toMatch(/getGeoZone\(place\)/) // called with the default
-    const discover = [...src('src/pages/Discover.jsx').matchAll(/minScore: (\d+)/g)].map(m => Number(m[1]))
-    expect(discover).toEqual([MIN_SCORE])
-    // the main deck (applyFilters.ts) is stricter: ELIGIBLE must stay a superset of it
+    // Discover.jsx no longer calls filterPlaces directly (the dead
+    // load-more call is gone); the deck's minScore lives in
+    // applyFilters.ts and must stay a superset of the poi's
     const main = [...src('src/pages/Discover/applyFilters.ts').matchAll(/minScore: (\d+)/g)].map(m => Number(m[1]))
     expect(main.length).toBeGreaterThan(0)
     for (const m of main) expect(m).toBeGreaterThanOrEqual(MIN_SCORE)
@@ -157,7 +157,12 @@ describe('features', () => {
   // tables carry these numbers under that version: changing poiFeatures' output without
   // bumping FEATURES_VERSION would let the server rank old rows with new meanings. Changed
   // the output on purpose? Bump FEATURES_VERSION and add its digest here.
-  const DIGESTS = { 1: 'c4b358fa6ea34ebc17501373dacf1aff60d125d25b9c3a67ee6ab60fee2a43f1' }
+  const DIGESTS = {
+    1: 'c4b358fa6ea34ebc17501373dacf1aff60d125d25b9c3a67ee6ab60fee2a43f1',
+    // v2: blacklisted types lost the -100 score penalty (rescued places
+    // rank on their merits); the client and this port changed together.
+    2: 'f8b695f8f6c01facd9decbbf0754d217f822f194f2191d56ce7dcdbf3e5775b2',
+  }
   it(`the output for FEATURES_VERSION ${FEATURES_VERSION} is frozen`, () => {
     const file = JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'poiRankSample.json'), 'utf8'))
     const out = file.map(el => { const f = poiFeatures(el); return `${el.type}/${el.id} ${f.q} ${f.cat} ${f.flags}` }).join('\n')

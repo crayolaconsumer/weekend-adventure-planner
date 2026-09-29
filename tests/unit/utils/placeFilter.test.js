@@ -33,11 +33,28 @@ describe('placeFilter.scorePlace', () => {
     expect(score).toBeLessThanOrEqual(100)
   })
 
-  it('penalises blacklisted types heavily', () => {
+  it('scores blacklisted types low, without the old -100 penalty', () => {
+    // Blacklisted types are dropped by shouldKeepPlace (see filterPlaces
+    // below); scoring no longer pins them to zero, a rescued place ranks
+    // on its merits.
     const good = scorePlace(makePlace({ type: 'restaurant' }))
     const bad = scorePlace(makePlace({ type: 'hospital' }))
     expect(bad).toBeLessThan(good)
-    expect(bad).toBe(0) // clamped
+    expect(bad).toBeLessThanOrEqual(10)
+  })
+
+  it('boosts places friends saved or visited, capped at +15', () => {
+    const base = scorePlace(makePlace({ id: 'alone' }))
+    const friendy = scorePlace(makePlace({ id: 'friendy' }), {
+      friendActivity: {
+        friendy: {
+          friendsSaved: [1, 2, 3, 4], // 4 saves -> capped at 3 * 3 = 9
+          friendsVisited: [{ recommended: true }, { recommended: true }, { recommended: false }], // 2 recommended -> 2 * 5 = 10
+        },
+      },
+    })
+    expect(friendy).toBeGreaterThan(base)
+    expect(friendy).toBeLessThanOrEqual(base + 15)
   })
 
   it('penalises boring names', () => {

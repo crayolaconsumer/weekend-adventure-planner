@@ -359,6 +359,12 @@ export function parseOverpassResponse(data) {
       brand: tags.brand,
       brandWikidata: tags['brand:wikidata'],
       fee: tags.fee,
+      // OSM dog access (dog=yes/no/conditional/leashed/unleashed/outside).
+      // The Overpass query returns all tags (`out tags`), so this is
+      // parse-side only. A missing tag means unknown — the dog filter
+      // treats unknown as "not dog-friendly", never as "yes".
+      dog: tags.dog,
+      dogConditional: tags['dog:conditional'],
       qualityScore
     }
   }).filter(place => place.lat && place.lng && place.name !== 'Unnamed Place')

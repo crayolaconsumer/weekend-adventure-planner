@@ -58,3 +58,37 @@ describe('FilterModal OSM credit', () => {
       .toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
   })
 })
+
+// "Bring the dog" is a premium filter: the toggle works for ROAM+ users,
+// offers the upgrade for everyone else, and only counts as an active
+// filter when the user can actually use it.
+describe('FilterModal bring the dog', () => {
+  it('toggles on tap for premium users', async () => {
+    const onToggleDogs = vi.fn()
+    render(<FilterModal isOpen isPremium onClose={() => {}} onToggleDogs={onToggleDogs} />)
+    fireEvent.click(screen.getByText('Bring the dog'))
+    expect(onToggleDogs).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers the upgrade for free users', async () => {
+    const onShowUpgrade = vi.fn()
+    render(<FilterModal isOpen isPremium={false} onClose={() => {}} onToggleDogs={vi.fn()} onShowUpgrade={onShowUpgrade} />)
+    fireEvent.click(screen.getByText('Bring the dog'))
+    expect(onShowUpgrade).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts as an active filter only for premium users', async () => {
+    const { unmount } = render(<FilterModal isOpen isPremium showDogs onClose={() => {}} />)
+    expect(screen.getByText('1 filter')).toBeInTheDocument()
+    unmount()
+    render(<FilterModal isOpen isPremium={false} showDogs onClose={() => {}} />)
+    expect(screen.queryByText('1 filter')).toBeNull()
+  })
+
+  it('clear-all turns the dog toggle off for premium users', async () => {
+    const onToggleDogs = vi.fn()
+    render(<FilterModal isOpen isPremium showDogs onClearAll={null} onToggleDogs={onToggleDogs} onClose={() => {}} />)
+    fireEvent.click(screen.getByText('Clear all'))
+    expect(onToggleDogs).toHaveBeenCalledTimes(1)
+  })
+})

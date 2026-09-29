@@ -5,8 +5,6 @@
 
 import {
   GOOD_CATEGORIES,
-  BLACKLIST,
-  isBlacklisted,
   shouldKeepPlace,
   hasBoringName,
   getCategoryForType
@@ -117,10 +115,9 @@ function scorePlaceBase(place, context = {}) {
     score += 3
   }
 
-  // Penalty for blacklisted type
-  if (isBlacklisted(place.type)) {
-    score -= 100
-  }
+  // Blacklisted types are dropped by shouldKeepPlace in filterPlaces
+  // (rescued famous places survive there); no score penalty — a rescued
+  // place ranks on its own merits, not pinned to the bottom.
 
   // Penalty for boring name
   if (hasBoringName(place.name)) {
@@ -282,11 +279,12 @@ export function filterPlaces(places, options = {}) {
     weather = null,
     ensureDiversity = true, // Mix categories when no filter selected
     userProfile = null, // Taste profile for personalized scoring
+    friendActivity = null, // Per-place friend save/visit map for the boost
     seed = SESSION_SEED, // Varies the deck between page loads, stable within one
   } = options
 
   // Pass categories as vibeCategories for soft boost scoring (not hard filter)
-  const context = { timeContext: getTimeContext(), weather, userProfile, vibeCategories: categories }
+  const context = { timeContext: getTimeContext(), weather, userProfile, vibeCategories: categories, friendActivity }
 
   let filtered = places
     // Remove blacklisted types, BUT rescue famous places that happen

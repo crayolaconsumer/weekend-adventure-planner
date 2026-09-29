@@ -6,13 +6,10 @@ import PlaceImage from './PlaceImage'
 import CategoryIcon from './icons/CategoryIcon'
 import { getOpeningState } from '../utils/openingHours'
 import { fetchAndCacheImage, getCachedImage, invalidateCachedImage } from '../utils/imageCache'
-import { ContributionBadge } from './ContributionDisplay'
+import { getPlaceSocialProof } from '../utils/ratingsStorage'
 import { useFormatDistance } from '../contexts/DistanceContext'
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
-import { composeBlurb, placeFeatures } from '../utils/placeBlurb'
-import SocialProof from './SocialProof'
-import PlaceBadges from './PlaceBadges'
-import FriendChips from './FriendChips'
+import { composeBlurb } from '../utils/placeBlurb'
 import { PhotoCredit } from './Attribution'
 import './SwipeCard.css'
 
@@ -50,19 +47,45 @@ const NavigationIcon = () => (
   </svg>
 )
 
-const ClockIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12,6 12,12 16,14"/>
-  </svg>
-)
+// "type · distance · open state" — each segment omits itself when absent;
+// join with " · ". The card's single meta line (replaces the pill row).
+function cardLine(place, formatDistance, openingState) {
+  const parts = []
+  if (place.type) parts.push(place.type.replace(/_/g, ' '))
+  if (place.distance != null) parts.push(formatDistance(place.distance))
+  if (openingState.state !== 'unknown') parts.push(openingState.stateLabel)
+  return parts.join(' · ')
+}
 
-const MapPinIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21,10c0,7-9,13-9,13S3,17,3,10a9,9,0,0,1,18,0Z"/>
-    <circle cx="12" cy="10" r="3"/>
-  </svg>
-)
+// One social line, same priority order as SocialProof, plus friends:
+// user rating > friends > community > taste match. Returns null when no
+// signal exists — the line is omitted, never an empty dot.
+function socialLineFor(place, friendActivity) {
+  const proof = getPlaceSocialProof(place.id)
+  if (proof.hasUserRating) return proof.userRecommended ? 'You loved this' : 'You visited'
+  if (friendActivity && friendActivity.friendCount > 0) {
+    const label = friendActivity.friendCount === 1 ? 'friend' : 'friends'
+    return `${friendActivity.friendCount} ${label} here`
+  }
+  if (proof.count > 0) return `${proof.count} explorer${proof.count === 1 ? '' : 's'} loved this`
+  return null
+}
+
+// Tip quote with attribution > description quote > plain blurb. Renders
+// nothing when none exist.
+function QuoteLine({ topTip, description, blurb }) {
+  if (topTip) {
+    return (
+      <blockquote className="swipe-card-quote">
+        “{topTip.text}”
+        <small>@{topTip.user?.username || 'user'}</small>
+      </blockquote>
+    )
+  }
+  if (description) return <blockquote className="swipe-card-quote">“{description}”</blockquote>
+  if (blurb) return <p className="swipe-card-blurb">{blurb}</p>
+  return null
+}
 
 export default function SwipeCard({
   place,
@@ -72,7 +95,8 @@ export default function SwipeCard({
   style = {},
   topContribution = null,
   friendActivity = null,
-  saveCapNudge = false
+  saveCapNudge = false,
+  lifted = false
 }) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -98,12 +122,7 @@ export default function SwipeCard({
   // an ordinary venue with no Wikipedia description still gets a
   // meaningful line + useful feature chips instead of a bare card.
   const blurb = composeBlurb(place)
-  const features = placeFeatures(place)
-  // The blurb already names the type (e.g. "Italian restaurant"), so when
-  // it's shown we hide the separate bare type chip to avoid stating the
-  // type twice. A community tip or a real source description takes
-  // priority over the blurb (they're richer), so the type chip stays then.
-  const showBlurb = !topTip && !place.description && !!blurb
+  const socialLine = socialLineFor(place, friendActivity)
   const enrichedImageUrl = place.photo || place.image
   const placeholderUrl = getPlaceholderImage(place.id, category?.key)
   const sourceImageUrl = enrichedImageUrl || placeholderUrl
@@ -306,6 +325,14 @@ export default function SwipeCard({
   // useTransform — that path was always working on iOS, no change.
   useEffect(() => {
     if (!isTop) return
+    // The lift (the place detail open for this card) is folded into the SAME
+    // forced-3D transform write as the drag, so it composes with the gesture
+    // and survives the iOS WKWebView compositor layer. Without this the lift
+    // would be a Framer Motion `animate` on the same element, which the rAF
+    // write below would clobber.
+    const lift = lifted
+    const liftY = lift ? -12 : 0
+    const liftScale = lift ? 1.02 : 1
     let frame = 0
     const schedule = () => {
       if (frame) return
@@ -316,7 +343,7 @@ export default function SwipeCard({
         const xv = x.get()
         const yv = y.get()
         const rv = rotate.get()
-        node.style.transform = `translate3d(${xv}px, ${yv}px, 0) rotate(${rv}deg)`
+        node.style.transform = `translate3d(${xv}px, ${yv + liftY}px, 0) rotate(${rv}deg) scale(${liftScale})`
       })
     }
     const unsubX = x.on('change', schedule)
@@ -331,7 +358,7 @@ export default function SwipeCard({
       unsubR()
       if (frame) cancelAnimationFrame(frame)
     }
-  }, [isTop, x, y, rotate])
+  }, [isTop, x, y, rotate, lifted])
 
   // Honour OS-level reduced-motion preference. When true we leave drag
   // disabled and the card stays static; users still skip/save/go via
@@ -442,13 +469,13 @@ export default function SwipeCard({
     setTimeout(() => onSwipe?.(action), 200)
   }
 
-  // Handle tap to expand (only if not dragging)
+  // Handle tap to open details (only if not dragging). Tapping the card
+  // opens PlaceDetail via onExpand.
   const handleCardClick = (e) => {
-    // Don't expand if clicking on buttons
+    // Don't expand if clicking on the action buttons
     if (e.target.closest('.swipe-card-actions')) return
     // Don't expand if the user was dragging
     if (hasMoved) return
-    // Trigger expand callback
     onExpand?.(place)
   }
 
@@ -500,7 +527,7 @@ export default function SwipeCard({
       onKeyDown={isTop ? handleKeyDown : undefined}
       tabIndex={isTop ? 0 : -1}
       role="article"
-      aria-label={`${place.name}. Press Enter to view details, Arrow keys to swipe.`}
+      aria-label={`${place.name}. Press Enter to open details, Arrow keys to swipe.`}
     >
       {/* Background Image */}
       <div className="swipe-card-image-container">
@@ -568,82 +595,20 @@ export default function SwipeCard({
           peek-of-back-card behind it is just an image. */}
       {isTop && (
       <div className="swipe-card-content">
-        {/* Friend chips - show if friends have engaged with this place */}
-        {friendActivity && friendActivity.friendCount > 0 && (
-          <FriendChips friendActivity={friendActivity} />
+        {(category?.label || place.type) && (
+          <span className="swipe-card-chip" aria-hidden="true">
+            <CategoryIcon name={category?.key} size="sm" />
+            {category?.label || place.type.replace(/_/g, ' ')}
+          </span>
         )}
-
-        <div className="swipe-card-badges-row">
-          {category && (
-            <span
-              className="swipe-card-category"
-              style={{ '--category-color': category.color }}
-            >
-              <CategoryIcon name={category.key} size="sm" />
-              {category.label}
-            </span>
-          )}
-          {/* PlaceBadges (independent / outdoor space / no-charge etc.)
-             intentionally removed from the swipe card. The default emoji
-             rendering reads as clutter against the card's photo + the
-             clean category chip, and we don't have branded SVG variants
-             for them. They still surface in the PlaceDetail modal when
-             the user taps in — that's the right place for "deeper" info. */}
-        </div>
 
         <h2 className="swipe-card-name">{place.name}</h2>
 
-        <div className="swipe-card-meta">
-          {place.distance && (
-            <span className="swipe-card-meta-item">
-              <MapPinIcon />
-              {formatDistance(place.distance)}
-            </span>
-          )}
-          {openingState.state !== 'unknown' && (
-            <span className={`swipe-card-meta-item hours-${openingState.state}`}>
-              <ClockIcon />
-              {openingState.stateLabel}
-              {openingState.state === 'closing_soon' && <span className="pulse-dot" />}
-            </span>
-          )}
-          {place.type && !showBlurb && (
-            <span className="swipe-card-meta-item type">
-              {place.type.replace(/_/g, ' ')}
-            </span>
-          )}
-          <SocialProof placeId={place.id} place={place} variant="compact" />
-        </div>
+        <p className="swipe-card-line">{cardLine(place, formatDistance, openingState)}</p>
 
-        {/* Show community tip if available, otherwise show description */}
-        {topTip ? (
-          <div className="swipe-card-tip">
-            <ContributionBadge
-              contribution={topTip}
-              variant="compact"
-              onClick={(e) => {
-                e.stopPropagation()
-                onExpand?.(place)
-              }}
-            />
-          </div>
-        ) : place.description ? (
-          <p className="swipe-card-description">"{place.description}"</p>
-        ) : blurb ? (
-          <p className="swipe-card-blurb">{blurb}</p>
-        ) : null}
+        {socialLine && <p className="swipe-card-social">{socialLine}</p>}
 
-        {features.length > 0 && (
-          <div className="swipe-card-features">
-            {features.map(f => (
-              <span key={f} className="swipe-card-feature">{f}</span>
-            ))}
-          </div>
-        )}
-
-        {place.address && (
-          <p className="swipe-card-address">{place.address}</p>
-        )}
+        <QuoteLine topTip={topTip} description={place.description} blurb={blurb} />
       </div>
       )}
 

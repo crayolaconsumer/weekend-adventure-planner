@@ -1,19 +1,21 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { PinIcon } from '../townIcons'
-import StreakIndicator from '../../components/StreakIndicator'
-import FilterIcon from '../../components/icons/FilterIcon'
 import { SettingsIcon } from './icons'
 import { tap as hapticTap } from '../../utils/haptics'
 
 /**
- * Discover hero/header block: wordmark + tagline + streak indicator,
- * filter-modal trigger (top-left cog with active-filter badge), "I'm Bored"
- * CTA + tooltip, plus the weather / travel-mode status row.
+ * Discover hero/header block: a town-name hero (the screen's identity,
+ * tappable to explore the town), one quiet line (weather · travel mode ·
+ * streak, tappable to open filters), the "I'm Bored" CTA + tooltip, and the
+ * top-left cog with an active-filter badge.
  *
  * Pure presentational — receives the data and callbacks it needs, doesn't
  * own state. The boredom button is disabled until we have a location and
  * at least one place; the tooltip explains the disabled reason.
+ *
+ * The old ROAM wordmark + tagline + three-pill status row are gone: the town
+ * hero carries the identity + navigation, the quiet line carries weather +
+ * mode + streak, and the cog + bored pill keep their jobs.
  */
 export default function DiscoverHeader({
   streak,
@@ -36,19 +38,35 @@ export default function DiscoverHeader({
 
   return (
     <header className="discover-header">
-      <motion.div
-        className="discover-hero"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+      {/* Town hero — the identity of the screen. Tapping it explores the town
+          (existing TownPage route); it is the page's h1 for screen readers. */}
+      <Link
+        className="discover-town-name"
+        to={town ? `/town/${town.slug}` : '/town'}
+        onClick={() => hapticTap('light')}
+        aria-label={town ? `Explore ${town.name}` : 'Explore towns near you'}
       >
-        <h1 className="discover-wordmark">ROAM</h1>
-        <p className="discover-tagline">Stop scrolling. Start roaming.</p>
-        <StreakIndicator streak={streak} />
-      </motion.div>
+        {town ? town.name : 'Explore towns'}
+      </Link>
+      <span className="discover-rule" aria-hidden="true" />
 
-      {/* Filter Button — the only filter trigger on Discover. Shows a gold
-          count badge when filters are active so the user can tell at a glance. */}
+      {/* One quiet line: weather · travel mode · streak. Tapping it opens
+          filters — the easiest-to-reach control on the screen. */}
+      <button
+        className="discover-quiet"
+        onClick={() => { hapticTap('light'); onOpenFilters?.() }}
+        aria-label="Weather, travel mode and streak. Open filters"
+      >
+        {weather && <span>{Math.round(weather.temperature)}° {weather.description}</span>}
+        {weather && <span className="discover-quiet-sep" aria-hidden="true">·</span>}
+        <span>{travelModeLabel}</span>
+        {streak > 0 && <span className="discover-quiet-sep" aria-hidden="true">·</span>}
+        {streak > 0 && <span className="discover-quiet-streak">{streak}-day streak</span>}
+      </button>
+
+      {/* Filter Button — the only filter trigger on Discover besides the quiet
+          line. Shows a gold count badge when filters are active so the user
+          can tell at a glance. */}
       <button
         className="discover-settings-btn"
         onClick={() => { hapticTap('light'); onOpenFilters?.() }}
@@ -124,46 +142,6 @@ export default function DiscoverHeader({
             {tooltipText}
           </motion.span>
         )}
-      </div>
-
-      {/* Weather & Mode indicator */}
-      <div className="discover-status">
-        {weather && (
-          <div className="discover-weather" title="Weather: data from MET Norway">
-            <span>{Math.round(weather.temperature)}°</span>
-            <span>{weather.description}</span>
-          </div>
-        )}
-        {/* The travel-mode pill doubles as a filter trigger — it's the
-            easiest-to-reach control at the bottom of the hero, so tapping
-            it opens the same FilterModal as the top-right cog. Kept as a
-            div with button semantics so the existing pill styling is
-            untouched. */}
-        <div
-          className="discover-mode"
-          role="button"
-          tabIndex={0}
-          style={{ cursor: 'pointer' }}
-          onClick={() => { hapticTap('light'); onOpenFilters?.() }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              hapticTap('light')
-              onOpenFilters?.()
-            }
-          }}
-          aria-label={`Travel mode: ${travelModeLabel}. Tap to open filters.`}
-        >
-          <FilterIcon name={travelMode} size={18} />
-          <span>{travelModeLabel}</span>
-        </div>
-        {/* Town guide for wherever the user is, named once we know it
-            ("Explore Hatfield"); the hub until then. Town pages are shareable
-            and land on the public web page with the app-store buttons. */}
-        <Link className="discover-mode discover-town" to={town ? `/town/${town.slug}` : '/town'} onClick={() => hapticTap('light')}>
-          <PinIcon size={16} />
-          <span>{town ? `Explore ${town.name}` : 'Explore towns'}</span>
-        </Link>
       </div>
     </header>
   )

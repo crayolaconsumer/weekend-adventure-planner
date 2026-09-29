@@ -112,13 +112,17 @@ describe('PlaceDetail credits', () => {
 describe('SwipeCard photo credit', () => {
   const renderCard = (p, props = {}) => render(<MemoryRouter><SwipeCard place={p} onSwipe={() => {}} isTop {...props} /></MemoryRouter>)
 
-  it('Enter on the credit link follows the link, not the card', () => {
+  it('Enter on the credit link is the link\'s, not a card expand', () => {
     const onExpand = vi.fn()
-    renderCard({ ...place, imageAttribution: COMMONS }, { onExpand })
+    const p = { ...place, imageAttribution: COMMONS }
+    renderCard(p, { onExpand })
+    // Enter on the credit link must not expand — e.target is the link,
+    // not the article.
     fireEvent.keyDown(screen.getByRole('link', { name: /^Photo:/ }), { key: 'Enter' })
     expect(onExpand).not.toHaveBeenCalled()
+    // Enter on the card opens PlaceDetail via onExpand.
     fireEvent.keyDown(screen.getByRole('article'), { key: 'Enter' })
-    expect(onExpand).toHaveBeenCalledTimes(1)
+    expect(onExpand).toHaveBeenCalledWith(p)
   })
   it('keeps the credit link out of the tab order on cards under the top one', () => {
     const { unmount } = renderCard({ ...place, imageAttribution: COMMONS }, { isTop: false })

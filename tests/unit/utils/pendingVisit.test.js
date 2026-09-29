@@ -30,6 +30,19 @@ describe('pendingVisit', () => {
     expect(place?.name).toBe('Castle')
   })
 
+  it('minElapsedMs: 0 returns the place immediately (return-from-maps path)', () => {
+    setPendingVisit({ id: 'p1', name: 'Castle' })
+    // No time advance — the visibility-return path must not wait the 30s
+    const place = getPendingVisit({ minElapsedMs: 0 })
+    expect(place?.id).toBe('p1')
+  })
+
+  it('minElapsedMs: 0 still respects the 24h expiry', () => {
+    setPendingVisit({ id: 'p1', name: 'Castle' })
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000)
+    expect(getPendingVisit({ minElapsedMs: 0 })).toBe(null)
+  })
+
   it('clears entries older than 24h', () => {
     setPendingVisit({ id: 'p1', name: 'Castle' })
     vi.advanceTimersByTime(25 * 60 * 60 * 1000)

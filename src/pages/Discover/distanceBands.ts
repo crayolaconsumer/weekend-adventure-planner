@@ -62,7 +62,9 @@ export const DISTANCE_BANDS: Record<TravelModeKey, Record<DistanceBandKey, Dista
     long:   { key: 'long',   label: 'A proper expedition', minMeters: 58000, maxMeters: 70000 },
   },
   explorer: {
-    short:  { key: 'short',  label: 'An open-road run',    minMeters: 75000, maxMeters: 90000 },
+    // minMeters continues dayTrip.long's max (70 km) so the bands meet
+    // with no gap: a place at 72 km belongs to a band.
+    short:  { key: 'short',  label: 'An open-road run',    minMeters: 70000, maxMeters: 90000 },
     medium: { key: 'medium', label: 'Into the wild',       minMeters: 90000, maxMeters: 100000 },
     long:   { key: 'long',   label: 'Where the road ends', minMeters: 100000, maxMeters: 110000 },
   },

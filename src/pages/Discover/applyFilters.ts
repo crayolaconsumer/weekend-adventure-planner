@@ -11,6 +11,8 @@
 import { filterPlaces, isClosedNow } from '../../utils/placeFilter'
 import { getOpeningState } from '../../utils/openingHours'
 import { getBandFor, type DistanceBandKey } from './distanceBands'
+import { localTimeAt } from '../../utils/localTime'
+import { isChainPlace } from '../../utils/badges'
 
 interface PlaceLike {
   type?: string
@@ -35,6 +37,7 @@ export interface ApplyFiltersOptions {
   accessibilityMode: boolean
   showLocalsPicks: boolean
   showOffPeak: boolean
+  showDogs: boolean
   isPremium: boolean
   userProfile: unknown
   weather: unknown
@@ -79,9 +82,10 @@ export function buildFilterKey(opts: {
   accessibilityMode: boolean
   showLocalsPicks: boolean
   showOffPeak: boolean
+  showDogs: boolean
   selectedCategories: string[]
 }): string {
-  const { travelMode, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, selectedCategories } = opts
+  const { travelMode, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, showDogs, selectedCategories } = opts
   const categoriesKey = [...selectedCategories].sort().join('|')
   // NB: selectedBand is deliberately NOT part of this key. The key is
   // used to discard stale FETCHES — but band filtering is purely
@@ -91,58 +95,78 @@ export function buildFilterKey(opts: {
   // old band's key, invalidating the in-flight match and silently
   // dropping the result. filteredPlaces invalidates correctly via
   // applyFilters' own dep list, so band changes still re-filter.
-  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showLocalsPicks}|${showOffPeak}|${categoriesKey}`
+  return `${travelMode}|${showFreeOnly}|${accessibilityMode}|${showLocalsPicks}|${showOffPeak}|${showDogs}|${categoriesKey}`
 }
 
-const CHAIN_NAME_REGEX = /^(Costa|Starbucks|McDonald|Wetherspoon|Greggs|Pret|Subway|KFC|Burger King|Pizza Hut|Domino|Nando)/i
+// OSM dog=* values that mean "you can bring the dog": yes, conditional
+// (with the terms in dog:conditional), leashed, unleashed, and outside
+// (the terrace). "no" and "designated" (a dog-care business) are not.
+// A MISSING tag is unknown — never "yes". A dog-friendly deck must not
+// deal a place that may ban dogs.
+const DOG_FRIENDLY_VALUES = ['yes', 'conditional', 'leashed', 'unleashed', 'outside']
+export function isDogFriendly(dog: unknown): boolean {
+  return DOG_FRIENDLY_VALUES.includes(typeof dog === 'string' ? dog : '')
+}
 
 /**
  * The UI-eligibility predicates (free only, accessibility, locals' picks,
- * off-peak). Extracted so they can run BEFORE the final 50-result limit:
- * applying them after the limit let 50 ineligible places crowd out every
- * eligible one beyond the cap (false scarcity).
+ * off-peak, bring the dog). Extracted so they can run BEFORE the final
+ * 50-result limit: applying them after the limit let 50 ineligible places
+ * crowd out every eligible one beyond the cap (false scarcity).
  */
 export function passesEligibility<T extends PlaceLike>(p: T, options: ApplyFiltersOptions): boolean {
-  const { showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, isPremium } = options
+  const { showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, showDogs, isPremium } = options
 
   if (showFreeOnly) {
-    const isFree =
-      !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
+    // An explicit fee=yes is paid even for a park or viewpoint (a ticketed
+    // garden, a tower). A missing fee stays — unknown is not "paid".
+    const isFree = p.fee === 'yes'
+      ? false
+      : !p.fee || p.fee === 'no' || p.type?.includes('park') || p.type?.includes('viewpoint')
     if (!isFree) return false
   }
 
   if (accessibilityMode) {
-    const isAccessible = p.wheelchair === 'yes' || p.wheelchair === 'limited' || !p.wheelchair
-    if (!isAccessible) return false
+    // The label promises accessible, so the predicate must match: only
+    // confirmed step-free (wheelchair=yes). "limited" and missing are
+    // not accessible.
+    if (p.wheelchair !== 'yes') return false
   }
 
-  // Premium: Locals' picks — filter out tourist traps and chains
+  // Premium: Locals' picks — independent, non-chain places. The scorer
+  // already rewards tourism=attraction, so this must not veto it (a
+  // famous historic pub is not a trap); the chain check shares the
+  // scorer's isChainPlace helper so the two can't contradict.
   if (showLocalsPicks && isPremium) {
-    const isTouristTrap = p.tourism === 'attraction' || p.tourism === 'theme_park'
-    if (isTouristTrap) return false
-
-    const isChain = p.brand || (p.name && CHAIN_NAME_REGEX.test(p.name))
-    if (isChain) return false
-
+    if (p.brand || isChainPlace(p)) return false
     if (typeof p.qualityScore === 'number' && p.qualityScore < 30) return false
   }
 
-  // Premium: Off-peak times
+  // Premium: Off-peak times — on the destination's local clock, not the
+  // phone's, so a UK user planning an away weekend gets the right veto.
   if (showOffPeak && isPremium) {
-    const now = new Date()
-    const hour = now.getHours()
-    const isWeekend = now.getDay() === 0 || now.getDay() === 6
+    const { hour, day } = localTimeAt(p.lat, p.lng)
+    const isWeekend = day === 0 || day === 6
     const type = p.type || ''
 
-    if (type.includes('restaurant') || type.includes('cafe')) {
-      if ((hour >= 12 && hour <= 14) || (hour >= 18 && hour <= 20)) return false
-    } else if (type.includes('park') || type.includes('nature') || type.includes('viewpoint')) {
-      if (isWeekend && hour >= 10 && hour <= 16) return false
-    } else if (type.includes('museum') || type.includes('attraction') || type.includes('castle')) {
-      if (isWeekend && hour >= 11 && hour <= 15) return false
-    } else if (type.includes('pub') || type.includes('bar')) {
-      if (hour >= 17 && hour <= 21) return false
+    if (type.includes('restaurant') || type.includes('cafe') || type.includes('fast_food') ||
+        type.includes('biergarten') || type.includes('ice_cream') || type.includes('food_court')) {
+      if ((hour >= 12 && hour < 15) || (hour >= 18 && hour < 21)) return false
+    } else if (type.includes('park') || type.includes('garden') || type.includes('nature') ||
+        type.includes('viewpoint') || type.includes('beach')) {
+      if (isWeekend && hour >= 10 && hour < 17) return false
+    } else if (type.includes('museum') || type.includes('attraction') || type.includes('castle') ||
+        type.includes('gallery') || type.includes('zoo') || type.includes('aquarium')) {
+      if (isWeekend && hour >= 11 && hour < 16) return false
+    } else if (type.includes('pub') || type.includes('bar') || type.includes('nightclub')) {
+      if (hour >= 17 && hour < 22) return false
     }
+  }
+
+  // Premium: Bring the dog — explicit OSM dog tags only (see
+  // isDogFriendly above).
+  if (showDogs && isPremium) {
+    if (!isDogFriendly(p.dog)) return false
   }
 
   return true
@@ -181,7 +205,8 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     showFreeOnly ||
     accessibilityMode ||
     (showLocalsPicks && isPremium) ||
-    (showOffPeak && isPremium)
+    (showOffPeak && isPremium) ||
+    (options.showDogs && isPremium)
 
   // Distance band filter — pre-narrow the candidate pool before the
   // smart selector runs, so its diversity weave operates within the
@@ -203,7 +228,6 @@ export function applyDiscoverFilters<T extends PlaceLike>(
       })
     }
   }
-
   if (!includeClosed) candidates = candidates.filter(p => !isClosedNow(p))
 
   // Eligibility predicates run BEFORE the final 50-result limit, so a deck of

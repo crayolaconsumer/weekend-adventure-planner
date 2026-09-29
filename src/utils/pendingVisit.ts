@@ -14,8 +14,11 @@ interface PendingVisitRecord {
   timestamp: number
 }
 
-// Check for pending visit prompts
-export function getPendingVisit(): PendingPlace | null {
+// Check for pending visit prompts. The 30s grace keeps a fresh page load
+// from prompting seconds after the GO swipe; the visibility-return path
+// passes minElapsedMs: 0 because coming back from Maps IS the signal.
+export function getPendingVisit(options: { minElapsedMs?: number } = {}): PendingPlace | null {
+  const minElapsed = options.minElapsedMs ?? 30 * 1000
   try {
     const pending = localStorage.getItem('roam_pending_visit')
     if (!pending) return null
@@ -23,8 +26,8 @@ export function getPendingVisit(): PendingPlace | null {
     const data = JSON.parse(pending) as PendingVisitRecord
     const elapsed = Date.now() - data.timestamp
 
-    // Only show if 30+ seconds have passed and less than 24 hours
-    if (elapsed > 30 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
+    // Only show if minElapsed has passed and less than 24 hours
+    if (elapsed >= minElapsed && elapsed < 24 * 60 * 60 * 1000) {
       return data.place
     }
 

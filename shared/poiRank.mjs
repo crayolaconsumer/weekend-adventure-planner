@@ -41,7 +41,7 @@ import { haversineKm } from './geo.mjs'
  * can't read) is served exactly as before, uncapped. Bump it whenever
  * poiFeatures changes what it writes.
  */
-export const FEATURES_VERSION = 1
+export const FEATURES_VERSION = 2
 
 /**
  * Rows a capped Discover answer keeps (api/lib/poiQuery.js serves it; the eval judges it).
@@ -151,7 +151,8 @@ export function rawScore(t, type, name) {
   if (t.wikipedia || t.wikidata) s += 10
   if (t.phone || t['contact:phone']) s += 3
   if (t['addr:housenumber'] || t['addr:street'] || t['addr:city'] || t['addr:postcode']) s += 3
-  if (isBlacklisted(type)) s -= 100
+  // no blacklist penalty: the client dropped it (blacklisted types are
+  // dropped by shouldKeepPlace; a rescued place ranks on its merits)
   if (hasBoringName(name)) s -= 50
   if (PREMIUM.has(type)) s += 12
   s += TOURISM_BONUS[t.tourism] || 0
