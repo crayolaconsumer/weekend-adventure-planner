@@ -67,3 +67,4 @@ ios/App/build/
 
 # Playwright MCP browser logs from local audits
 .playwright-mcp/
+scripts/ios-release/
