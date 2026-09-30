@@ -237,11 +237,14 @@ export async function getWithSWR(key, fetchFn, options = {}) {
  * @param {string|null} category - Category filter
  * @returns {string} Cache key
  */
-export function makeCacheKey(lat, lng, radius, category = null) {
+export function makeCacheKey(lat, lng, radius, category = null, dogs = false) {
   const latBucket = lat.toFixed(GEO_PRECISION)
   const lngBucket = lng.toFixed(GEO_PRECISION)
   const cat = category || 'all'
-  return `places_${latBucket}_${lngBucket}_${radius}_${cat}`
+  // dogs is a fetch input (the proxy merges GeoApify dog places), so a
+  // dog deck and a non-dog deck must never share one cache entry.
+  const dogsPart = dogs ? '_dogs' : ''
+  return `places_${latBucket}_${lngBucket}_${radius}_${cat}${dogsPart}`
 }
 
 /**

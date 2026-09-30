@@ -28,6 +28,7 @@ export const config = {
 
 import { cacheGet, cacheSet, hashKey, isCacheEnabled, getClient } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
+import { fetchGeoApifyDogPlaces, mergeDogPlaces, dogCacheKey, DOG_CONDITIONS } from '../../lib/geoapify.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
 import { parseQuery, getPois, shadowPois, isCovered, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
@@ -112,7 +113,6 @@ function releaseFetch(lockKey, after = Promise.resolve()) {
 //    earlier maps.mail.ru (suspended 2026-03-16, 403).
 // 2 × PER_ENDPOINT_TIMEOUT_MS (28s) = 56s, inside the 60s maxDuration.
 const OVERPASS_ENDPOINTS = [
-  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass-api.de/api/interpreter'
 ]
 
@@ -392,6 +392,69 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: validationError })
   }
 
+  // Dog-friendly merge for the premium "bring the dog" filter: when the
+  // client sends dogs: true and GEOAPIFY_API_KEY is set, dog-friendly places
+  // from GeoApify (same OSM data, but dog conditions indexed as first-class
+  // filters, so coverage far beats the sparse raw dog=* tags) are merged
+  // into the Overpass answer as synthetic elements. Dormant without the key:
+  // dogMode is false and every serve path below returns the plain Overpass
+  // body unchanged.
+  const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
+  const dogMode =
+    body.dogs === true &&
+    typeof body.lat === 'number' && Number.isFinite(body.lat) &&
+    typeof body.lng === 'number' && Number.isFinite(body.lng) &&
+    typeof body.radius === 'number' && Number.isFinite(body.radius) &&
+    body.radius > 0 && body.radius <= 100000 &&
+    Boolean(GEOAPIFY_API_KEY)
+
+  // Kicked off here so it runs in parallel with the Overpass attempt: a KV
+  // hit plus a fast GeoApify answer stays inside the client's 8s proxy
+  // budget. One request PER dog condition (the conditions array is AND-ed
+  // server-side: dogs.yes + dogs.leashed in one body returns 0), results
+  // merged. Each condition is cached under its OWN key, and only NON-EMPTY
+  // answers are cached 24h per quantized circle: the free tier rate-limits
+  // bursts to a 200 with empty features (indistinguishable from a genuine
+  // empty), so an empty must not pin "no dogs here" for 24h, and a failed
+  // condition (null) must not pin the other condition's answer. Measured
+  // live: dogs.yes ~2.3s with data, dogs.leashed 20s with none, so
+  // DOG_CONDITIONS is yes-only and a per-condition timeout is a real
+  // failure mode, not a hypothetical.
+  const dogPromise = dogMode
+    ? (async () => {
+        const perCondition = await Promise.all(DOG_CONDITIONS.map(async condition => {
+          const key = dogCacheKey(
+            body.lat, body.lng, body.radius,
+            typeof body.category === 'string' ? body.category : null, condition
+          )
+          const cached = await cacheGet(key)
+          if (Array.isArray(cached)) return cached
+          const p = await fetchGeoApifyDogPlaces({
+            lat: body.lat,
+            lng: body.lng,
+            radius: body.radius,
+            category: typeof body.category === 'string' ? body.category : null,
+            apiKey: GEOAPIFY_API_KEY,
+            condition,
+          })
+          if (p && p.length > 0 && isCacheEnabled()) {
+            cacheSet(key, p, OVERPASS_CACHE_TTL_SECONDS).catch(() => {})
+          }
+          return p
+        }))
+        // A condition that failed (null) just drops out; a place matching
+        // both is deduped by coordinates in mergeDogPlaces.
+        const merged = perCondition.reduce((acc, p) => (p ? mergeDogPlaces(acc, p) : acc), [])
+        return merged
+      })()
+    : Promise.resolve([])
+
+  // Wrap every Overpass-shaped serve: dog places ride as synthetic Overpass
+  // elements, so the client's parseOverpassResponse + isDogFriendly are
+  // untouched.
+  const withDogPlaces = async elements =>
+    dogMode ? mergeDogPlaces(elements, await dogPromise) : elements
+
   // KV cache check. Browsers + the Vercel edge can't cache POSTs, so
   // every request would otherwise hit Overpass cold. With KV we serve
   // any query we've answered in the last 24h in ~30ms, and only the
@@ -440,6 +503,9 @@ export default async function handler(req, res) {
     waitUntil(pending.catch(() => {}))
     const db = await within(pending, Math.max(0, deadlineAt - Date.now()))
     if (db && db.n > 0) {
+      // The dog merge is not applied to DB-served bodies: the POI rollout is
+      // shadow-only, and merging would need the body parsed back. Add it
+      // here when the DB goes primary.
       logPlaces(req, t0, 'db', db.n, Object.assign(poiLog, { db_scanned: db.scanned ?? db.n, db_cached: db.cached }))
       const sent = sendPoiBody(res, db)
       shadowPoi(() => JSON.parse(db.body), 'db')
@@ -459,12 +525,13 @@ export default async function handler(req, res) {
     // poisoned empty entry self-heals on the next request instead of
     // serving an empty Discover for the full 24h TTL.
     if (cached && Array.isArray(cached.elements) && cached.elements.length > 0) {
+      const merged = await withDogPlaces(cached.elements)
       dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Cache', 'HIT')
       shadowPoi(cached, 'kv')
-      logPlaces(req, t0, 'kv', cached.elements.length, poiLog)
-      return res.status(200).json(cached)
+      logPlaces(req, t0, 'kv', merged.length, poiLog)
+      return res.status(200).json({ ...cached, elements: merged })
     }
   }
 
@@ -488,11 +555,12 @@ export default async function handler(req, res) {
     if (isCacheEnabled()) {
       const staleData = await readStale()
       if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
+        const merged = await withDogPlaces(staleData.elements)
         res.setHeader('Cache-Control', 'no-store')
         res.setHeader('X-Overpass-Cache', 'STALE')
         res.setHeader('X-Overpass-Fallback', 'killswitch')
-        logPlaces(req, t0, 'stale', staleData.elements.length, poiLog)
-        return res.status(200).json(staleData)
+        logPlaces(req, t0, 'stale', merged.length, poiLog)
+        return res.status(200).json({ ...staleData, elements: merged })
       }
     }
     res.setHeader('Cache-Control', 'no-store')
@@ -507,12 +575,13 @@ export default async function handler(req, res) {
     // copy answers at once; else wait for the peer's answer while it still
     // holds the lock (a failed fetch releases it at once), never a second call
     let staleData = await readStale()
-    const serveStale = () => {
+    const serveStale = async () => {
+      const merged = await withDogPlaces(staleData.elements)
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Overpass-Cache', 'STALE')
       res.setHeader('X-Overpass-Fallback', 'peer')
-      logPlaces(req, t0, 'stale', staleData.elements.length, Object.assign(poiLog, { fallback: 'peer' }))
-      return res.status(200).json(staleData)
+      logPlaces(req, t0, 'stale', merged.length, Object.assign(poiLog, { fallback: 'peer' }))
+      return res.status(200).json({ ...staleData, elements: merged })
     }
     if (hasPlaces(staleData)) return serveStale()
     for (const until = Date.now() + WAIT_FOR_PEER_MS; Date.now() < until;) {
@@ -522,12 +591,13 @@ export default async function handler(req, res) {
       const held = await lockHeld(lockKey)
       const cached = await cacheGet(cacheKey)
       if (hasPlaces(cached)) {
+        const merged = await withDogPlaces(cached.elements)
         dropRateLimitHeaders(res)
         res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
         res.setHeader('X-Overpass-Cache', 'PEER')
         shadowPoi(cached, 'kv')
-        logPlaces(req, t0, 'peer', cached.elements.length, Object.assign(poiLog, { waited_ms: Date.now() - t0 }))
-        return res.status(200).json(cached)
+        logPlaces(req, t0, 'peer', merged.length, Object.assign(poiLog, { waited_ms: Date.now() - t0 }))
+        return res.status(200).json({ ...cached, elements: merged })
       }
       if (!held) break // the peer failed: no answer is coming
     }
@@ -603,13 +673,17 @@ export default async function handler(req, res) {
         waitUntil(cacheSet(staleKey, data, 7 * 24 * 60 * 60).catch(() => {}))
       }
 
+      // The KV cache stores the plain Overpass body; the dog merge is
+      // applied per-request from its own 24h dog cache, so a tile stays
+      // shareable across dog/non-dog users.
+      const merged = await withDogPlaces(data.elements)
       dropRateLimitHeaders(res)
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
       res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
       res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
       shadowPoi(data, 'overpass')
-      logPlaces(req, t0, 'overpass', data.elements.length, poiLog)
-      return res.status(200).json(data)
+      logPlaces(req, t0, 'overpass', merged.length, poiLog)
+      return res.status(200).json({ ...data, elements: merged })
 
     } catch (error) {
       markEndpointFailed(endpoint)
@@ -639,11 +713,26 @@ export default async function handler(req, res) {
   if (isCacheEnabled()) {
     const staleData = await readStale()
     if (staleData && Array.isArray(staleData.elements) && staleData.elements.length > 0) {
+      const merged = await withDogPlaces(staleData.elements)
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Overpass-Cache', 'STALE')
       res.setHeader('X-Overpass-Fallback', 'stale')
-      logPlaces(req, t0, 'stale', staleData.elements.length, poiLog)
-      return res.status(200).json(staleData)
+      logPlaces(req, t0, 'stale', merged.length, poiLog)
+      return res.status(200).json({ ...staleData, elements: merged })
+    }
+  }
+
+  // Last-resort dog fallback: every Overpass mirror failed, no stale copy
+  // exists (brand-new tile), but the GeoApify dog fetch succeeded. A deck of
+  // real dog-friendly places beats a 503 for a premium user mid-outage —
+  // the normal deck cannot be served at all at this point.
+  if (dogMode) {
+    const dogOnly = await dogPromise
+    if (Array.isArray(dogOnly) && dogOnly.length > 0) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('X-Overpass-Fallback', 'geoapify')
+      logPlaces(req, t0, 'geoapify', dogOnly.length, poiLog)
+      return res.status(200).json({ elements: dogOnly })
     }
   }
 

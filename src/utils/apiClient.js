@@ -37,7 +37,6 @@ import { sizedImageUrl } from '../../shared/commonsImage.mjs'
 //     overpass.kumi.systems (rebranded to Private.coffee, which also
 //     omits ACAO).
 const OVERPASS_ENDPOINTS = [
-  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass-api.de/api/interpreter'
 ]
 
@@ -60,7 +59,7 @@ const PROXY_RETRY_DELAY = 60000 // 1 minute before retrying proxy after failure
  * @param {Object} [meta] - Query metadata for telemetry
  * @returns {Promise<Object>} Overpass response data
  */
-async function fetchFromOverpass(query, signal = null, meta = {}) {
+async function fetchFromOverpass(query, signal = null, meta = {}, geo = null) {
   // The proxy is meant to give us CDN-cached responses, but Vercel
   // doesn't cache POSTs by default — so on cache miss we eat the full
   // upstream latency (sometimes 60s+ for dense urban bboxes, after
@@ -90,7 +89,10 @@ async function fetchFromOverpass(query, signal = null, meta = {}) {
       const response = await fetch(OVERPASS_PROXY, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        // geo (dogs + lat/lng/radius/category) goes only to the proxy: the
+        // server merges GeoApify dog places there, and the API key never
+        // reaches the browser. The direct-fallback path stays plain Overpass.
+        body: JSON.stringify(geo ? { query, ...geo } : { query }),
         signal: proxyAbort.signal
       })
 
@@ -401,11 +403,13 @@ function formatAddress(tags) {
  * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
  * @returns {Promise<Array>} Array of places
  */
-export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null, signal = null, { force = false } = {}) {
+export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null, signal = null, { force = false, dogs = false } = {}) {
   // Own namespace: the bare places_ key belongs to fetchPlacesWithSWR's merged
   // result. Sharing it let a cached partial merge (Wikipedia only, after an
-  // Overpass failure) come back here as if Overpass had answered.
-  const cacheKey = 'osm_' + makeCacheKey(lat, lng, radius, category)
+  // Overpass failure) come back here as if Overpass had answered. dogs is a
+  // fetch input (the proxy merges GeoApify dog places), so it must be in the
+  // key — otherwise a dog deck and a non-dog deck would share one entry.
+  const cacheKey = 'osm_' + makeCacheKey(lat, lng, radius, category, dogs)
 
   const result = await managedFetch('overpass', cacheKey, async () => {
     // Check if already cancelled before starting
@@ -415,7 +419,8 @@ export async function fetchNearbyPlaces(lat, lng, radius = 5000, category = null
 
     // Build query with metadata for telemetry
     const { query, clauseCount, querySize } = buildDiscoverOverpassQuery(lat, lng, radius, category)
-    const data = await fetchFromOverpass(query, signal, { clauseCount, querySize })
+    const geo = dogs ? { dogs: true, lat, lng, radius, category } : null
+    const data = await fetchFromOverpass(query, signal, { clauseCount, querySize }, geo)
 
     return parseOverpassResponse(data)
   }, { ttl: 10 * 60 * 1000, force }) // 10 minute cache
@@ -491,12 +496,12 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
  * @param {Function} [onProgress] - Callback with new places as they load
  * @returns {Promise<Array>} Initial places (center tile)
  */
-export async function fetchWithTiling(lat, lng, radius, category = null, signal = null, onProgress = null, { force = false } = {}) {
+export async function fetchWithTiling(lat, lng, radius, category = null, signal = null, onProgress = null, { force = false, dogs = false } = {}) {
   const tiles = sampleLargeRadius(lat, lng, radius)
 
   // Single tile = use normal fetch
   if (tiles.length === 1) {
-    return fetchNearbyPlaces(lat, lng, radius, category, signal)
+    return fetchNearbyPlaces(lat, lng, radius, category, signal, { dogs })
   }
 
 
@@ -518,7 +523,7 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
   // A failed centre tile means Overpass is down: rethrow so the caller marks
   // the load failed (not cached, connection error shown) instead of caching
   // a deck with no places from the map
-  centerPlaces = await fetchNearbyPlaces(centerTile.lat, centerTile.lng, centerTile.radius, category, signal, { force })
+  centerPlaces = await fetchNearbyPlaces(centerTile.lat, centerTile.lng, centerTile.radius, category, signal, { force, dogs })
   centerPlaces = addUnique(centerPlaces)
 
   // STEP 2: Fetch outer tiles in BACKGROUND (don't await)
@@ -535,7 +540,7 @@ export async function fetchWithTiling(lat, lng, radius, category = null, signal 
 
         const tile = outerTiles[i]
         try {
-          const places = await fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal)
+          const places = await fetchNearbyPlaces(tile.lat, tile.lng, tile.radius, category, signal, { dogs })
           const newPlaces = addUnique(places)
 
           // Notify caller of new places
@@ -653,7 +658,7 @@ export async function fetchWikipediaPlaces(lat, lng, radius = 5000) {
  */
 export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = null, onProgress = null, options = {}) {
   const isLargeRadius = radius > 15000
-  const { onProgressiveCommit = null, force = false } = options
+  const { onProgressiveCommit = null, force = false, dogs = false } = options
 
   // For large radii, fetch Wikipedia from multiple sample points
   // to better cover the search area (since Wiki max radius is 10km)
@@ -699,12 +704,12 @@ export async function fetchEnrichedPlaces(lat, lng, radius = 5000, category = nu
         osmPlacesForMerge = [...osmPlacesForMerge, ...newPlaces]
         commitProgressiveMerge()
         onProgress?.(newPlaces)
-      }, { force }).catch(err => {
+      }, { force, dogs }).catch(err => {
         console.warn('OSM progressive fetch failed:', err)
         osmFailed = true
         return []
       })
-    : fetchNearbyPlaces(lat, lng, radius, category, null, { force }).catch(err => {
+    : fetchNearbyPlaces(lat, lng, radius, category, null, { force, dogs }).catch(err => {
         console.warn('OSM fetch failed:', err)
         osmFailed = true
         return []
@@ -836,15 +841,18 @@ function mergeAndDedupe(osmPlaces, wikiPlaces) {
  * @param {Function} onRefresh - Callback when fresh data is available
  * @returns {Promise<{data: Array, fresh: boolean, stale: boolean}>}
  */
-export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null, onProgress = null, { force = false } = {}) {
-  const cacheKey = makeCacheKey(lat, lng, radius, category)
+export async function fetchPlacesWithSWR(lat, lng, radius = 5000, category = null, onRefresh = null, onProgress = null, { force = false, dogs = false } = {}) {
+  // dogs changes what the proxy merges into the deck, so it's part of the
+  // key: a non-dog deck and a dog deck must never read each other's cache.
+  const cacheKey = makeCacheKey(lat, lng, radius, category, dogs)
   const ttl = 10 * 60 * 1000
 
   return getWithSWR(
     cacheKey,
     () => fetchEnrichedPlaces(lat, lng, radius, category, onProgress, {
       onProgressiveCommit: (places) => setCache(cacheKey, places, ttl),
-      force
+      force,
+      dogs
     }),
     {
       ttl, // 10 minute freshness

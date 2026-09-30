@@ -435,7 +435,12 @@ export default function Discover({ location }) {
     // we skip the cache entirely and hit the network — otherwise the user gets the
     // same stale data and the button feels broken.
     //
-    const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null)
+    // Bring-the-dog is a fetch input: with it on (premium), the proxy merges
+    // GeoApify dog-friendly places into the Overpass answer. buildFilterKey
+    // already includes showDogs, so a toggle re-runs this load with the
+    // merged set; the key keeps dog and non-dog decks in separate entries.
+    const dogsFlag = showDogs && isPremium
+    const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null, dogsFlag)
     const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
 
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
@@ -489,7 +494,7 @@ export default function Discover({ location }) {
           }
         },
         // Force flag — bypass SWR cache when the user explicitly tapped Refresh.
-        { force }
+        { force, dogs: dogsFlag }
       )
 
       // Context for smart scoring (time of day, weather)
@@ -546,7 +551,12 @@ export default function Discover({ location }) {
         effectiveLocation.lat,
         effectiveLocation.lng,
         expandedRadius,
-        selectedCategories.length === 1 ? selectedCategories[0] : null
+        selectedCategories.length === 1 ? selectedCategories[0] : null,
+        null,
+        // The expanded fetch joins the same merged set: with dogs on (premium),
+        // the proxy adds GeoApify dog places here too, and the memoized
+        // filter below keeps them in the deck.
+        { dogs: showDogs && isPremium }
       )
 
       // Enhance and filter
@@ -588,7 +598,7 @@ export default function Discover({ location }) {
     } finally {
       setLoadingMore(false)
     }
-  }, [effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, includeClosed, weather, seenPlaceIds, userProfile, isPremium])
+  }, [effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showDogs, includeClosed, weather, seenPlaceIds, userProfile, isPremium])
 
   // Sync places state with memoized filtered results
   // This is more efficient than the old useEffect because filteredPlaces
