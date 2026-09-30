@@ -77,7 +77,7 @@ function QuoteLine({ topTip, description, blurb }) {
   if (topTip) {
     return (
       <blockquote className="swipe-card-quote">
-        “{topTip.text}”
+        “{topTip.content}”
         <small>@{topTip.user?.username || 'user'}</small>
       </blockquote>
     )

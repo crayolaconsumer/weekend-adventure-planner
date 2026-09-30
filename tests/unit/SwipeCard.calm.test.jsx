@@ -165,7 +165,7 @@ describe('SwipeCard calm layout', () => {
     it('prefers the top tip with attribution', () => {
       renderCard({
         place: { ...basePlace, description: 'A quiet spot' },
-        topContribution: { text: 'Best cake in town', user: { username: 'sam' } },
+        topContribution: { content: 'Best cake in town', user: { username: 'sam' } },
       })
       const quote = screen.getByText(/Best cake in town/)
       expect(quote).toHaveClass('swipe-card-quote')
