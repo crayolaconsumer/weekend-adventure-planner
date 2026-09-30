@@ -57,8 +57,9 @@ import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { DistanceProvider } from './contexts/DistanceContext'
 import { ThemeProvider } from './contexts/ThemeContext'
-import { getCurrentPosition as nativeGetCurrentPosition, geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
+import { geolocationPermissionState, openAppSettings } from './utils/nativePlugins'
 import { PUSH_OPT_IN_KEY, usePushNotifications } from './hooks/usePushNotifications'
+import { useLiveLocation } from './hooks/useLiveLocation'
 import { isNative } from './utils/nativeBridge'
 import { getAuthToken } from './utils/authToken'
 
@@ -421,8 +422,6 @@ function App() {
   // this is reliable at mount).
   const isStandalonePath = typeof window !== 'undefined' && isStandalonePathname(window.location.pathname)
 
-  const [location, setLocation] = useState(null)
-  const [locationError, setLocationError] = useState(null)
   // A first-time web visitor arriving on a shared place/profile/plan link sees
   // that content first. Onboarding (and the location prompt behind it) is
   // deferred until they move on, e.g. tap Discover. See ResumeOnboarding.
@@ -441,6 +440,12 @@ function App() {
   })
   const [showOnboarding, setShowOnboarding] = useState(() => {
     return !localStorage.getItem('roam_onboarded') && !isStandalonePath && !onboardingDeferred
+  })
+  // Continuous device location: one fix for the initial load, then a live
+  // watch so distances track the user as they move. Disabled while onboarding
+  // is showing and on the partner portal (which never uses device location).
+  const { location, locationError, retryLocation } = useLiveLocation({
+    enabled: !showOnboarding && !onboardingDeferred && !isStandalonePath,
   })
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState('login')
@@ -528,53 +533,6 @@ function App() {
     })()
     return () => { cancelled = true }
   }, [])
-
-  // Get user location only after onboarding is complete
-  useEffect(() => {
-    // Don't request location while onboarding is showing, or before it has run
-    if (showOnboarding || onboardingDeferred) return
-    // The partner portal never uses device location — don't prompt for it.
-    if (isStandalonePath) return
-
-    // Route via the native plugin on Capacitor — Android REQUIRES the
-    // plugin to trigger the runtime permission dialog (the web
-    // navigator.geolocation path in Capacitor's WebView won't ask for
-    // ACCESS_FINE_LOCATION). On iOS native, the plugin also gives
-    // better accuracy and uses the entitlement string we set in
-    // Info.plist (NSLocationWhenInUseUsageDescription). On web,
-    // nativeGetCurrentPosition falls through to navigator.geolocation.
-    nativeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000 })
-      .then((position) => {
-        // fromDeviceFix marks a GENUINE device fix — only these are persisted
-        // for "events near you" (the London fallback below must never be).
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          fromDeviceFix: true
-        })
-      })
-      .catch((error) => {
-        setLocationError(error?.message || 'Geolocation failed')
-        // Default to London as fallback (display only — not a real fix).
-        setLocation({ lat: 51.5074, lng: -0.1278, isFallback: true })
-      })
-  }, [showOnboarding, onboardingDeferred, isStandalonePath])
-
-  // Retry location permission
-  const retryLocation = () => {
-    nativeGetCurrentPosition({ enableHighAccuracy: true, timeout: 10000 })
-      .then((position) => {
-        setLocation({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          fromDeviceFix: true
-        })
-        setLocationError(null)
-      })
-      .catch((error) => {
-        setLocationError(error?.message || 'Geolocation failed')
-      })
-  }
 
   return (
     <ThemeProvider>

@@ -243,6 +243,28 @@ export async function getCurrentPosition(options = { enableHighAccuracy: false, 
   })
 }
 
+/**
+ * Continuous location watch. Returns a stop function (call it to clear the
+ * watch). Native uses the Capacitor plugin (OS-level watch); web falls back to
+ * navigator.geolocation.watchPosition. The callback receives a Position with
+ * .coords.latitude/.longitude on both platforms.
+ *
+ * NOTE: this can consume a lot of battery. Only start it when you need live
+ * distances, and stop it when you don't.
+ */
+export async function watchPosition(options = { enableHighAccuracy: true, timeout: 10000 }, onPosition, onError) {
+  if (isNative()) {
+    const { Geolocation } = await import('@capacitor/geolocation')
+    const id = await Geolocation.watchPosition(options, onPosition)
+    return () => Geolocation.clearWatch({ id })
+  }
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return () => {}
+  }
+  const id = navigator.geolocation.watchPosition(onPosition, onError, options)
+  return () => navigator.geolocation.clearWatch(id)
+}
+
 export async function geolocationPermissionState() {
   if (isNative()) {
     try {
@@ -406,6 +428,7 @@ export default {
   shareContent,
   openExternalUrl,
   getCurrentPosition,
+  watchPosition,
   geolocationPermissionState,
   openAppSettings,
   setPreference,

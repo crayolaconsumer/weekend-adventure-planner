@@ -181,6 +181,15 @@ describe('placeFilter.enhancePlace', () => {
     const enhanced = enhancePlace(makePlace(), null)
     expect(enhanced.distance).toBe(null)
   })
+
+  it('recomputes distance when the user location changes (so labels track movement)', () => {
+    const place = makePlace() // lat 51.5, lng -0.1
+    const near = { lat: 51.51, lng: -0.1 }   // ~1.1 km away
+    const far = { lat: 51.55, lng: -0.1 }    // ~4.4 km away
+    const dNear = enhancePlace(place, near).distance
+    const dFar = enhancePlace(place, far).distance
+    expect(dFar).toBeGreaterThan(dNear)
+  })
 })
 
 describe('placeFilter.getRandomQualityPlaces', () => {

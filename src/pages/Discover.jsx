@@ -21,6 +21,7 @@ import { useSwipedPlaces } from '../hooks/useSwipedPlaces'
 import { useUserStats } from '../hooks/useUserStats'
 import { fetchEnrichedPlaces, fetchWeather, fetchPlacesWithSWR, fetchPlaceById, enrichPlace as apiEnrichPlace } from '../utils/apiClient'
 import { enhancePlace } from '../utils/placeFilter'
+import { nextFetchCenter } from '../utils/locationCenter'
 import { hasCacheSync, makeCacheKey } from '../utils/geoCache'
 import { useFriendPlaceActivity } from '../hooks/useFriendActivity'
 import { isPlaceOpen } from '../utils/openingHours'
@@ -212,8 +213,30 @@ export default function Discover({ location }) {
     return () => clearTimeout(timeoutId)
   }, [location, usingFallbackLocation])
 
-  // Effective location: use prop, fallback, or null
+  // Effective location: use prop, fallback, or null. This is the LIVE
+  // position — it updates as the user moves, so every displayed distance
+  // tracks them.
   const effectiveLocation = location || fallbackLocation
+
+  // Fetch center: the location the deck was fetched around. Stable across
+  // small movements — it only re-centers once we've moved a meaningful
+  // distance (RECENTER_M), so the deck doesn't re-fetch on every step of a
+  // walk. Distances use the live effectiveLocation, never this.
+  const RECENTER_M = 500
+  const [fetchCenter, setFetchCenter] = useState(null)
+  useEffect(() => {
+    if (!effectiveLocation) return
+    setFetchCenter((prev) => nextFetchCenter(prev, effectiveLocation, RECENTER_M))
+  }, [effectiveLocation?.lat, effectiveLocation?.lng])
+
+  // Keep distances accurate as the user moves, without re-fetching the deck.
+  // Re-enhances the already-loaded places with the live location so the
+  // "x metres away" labels track them. Cheap (no network); only runs when the
+  // live location actually changes.
+  useEffect(() => {
+    if (!effectiveLocation || basePlaces.length === 0) return
+    setBasePlaces((prev) => prev.map(p => enhancePlace(p, effectiveLocation, { weather })))
+  }, [effectiveLocation?.lat, effectiveLocation?.lng, weather])
 
   // Map route (free for everyone). Starts from the real location only, never
   // the London fallback; without one the hook asks for the position on tap.
@@ -418,7 +441,7 @@ export default function Discover({ location }) {
   // Uses SWR pattern for faster initial loads
   // Now works with memoized filtering - only sets basePlaces, useMemo handles the rest
   const loadPlaces = useCallback(async (currentWeather = null, { force = false } = {}) => {
-    if (!effectiveLocation) return
+    if (!fetchCenter) return
 
     const requestId = ++latestLoadRequestRef.current
     const requestKey = buildFilterKey()
@@ -440,7 +463,9 @@ export default function Discover({ location }) {
     // already includes showDogs, so a toggle re-runs this load with the
     // merged set; the key keeps dog and non-dog decks in separate entries.
     const dogsFlag = showDogs && isPremium
-    const cacheKey = makeCacheKey(effectiveLocation.lat, effectiveLocation.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null, dogsFlag)
+    // Cache is keyed on the fetch center (stable), not the live location, so
+    // small movements don't invalidate the cache and force a re-fetch.
+    const cacheKey = makeCacheKey(fetchCenter.lat, fetchCenter.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null, dogsFlag)
     const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
 
     if (cacheCheck.exists && cacheCheck.data?.length > 0) {
@@ -469,8 +494,8 @@ export default function Discover({ location }) {
       // For large radii, onProgress streams places as outer tiles load
       // Note: stale flag unused here since we check cache sync above
       const { data: rawPlaces } = await fetchPlacesWithSWR(
-        effectiveLocation.lat,
-        effectiveLocation.lng,
+        fetchCenter.lat,
+        fetchCenter.lng,
         mode.maxRadius,
         selectedCategories.length === 1 ? selectedCategories[0] : null,
         // Background refresh callback - full refresh from cache
@@ -527,15 +552,16 @@ export default function Discover({ location }) {
     if (requestId === latestLoadRequestRef.current) {
       setLoading(false)
     }
-  }, [effectiveLocation, travelMode, selectedCategories, toast, buildFilterKey, weather, isPremium])
+  }, [fetchCenter, effectiveLocation, travelMode, selectedCategories, toast, buildFilterKey, weather, isPremium])
 
   // Load more places when running low on cards
   const loadMorePlaces = useCallback(async () => {
-    if (!effectiveLocation || loadingMore) return
+    if (!fetchCenter || loadingMore) return
 
-    // A load-more is stale if the filter key OR the location moved while
+    // A load-more is stale if the filter key OR the live location moved while
     // it was in flight: the merged places carry distances computed from
-    // the location it started from.
+    // the live location it started from. The fetch itself expands the stable
+    // fetch center.
     const filterKeyAtStart = latestFilterKeyRef.current
     const locationAtStart = effectiveLocation
     setLoadingMore(true)
@@ -548,8 +574,8 @@ export default function Discover({ location }) {
       const expandedRadius = Math.min(mode.maxRadius * 1.5, maxExpandedRadius)
 
       const rawPlaces = await fetchEnrichedPlaces(
-        effectiveLocation.lat,
-        effectiveLocation.lng,
+        fetchCenter.lat,
+        fetchCenter.lng,
         expandedRadius,
         selectedCategories.length === 1 ? selectedCategories[0] : null,
         null,
@@ -598,7 +624,7 @@ export default function Discover({ location }) {
     } finally {
       setLoadingMore(false)
     }
-  }, [effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showDogs, includeClosed, weather, seenPlaceIds, userProfile, isPremium])
+  }, [fetchCenter, effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showDogs, includeClosed, weather, seenPlaceIds, userProfile, isPremium])
 
   // Sync places state with memoized filtered results
   // This is more efficient than the old useEffect because filteredPlaces
@@ -627,14 +653,15 @@ export default function Discover({ location }) {
   // Category changes are handled by toggleCategory with debouncing
 
   useEffect(() => {
-    if (!effectiveLocation) return
+    if (!fetchCenter) return
 
-    // Load weather once, then load places
-    // Weather is loaded independently to avoid cascading fetches
+    // Load weather once, then load places. Both track the stable fetch
+    // center (not the live location) so small movements don't re-fetch —
+    // distances update via the re-enhance effect instead.
     let isCancelled = false
 
     const load = async () => {
-      const weatherKey = `${effectiveLocation.lat.toFixed(2)},${effectiveLocation.lng.toFixed(2)}`
+      const weatherKey = `${fetchCenter.lat.toFixed(2)},${fetchCenter.lng.toFixed(2)}`
       const canUseCurrentWeather = weatherKeyRef.current === weatherKey
       const currentWeather = canUseCurrentWeather ? weather : null
 
@@ -645,7 +672,7 @@ export default function Discover({ location }) {
       loadPlaces(currentWeather)
 
       if (!canUseCurrentWeather) {
-        fetchWeather(effectiveLocation.lat, effectiveLocation.lng)
+        fetchWeather(fetchCenter.lat, fetchCenter.lng)
           .then(freshWeather => {
             if (!isCancelled) {
               setWeather(freshWeather)
@@ -666,7 +693,7 @@ export default function Discover({ location }) {
       clearTimeout(categoryDebounceRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- category changes handled by debounced toggleCategory
-  }, [effectiveLocation?.lat, effectiveLocation?.lng, travelMode])
+  }, [fetchCenter?.lat, fetchCenter?.lng, travelMode])
 
   // Handle category changes with initial load
   // This effect ONLY runs on initial mount to load with saved categories
