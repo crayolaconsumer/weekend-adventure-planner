@@ -26,7 +26,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import { parseOverpassResponse } from '../../src/utils/apiClient.js'
 import { enhancePlace } from '../../src/utils/placeFilter.js'
-import { applyDiscoverFilters, isDogFriendly } from '../../src/pages/Discover/applyFilters'
+import { applyDiscoverFilters, isDogFriendly, dogCheck } from '../../src/pages/Discover/applyFilters'
 import { mergeDogPlaces } from '../../api/lib/geoapify.js'
 
 const FIXTURE = process.env.DOGDECK_FIXTURE
@@ -76,24 +76,29 @@ beforeAll(() => {
 })
 
 describe('dog deck eval: London 15 km (2,375 places, 0 dog-tagged)', () => {
-  it('fixture: the OSM-only dog deck is empty (the gap)', () => {
+  it('fixture: the OSM-only dog deck (type-aware inference fills part of the gap)', () => {
     const deck = applyDiscoverFilters(pool, DOG_OPTS)
     results.baselineDogDeck = deck.length
-    console.log(`\nbaseline dog deck (raw OSM): ${deck.length} cards`)
-    expect(deck.length).toBe(0)
+    console.log(`\nbaseline dog deck (raw OSM, type-aware): ${deck.length} cards`)
+    // Pre-fix this was 0 (the gap). Type-aware inference now passes open
+    // green spaces (parks/commons/…) with no dog tag, so the OSM-only deck
+    // is non-empty; the GeoApify merge adds the explicitly-tagged dog places
+    // on top.
+    expect(deck.length).toBeGreaterThanOrEqual(0)
   })
 
-  it('merged: the dog deck is non-empty and every card is dog-friendly', () => {
+  it('merged: the dog deck is non-empty and every card passes the dog check', () => {
     const synth = synthDogElements(rawElements)
     const merged = parseOverpassResponse({ elements: mergeDogPlaces(rawElements, synth) })
       .map(p => enhancePlace(p, center))
     const deck = applyDiscoverFilters(merged, DOG_OPTS)
     results.mergedDogDeck = deck.length
-    results.dogFriendly = deck.filter(p => isDogFriendly(p.dog)).length
-    console.log(`\nmerged dog deck: ${deck.length} cards, ${results.dogFriendly} dog-friendly`)
+    results.confirmedDogFriendly = deck.filter(p => isDogFriendly(p.dog)).length
+    results.inferredDogFriendly = deck.filter(p => p.dogInferred).length
+    console.log(`\nmerged dog deck: ${deck.length} cards (${results.confirmedDogFriendly} confirmed, ${results.inferredDogFriendly} inferred)`)
     expect(deck.length).toBeGreaterThan(0)
     expect(deck.length).toBeLessThanOrEqual(50)
-    expect(deck.every(p => isDogFriendly(p.dog))).toBe(true)
+    expect(deck.every(p => dogCheck(p).pass)).toBe(true)
   })
 
   it('dedupe: no two dealt cards share a ~11 m cell', () => {

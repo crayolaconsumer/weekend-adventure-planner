@@ -108,6 +108,41 @@ export function isDogFriendly(dog: unknown): boolean {
   return DOG_FRIENDLY_VALUES.includes(typeof dog === 'string' ? dog : '')
 }
 
+// Open green spaces where a missing dog tag means "unknown", not "banned".
+// A dog is usually fine here, so we pass them but mark the pass as inferred
+// (the card shows "usually dog-friendly", not the confirmed badge).
+const OPEN_GREEN_TYPES = ['park', 'common', 'recreation_ground', 'wood', 'heath', 'moor']
+// Nature reserves and beaches carry explicit dog restrictions we must not
+// override — they stay on the strict explicit-tag rule.
+const STRICT_TYPES = ['nature_reserve', 'beach']
+
+/**
+ * Type-aware bring-the-dog check. Returns whether the place passes the
+ * filter and whether the pass is inferred (no explicit dog tag) or
+ * confirmed (an explicit dog=yes/leashed/… tag).
+ *
+ *   - dog_park: always passes, never inferred (built for dogs).
+ *   - nature_reserve / beach: strict — explicit tag only.
+ *   - park / common / recreation_ground / wood / heath / moor: pass when
+ *     the dog tag is missing (inferred), fail only on dog=no; an explicit
+ *     friendly tag is confirmed.
+ *   - everything else: strict — explicit tag only.
+ */
+export function dogCheck(p: PlaceLike): { pass: boolean, inferred: boolean } {
+  const dog = typeof p.dog === 'string' ? p.dog : ''
+  const type = p.type || ''
+  if (type.includes('dog_park')) return { pass: true, inferred: false }
+  if (STRICT_TYPES.some(t => type.includes(t))) {
+    return { pass: isDogFriendly(dog), inferred: false }
+  }
+  if (OPEN_GREEN_TYPES.some(t => type.includes(t))) {
+    if (dog === 'no') return { pass: false, inferred: false }
+    if (isDogFriendly(dog)) return { pass: true, inferred: false }
+    return { pass: true, inferred: true }
+  }
+  return { pass: isDogFriendly(dog), inferred: false }
+}
+
 /**
  * The UI-eligibility predicates (free only, accessibility, locals' picks,
  * off-peak, bring the dog). Extracted so they can run BEFORE the final
@@ -163,10 +198,15 @@ export function passesEligibility<T extends PlaceLike>(p: T, options: ApplyFilte
     }
   }
 
-  // Premium: Bring the dog — explicit OSM dog tags only (see
-  // isDogFriendly above).
+  // Premium: Bring the dog — type-aware check (see dogCheck above). A
+  // confirmed pass (explicit dog tag) sets dogFriendly; an inferred pass
+  // (open green space, no dog tag) also sets dogInferred so the card can
+  // show "usually dog-friendly" instead of the confirmed badge.
   if (showDogs && isPremium) {
-    if (!isDogFriendly(p.dog)) return false
+    const check = dogCheck(p)
+    if (!check.pass) return false
+    p.dogFriendly = true
+    p.dogInferred = check.inferred
   }
 
   return true

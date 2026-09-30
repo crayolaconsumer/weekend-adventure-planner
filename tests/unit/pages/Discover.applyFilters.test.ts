@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { applyDiscoverFilters, buildFilterKey, isDogFriendly } from '../../../src/pages/Discover/applyFilters'
+import { applyDiscoverFilters, buildFilterKey, isDogFriendly, dogCheck } from '../../../src/pages/Discover/applyFilters'
 
 function p(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -227,6 +227,44 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
     })
   })
 
+  describe('dogCheck (type-aware)', () => {
+    it('dog_park always passes, never inferred', () => {
+      expect(dogCheck(p({ type: 'dog_park' }))).toEqual({ pass: true, inferred: false })
+      expect(dogCheck(p({ type: 'dog_park', dog: 'no' }))).toEqual({ pass: true, inferred: false })
+    })
+
+    it('open green spaces pass when the dog tag is missing (inferred)', () => {
+      for (const type of ['park', 'common', 'recreation_ground', 'wood', 'heath', 'moor']) {
+        expect(dogCheck(p({ type })), type).toEqual({ pass: true, inferred: true })
+      }
+    })
+
+    it('open green spaces fail only on dog=no', () => {
+      for (const type of ['park', 'common', 'recreation_ground', 'wood', 'heath', 'moor']) {
+        expect(dogCheck(p({ type, dog: 'no' })), type).toEqual({ pass: false, inferred: false })
+      }
+    })
+
+    it('open green spaces with an explicit friendly tag are confirmed (not inferred)', () => {
+      for (const type of ['park', 'common', 'recreation_ground', 'wood', 'heath', 'moor']) {
+        expect(dogCheck(p({ type, dog: 'yes' })), type).toEqual({ pass: true, inferred: false })
+      }
+    })
+
+    it('nature reserves and beaches stay strict (explicit tag only)', () => {
+      expect(dogCheck(p({ type: 'nature_reserve' }))).toEqual({ pass: false, inferred: false })
+      expect(dogCheck(p({ type: 'nature_reserve', dog: 'yes' }))).toEqual({ pass: true, inferred: false })
+      expect(dogCheck(p({ type: 'beach' }))).toEqual({ pass: false, inferred: false })
+      expect(dogCheck(p({ type: 'beach', dog: 'leashed' }))).toEqual({ pass: true, inferred: false })
+    })
+
+    it('everything else stays strict (explicit tag only)', () => {
+      expect(dogCheck(p({ type: 'cafe' }))).toEqual({ pass: false, inferred: false })
+      expect(dogCheck(p({ type: 'cafe', dog: 'yes' }))).toEqual({ pass: true, inferred: false })
+      expect(dogCheck(p({ type: 'cafe', dog: 'no' }))).toEqual({ pass: false, inferred: false })
+    })
+  })
+
   describe('showDogs (premium)', () => {
     it('only applies when isPremium=true', () => {
       const places = [p({ id: 'a', name: 'The Old Bakery', type: 'cafe' })]
@@ -263,6 +301,24 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
       expect(out.length).toBeGreaterThan(0)
       expect(out.every(x => x.dog === 'yes' || x.dog === 'leashed')).toBe(true)
       expect(out.find(x => String(x.id).startsWith('unknown-'))).toBeUndefined()
+    })
+
+    it('marks inferred open green spaces and confirmed tagged places on the place', () => {
+      const places = [
+        p({ id: 'park-missing', type: 'park' }),
+        p({ id: 'park-yes', type: 'park', dog: 'yes' }),
+        p({ id: 'dogpark', type: 'dog_park' }),
+        p({ id: 'cafe-yes', type: 'cafe', dog: 'yes' }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults, showDogs: true, isPremium: true })
+      const byId = Object.fromEntries(out.map(x => [x.id, x]))
+      for (const id of ['park-missing', 'park-yes', 'dogpark', 'cafe-yes']) {
+        expect(byId[id].dogFriendly, id).toBe(true)
+      }
+      expect(byId['park-missing'].dogInferred).toBe(true)  // inferred
+      expect(byId['park-yes'].dogInferred).toBe(false)     // confirmed
+      expect(byId['dogpark'].dogInferred).toBe(false)      // confirmed
+      expect(byId['cafe-yes'].dogInferred).toBe(false)     // confirmed
     })
   })
 

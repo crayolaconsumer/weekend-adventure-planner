@@ -230,6 +230,30 @@
   height: 13px;
 }
 
+/* Dog-friendly badge — same frosted-forest treatment as the category chip.
+   "Dog friendly" = confirmed (explicit OSM dog tag); "Usually
+   dog-friendly" = inferred (open green space with no dog tag). */
+.swipe-card-dog {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 7px 11px;
+  background: color-mix(in srgb, #0d1b16 42%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+
+.swipe-card-dog svg {
+  width: 13px;
+  height: 13px;
+}
+
 /* Place name - The star */
 .swipe-card-name {
   font-family: var(--font-display);

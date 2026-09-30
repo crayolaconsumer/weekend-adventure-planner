@@ -47,6 +47,18 @@ const NavigationIcon = () => (
   </svg>
 )
 
+// Filled paw print for the dog-friendly badge: four toes + main pad.
+// Reads as "bring the dog" at 13px without an emoji.
+const PawIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <circle cx="4.6" cy="9.4" r="2.1" />
+    <circle cx="10.7" cy="5.6" r="2.1" />
+    <circle cx="16.6" cy="5.6" r="2.1" />
+    <circle cx="19.4" cy="10" r="2.1" />
+    <path d="M12 11.6c-3.1 0-5.7 2.4-5.7 5 0 1.6 1.2 2.8 2.7 2.8 1 0 1.7-.5 3-.5s2 .5 3 .5c1.5 0 2.7-1.2 2.7-2.8 0-2.6-2.6-5-5.7-5z" />
+  </svg>
+)
+
 // "type · distance · open state" — each segment omits itself when absent;
 // join with " · ". The card's single meta line (replaces the pill row).
 function cardLine(place, formatDistance, openingState) {
@@ -599,6 +611,17 @@ export default function SwipeCard({
           <span className="swipe-card-chip" aria-hidden="true">
             <CategoryIcon name={category?.key} size="sm" />
             {category?.label || place.type.replace(/_/g, ' ')}
+          </span>
+        )}
+
+        {/* Dog-friendly badge: shown only when the bring-the-dog filter is
+            active (the pipeline sets dogFriendly/dogInferred on the place).
+            "Dog friendly" = confirmed (explicit OSM tag); "Usually
+            dog-friendly" = inferred (open green space, no dog tag). */}
+        {place.dogFriendly && (
+          <span className="swipe-card-dog">
+            <PawIcon />
+            {place.dogInferred ? 'Usually dog-friendly' : 'Dog friendly'}
           </span>
         )}
 

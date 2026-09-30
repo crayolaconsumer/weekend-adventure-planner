@@ -190,6 +190,23 @@ describe('SwipeCard calm layout', () => {
     })
   })
 
+  describe('dog badge', () => {
+    it('shows "Usually dog-friendly" for an inferred place', () => {
+      renderCard({ place: { ...basePlace, type: 'park', dogFriendly: true, dogInferred: true } })
+      expect(screen.getByText('Usually dog-friendly')).toHaveClass('swipe-card-dog')
+    })
+
+    it('shows "Dog friendly" for a confirmed place', () => {
+      renderCard({ place: { ...basePlace, type: 'cafe', dog: 'yes', dogFriendly: true, dogInferred: false } })
+      expect(screen.getByText('Dog friendly')).toHaveClass('swipe-card-dog')
+    })
+
+    it('omits the badge when the place is not dog-friendly', () => {
+      const { container } = renderCard({ place: basePlace })
+      expect(container.querySelector('.swipe-card-dog')).toBeNull()
+    })
+  })
+
   describe('card tap', () => {
     it('card tap opens PlaceDetail via onExpand', () => {
       const onExpand = vi.fn()
