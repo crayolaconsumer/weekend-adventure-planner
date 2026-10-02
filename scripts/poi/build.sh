@@ -23,7 +23,8 @@ REGION=${REGION:-uk}
 GEOFABRIK=https://download.geofabrik.de
 UA='ROAM-poi-build/1.0 (https://www.go-roam.uk; support@extrastaff.com)'
 
-fetch() { curl -fsSL --retry 3 --retry-all-errors -A "$UA" -o "$2" "$1"; }
+# Geofabrik outages last minutes (502 on 2 Oct, a redirect loop on 1 Oct): wait them out
+fetch() { curl -fsSL --max-redirs 5 --retry 5 --retry-delay 60 --retry-all-errors -A "$UA" -o "$2" "$1"; }
 md5of() { (md5sum "$1" 2>/dev/null || md5 -r "$1") | cut -d' ' -f1; }
 
 mkdir -p "$WORK/out"
