@@ -56,8 +56,9 @@ export function getPool() {
       // transaction asks the pool for a second connection (checked 2026-09-27).
       connectionLimit: 1,
       queueLimit: 100,       // bounded, but deep enough for cron push bursts and admin dashboards
-      maxIdle: 1,
-      idleTimeout: 10000,
+      // Below connectionLimit, or mysql2 never starts its idle reaper (1 s ticks):
+      // a free connection closes within a second, back-to-back queries still share it
+      maxIdle: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0
     })
@@ -66,8 +67,8 @@ export function getPool() {
     // open: one user's session across ~17 endpoints held 51 connections
     // (alarm 2026-09-27). This closes idle connections before suspension.
     // mysql2/promise wraps the callback pool that attachDatabasePool knows.
-    // It reads connectionConfig.idleTimeout (else holds 60 s); mysql2 keeps it on pool.config
-    pool.pool.config.connectionConfig.idleTimeout = pool.pool.config.idleTimeout
+    // It holds each invocation connectionConfig.idleTimeout ms (unset: 60 s): one reaper tick
+    pool.pool.config.connectionConfig.idleTimeout = 1500
     try { attachDatabasePool(pool.pool) } catch (err) { console.warn('[db] attachDatabasePool failed', err.message) }
   }
   return pool

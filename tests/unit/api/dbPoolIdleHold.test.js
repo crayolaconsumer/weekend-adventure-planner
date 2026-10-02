@@ -9,7 +9,7 @@ afterEach(() => {
   delete globalThis[Symbol.for('@vercel/request-context')]
 })
 
-it('after a query, Vercel holds the invocation for the pool idle time, not 60 s', async () => {
+it('after a query, Vercel holds the invocation just long enough to close the idle connection', async () => {
   vi.stubEnv('VERCEL_URL', 'x.vercel.app')
   vi.stubEnv('VERCEL_REGION', 'lhr1')
   vi.stubEnv('MYSQL_HOST', '127.0.0.1')
@@ -24,7 +24,10 @@ it('after a query, Vercel holds the invocation for the pool idle time, not 60 s'
 
   expect(held).toHaveLength(1)
   const holdMs = timers.mock.calls.map(c => c[1]).find(ms => ms > 1000)
-  expect(holdMs).toBe(pool.pool.config.idleTimeout + 100)
+  // mysql2 only reaps idle connections when maxIdle < connectionLimit, on 1 s ticks: the hold covers one
+  expect(pool.pool.config.maxIdle).toBeLessThan(pool.pool.config.connectionLimit)
+  expect(holdMs).toBeGreaterThan(1000)
+  expect(holdMs).toBeLessThanOrEqual(2000)
 
   const fns = Object.values(JSON.parse(readFileSync('vercel.json', 'utf8')).functions)
   const shortest = Math.min(...fns.map(f => f.maxDuration).filter(Boolean)) * 1000
