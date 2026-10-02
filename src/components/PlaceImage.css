@@ -42,26 +42,30 @@ img.place-image {
   pointer-events: none;
 }
 
-.place-image-placeholder-icon {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--roam-forest);
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.18));
+.place-art {
+  position: absolute;
+  inset: 0;
 }
 
-/* Override CategoryIcon's inline sizing so the icon scales to the
-   container — small thumbnails get a small icon, big swipe cards get
-   a big one. !important is required to beat the component's inline
-   width/height. */
-.place-image-placeholder-icon > span {
-  width: clamp(28px, 24%, 88px) !important;
-  height: clamp(28px, 24%, 88px) !important;
+.place-art svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.place-image-placeholder-icon svg {
+/* The category medallion stands at the summit of the contours */
+.place-art-summit {
+  position: absolute;
+  left: var(--sx);
+  top: var(--sy);
+  transform: translate(-50%, -50%);
+  width: clamp(24px, 22%, 92px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
+}
+
+.place-art-summit > span,
+.place-art-summit svg {
   width: 100% !important;
   height: 100% !important;
 }

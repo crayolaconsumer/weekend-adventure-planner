@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
 import { createHandler, callOverpassProxy, parseNear } from '../../../api/town.js'
 import { weekendWindow } from '../../../api/lib/townEvents.js'
 
@@ -89,6 +89,10 @@ describe('api/town — web pages', () => {
   })
 
   it('lists this weekend\'s events end to end, from the Ticketmaster proxy\'s real response shape (regression)', async () => {
+    // A Wednesday: on a Friday evening the 19:30 Friday event is already over (flaked 2 Oct, 22:30)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-30T11:00:00Z'))
+    onTestFinished(() => vi.useRealTimers())
     const { from } = weekendWindow(new Date())
     const ticketmaster = vi.fn(async (req, res) => res.status(200).json({
       events: [{ name: 'Folk Night', url: 'https://www.ticketmaster.co.uk/e/9', dates: { start: { localDate: from, localTime: '19:30:00' } }, _embedded: { venues: [{ name: 'The Horn' }] } }],

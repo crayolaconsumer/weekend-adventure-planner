@@ -16,8 +16,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { resolvePlaceImageSync, resolvePlaceImageWithMeta } from '../utils/placeImage'
 import { PhotoCredit } from './Attribution'
-import { GOOD_CATEGORIES } from '../utils/categories'
-import CategoryIcon from './icons/CategoryIcon'
+import PlaceArt from './PlaceArt'
 import './PlaceImage.css'
 
 function getCategoryKey(place, override) {
@@ -79,27 +78,13 @@ export default function PlaceImage({
   const categoryKey = getCategoryKey(place, categoryKeyProp)
 
   if (!src || errored) {
-    // Brand-consistent placeholder: gradient keyed to the category +
-    // the brand CategoryIcon SVG. Previously rendered an emoji which
-    // (a) was only present when category was a full object — strings
-    // got no icon at all and the card looked broken — and (b) emoji
-    // glyphs render inconsistently across iOS WebView vs web.
     return (
       <div
         className={`place-image place-image--placeholder place-image--cat-${categoryKey} ${rounded ? 'place-image--rounded' : ''} ${className}`}
         role="img"
         aria-label={alt || 'Place image'}
       >
-        <span className="place-image-placeholder-icon" aria-hidden="true">
-          {/* The visual size is driven by CSS clamp() so the icon
-              scales from 28px on small thumbnails up to 88px on full
-              swipe cards. The prop size is just a baseline that the
-              CSS overrides via !important. */}
-          <CategoryIcon
-            name={GOOD_CATEGORIES[categoryKey] ? categoryKey : 'default'}
-            size={48}
-          />
-        </span>
+        <PlaceArt seed={place?.id ?? place?.name ?? alt} categoryKey={categoryKey} />
       </div>
     )
   }

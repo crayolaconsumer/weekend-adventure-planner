@@ -103,14 +103,6 @@
   opacity: 1;
 }
 
-/* No photo: keep the brand placeholder background but drop its big
-   centred category icon. The card text fills most of the card (all of it
-   on desktop), so the icon sat on top of the name and the Closed pill.
-   The category chip already carries the same icon. */
-.swipe-card-image-container .place-image-placeholder-icon {
-  display: none;
-}
-
 /* ═══════════════════════════════════════════════════════
    GRADIENT OVERLAY - Cinematic feel
    ═══════════════════════════════════════════════════════ */
