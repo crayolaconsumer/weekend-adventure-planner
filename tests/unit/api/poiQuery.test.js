@@ -193,7 +193,7 @@ describe('parseQuery: golden, every query the app emits', () => {
     }
   })
 
-  it('parses every typed id lookup; bare-number unions take the old path', async () => {
+  it('parses every typed id lookup; a bare-number union asks the DB for the node only', async () => {
     const queries = await idQueries()
     expect(queries).toHaveLength(8)
     const typed = [0, 1, 2, 4, 5, 6].map(i => queries[i])
@@ -203,10 +203,16 @@ describe('parseQuery: golden, every query the app emits', () => {
       expect(plan.kind).toBe('id')
     }
     expect(parseQuery(queries[0]).groups[0].statements).toEqual([{ type: 1, id: 123 }])
-    // (node(N);way(N);): if the DB only held the way, it would win over a real
-    // node outside the build, so these never use the DB
-    expect(parseQuery(queries[3])).toBeNull()
-    expect(parseQuery(queries[7])).toBeNull()
+    // (node(N);way(N);): every DB row is named with a place tag, the best osmPick
+    // score, and the node wins its ties, so a DB node N is the answer. A way is
+    // never asked for: the DB holding only the way could lose to a node outside
+    // the build, so no node row falls through to Overpass as before.
+    for (const q of [queries[3], queries[7]]) {
+      const plan = parseQuery(q)
+      expect(plan, q).toMatchObject({ kind: 'id' })
+      expect(plan.groups.flatMap(g => g.statements).every(s => s.type === 1)).toBe(true)
+    }
+    expect(parseQuery('[out:json];(node(5);way(6););out center;')).toBeNull() // different numbers: not a bare id
   })
 
   it('answers the 100 km box across mainland UK and refuses bigger boxes', () => {

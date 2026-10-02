@@ -387,6 +387,22 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(out.body).toEqual(LIVE)
   })
 
+  it('pct 100: a bare-id place link is answered from the DB when it holds the node, else Overpass', async () => {
+    // Regression: every bare-id /place link went to Overpass (10-20 s on 2 Oct)
+    pct = 100
+    const bare = '[out:json][timeout:10];(node(1);way(1););out body center;'
+    const out = await call(bare)
+    expect(out.headers['x-places-source']).toBe('db')
+    expect(out.body.elements.map(e => `${e.type}/${e.id}`)).toEqual(['node/1'])
+    expect(fetchMock).not.toHaveBeenCalled()
+    // Only the way in the DB: it could lose to a node outside the build, so Overpass decides
+    store.clear()
+    _resetPoiState()
+    answer = async () => [{ osm_type: 2, osm_id: 1, el: '{"type":"way","id":1,"center":{"lat":51.5,"lon":-0.1},"tags":{"name":"Park","leisure":"park"}}' }]
+    expect((await call(bare)).body).toEqual(LIVE)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('pct 100 + 0 rows or not covered: falls through', async () => {
     pct = 100
     answer = async () => []

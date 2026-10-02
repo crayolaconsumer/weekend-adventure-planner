@@ -217,10 +217,17 @@ export function parseQuery(ql) {
   const all = groups.flatMap(g => g.statements)
   const idCount = all.filter(s => s.id !== undefined).length
   if (idCount > 0 && idCount !== all.length) return null
-  // Only a single typed id. A bare number is a union of node(N) and way(N):
-  // if the DB holds just one of them (a UK way) while the real place is the
-  // other (a Paris node), we'd answer confidently and wrongly.
-  if (idCount > 1) return null
+  // A bare number is a union of node(N) and way(N). Every DB row is named with a
+  // place tag (osmPick's best score) and the node wins its ties, so ask for the
+  // node only: a DB node N is the answer; none (only a way here, perhaps losing
+  // to a Paris node) falls through to Overpass
+  if (idCount === 2 && groups.length === 1) {
+    const [a, b] = all
+    const node = [a, b].find(s => s.type === OSM_TYPE_CODE.node)
+    const way = [a, b].find(s => s.type === OSM_TYPE_CODE.way)
+    if (!node || !way || node.id !== way.id) return null
+    groups[0].statements = [node]
+  } else if (idCount > 1) return null
   if (idCount === 0 && !settings.bbox) return null
   return { bbox: idCount ? null : settings.bbox, kind: idCount ? 'id' : 'area', groups }
 }
