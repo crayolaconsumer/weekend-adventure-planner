@@ -32,7 +32,7 @@ function PlacePageHeader() {
   )
 }
 
-export default function Place() {
+export default function Place({ location }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const [place, setPlace] = useState(null)
@@ -199,7 +199,7 @@ export default function Place() {
   // In the app a shared link opens the usual sheet; on the web it is a
   // standalone page with the brand header and the get-the-app card.
   if (!web) {
-    return <PlaceDetail place={place} onClose={handleClose} onGo={handleGo} />
+    return <PlaceDetail place={place} userLocation={location} onClose={handleClose} onGo={handleGo} />
   }
 
   return (
@@ -207,6 +207,7 @@ export default function Place() {
       <PlacePageHeader />
       <PlaceDetail
         place={place}
+        userLocation={location}
         onClose={handleClose}
         onGo={handleGo}
         variant="page"

@@ -672,6 +672,7 @@ export default function Plan({ location }) {
       {stopDetail && (
         <PlaceDetail
           place={stopDetail}
+          userLocation={location}
           onClose={() => setStopDetail(null)}
         />
       )}

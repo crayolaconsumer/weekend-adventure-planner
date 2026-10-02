@@ -52,7 +52,7 @@ async function fetchTown(params) {
   return (await res.json()).town
 }
 
-export default function TownPage() {
+export default function TownPage({ location }) {
   const { slug } = useParams()
   const navigate = useNavigate()
   // Set when we arrived by following the server's alias redirect; never follow a second
@@ -213,6 +213,7 @@ export default function TownPage() {
         {selected && (
           <PlaceDetail
             place={selected}
+            userLocation={location}
             onClose={() => setSelected(null)}
           />
         )}

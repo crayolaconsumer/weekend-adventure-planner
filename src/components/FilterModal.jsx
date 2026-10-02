@@ -99,6 +99,10 @@ export function FilterModal({
   onToggleOffPeak = () => {},
   showDogs = false,
   onToggleDogs = () => {},
+  // Sort preference (not a filter): reorders the deck nearest-first. Kept out
+  // of activeCount and untouched by clear-all.
+  sortByDistance = false,
+  onToggleSortDistance = () => {},
   onClearAll = null,
   isPremium = false,
   onShowUpgrade = () => {}
@@ -429,6 +433,20 @@ export function FilterModal({
                   </span>
                   <span className="filter-extra-label">Accessible places</span>
                   <span className={`filter-extra-toggle ${accessibilityMode ? 'on' : ''}`}>
+                    <span className="filter-extra-toggle-knob" />
+                  </span>
+                </button>
+
+                <button
+                  className={`filter-extra-item ${sortByDistance ? 'selected' : ''}`}
+                  onClick={onToggleSortDistance}
+                  aria-pressed={sortByDistance}
+                >
+                  <span className="filter-extra-icon" aria-hidden="true">
+                    <FilterIcon name="distance" size={22} />
+                  </span>
+                  <span className="filter-extra-label">Sort by distance</span>
+                  <span className={`filter-extra-toggle ${sortByDistance ? 'on' : ''}`}>
                     <span className="filter-extra-toggle-knob" />
                   </span>
                 </button>

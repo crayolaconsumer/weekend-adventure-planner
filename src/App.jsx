@@ -632,9 +632,9 @@ function App() {
                       <Route path="/user/:username" element={<UnifiedProfile />} />
                       <Route path="/user/:username/map" element={<VisitedMapPage />} />
                       <Route path="/activity" element={<Activity />} />
-                      <Route path="/place/:id" element={<Place />} />
+                      <Route path="/place/:id" element={<Place location={location} />} />
                       <Route path="/town" element={<TownHub />} />
-                      <Route path="/town/:slug" element={<TownPage />} />
+                      <Route path="/town/:slug" element={<TownPage location={location} />} />
                       <Route path="/plan/share/:code" element={<SharedPlan />} />
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/privacy" element={<Privacy />} />

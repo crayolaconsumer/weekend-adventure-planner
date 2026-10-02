@@ -184,6 +184,11 @@ export default function Discover({ location }) {
   const [showDogs, setShowDogs] = useState(() => {
     return localStorage.getItem('roam_dogs') === 'true'
   })
+  // Sort the deck nearest-first. A sort preference, not a filter — so it is
+  // not part of the active-filter count and is untouched by "clear all".
+  const [sortByDistance, setSortByDistance] = useState(() => {
+    return localStorage.getItem('roam_sort_distance') === 'true'
+  })
 
   // Persist premium filter settings
   useEffect(() => {
@@ -197,6 +202,10 @@ export default function Discover({ location }) {
   useEffect(() => {
     localStorage.setItem('roam_dogs', showDogs.toString())
   }, [showDogs])
+
+  useEffect(() => {
+    localStorage.setItem('roam_sort_distance', sortByDistance.toString())
+  }, [sortByDistance])
 
   // Location timeout effect - show recovery options if location takes too long
   useEffect(() => {
@@ -325,9 +334,10 @@ export default function Discover({ location }) {
         travelMode,
         selectedBand,
         includeClosed,
+        sortByDistance,
         ...overrides,
       }),
-    [selectedCategories, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, showDogs, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand, includeClosed],
+    [selectedCategories, showFreeOnly, accessibilityMode, showLocalsPicks, showOffPeak, showDogs, isPremium, userProfile, weather, friendActivity, travelMode, selectedBand, includeClosed, sortByDistance],
   )
 
   // Off-peak reads the destination clock; the deck must recompute as time
@@ -1190,6 +1200,8 @@ export default function Discover({ location }) {
         onToggleOffPeak={() => setShowOffPeak(prev => !prev)}
         showDogs={showDogs}
         onToggleDogs={() => setShowDogs(prev => !prev)}
+        sortByDistance={sortByDistance}
+        onToggleSortDistance={() => setSortByDistance(prev => !prev)}
         onClearAll={clearAllFilters}
         isPremium={isPremium}
         onShowUpgrade={(type = 'filters') => {

@@ -52,6 +52,9 @@ export interface ApplyFiltersOptions {
   // Places closed right now (by their opening_hours) are left out of the
   // deck unless the user asks for places that open later. Unknown hours stay.
   includeClosed?: boolean
+  // Reorder the ranked deck nearest-first. Client-side only (never a fetch
+  // input), so it is deliberately kept out of buildFilterKey, like the band.
+  sortByDistance?: boolean
 }
 
 // Below this many open cards the deck offers places that open later
@@ -291,6 +294,21 @@ export function applyDiscoverFilters<T extends PlaceLike>(
   // Sort by quality score if locals picks is active
   if (showLocalsPicks && isPremium) {
     filtered.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))
+  }
+
+  // Reorder the ranked deck nearest-first when the option is on. Layers on
+  // top of the smart selector (nearest of the good places first), does not
+  // replace it. Non-finite distances (null, undefined, or NaN from a place
+  // with no coords) sort last; Number.isFinite catches all three where ??
+  // only catches null/undefined. The da === db guard returns 0 when both are
+  // non-finite so the sort no-ops cleanly instead of comparing
+  // Infinity - Infinity = NaN (unspecified order).
+  if (options.sortByDistance) {
+    filtered.sort((a, b) => {
+      const da = Number.isFinite(a.distance) ? a.distance : Infinity
+      const db = Number.isFinite(b.distance) ? b.distance : Infinity
+      return da === db ? 0 : da - db
+    })
   }
 
   return filtered

@@ -405,4 +405,61 @@ describe('distance bands', () => {
       expect(out.map(x => x.id)).toEqual(['medium'])
     })
   })
+
+  describe('sortByDistance', () => {
+    it('orders the deck nearest-first when on', () => {
+      const places = [
+        p({ id: 'far', name: 'Far Spot', type: 'museum', distance: 9 }),
+        p({ id: 'mid', name: 'Mid Spot', type: 'cafe', distance: 4 }),
+        p({ id: 'near', name: 'Near Spot', type: 'park', distance: 1 }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults, sortByDistance: true })
+      expect(out.map(x => x.id)).toEqual(['near', 'mid', 'far'])
+    })
+
+    it('puts null distances last', () => {
+      const places = [
+        p({ id: 'null', name: 'No Location', type: 'museum' }),
+        p({ id: 'near', name: 'Near Spot', type: 'cafe', distance: 2 }),
+        p({ id: 'far', name: 'Far Spot', type: 'park', distance: 8 }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults, sortByDistance: true })
+      expect(out.map(x => x.id)).toEqual(['near', 'far', 'null'])
+    })
+
+    it('leaves the deck intact when off (no distance cull)', () => {
+      const places = [
+        p({ id: 'far', name: 'Far Spot', type: 'museum', distance: 9 }),
+        p({ id: 'near', name: 'Near Spot', type: 'cafe', distance: 1 }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults })
+      expect(out).toHaveLength(2)
+    })
+
+    it('is a no-op when every distance is null (no user location)', () => {
+      // All-null distances means the comparator must return 0 for every pair
+      // (Infinity === Infinity), a stable no-op. If it ever returned NaN the
+      // order would diverge from the unsorted deck — this catches that.
+      const places = [
+        p({ id: 'a', name: 'Spot A', type: 'museum' }),
+        p({ id: 'b', name: 'Spot B', type: 'cafe' }),
+        p({ id: 'c', name: 'Spot C', type: 'park' }),
+      ]
+      const withSort = applyDiscoverFilters(places, { ...defaults, sortByDistance: true })
+      const withoutSort = applyDiscoverFilters(places, { ...defaults })
+      expect(withSort.map(x => x.id)).toEqual(withoutSort.map(x => x.id))
+    })
+
+    it('puts NaN distances last (a place with no coords)', () => {
+      // A place missing lat/lng yields distance = NaN from enhancePlace, not
+      // null. Number.isFinite must catch it the way ?? does not.
+      const places = [
+        p({ id: 'nan', name: 'No Coords', type: 'museum', distance: NaN }),
+        p({ id: 'near', name: 'Near Spot', type: 'cafe', distance: 2 }),
+        p({ id: 'far', name: 'Far Spot', type: 'park', distance: 8 }),
+      ]
+      const out = applyDiscoverFilters(places, { ...defaults, sortByDistance: true })
+      expect(out.map(x => x.id)).toEqual(['near', 'far', 'nan'])
+    })
+  })
 })
