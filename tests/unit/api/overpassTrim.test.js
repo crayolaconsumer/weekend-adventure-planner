@@ -57,3 +57,27 @@ describe('trimOverpassResponse', () => {
     expect(missing).toEqual([])
   })
 })
+
+describe('trimOverpassResponse drops what the phone never deals', () => {
+  // Regression: a 26k-element tile gzipped to 1.56 MB (over the 900 KB KV cap), so it was
+  // never cached and every load went back to Overpass for 15 s. Nameless elements were most of it.
+  it('drops exactly the nameless elements (each one the phone SKIPs too), on real OSM rows', async () => {
+    const { poiFeatures, SKIP } = await import('../../../shared/poiRank.mjs')
+    const sample = JSON.parse(readFileSync('tests/fixtures/poiRankSample.json', 'utf8'))
+    const edge = [
+      { type: 'node', id: 1, lat: 51.5, lon: 0, tags: { name: 'On the meridian', amenity: 'cafe' } },
+      { type: 'node', id: 2, lat: 51.5, lon: -0.1, tags: { amenity: 'cafe' } },
+      { type: 'node', id: 3, lat: 51.5, lon: -0.1, tags: { 'name:en': 'English only', amenity: 'cafe' } },
+      { type: 'way', id: 4, center: { lat: 51.5, lon: -0.1 }, tags: { name: 'Way', leisure: 'park' } },
+      { type: 'node', id: 5, lat: 51.5, lon: -0.1 },
+    ]
+    const all = [...sample, ...edge]
+    const kept = new Set(trimOverpassResponse({ elements: all }).elements.map(e => `${e.type}/${e.id}`))
+    for (const el of all) {
+      const named = Boolean(el.tags?.name || el.tags?.['name:en'])
+      expect(kept.has(`${el.type}/${el.id}`), `${el.type}/${el.id}`).toBe(named)
+      if (!named) expect(poiFeatures(el).flags & SKIP).toBeTruthy()
+    }
+    expect(kept.size).toBeLessThan(all.length)
+  })
+})

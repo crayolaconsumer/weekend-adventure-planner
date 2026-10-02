@@ -134,13 +134,13 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(shadowLines()[0].db_ms).toBeTypeOf('number')
   })
 
-  it('shadow compares against live named elements only (the build drops unnamed ones)', async () => {
+  it('unnamed live elements never reach the shadow compare (the trim drops them, as the build does)', async () => {
     const unnamed = { type: 'node', id: 9, lat: 51.5, lon: -0.1, tags: { amenity: 'bench' } }
     fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ elements: [...LIVE.elements, unnamed] }) }))
     answer = async () => [DB_ROWS[0], { osm_type: 1, osm_id: 2, el: JSON.stringify(LIVE.elements[1]) }]
     await call(LONDON)
     await Promise.all(background)
-    expect(shadowLines()[0]).toMatchObject({ n_live: 3, n_live_named: 2, n_db: 2, jaccard_ids: 1, jaccard_raw: 0.667 })
+    expect(shadowLines()[0]).toMatchObject({ n_live: 2, n_live_named: 2, n_db: 2, jaccard_ids: 1, jaccard_raw: 1 })
   })
 
   it('poiShadowPct 0 (the default): no shadow, no generation read, no DB call at all', async () => {

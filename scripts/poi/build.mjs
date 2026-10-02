@@ -74,8 +74,8 @@ export function featureToRow(feature, matches) {
     }
   }
   const el = trimOverpassResponse({ elements: [raw] }).elements[0]
-  const t = el.tags || {}
-  if (!t.name && !t['name:en']) return null
+  if (!el) return null // nameless (or no position): the trim drops it, as the phone does
+  const t = el.tags
   const lat = el.lat ?? el.center.lat
   const lon = el.lon ?? el.center.lon
   // Overpass (bbox) matches ways/relations that INTERSECT the box: keep their bounds

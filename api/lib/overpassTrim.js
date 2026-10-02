@@ -121,13 +121,15 @@ const ELEMENT_KEYS = ['type', 'id', 'lat', 'lon', 'center', 'bounds'] // bounds:
 export function trimOverpassResponse(data) {
   if (!data || !Array.isArray(data.elements)) return data
 
-  const elements = new Array(data.elements.length)
-  for (let i = 0; i < data.elements.length; i++) {
-    const el = data.elements[i]
+  const elements = []
+  for (const el of data.elements) {
     if (!el || typeof el !== 'object') {
-      elements[i] = el
+      elements.push(el)
       continue
     }
+    // Nameless: nothing deals them (the phone, the build, town pages), and they
+    // were most of a 26k-element tile that couldn't fit the KV cap
+    if (!el.tags?.name && !el.tags?.['name:en']) continue
 
     const out = {}
     for (const k of ELEMENT_KEYS) {
@@ -150,7 +152,7 @@ export function trimOverpassResponse(data) {
       if (kept !== null) out.tags = kept
     }
 
-    elements[i] = out
+    elements.push(out)
   }
 
   return { ...data, elements }
