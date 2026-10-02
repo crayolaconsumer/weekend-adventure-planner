@@ -99,8 +99,7 @@ export function FilterModal({
   onToggleOffPeak = () => {},
   showDogs = false,
   onToggleDogs = () => {},
-  // Sort preference (not a filter): reorders the deck nearest-first. Kept out
-  // of activeCount and untouched by clear-all.
+  // A sort, not a filter: not in activeCount, kept by clear-all
   sortByDistance = false,
   onToggleSortDistance = () => {},
   onClearAll = null,

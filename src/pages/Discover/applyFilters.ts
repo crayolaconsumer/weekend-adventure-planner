@@ -52,8 +52,7 @@ export interface ApplyFiltersOptions {
   // Places closed right now (by their opening_hours) are left out of the
   // deck unless the user asks for places that open later. Unknown hours stay.
   includeClosed?: boolean
-  // Reorder the ranked deck nearest-first. Client-side only (never a fetch
-  // input), so it is deliberately kept out of buildFilterKey, like the band.
+  // Client-side only, so not in buildFilterKey (like the band)
   sortByDistance?: boolean
 }
 
@@ -111,39 +110,17 @@ export function isDogFriendly(dog: unknown): boolean {
   return DOG_FRIENDLY_VALUES.includes(typeof dog === 'string' ? dog : '')
 }
 
-// Open green spaces where a missing dog tag means "unknown", not "banned".
-// A dog is usually fine here, so we pass them but mark the pass as inferred
-// (the card shows "usually dog-friendly", not the confirmed badge).
+// Open green spaces: no dog tag means "usually fine" (inferred), only dog=no fails.
+// Exact types: a substring 'park' let theme_park and water_park through.
 const OPEN_GREEN_TYPES = ['park', 'common', 'recreation_ground', 'wood', 'heath', 'moor']
-// Nature reserves and beaches carry explicit dog restrictions we must not
-// override — they stay on the strict explicit-tag rule.
-const STRICT_TYPES = ['nature_reserve', 'beach']
 
-/**
- * Type-aware bring-the-dog check. Returns whether the place passes the
- * filter and whether the pass is inferred (no explicit dog tag) or
- * confirmed (an explicit dog=yes/leashed/… tag).
- *
- *   - dog_park: always passes, never inferred (built for dogs).
- *   - nature_reserve / beach: strict — explicit tag only.
- *   - park / common / recreation_ground / wood / heath / moor: pass when
- *     the dog tag is missing (inferred), fail only on dog=no; an explicit
- *     friendly tag is confirmed.
- *   - everything else: strict — explicit tag only.
- */
+/** Bring-the-dog: dog_park always; open green unless dog=no (inferred); else an explicit friendly tag. */
 export function dogCheck(p: PlaceLike): { pass: boolean, inferred: boolean } {
   const dog = typeof p.dog === 'string' ? p.dog : ''
-  const type = p.type || ''
-  if (type.includes('dog_park')) return { pass: true, inferred: false }
-  if (STRICT_TYPES.some(t => type.includes(t))) {
-    return { pass: isDogFriendly(dog), inferred: false }
-  }
-  if (OPEN_GREEN_TYPES.some(t => type.includes(t))) {
-    if (dog === 'no') return { pass: false, inferred: false }
-    if (isDogFriendly(dog)) return { pass: true, inferred: false }
-    return { pass: true, inferred: true }
-  }
-  return { pass: isDogFriendly(dog), inferred: false }
+  if (p.type === 'dog_park') return { pass: true, inferred: false }
+  if (isDogFriendly(dog)) return { pass: true, inferred: false }
+  if (OPEN_GREEN_TYPES.includes(p.type || '')) return { pass: dog !== 'no', inferred: dog !== 'no' }
+  return { pass: false, inferred: false }
 }
 
 /**
@@ -296,13 +273,7 @@ export function applyDiscoverFilters<T extends PlaceLike>(
     filtered.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))
   }
 
-  // Reorder the ranked deck nearest-first when the option is on. Layers on
-  // top of the smart selector (nearest of the good places first), does not
-  // replace it. Non-finite distances (null, undefined, or NaN from a place
-  // with no coords) sort last; Number.isFinite catches all three where ??
-  // only catches null/undefined. The da === db guard returns 0 when both are
-  // non-finite so the sort no-ops cleanly instead of comparing
-  // Infinity - Infinity = NaN (unspecified order).
+  // Nearest-first over the ranked deck; no distance sorts last (Infinity - Infinity is NaN)
   if (options.sortByDistance) {
     filtered.sort((a, b) => {
       const da = Number.isFinite(a.distance) ? a.distance : Infinity

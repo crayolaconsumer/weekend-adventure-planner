@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Regression: idle connections survived Fluid compute suspension (idleTimeout
 // can't run while paused), so one session across ~17 endpoints held 51 DB
 // connections against a ~60 limit. The pool must be attached so Vercel
 // releases idle connections before suspending the instance.
 const attach = vi.fn()
-const inner = { on: vi.fn() }
+const inner = { on: vi.fn(), config: { idleTimeout: 10000, connectionConfig: {} } }
 const fakeConn = { query: vi.fn(), release: vi.fn(), destroy: vi.fn() }
 const fakePool = {
   query: vi.fn(),

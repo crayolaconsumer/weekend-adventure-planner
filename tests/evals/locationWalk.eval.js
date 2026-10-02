@@ -6,7 +6,7 @@
  * The "x metres away" labels must track the user as they walk, but the place
  * deck must NOT re-fetch on every step. This eval simulates a whole walk
  * (GPS jitter + one real move) through the REAL pipeline —
- * shouldApplyFix (jitter filter) -> nextFetchCenter (re-center) -> enhancePlace
+ * the hook's 100 m jitter filter -> nextFetchCenter (re-center) -> enhancePlace
  * (distance) — and asserts the invariants that make the fix correct:
  *
  *   1. jitter: sub-threshold fixes do NOT apply (live location stays put)
@@ -22,7 +22,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { shouldApplyFix, nextFetchCenter } from '../../src/utils/locationCenter'
+import { nextFetchCenter } from '../../src/utils/locationCenter'
 import { enhancePlace } from '../../src/utils/placeFilter.js'
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'tmp', 'roam-location-walk')
@@ -31,7 +31,7 @@ beforeAll(() => { mkdirSync(DIR, { recursive: true }) })
 // A walk around Harpenden: a start fix, a few jitter fixes (all within ~6 m),
 // then one real move ~510 m north toward a place. Fixes are modelled the way
 // the plugin delivers them: pos.coords with .latitude/.longitude (that is
-// exactly what the watch callback hands to shouldApplyFix).
+// exactly what the watch callback receives).
 const START = { lat: 51.6234, lng: -0.6284 }
 const FIXES = [
   { coords: { latitude: 51.62345, longitude: -0.6284 } },  // ~5 m north
@@ -52,12 +52,9 @@ function simulateWalk() {
   let refetches = 0
 
   for (const fix of FIXES) {
-    // Mirrors the hook: shouldApplyFix gets pos.coords; on apply, location
-    // becomes { lat: coords.latitude, lng: coords.longitude }.
-    if (shouldApplyFix(live, fix.coords, MOVE_THRESHOLD_M)) {
-      live = { lat: fix.coords.latitude, lng: fix.coords.longitude }
-      applied++
-    }
+    // Mirrors the hook's watch callback
+    const f = { lat: fix.coords.latitude, lng: fix.coords.longitude }
+    if (nextFetchCenter(live, f, MOVE_THRESHOLD_M) === f) { live = f; applied++ }
     const next = nextFetchCenter(fetchCenter, live, RECENTER_M)
     if (next !== fetchCenter) { refetches++; fetchCenter = next }
   }

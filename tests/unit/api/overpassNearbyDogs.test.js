@@ -79,13 +79,13 @@ describe('overpass nearby: dog-friendly merge', () => {
     expect(out.body.elements[1].tags).toEqual({ name: 'Doggy Diner', amenity: 'restaurant', dog: 'yes' })
 
     // The 24h tile entry is the plain Overpass body (dog and non-dog users share it);
-    // the dog answer lives under its own geoapify:dogs: key, one per condition
+    // the dog answer lives under its own geoapify:dogs: key
     // (a failed condition must not pin the other condition's answer for 24h).
     const tileWrite = cacheSet.mock.calls.find(c => c[0].startsWith('overpass:') && !c[0].includes('stale'))
     expect(tileWrite[1]).toEqual(ELEMENTS)
     const dogWrites = cacheSet.mock.calls.filter(c => c[0].startsWith('geoapify:dogs:'))
     expect(dogWrites).toHaveLength(1)
-    expect(dogWrites[0][0]).toBe('geoapify:dogs:51.5:-0.12:5000:all:dogs.yes')
+    expect(dogWrites[0][0]).toBe('geoapify:dogs:51.5:-0.12:5000:all')
     expect(dogWrites[0][1]).toHaveLength(1)
   })
 

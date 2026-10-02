@@ -19,7 +19,6 @@ export const GOOD_CATEGORY_TYPES = {
     'exhibition_centre', 'music_venue', 'planetarium', 'events_venue',
     'public_bookcase', 'studio',
     'museum', 'gallery',
-    'information',
   ],
   historic: [
     'castle', 'manor', 'monument', 'memorial', 'ruins',
@@ -196,7 +195,6 @@ export const TYPE_TO_KEYS = {
   beach_resort: ['leisure'],
   artwork: ['tourism'],
   attraction: ['tourism'],
-  information: ['tourism'],
   fountain: ['amenity'],
   lighthouse: ['man_made'],
   windmill: ['man_made'],

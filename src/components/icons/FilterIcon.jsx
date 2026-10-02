@@ -64,8 +64,7 @@ const ICONS = {
     </>
   ),
 
-  /* Sort by distance — Lucide "ruler". Diagonal ruler reads as measuring
-      how far away. */
+  /* Sort by distance: Lucide "ruler" */
   distance: (
     <>
       <path d="M21.3 15.3a2.4 2.4 0 0 0 0-3.4l-7.6-7.6a2.4 2.4 0 0 0-3.4 0L2.7 13.3a2.4 2.4 0 0 0 0 3.4l7.6 7.6a2.4 2.4 0 0 0 3.4 0Z" />

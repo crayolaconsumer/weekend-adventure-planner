@@ -65,8 +65,7 @@ const brandPinIcon = L.divIcon({
   iconAnchor: [16, 44],
 })
 
-// "You are here" dot — a plain blue marker, distinct from the brand pin.
-// Anchored at its centre so the dot sits on the fix, not below it.
+// "You are here": anchored at its centre, on the fix
 const USER_DOT_HTML = `
 <svg viewBox="0 0 16 16" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
   <circle cx="8" cy="8" r="6" fill="#2563eb" stroke="#fff" stroke-width="2"/>

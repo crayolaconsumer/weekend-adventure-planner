@@ -228,6 +228,11 @@ describe('Discover/applyFilters.applyDiscoverFilters', () => {
   })
 
   describe('dogCheck (type-aware)', () => {
+    it('a theme or water park is not open green space', () => {
+      expect(dogCheck(p({ type: 'theme_park' }))).toEqual({ pass: false, inferred: false })
+      expect(dogCheck(p({ type: 'water_park' }))).toEqual({ pass: false, inferred: false })
+    })
+
     it('dog_park always passes, never inferred', () => {
       expect(dogCheck(p({ type: 'dog_park' }))).toEqual({ pass: true, inferred: false })
       expect(dogCheck(p({ type: 'dog_park', dog: 'no' }))).toEqual({ pass: true, inferred: false })

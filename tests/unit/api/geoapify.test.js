@@ -18,9 +18,8 @@ describe('featureToElement', () => {
     })
   })
 
-  it('keeps leashed-only places leashed, unrestricted beats leashed when both are present', () => {
-    expect(featureToElement(feat(['catering.pub', 'dogs.leashed'])).tags.dog).toBe('leashed')
-    expect(featureToElement(feat(['catering.restaurant', 'dogs.yes', 'dogs.leashed'])).tags.dog).toBe('yes')
+  it('only dogs.yes counts: leashed-only is not dog=yes', () => {
+    expect(featureToElement(feat(['catering.pub', 'dogs.leashed']))).toBeNull()
   })
 
   it('flattens deep categories to the underscore subkey the client reads', () => {
@@ -62,14 +61,10 @@ describe('mergeDogPlaces', () => {
 })
 
 describe('dogCacheKey', () => {
-  it('quantizes coordinates to ~11 m, radius to 100 m, and splits per condition', () => {
-    expect(dogCacheKey(51.50004, -0.12001, 5032, 'food', 'dogs.yes')).toBe('geoapify:dogs:51.5:-0.12:5000:food:dogs.yes')
-    // GPS jitter within one cell (and a radius within one 100 m step) shares a key
-    expect(dogCacheKey(51.500049, -0.120014, 5049, 'food', 'dogs.yes')).toBe('geoapify:dogs:51.5:-0.12:5000:food:dogs.yes')
-    expect(dogCacheKey(51.5, -0.12, 5000, null, 'dogs.leashed')).toBe('geoapify:dogs:51.5:-0.12:5000:all:dogs.leashed')
-    // A timed-out condition must not be served from the other condition's cache entry
-    expect(dogCacheKey(51.5, -0.12, 5000, 'food', 'dogs.yes'))
-      .not.toBe(dogCacheKey(51.5, -0.12, 5000, 'food', 'dogs.leashed'))
+  it('quantizes coordinates to ~11 m and radius to 100 m', () => {
+    expect(dogCacheKey(51.50004, -0.12001, 5032, 'food')).toBe('geoapify:dogs:51.5:-0.12:5000:food')
+    expect(dogCacheKey(51.500049, -0.120014, 5049, 'food')).toBe('geoapify:dogs:51.5:-0.12:5000:food')
+    expect(dogCacheKey(51.5, -0.12, 5000, null)).toBe('geoapify:dogs:51.5:-0.12:5000:all')
   })
 })
 
@@ -96,14 +91,6 @@ describe('fetchGeoApifyDogPlaces', () => {
     // No bias: server-side proximity sorting tripled query time (measured),
     // and the client sorts by distance in enhancePlace.
     expect(body.bias).toBeUndefined()
-  })
-
-  it('sends the condition override when given', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok({ features: [] }))
-    vi.stubGlobal('fetch', fetchMock)
-    await fetchGeoApifyDogPlaces({ lat: 1, lng: 1, radius: 1000, apiKey: 'k', condition: 'dogs.leashed' })
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    expect(body.conditions).toEqual(['dogs.leashed'])
   })
 
   it('uses the broad category set when no category is given (only dog-condition-indexed keys)', async () => {

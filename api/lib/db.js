@@ -65,7 +65,9 @@ export function getPool() {
     // so every paused function (one per endpoint) kept an idle connection
     // open: one user's session across ~17 endpoints held 51 connections
     // (alarm 2026-09-27). This closes idle connections before suspension.
-    // mysql2/promise wraps the callback pool that attachDatabasePool knows
+    // mysql2/promise wraps the callback pool that attachDatabasePool knows.
+    // It reads connectionConfig.idleTimeout (else holds 60 s); mysql2 keeps it on pool.config
+    pool.pool.config.connectionConfig.idleTimeout = pool.pool.config.idleTimeout
     try { attachDatabasePool(pool.pool) } catch (err) { console.warn('[db] attachDatabasePool failed', err.message) }
   }
   return pool

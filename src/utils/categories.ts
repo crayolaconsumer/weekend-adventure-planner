@@ -4,6 +4,7 @@
  */
 
 import {
+  GOOD_CATEGORY_TYPES,
   getAllGoodTypes as getSharedAllGoodTypes,
   getTypesForCategory as getSharedTypesForCategory,
 } from '../../shared/overpassQuery.js'
@@ -23,163 +24,61 @@ export interface CategoryWithKey extends Category {
   key: CategoryKey
 }
 
-// What we WANT - adventure-worthy places.
-//
-// Every value below is a CANONICAL OSM tag value verified against
-// taginfo.openstreetmap.org. Previously this list contained many
-// invented values like `bookshop`, `record_shop`, `gift_shop`,
-// `gastropub`, `secret_garden`, `flea_market`, `high_street` etc.
-// that don't exist in OSM — Overpass queries built from them
-// returned zero matches, which is why entire categories like Markets
-// & Shops felt broken in towns full of real shops.
-//
-// Performance note: expanding the regex per OSM key here doesn't add
-// query clauses (we still issue one nw[key~"regex"] per distinct OSM
-// key, the regex just has more alternations). Overpass handles long
-// regexes efficiently; the bottleneck is clause count, not regex
-// length. Total clauses unchanged from before this rewrite.
+// Types are shared/overpassQuery.js: one list for the phone, Overpass and the POI build
 export const GOOD_CATEGORIES: Record<CategoryKey, Category> = {
   food: {
     label: 'Food & Drink',
     icon: '🍽️',
     color: '#c45c3e',
-    types: [
-      // amenity=*  (eating out)
-      'restaurant', 'cafe', 'pub', 'bar', 'fast_food', 'biergarten',
-      'ice_cream', 'food_court',
-      // shop=*  (food retail — specialty + interesting)
-      'bakery', 'butcher', 'cheese', 'chocolate', 'confectionery',
-      'deli', 'farm', 'greengrocer', 'pastry', 'seafood', 'tea',
-      'wine', 'coffee', 'dairy', 'pasta', 'spices', 'health_food',
-    ],
+    types: GOOD_CATEGORY_TYPES.food,
   },
   nature: {
     label: 'Nature & Outdoors',
     icon: '🌿',
     color: '#87a28e',
-    types: [
-      // leisure=*
-      'park', 'garden', 'nature_reserve', 'recreation_ground',
-      'bird_hide', 'wildlife_hide', 'common', 'dog_park',
-      // tourism=*
-      'viewpoint', 'picnic_site',
-      // natural=*  (discrete destinations — not every patch of grass)
-      'beach', 'peak', 'cliff', 'cave_entrance', 'spring', 'hot_spring',
-      'heath', 'moor', 'volcano', 'geyser', 'bay', 'cape', 'wood',
-    ],
+    types: GOOD_CATEGORY_TYPES.nature,
   },
   culture: {
     label: 'Arts & Culture',
     icon: '🎭',
     color: '#6b5b95',
-    types: [
-      // amenity=*
-      'theatre', 'arts_centre', 'library', 'cinema', 'community_centre',
-      'exhibition_centre', 'music_venue', 'planetarium', 'events_venue',
-      'public_bookcase', 'studio',
-      // tourism=*
-      'museum', 'gallery',
-    ],
+    types: GOOD_CATEGORY_TYPES.culture,
   },
   historic: {
     label: 'History & Heritage',
     icon: '🏛️',
     color: '#8b7355',
-    types: [
-      // historic=*  (canonical values from taginfo top-30 — globally
-      // used, not UK-specific. memorial, archaeological_site, ruins
-      // and castle alone account for 1M+ tagged places worldwide.)
-      'castle', 'manor', 'monument', 'memorial', 'ruins',
-      'archaeological_site', 'fort', 'citywalls', 'city_gate',
-      'tomb', 'mine', 'church', 'battlefield', 'heritage',
-      'wayside_shrine', 'wayside_cross', 'milestone', 'mine_shaft',
-      'cannon', 'aircraft', 'wreck', 'temple',
-      // amenity=*  (historic religious + ceremonial sites)
-      'monastery',
-      // amenity=grave_yard — Highgate, Père Lachaise, Arlington,
-      // Recoleta, etc. are major global destinations. The scoring
-      // pipeline will rank the famous ones (which carry photos +
-      // websites + wikipedia tags) above village churchyards.
-      'grave_yard',
-    ],
+    types: GOOD_CATEGORY_TYPES.historic,
   },
   entertainment: {
     label: 'Entertainment',
     icon: '🎪',
     color: '#e07a5f',
-    types: [
-      // leisure=*  (canonical globally; resort covers ski/wellness/
-      // beach resort destinations worldwide)
-      'bowling_alley', 'miniature_golf', 'water_park',
-      'amusement_arcade', 'escape_game', 'trampoline_park',
-      'high_ropes_course', 'disc_golf_course', 'ice_rink',
-      'horse_riding', 'sauna', 'adult_gaming_centre', 'dance',
-      'resort',
-      // tourism=*
-      'zoo', 'aquarium', 'theme_park',
-      // amenity=*
-      'casino', 'gambling',
-      // shop=*  (video games is a destination shopping experience)
-      'video_games',
-    ],
+    types: GOOD_CATEGORY_TYPES.entertainment,
   },
   nightlife: {
     label: 'Nightlife',
     icon: '🌙',
     color: '#4a4a8a',
-    types: [
-      // amenity=*  — canonical late-night venues
-      'nightclub',
-    ],
+    types: GOOD_CATEGORY_TYPES.nightlife,
   },
   active: {
     label: 'Active & Sports',
     icon: '⚡',
     color: '#2d9cdb',
-    types: [
-      // leisure=*
-      'sports_centre', 'sports_hall', 'swimming_pool', 'swimming_area',
-      'bathing_place', 'pitch', 'track', 'golf_course', 'fitness_centre',
-      'fitness_station', 'stadium', 'marina', 'slipway', 'fishing',
-      'beach_resort',
-    ],
+    types: GOOD_CATEGORY_TYPES.active,
   },
   unique: {
     label: 'Hidden Gems',
     icon: '💎',
     color: '#d4a855',
-    types: [
-      // tourism=*
-      'artwork', 'attraction',
-      // amenity=*
-      'fountain',
-      // man_made=*  (iconic landmarks)
-      'lighthouse', 'windmill', 'water_tower', 'tower', 'bridge',
-      // leisure=*
-      'bandstand', 'firepit',
-    ],
+    types: GOOD_CATEGORY_TYPES.unique,
   },
   shopping: {
     label: 'Markets & Shops',
     icon: '🛍️',
     color: '#9b59b6',
-    types: [
-      // amenity=*  (the ONLY canonical market tag in OSM —
-      // "market", "flea_market", "farmers_market", "indoor_market",
-      // "covered_market", "car_boot_sale" don't exist as values)
-      'marketplace',
-      // shop=*  (canonical OSM values; rebuilt against taginfo top-50,
-      // global — these tags are used identically in every country.
-      // `mall` covers shopping malls/centres which are big-box
-      // destinations especially in US/Asia/Middle East.)
-      'mall', 'antiques', 'art', 'bag', 'books', 'boutique', 'candles',
-      'charity', 'clothes', 'collector', 'comics', 'craft', 'fabric',
-      'florist', 'frame', 'furniture', 'games', 'gift', 'houseware',
-      'interior_decoration', 'jewelry', 'kitchen', 'leather', 'lighting',
-      'model', 'music', 'musical_instrument', 'outdoor', 'party',
-      'perfumery', 'photo', 'pottery', 'second_hand', 'shoes', 'sports',
-      'stationery', 'toys', 'watches', 'bicycle', 'camera', 'anime',
-    ],
+    types: GOOD_CATEGORY_TYPES.shopping,
   },
 }
 

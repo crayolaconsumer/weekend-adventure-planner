@@ -184,8 +184,7 @@ export default function Discover({ location }) {
   const [showDogs, setShowDogs] = useState(() => {
     return localStorage.getItem('roam_dogs') === 'true'
   })
-  // Sort the deck nearest-first. A sort preference, not a filter — so it is
-  // not part of the active-filter count and is untouched by "clear all".
+  // A sort, not a filter: not in the active count, kept by "clear all"
   const [sortByDistance, setSortByDistance] = useState(() => {
     return localStorage.getItem('roam_sort_distance') === 'true'
   })
@@ -222,15 +221,10 @@ export default function Discover({ location }) {
     return () => clearTimeout(timeoutId)
   }, [location, usingFallbackLocation])
 
-  // Effective location: use prop, fallback, or null. This is the LIVE
-  // position — it updates as the user moves, so every displayed distance
-  // tracks them.
+  // The live position: distances use this
   const effectiveLocation = location || fallbackLocation
 
-  // Fetch center: the location the deck was fetched around. Stable across
-  // small movements — it only re-centers once we've moved a meaningful
-  // distance (RECENTER_M), so the deck doesn't re-fetch on every step of a
-  // walk. Distances use the live effectiveLocation, never this.
+  // Where the deck was fetched: moves only past RECENTER_M, so a walk doesn't re-fetch
   const RECENTER_M = 500
   const [fetchCenter, setFetchCenter] = useState(null)
   useEffect(() => {
@@ -238,10 +232,7 @@ export default function Discover({ location }) {
     setFetchCenter((prev) => nextFetchCenter(prev, effectiveLocation, RECENTER_M))
   }, [effectiveLocation?.lat, effectiveLocation?.lng])
 
-  // Keep distances accurate as the user moves, without re-fetching the deck.
-  // Re-enhances the already-loaded places with the live location so the
-  // "x metres away" labels track them. Cheap (no network); only runs when the
-  // live location actually changes.
+  // Re-enhance the loaded deck so "x metres away" tracks the user (no network)
   useEffect(() => {
     if (!effectiveLocation || basePlaces.length === 0) return
     setBasePlaces((prev) => prev.map(p => enhancePlace(p, effectiveLocation, { weather })))
@@ -473,8 +464,6 @@ export default function Discover({ location }) {
     // already includes showDogs, so a toggle re-runs this load with the
     // merged set; the key keeps dog and non-dog decks in separate entries.
     const dogsFlag = showDogs && isPremium
-    // Cache is keyed on the fetch center (stable), not the live location, so
-    // small movements don't invalidate the cache and force a re-fetch.
     const cacheKey = makeCacheKey(fetchCenter.lat, fetchCenter.lng, mode.maxRadius, selectedCategories.length === 1 ? selectedCategories[0] : null, dogsFlag)
     const cacheCheck = force ? { exists: false } : hasCacheSync(cacheKey)
 
@@ -665,9 +654,7 @@ export default function Discover({ location }) {
   useEffect(() => {
     if (!fetchCenter) return
 
-    // Load weather once, then load places. Both track the stable fetch
-    // center (not the live location) so small movements don't re-fetch —
-    // distances update via the re-enhance effect instead.
+    // Load weather once, then load places (both around the fetch center)
     let isCancelled = false
 
     const load = async () => {
