@@ -305,6 +305,12 @@ describe('gates and ids', () => {
     expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 49 } })).toEqual([])
   })
 
+  it('a key the app stopped querying is not drift (tourism=information was dropped on purpose)', () => {
+    expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'tourism=information': 17256 } })).toEqual([])
+    // a still-queried key falling away still fails
+    expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'tourism=museum': 17256 } })).toEqual(['tourism=museum 17256 -> 0 (over ±10%)'])
+  })
+
   it('passes a healthy build', () => {
     expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 9800, 'amenity=pub': 9900, 'historic=castle': 95 } })).toEqual([])
     expect(gateFailures(m, null)).toEqual([])

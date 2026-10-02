@@ -381,8 +381,10 @@ export function gateFailures(m, prev, { minRows = 150000, minSentinelRatio = 0.9
     fails.push(`sentinels ${m.sentinels_found}/${m.sentinels_total} < ${minSentinelRatio}; missing: ${missing.map(s => `${s.type}/${s.id} ${s.name}`).join(', ')}`)
   }
   if (m.large_count > MAX_LARGE) fails.push(`large_count ${m.large_count} > ${MAX_LARGE} (elements in cell ${LARGE_CELL})`)
+  // A key the app no longer queries (removed on purpose) isn't drift
+  const queried = new Set([...filterPairs()].flatMap(([k, vs]) => vs.map(v => `${k}=${v}`)))
   for (const [k, before] of Object.entries(prev?.per_key_counts || {})) {
-    if (before < MIN_KEY_COUNT) continue
+    if (before < MIN_KEY_COUNT || !queried.has(k)) continue
     const now = m.per_key_counts[k] || 0
     if (Math.abs(now / before - 1) > MAX_DRIFT) fails.push(`${k} ${before} -> ${now} (over ±${MAX_DRIFT * 100}%)`)
   }
