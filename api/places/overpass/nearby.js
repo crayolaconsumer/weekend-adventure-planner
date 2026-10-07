@@ -577,8 +577,16 @@ export default async function handler(req, res) {
   let lastError = null
   let emptyResponse = null
   const PER_ENDPOINT_TIMEOUT_MS = 28000
+  // Overpass's busy 5xx comes back in seconds, and a second try usually lands
+  // (7 Oct: alternate tries of one town query failed and passed). One fast 5xx
+  // gets one retry, which still fits the town page's 27 s budget. A 429 means
+  // slow down and a timeout has spent the time: neither is retried
+  const RETRY_IF_FAILED_WITHIN_MS = 12000
+  const attempts = endpointsByPriority()
+  const loopStart = Date.now()
+  let retried = false
 
-  for (const endpoint of endpointsByPriority()) {
+  for (const endpoint of attempts) {
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), PER_ENDPOINT_TIMEOUT_MS)
@@ -601,6 +609,10 @@ export default async function handler(req, res) {
       if (!response.ok) {
         markEndpointFailed(endpoint)
         lastError = new Error(`Overpass returned ${response.status}`)
+        if (response.status >= 500 && !retried && Date.now() - loopStart < RETRY_IF_FAILED_WITHIN_MS) {
+          retried = true
+          attempts.push(endpoint)
+        }
         continue
       }
 

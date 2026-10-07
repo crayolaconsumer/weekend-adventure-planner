@@ -29,7 +29,7 @@ describe('pickWeekendEvents', () => {
       ev('Early show', '2026-10-04', '10:00:00'),
       ev('Friday gig', '2026-10-02', null),
       ev('No link', '2026-10-03', '12:00:00', { url: 'javascript:alert(1)' })
-    ]), window)
+    ]), window, 5, new Date('2026-10-02T08:00:00Z')) // a fixed "now": the default made this fail once the date passed
     expect(picked.map(e => e.name)).toEqual(['Friday gig', 'Early show', 'Late show'])
     expect(picked[1]).toMatchObject({ date: '2026-10-03', time: '10:00', venue: 'Alban Arena' })
   })

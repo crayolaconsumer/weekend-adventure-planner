@@ -56,6 +56,28 @@ describe('overpass nearby: grid-snapped cache key', () => {
     expect(out.body.elements).toHaveLength(1)
   })
 
+  it('a busy Overpass 504 gets one retry, and the second answer is served (regression: New York town page 503s)', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 504, text: async () => '' })
+    const out = await call(buildDiscoverOverpassQuery(40.7128, -74.006, 3000, null).query)
+    expect(out.status).toBe(200)
+    expect(out.body.elements).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries at most once: an Overpass that keeps 504ing costs two calls, then 503', async () => {
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 504, text: async () => '' }))
+    const out = await call(buildDiscoverOverpassQuery(40.7128, -74.006, 3000, null).query)
+    expect(out.status).toBe(503)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('a 429 is not retried: Overpass asked us to slow down', async () => {
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 429, text: async () => '' }))
+    const out = await call(buildDiscoverOverpassQuery(40.7128, -74.006, 3000, null).query)
+    expect(out.status).toBe(503)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('two users a few metres apart share one cache entry (regression: raw coords never hit)', async () => {
     const a = buildDiscoverOverpassQuery(51.5074, -0.1278, 5000, null).query
     const b = buildDiscoverOverpassQuery(51.50745, -0.12785, 5000, null).query // ~7 m away
