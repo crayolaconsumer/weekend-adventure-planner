@@ -59,6 +59,13 @@ export const SCAN_ROWS = 12_000
 // A query slower than this counts as a breaker failure even if it succeeds:
 // the caller (nearby.js) has stopped waiting and served the old path
 export const POI_DEADLINE_MS = 1000
+// A dense answer the relevance cap may serve gets longer (nearby.js waits past
+// POI_DEADLINE_MS only when KV has no copy): measured on prod (London 15 km, warm) it's
+// ~0.6 s, 1-1.7 s with a cold connection or buffer pool, and the old path it would fall back
+// to is public Overpass, which times out on those tiles. The capped transaction stays bounded
+// by CAP_TXN_MS (2 s) plus one statement; a served one may now use all of it (it used to end
+// near 1 s), so the loader's RENAME (lock_wait_timeout 5 s) can wait up to ~3 s behind it.
+export const POI_CAP_DEADLINE_MS = 2500
 // Don't submit SQL with less than this left before the caller's deadline
 const MIN_REMAINING_MS = 200
 // Server-side bound: MySQL kills the SELECT, so the connection is freed too
@@ -800,7 +807,7 @@ export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap =
       // the probe and the capped transaction are the cap breaker's
       if (result.sharedMs == null) breakerRelease()
       else breakerResult(result.sharedMs <= POI_DEADLINE_MS)
-      if (capOn) capBreakerResult(Date.now() - started - (result.sharedMs ?? 0) <= POI_DEADLINE_MS)
+      if (capOn) capBreakerResult(Date.now() - started - (result.sharedMs ?? 0) <= POI_CAP_DEADLINE_MS)
       // A fallback is today's answer from a run that doubted the cap: never cached, so the
       // next request checks again (and the answer never outlives the table it came from)
       const cacheable = confirmed && !result.capFallback
@@ -880,10 +887,10 @@ export async function shadowPois(plan, key, { gen = 0 } = {}) {
       return null
     }
     const result = await queryPois(plan, { osmTimestamp: cov.osmTimestamp, features: capOn, buildId: cov.buildId, conn })
-    if (capOn) capBreakerResult(Date.now() - started - (result.sharedMs ?? 0) <= POI_DEADLINE_MS)
+    // Shadow never moves the cap breaker: it runs on its own fresh connection (TLS handshake,
+    // cold pages) and serves no one, so its slowness tripped the cap off for real users
     return result.truncated ? null : { ...result, buildId: cov.buildId, ms: Date.now() - started, cached: false }
   } catch (err) {
-    if (err.cap) capBreakerResult(false)
     console.warn('[poi] shadow query failed:', err.message)
     conn?.destroy?.()
     conn = null

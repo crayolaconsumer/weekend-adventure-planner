@@ -222,6 +222,19 @@ describe('resolveNear', () => {
   })
 })
 
+describe('shipped UK town centres (regression: the geocoder\'s boundary centroid put Liverpool in Allerton)', () => {
+  it.each([
+    ['liverpool', 53.4072, -2.9917], // Pier Head side of the centre, not Allerton (5 km south-east)
+    ['manchester', 53.4794, -2.2453], // not Rusholme
+    ['birmingham', 52.4800, -1.9025], // Victoria Square, not 3.8 km north-east
+    ['york', 53.9657, -1.0743], // already right: the fix must not move it
+  ])('%s sits within 1 km of its centre', async (slug, lat, lng) => {
+    const { UK_TOWNS } = await import('../../../shared/ukTowns.mjs')
+    const town = UK_TOWNS.find(t => t.slug === slug)
+    expect(distanceKm(town, { lat, lng })).toBeLessThan(1)
+  })
+})
+
 describe('townOverpassQuery', () => {
   it('is a bounded, named-places query the proxy validator accepts', () => {
     const q = townOverpassQuery(51.7635, -0.2259)
@@ -232,17 +245,34 @@ describe('townOverpassQuery', () => {
   it('caps each category separately (regression: Paris cafés crowded out every park)', () => {
     const q = townOverpassQuery(48.8589, 2.32)
     const outs = q.match(/out tags bb \d+;/g)
-    expect(outs.length).toBe(8)
+    expect(outs.length).toBe(9)
     // notable parks and sights come first so the ID-order cap can't cut them (regression: Jardin du Luxembourg)
     expect(q).toContain('nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"]["wikidata"];out tags bb 120;')
     expect(q).toContain('nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park)$"]["name"]["wikidata"];out tags bb 150;')
     // only notable places of worship
     expect(q).toContain('nwr["amenity"="place_of_worship"]["name"]["wikidata"]')
+    // notable libraries (regression: John Rylands and the Bodleian never appeared), not every branch library
+    expect(q).toContain('nwr["amenity"="library"]["name"]["wikidata"]')
   })
 })
 
 describe('groupPlaces', () => {
   const el = (id, tags, extra = {}) => ({ type: 'node', id, lat: 51.76, lon: -0.22, tags, ...extra })
+
+  it('a notable library loses a tie to an attraction (regression: Jubilee Library above the Royal Pavilion)', () => {
+    const same = { wikidata: 'Q1', wikipedia: 'en:X', website: 'x', opening_hours: 'y' }
+    expect(placeScore({ ...same, name: 'Royal Pavilion', tourism: 'attraction' }))
+      .toBeGreaterThan(placeScore({ ...same, name: 'Jubilee Library', amenity: 'library' }))
+    // a library that is also tagged as a sight (the Radcliffe Camera) is not penalised
+    expect(placeScore({ ...same, name: 'Radcliffe Camera', amenity: 'library', tourism: 'attraction' }))
+      .toBe(placeScore({ ...same, name: 'Royal Pavilion', tourism: 'attraction' }))
+  })
+
+  it('puts notable libraries in Sights & Culture', () => {
+    const { groups } = groupPlaces([el(1, { name: 'John Rylands Library', amenity: 'library', wikidata: 'Q1856587' })])
+    const sights = groups.find(g => g.key === 'sights')
+    expect(sights.places.map(p => [p.name, p.kind])).toEqual([['John Rylands Library', 'library']])
+  })
 
   it('groups by kind, dedupes names, ranks documented places over chains', () => {
     const { groups, total } = groupPlaces([

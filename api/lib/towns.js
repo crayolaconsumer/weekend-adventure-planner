@@ -222,7 +222,7 @@ export async function resolveNear(lat, lng, { fetchImpl = fetch, gate } = {}) {
 // ─── Places ──────────────────────────────────────────────────────
 
 export const GROUPS = [
-  { key: 'sights', title: 'Sights & Culture', kinds: ['attraction', 'museum', 'gallery', 'zoo', 'theme_park', 'historic_building', 'artwork', 'memorial', 'viewpoint', 'castle', 'manor', 'monument', 'ruins', 'archaeological_site', 'place_of_worship'] },
+  { key: 'sights', title: 'Sights & Culture', kinds: ['attraction', 'museum', 'gallery', 'zoo', 'theme_park', 'historic_building', 'artwork', 'memorial', 'viewpoint', 'castle', 'manor', 'monument', 'ruins', 'archaeological_site', 'place_of_worship', 'library'] },
   { key: 'outdoors', title: 'Nature & Outdoors', kinds: ['park', 'garden', 'nature_reserve', 'picnic_site', 'wood', 'water', 'beach'] },
   { key: 'food', title: 'Food & Drink', kinds: ['cafe', 'restaurant', 'pub', 'bar', 'fast_food'] }
 ]
@@ -241,9 +241,13 @@ export function townOverpassQuery(lat, lng) {
   const bbox = `${(lat - d).toFixed(4)},${(lng - w).toFixed(4)},${(lat + d).toFixed(4)},${(lng + w).toFixed(4)}`
   return `[bbox:${bbox}][out:json][timeout:25];` +
     'nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park)$"]["name"]["wikidata"];out tags bb 150;' +
-    'nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|artwork|memorial)$"]["name"];out tags bb 100;' +
+    // 250: big cities have more than 100 named sights without wikidata, and the cap cuts in
+    // ID order (Birmingham Museum & Art Gallery was cut)
+    'nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|artwork|memorial)$"]["name"];out tags bb 250;' +
     'nwr["historic"~"^(castle|manor|monument|ruins|archaeological_site)$"]["name"];out tags bb 60;' +
     'nwr["amenity"="place_of_worship"]["name"]["wikidata"];out tags bb 40;' +
+    // Notable libraries only (John Rylands, the Bodleian), not every branch library
+    'nwr["amenity"="library"]["name"]["wikidata"];out tags bb 30;' +
     'nwr["leisure"~"^(park|garden|nature_reserve)$"]["name"]["wikidata"];out tags bb 120;' +
     'nwr["leisure"~"^(park|garden|nature_reserve|picnic_site)$"]["name"];out tags bb 100;' +
     'nwr["natural"~"^(wood|water|beach)$"]["name"];out tags bb 40;' +
@@ -259,7 +263,10 @@ export function placeScore(tags = {}) {
   return Math.min(translations, 60) / 3 + (tags.wikidata ? 3 : 0) + (tags.wikipedia ? 3 : 0) + (tags.website ? 1 : 0) +
     (tags.opening_hours ? 1 : 0) + (tags.image ? 1 : 0) - (tags.brand ? 2 : 0) -
     (tags.tourism === 'artwork' || tags.historic === 'memorial' ? 2 : 0) -
-    (tags.amenity === 'place_of_worship' ? 1 : 0)
+    (tags.amenity === 'place_of_worship' ? 1 : 0) -
+    // libraries: notable ones belong on the page, but a museum or attraction wins a tie
+    // (Brighton's Jubilee Library beat the Royal Pavilion; few UK places carry name:xx)
+    (tags.amenity === 'library' && !tags.tourism ? 2 : 0)
 }
 
 // English name when the local one isn't in Latin script (京都タワー → Kyoto Tower);
@@ -379,7 +386,7 @@ export const kindLabel = k => {
 
 // OSM kind → the app's category medallion (same mapping idea as src/utils/categories.ts)
 const KIND_ICON = {
-  museum: 'culture', gallery: 'culture', artwork: 'culture',
+  museum: 'culture', gallery: 'culture', artwork: 'culture', library: 'culture',
   castle: 'historic', manor: 'historic', monument: 'historic', ruins: 'historic', memorial: 'historic',
   archaeological_site: 'historic', historic_building: 'historic', place_of_worship: 'historic',
   attraction: 'entertainment', zoo: 'entertainment', theme_park: 'entertainment',

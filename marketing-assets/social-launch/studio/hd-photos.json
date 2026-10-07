@@ -1,0 +1,312 @@
+{
+ "mallard": {
+  "img": "towns/york/mallard-hd.jpg",
+  "credit": "PTG Dudva / CC BY-SA 3.0",
+  "title": "File:Number 4468 Mallard in York.jpg"
+ },
+ "clifford": {
+  "img": "towns/york/clifford-hd.jpg",
+  "credit": "Steven Fruitsmaak / Public domain",
+  "title": "File:York Castle Clifford's Tower 2007.jpg"
+ },
+ "minster": {
+  "img": "towns/york/minster-hd.jpg",
+  "credit": "MatzeTrier / CC BY-SA 3.0",
+  "title": "File:York Minster from M&S.JPG"
+ },
+ "forthlin": {
+  "img": "towns/liverpool/forthlin-hd.jpg",
+  "credit": "Havaska at English Wikipedia / CC BY-SA 3.0",
+  "title": "File:Paulhousenationaltrust.JPG"
+ },
+ "gaskell": {
+  "img": "towns/manchester/gaskell-hd.jpg",
+  "credit": "Photograph by Mike Peel . / CC BY-SA 4.0",
+  "title": "File:84 Plymouth Grove, Manchester.jpg"
+ },
+ "pankhurst": {
+  "img": "towns/manchester/pankhurst-hd.jpg",
+  "credit": "Doctorneroli / CC BY-SA 4.0",
+  "title": "File:60 Nelson Street.jpg"
+ },
+ "ssgb": {
+  "img": "towns/bristol/ssgb-hd.jpg",
+  "credit": "mattbuck / CC BY-SA 3.0",
+  "title": "File:Bristol MMB B7 SS Great Britain.jpg"
+ },
+ "mshed": {
+  "img": "towns/bristol/mshed-hd.jpg",
+  "credit": "Fernando Losada Rodríguez / CC BY-SA 4.0",
+  "title": "File:M Shed.001 - Bristol.jpg"
+ },
+ "matthew": {
+  "img": "towns/bristol/matthew-hd.jpg",
+  "credit": "Rept0n1x / CC BY-SA 3.0",
+  "title": "File:Benkid77 Ship1 130603.JPG"
+ },
+ "kingsarms": {
+  "img": "towns/york/kingsarms-hd.jpg",
+  "credit": "Tim Green / CC BY 2.0",
+  "title": "File:King's Arms, York (Taken by Flickr user 19th December 2014).jpg"
+ },
+ "ssgb2": {
+  "img": "towns/bristol/ssgb2-hd.jpg",
+  "credit": "Chris j wood / CC BY-SA 4.0",
+  "title": "File:SS Great Britain 2016-11-07 13.58.19.jpg"
+ },
+ "shambles": {
+  "img": "towns/york/shambles-hd.jpg",
+  "credit": "Vincej at en.wikipedia / Public domain",
+  "title": "File:Shambles York.jpg"
+ },
+ "ashmolean": {
+  "img": "towns/oxford/ashmolean-hd.jpg",
+  "credit": "Magnus Manske / CC BY-SA 4.0",
+  "title": "File:Ashmolean museum, Oxford, Entrance Screen And Steps Fronting Beaumont Street.jpg"
+ },
+ "edsky": {
+  "img": "towns/edinburgh/sky3-hd.jpg",
+  "credit": "Andrew Colin / CC BY 2.0",
+  "title": "File:Skyline of Edinburgh.jpg"
+ },
+ "radcam": {
+  "img": "towns/oxford/radcam-hd.jpg",
+  "credit": "Diliff / CC BY 2.5",
+  "title": "File:Radcliffe Camera, Oxford - Oct 2006.jpg"
+ },
+ "minster2": {
+  "img": "towns/york/minster2-hd.jpg",
+  "credit": "Len Williams / CC BY-SA 2.0",
+  "title": "File:York Minster, Bell Towers - geograph.org.uk - 4978626.jpg"
+ },
+ "sheldonian": {
+  "img": "towns/oxford/sheldonian-hd.jpg",
+  "credit": "Jonas Magnus Lystad / CC BY-SA 4.0",
+  "title": "File:Sheldonian Theatre June 2023.jpg"
+ },
+ "shambles2": {
+  "img": "towns/york/shambles2-hd.jpg",
+  "credit": "PAUL FARMER / CC BY-SA 2.0",
+  "title": "File:The Shambles, York - geograph.org.uk - 5323188.jpg"
+ },
+ "liv-hook": {
+  "img": "towns/liverpool/liv-hook-hd.jpg",
+  "credit": "Christopher Hilton / CC BY-SA 2.0",
+  "title": "File:Liverpool Pier Head, the Royal Liver Building - geograph.org.uk - 7293431.jpg"
+ },
+ "liv-dock": {
+  "img": "towns/liverpool/liv-dock-hd.jpg",
+  "credit": "Mike Peel / CC BY-SA 4.0",
+  "title": "File:Zebu in front of the Albert Dock warehouses 1.jpg"
+ },
+ "liv-beatles": {
+  "img": "towns/liverpool/liv-beatles-hd.jpg",
+  "credit": "Lipinski / CC BY-SA 3.0",
+  "title": "File:Entrance to The Beatles Story - Liverpool.jpg"
+ },
+ "liv-world": {
+  "img": "towns/liverpool/liv-world-hd.jpg",
+  "credit": "Chowells / CC BY-SA 3.0",
+  "title": "File:Liverpool Museum And Library Steps.jpg"
+ },
+ "liv-cath": {
+  "img": "towns/liverpool/liv-cath-hd.jpg",
+  "credit": "Bob Edwards / CC BY 2.0",
+  "title": "File:Liverpool Anglican Cathedral (2016-01-09 18.01.37 by Bob Edwards - 24251564426).jpg"
+ },
+ "man-hook": {
+  "img": "towns/manchester/man-hook-hd.jpg",
+  "credit": "ChrisClarke88 / CC BY-SA 4.0",
+  "title": "File:Manchester Skyline From 20 Stories.jpg"
+ },
+ "man-heaton": {
+  "img": "towns/manchester/man-heaton-hd.jpg",
+  "credit": "Carroll Pierce / CC BY-SA 2.0",
+  "title": "File:From Heaton Park to Manchester - geograph.org.uk - 3276692.jpg"
+ },
+ "man-mag": {
+  "img": "towns/manchester/man-mag-hd.jpg",
+  "credit": "Rept0n1x / CC BY-SA 3.0",
+  "title": "File:Manchester Art Gallery - DSC05631.JPG"
+ },
+ "man-nfm": {
+  "img": "towns/manchester/man-nfm-hd.jpg",
+  "credit": "Gerald England / CC BY-SA 2.0",
+  "title": "File:Urbis building - geograph.org.uk - 7766059.jpg"
+ },
+ "man-sim": {
+  "img": "towns/manchester/man-sim-hd.jpg",
+  "credit": "SCHolar44 / CC0",
+  "title": "File:Preserved South African Railways class GL Beyer-Garratt locomotive no 2352 at Museum of Science and Industry, Manchester, November 2010.jpg"
+ },
+ "lon-hook": {
+  "img": "towns/london/lon-hook-hd.jpg",
+  "credit": "Diliff / CC BY-SA 3.0",
+  "title": "File:Tower Bridge London Dusk Feb 2006.jpg"
+ },
+ "lon-bm": {
+  "img": "towns/london/lon-bm-hd.jpg",
+  "credit": "Diliff / CC BY-SA 3.0",
+  "title": "File:British Museum Great Court, London, UK - Diliff.jpg"
+ },
+ "lon-tate": {
+  "img": "towns/london/lon-tate-hd.jpg",
+  "credit": "Acabashi / CC BY-SA 4.0",
+  "title": "File:Tate Modern - Bankside Power Station.jpg"
+ },
+ "lon-nhm": {
+  "img": "towns/london/lon-nhm-hd.jpg",
+  "credit": "Sourabh.biswas003 / CC BY-SA 4.0",
+  "title": "File:PXL 20231218 125426972.LONG EXPOSURE-01.COVER The Natural History Museum, London Hintze Hall Hall Hope, Whale Skeleton.jpg"
+ },
+ "gla-hook": {
+  "img": "towns/glasgow/gla-hook-hd.jpg",
+  "credit": "Barnabas Csomor / CC BY 2.0",
+  "title": "File:Glasgow Skyline at night.jpg"
+ },
+ "gla-kelv": {
+  "img": "towns/glasgow/gla-kelv-hd.jpg",
+  "credit": "Stinglehammer / CC BY-SA 4.0",
+  "title": "File:Kelvingrove Art Gallery and Museum - exterior.jpg"
+ },
+ "gla-river": {
+  "img": "towns/glasgow/gla-river-hd.jpg",
+  "credit": "Ronnie Macdonald / CC BY 2.0",
+  "title": "File:Glasgow Riverside Museum (11538004223).jpg"
+ },
+ "gla-cath": {
+  "img": "towns/glasgow/gla-cath-hd.jpg",
+  "credit": "Julesn84 / CC BY 3.0",
+  "title": "File:Glasgow-cathedral-may-2007.jpg"
+ },
+ "gla-bot": {
+  "img": "towns/glasgow/gla-bot-hd.jpg",
+  "credit": "jan zeschky / CC BY 2.0",
+  "title": "File:Kibble Palace in the Botanic Gardens.jpg"
+ },
+ "bri-hook": {
+  "img": "towns/brighton/bri-hook-hd.jpg",
+  "credit": "Michael Coppins / CC BY-SA 4.0",
+  "title": "File:Brighton, Palace Pier.jpg"
+ },
+ "bri-pier": {
+  "img": "towns/brighton/bri-pier-hd.jpg",
+  "credit": "Richard Cooke / CC BY-SA 2.0",
+  "title": "File:Brighton Palace Pier (geograph 5802401).jpg"
+ },
+ "bri-pav": {
+  "img": "towns/brighton/bri-pav-hd.jpg",
+  "credit": "Qmin / CC BY-SA 3.0",
+  "title": "File:Brighton royal pavilion Qmin.jpg"
+ },
+ "bri2-csb": {
+  "img": "towns/bristol/bri2-csb-hd.jpg",
+  "credit": "Lacu Schienred / CC BY-SA 4.0",
+  "title": "File:Clifton Suspension Bridge Bristol.jpg"
+ },
+ "bri2-hook": {
+  "img": "towns/bristol/bri2-hook-hd.jpg",
+  "credit": "Neil Owen / CC BY-SA 2.0",
+  "title": "File:Colourful harbourside - geograph.org.uk - 8270212.jpg"
+ },
+ "bri2-ssgb": {
+  "img": "towns/bristol/bri2-ssgb-hd.jpg",
+  "credit": "Hugh Llewelyn / CC BY-SA 2.0",
+  "title": "File:SS Great Britain (6726649319).jpg"
+ },
+ "bri2-wtc": {
+  "img": "towns/bristol/bri2-wtc-hd.jpg",
+  "credit": "mattbuck / CC BY-SA 3.0",
+  "title": "File:Bristol MMB «08 Millennium Square.jpg"
+ },
+ "cam-bot": {
+  "img": "towns/cambridge/cam-bot-hd.jpg",
+  "credit": "NHSavage / CC BY-SA 3.0",
+  "title": "File:Cu botanic garden1.JPG"
+ },
+ "cam-fitz": {
+  "img": "towns/cambridge/cam-fitz-hd.jpg",
+  "credit": "Oxyman / CC BY 2.5",
+  "title": "File:Fitzwilliam Museum Cambridge 2.jpg"
+ },
+ "cam-hook": {
+  "img": "towns/cambridge/cam-hook-hd.jpg",
+  "credit": "Peter Trimming / CC BY-SA 2.0",
+  "title": "File:Punting on the River Cam, Cambridge - geograph.org.uk - 1954566.jpg"
+ },
+ "cam-kings": {
+  "img": "towns/cambridge/cam-kings-hd.jpg",
+  "credit": "Antoine Tavenaux / CC BY-SA 3.0",
+  "title": "File:King's College Chapel, Cambridge 07.jpg"
+ },
+ "lee-hook": {
+  "img": "towns/leeds/lee-hook-hd.jpg",
+  "credit": "Minda / CC BY-SA 3.0",
+  "title": "File:Kirkstall Abbey at sunset.jpg"
+ },
+ "lee-kirkstall": {
+  "img": "towns/leeds/lee-kirkstall-hd.jpg",
+  "credit": "Sirenuk / CC BY-SA 3.0",
+  "title": "File:Kirkstall Abbey cloisters.JPG"
+ },
+ "lee-armouries": {
+  "img": "towns/leeds/lee-armouries-hd.jpg",
+  "credit": "Richard Sutcliffe / CC BY-SA 2.0",
+  "title": "File:Royal Armouries Museum, Leeds - geograph.org.uk - 4447658.jpg"
+ },
+ "lee-gallery": {
+  "img": "towns/leeds/lee-gallery-hd.jpg",
+  "credit": "Chemical Engineer / CC BY-SA 4.0",
+  "title": "File:Leeds Art Gallery 1 18 June 2018.jpg"
+ },
+ "lee-roundhay": {
+  "img": "towns/leeds/lee-roundhay-hd.jpg",
+  "credit": "Chris Heaton / CC BY-SA 2.0",
+  "title": "File:Lakeside Cafe on Waterloo Lake, Roundhay Park - geograph.org.uk - 7104517.jpg"
+ },
+ "bir-hook": {
+  "img": "towns/birmingham/bir-hook-hd.jpg",
+  "credit": "David Hallam-Jones / CC BY-SA 2.0",
+  "title": "File:Gas Street Canal Basin, Birmingham - geograph.org.uk - 3627856.jpg"
+ },
+ "bir-bmag": {
+  "img": "towns/birmingham/bir-bmag-hd.jpg",
+  "credit": "JimmyGuano / CC BY-SA 4.0",
+  "title": "File:Birmingham Museum and Art Gallery from the Central Library.jpg"
+ },
+ "bir-cadbury": {
+  "img": "towns/birmingham/bir-cadbury-hd.jpg",
+  "credit": "Lauren / CC BY-SA 2.0",
+  "title": "File:Cadbury World - geograph.org.uk - 7049004.jpg"
+ },
+ "new-hook": {
+  "img": "towns/newcastle/new-hook-hd.jpg",
+  "credit": "Gareth James / CC BY-SA 2.0",
+  "title": "File:Tyne Bridge, Newcastle (geograph 3639405).jpg"
+ },
+ "new-angel": {
+  "img": "towns/newcastle/new-angel-hd.jpg",
+  "credit": "David Wilson Clarke / CC BY 2.5",
+  "title": "File:Fly-Angel.jpg"
+ },
+ "new-gnm": {
+  "img": "towns/newcastle/new-gnm-hd.jpg",
+  "credit": "Chabe01 / CC BY-SA 4.0",
+  "title": "File:Musée Hancock Histoire Naturelle Great North Newcastle Tyne 2.jpg"
+ },
+ "new-laing": {
+  "img": "towns/newcastle/new-laing-hd.jpg",
+  "credit": "Gareth James / CC BY-SA 2.0",
+  "title": "File:Laing Art Gallery, Newcastle (geograph 3639395).jpg"
+ },
+ "bri2-bmag": {
+  "img": "towns/bristol/bri2-bmag-hd.jpg",
+  "credit": "Tiia Monto / CC BY-SA 4.0",
+  "title": "File:Bristol City Museum.jpg"
+ },
+ "bir-b2b": {
+  "img": "towns/birmingham/bir-b2b-hd.jpg",
+  "credit": "NotFromUtrecht / CC BY-SA 3.0",
+  "title": "File:Birmingham Back to Backs Hurst Street side.jpg"
+ }
+}

@@ -1,0 +1,124 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--cream:#faf8f5;--green:#1a3a2f;--terra:#c45c3e}
+  *{margin:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;background:var(--cream);overflow:hidden;font-family:'Fraunces',serif}
+  #stage{position:absolute;inset:0;overflow:hidden}
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:56px;padding:140px 80px;text-align:center;opacity:0;will-change:opacity}
+  .head{font-weight:600;color:var(--green);font-size:104px;line-height:1.02;letter-spacing:-2px;font-variation-settings:'opsz' 144}
+  .head .w{display:inline-block;white-space:pre;opacity:0;will-change:transform,opacity}
+  .head .accent{color:var(--terra)}
+  .rule{width:0;height:12px;border-radius:99px;background:var(--terra)}
+  .word{font-size:184px;color:var(--green);font-weight:600;letter-spacing:4px;line-height:1;display:flex}
+  .word span{display:inline-block;opacity:0;will-change:transform,opacity}
+  .sub{font-family:'Inter',sans-serif;font-weight:500;color:#6b6f6a;font-size:42px;clip-path:inset(0 100% 0 0)}
+  .cta{font-family:'Inter',sans-serif;font-weight:700;color:#fff;background:var(--green);border-radius:99px;padding:24px 48px;font-size:40px;opacity:0}
+  .device{perspective:1700px;opacity:0;will-change:transform,opacity}
+  .phone{width:600px;background:#0f100e;border-radius:66px;padding:14px;box-shadow:0 64px 120px -30px rgba(58,38,18,.55);transform-style:preserve-3d}
+  .scr{position:relative;border-radius:54px;overflow:hidden;background:var(--cream);aspect-ratio:1320/2868}
+  .scr img{position:absolute;top:0;left:0;width:100%}
+  .compass{opacity:0;will-change:transform,opacity}
+  #wipe{position:absolute;left:50%;top:48%;width:60px;height:60px;border-radius:50%;background:var(--terra);transform:translate(-50%,-50%) scale(0);will-change:transform;z-index:60}
+</style></head><body>
+<div id="stage"></div>
+<div id="wipe"></div>
+<script>
+const G=document.getElementById('stage'), WIPE=document.getElementById('wipe');
+const SPRING='cubic-bezier(.34,1.45,.5,1)', EASE='cubic-bezier(.4,0,.2,1)', EASEO='cubic-bezier(.22,1,.36,1)';
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const A=(el,kf,opt)=>el.animate(kf,{fill:'forwards',easing:EASE,...opt});
+function compass(size){return `<svg class="compass" width="${size}" height="${size}" viewBox="0 0 512 512"><g transform="translate(256,256)">
+ <circle class="c-ring" r="180" fill="none" stroke="#1a3a2f" stroke-width="9" stroke-dasharray="1131" stroke-dashoffset="1131"/>
+ <polygon points="0,160 20,40 -20,40" fill="#1a3a2f"/><polygon points="160,0 40,20 40,-20" fill="#1a3a2f"/><polygon points="-160,0 -40,20 -40,-20" fill="#1a3a2f"/>
+ <polygon points="0,-160 20,-40 -20,-40" fill="#c45c3e"/><circle r="30" fill="#c45c3e"/><circle r="14" fill="#faf8f5"/></g></svg>`;}
+function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+function splitWords(container,text){
+  container.innerHTML='';
+  text.split('|').forEach((line,li)=>{
+    if(li)container.appendChild(document.createElement('br'));
+    line.split(' ').forEach((wd,i)=>{const s=el('span','w');s.innerHTML=(i?' ':'')+wd.replace(/\*([^*]+)\*/g,'<span class="accent">$1</span>');container.appendChild(s);});
+  });
+  return [...container.querySelectorAll('.w')];
+}
+// ---- build scenes (all created up-front, images decoded) ----
+function buildBrand(word, sub, cta){
+  const s=el('div','scene'); s.style.gap='46px';
+  s.appendChild(el('div',null,compass(word==='ROAM'&&cta?250:280)));
+  const w=el('div','word'); [...word].forEach(c=>{const sp=document.createElement('span');sp.textContent=c;w.appendChild(sp);}); s.appendChild(w);
+  s.appendChild(el('div','rule'));
+  s.appendChild(el('div','sub',sub));
+  if(cta) s.appendChild(el('div','cta',cta));
+  G.appendChild(s);
+  return {node:s, img:null, play(){
+    const comp=s.querySelector('.compass');
+    A(comp,{opacity:[0,1],transform:['scale(.3) rotate(-220deg)','scale(1) rotate(0deg)']},{duration:1050,easing:SPRING});
+    A(s.querySelector('.c-ring'),{strokeDashoffset:[1131,0]},{duration:950,delay:200,easing:EASEO});
+    [...w.children].forEach((sp,i)=>A(sp,{opacity:[0,1],transform:['translateY(60px) scale(.85)','translateY(0) scale(1)']},{duration:720,delay:480+i*85,easing:SPRING}));
+    A(s.querySelector('.rule'),{width:['0px','128px']},{duration:580,delay:cta?700:1050,easing:EASEO});
+    A(s.querySelector('.sub'),{clipPath:['inset(0 100% 0 0)','inset(0 0 0 0)']},{duration:720,delay:cta?900:1250,easing:EASEO});
+    const ctaEl=s.querySelector('.cta'); if(ctaEl) A(ctaEl,{opacity:[0,1],transform:['scale(.82)','scale(1)']},{duration:560,delay:1250,easing:SPRING});
+    comp.animate({transform:['rotate(0deg)','rotate(6deg)']},{duration:3200,delay:1300,easing:'ease-in-out',fill:'forwards'});
+  }};
+}
+function buildScreen(cfg){
+  const s=el('div','scene');
+  const head=el('h1','head'); const ws=splitWords(head,cfg.head); s.appendChild(head);
+  s.appendChild(el('div','rule'));
+  const dev=el('div','device'); const ph=el('div','phone'); const scr=el('div','scr'); const img=el('img'); img.src=cfg.img;
+  scr.appendChild(img); ph.appendChild(scr); dev.appendChild(ph); s.appendChild(dev);
+  G.appendChild(s);
+  return {node:s, img, play(){
+    ws.forEach((wd,i)=>A(wd,{opacity:[0,1],transform:['translateY(44px)','translateY(0)']},{duration:600,delay:140+i*68,easing:SPRING}));
+    A(s.querySelector('.rule'),{width:['0px','128px']},{duration:560,delay:240,easing:EASEO});
+    A(dev,{opacity:[0,1],transform:['translateY(140px) rotateX(20deg) scale(.92)','translateY(0) rotateX(0deg) scale(1)']},{duration:1000,delay:180,easing:SPRING});
+  }};
+}
+// ---- transitions (never leave an empty frame) ----
+async function wipeTo(prev, next){
+  await A(WIPE,{transform:['translate(-50%,-50%) scale(0)','translate(-50%,-50%) scale(34)']},{duration:430,easing:EASEO}).finished;
+  if(prev){ prev.node.getAnimations().forEach(a=>a.cancel()); prev.node.style.opacity='0'; }
+  next.node.getAnimations().forEach(a=>a.cancel()); next.node.style.opacity='1'; next.play();
+  await wait(90);
+  await A(WIPE,{transform:['translate(-50%,-50%) scale(34)','translate(-50%,-50%) scale(0)']},{duration:500,easing:EASE}).finished;
+}
+async function crossTo(prev, next){
+  next.node.style.opacity='0'; next.play();
+  A(next.node,{opacity:[0,1]},{duration:560,easing:EASE});
+  A(prev.node,{opacity:[1,0]},{duration:560,easing:EASE});
+  await wait(640);
+  prev.node.style.opacity='0';
+}
+window.__done=false;
+(async()=>{
+  try{await document.fonts.ready;}catch(e){}
+  const intro=buildBrand('ROAM','Stop scrolling. Start roaming.',null);
+  const screens=[
+    buildScreen({img:'raw/01-discover.png', head:'Tap once.|Real places near you.'}),
+    buildScreen({img:'raw/02-events.png',   head:"Everything|that's on near you."}),
+    buildScreen({img:'raw/03-plan.png',     head:'A day out,|planned in seconds.'}),
+    buildScreen({img:'raw/04-social.png',   head:'See where your|*friends* love.'}),
+    buildScreen({img:'raw/06-map.png',      head:'Keep every place|you find.'}),
+  ];
+  const outro=buildBrand('ROAM','Local adventures, hand-picked.','Free on iPhone & Android');
+  // decode all imagery before the timeline so nothing flashes
+  await Promise.all(screens.map(s=>s.img.decode().catch(()=>{})));
+  // warm-up paint pass: force every phone image layer to rasterise once
+  // (eliminates the 1-frame black screen at transitions)
+  const scs=[...document.querySelectorAll('.scene')], devs=[...document.querySelectorAll('.device')];
+  scs.forEach(s=>s.style.opacity='0.012'); devs.forEach(d=>d.style.opacity='1');
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  scs.forEach(s=>s.style.opacity='0'); devs.forEach(d=>d.style.opacity='0');
+  await wait(150);
+  intro.node.style.opacity='1'; intro.play();
+  await wait(2750);
+  await wipeTo(intro, screens[0]);              // branded wipe into content
+  await wait(1650);
+  for(let i=1;i<screens.length;i++){ await crossTo(screens[i-1], screens[i]); await wait(1650); }
+  await wipeTo(screens[screens.length-1], outro); // branded wipe to outro
+  await wait(3300);
+  window.__done=true;
+})();
+</script></body></html>

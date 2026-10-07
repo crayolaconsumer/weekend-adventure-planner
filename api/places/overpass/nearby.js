@@ -30,7 +30,7 @@ import { cacheGet, cacheSet, hashKey, isCacheEnabled, getClient } from '../../li
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { fetchGeoApifyDogPlaces, mergeDogPlaces, dogCacheKey } from '../../lib/geoapify.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
-import { parseQuery, getPois, shadowPois, isCovered, getPoiGen, peekPoiGen, POI_DEADLINE_MS } from '../../lib/poiQuery.js'
+import { parseQuery, getPois, shadowPois, isCovered, isRankable, getPoiGen, peekPoiGen, POI_DEADLINE_MS, POI_CAP_DEADLINE_MS } from '../../lib/poiQuery.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
@@ -452,18 +452,29 @@ export default async function handler(req, res) {
   // §8 log fields: rollout bucket (null = not a POI query) and last-known coverage
   // (covered is read when the line is logged, after any coverage load)
   const poiLog = { bucket: poiPlan ? poiBucket : null, get covered() { return Boolean(poiPlan) && isCovered(poiPlan) } }
+  let prefetched // a KV read made while deciding whether to wait longer for the cap
   if (poiServe) {
     // The DB gets POI_DEADLINE_MS before we use the old path; a query still
     // running carries on, is killed server-side by MAX_EXECUTION_TIME, and
     // counts as a breaker failure in getPois when it was this slow
-    const deadlineAt = Date.now() + POI_DEADLINE_MS
-    // The relevance cap serves only in its own rollout bucket (poiCapPct, fail closed)
-    const pending = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt, cap: poiBucket < poiPct.cap })
+    // The relevance cap serves only in its own rollout bucket (poiCapPct, fail closed). A plan
+    // it may cap gets up to POI_CAP_DEADLINE_MS, but only waits past POI_DEADLINE_MS when KV has
+    // nothing: then the fallback is Overpass, which times out on dense tiles
+    const cap = poiBucket < poiPct.cap
+    const capWait = cap && isRankable(poiPlan)
+    const started = Date.now()
+    const deadlineAt = started + (capWait ? POI_CAP_DEADLINE_MS : POI_DEADLINE_MS)
+    let settled = false
+    const pending = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt, cap }).finally(() => { settled = true })
     // A capped answer holds a transaction (and the metadata lock that makes the loader's
     // RENAME wait) until its ROLLBACK: keep the instance alive until it ends even when we
     // stop waiting, or a suspended instance could hold that lock for hours
     waitUntil(pending.catch(() => {}))
-    const db = await within(pending, Math.max(0, deadlineAt - Date.now()))
+    let db = await within(pending, Math.max(0, started + POI_DEADLINE_MS - Date.now()))
+    if (!db && capWait && !settled) {
+      prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
+      if (!hasPlaces(prefetched)) db = await within(pending, Math.max(0, deadlineAt - Date.now()))
+    }
     if (db && db.n > 0) {
       // The dog merge is not applied to DB-served bodies: the POI rollout is
       // shadow-only, and merging would need the body parsed back. Add it
@@ -480,7 +491,7 @@ export default async function handler(req, res) {
     if (poiPlan && poiBucket < poiPct.shadow) waitUntil(poiShadow(poiPlan, upstreamQuery, live, poiPct.gen, liveSrc).catch(() => {}))
   }
   if (isCacheEnabled()) {
-    const cached = await cacheGet(cacheKey)
+    const cached = prefetched !== undefined ? prefetched : await cacheGet(cacheKey)
     // Only serve a cached entry that actually has places. A degraded
     // Overpass instance can return 200 + zero elements; the success path
     // below never caches that, but we guard here too so any previously

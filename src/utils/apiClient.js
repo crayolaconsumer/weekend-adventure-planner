@@ -324,7 +324,9 @@ export function parseOverpassResponse(data) {
     const qualityScore = calculatePlaceQuality(tags)
 
     return {
-      id: element.id,
+      // Relations get a typed id (r123): a bare number is looked up as a node or way
+      // (fetchPlaceById), so a saved relation would reopen as the wrong place
+      id: element.type === 'relation' ? `r${element.id}` : element.id,
       name: tags.name || tags['name:en'] || 'Unnamed Place',
       type,
       lat,
@@ -367,7 +369,10 @@ export function parseOverpassResponse(data) {
       // treats unknown as "not dog-friendly", never as "yes".
       dog: tags.dog,
       dogConditional: tags['dog:conditional'],
-      qualityScore
+      qualityScore,
+      // How famous: name:xx translations (British Museum 18, a local museum 0). Breaks
+      // qualityScore's ties at its 100 cap, where every city-centre museum lands
+      fame: Object.keys(tags).filter(k => k.startsWith('name:')).length
     }
   }).filter(place => place.lat && place.lng && place.name !== 'Unnamed Place')
 }

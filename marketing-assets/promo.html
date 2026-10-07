@@ -1,0 +1,49 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--cream:#faf8f5;--green:#1a3a2f;--terra:#c45c3e}
+  *{margin:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;background:var(--cream);overflow:hidden;font-family:'Fraunces',serif}
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:54px;
+    opacity:0;transform:scale(1.05);transition:opacity .8s ease, transform 6.5s linear;padding:130px 80px;text-align:center}
+  .scene.active{opacity:1;transform:scale(1)}
+  .head{font-weight:600;color:var(--green);font-size:96px;line-height:1.04;letter-spacing:-2px;font-variation-settings:'opsz' 144}
+  .sub{font-family:'Inter',sans-serif;font-weight:500;color:#6b6f6a;font-size:38px}
+  .rule{width:120px;height:11px;border-radius:6px;background:var(--terra)}
+  .word{font-size:168px;color:var(--green);font-weight:600;letter-spacing:3px;line-height:1}
+  .vphone{width:560px;background:#0f100e;border-radius:62px;padding:13px;box-shadow:0 54px 100px -26px rgba(58,38,18,.5)}
+  .vphone .scr{border-radius:50px;overflow:hidden;display:block;background:#000}
+  .vphone img{display:block;width:100%}
+  .badges{font-family:'Inter',sans-serif;font-weight:600;color:var(--green);font-size:40px}
+</style></head><body>
+<div id="stage"></div>
+<script>
+const COMPASS=`<svg viewBox="0 0 512 512" width="172" height="172"><g transform="translate(256,256)"><circle r="180" fill="none" stroke="#1a3a2f" stroke-width="9"/><polygon points="0,-160 20,-40 -20,-40" fill="#c45c3e"/><polygon points="0,160 20,40 -20,40" fill="#1a3a2f"/><polygon points="160,0 40,20 40,-20" fill="#1a3a2f"/><polygon points="-160,0 -40,20 -40,-20" fill="#1a3a2f"/><circle r="30" fill="#c45c3e"/><circle r="14" fill="#faf8f5"/></g></svg>`;
+const scenes=[
+ {type:'brand', word:'ROAM', sub:'Stop scrolling. Start roaming.', t:2700},
+ {type:'screen', img:'raw/01-discover.png', head:'Tap once.<br>Real places near you.', t:2200},
+ {type:'screen', img:'raw/02-events.png',   head:"Everything<br>that's on near you.", t:2200},
+ {type:'screen', img:'raw/03-plan.png',     head:'A day out,<br>planned in seconds.', t:2200},
+ {type:'screen', img:'raw/04-social.png',   head:'See where your<br>friends love.', t:2200},
+ {type:'screen', img:'raw/06-map.png',      head:'Keep every place<br>you find.', t:2200},
+ {type:'brand', word:'ROAM', sub:'Free on iPhone &amp; Android', t:3400},
+];
+const stage=document.getElementById('stage');
+const els=scenes.map(s=>{
+ const d=document.createElement('div');d.className='scene';
+ if(s.type==='brand'){d.innerHTML=`<div>${COMPASS}</div><div class="word">${s.word}</div><div class="rule"></div><div class="sub">${s.sub}</div>`;}
+ else{d.innerHTML=`<div class="head">${s.head}</div><div class="rule"></div><div class="vphone"><div class="scr"><img src="${s.img}"></div></div>`;}
+ stage.appendChild(d);return d;
+});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+window.__done=false;
+(async()=>{
+ try{ await document.fonts.ready; }catch(e){}
+ await Promise.all(scenes.filter(s=>s.img).map(s=>new Promise(r=>{const im=new Image();im.onload=im.onerror=r;im.src=s.img;})));
+ await sleep(350);
+ for(let i=0;i<els.length;i++){els[i].classList.add('active');await sleep(scenes[i].t);if(i<els.length-1)els[i].classList.remove('active');}
+ await sleep(500);window.__done=true;
+})();
+</script></body></html>

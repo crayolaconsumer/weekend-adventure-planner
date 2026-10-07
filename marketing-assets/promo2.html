@@ -1,0 +1,137 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--cream:#faf8f5;--green:#1a3a2f;--terra:#c45c3e}
+  *{margin:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;background:var(--cream);overflow:hidden;font-family:'Fraunces',serif}
+  #stage{position:absolute;inset:0;overflow:hidden}
+  .scene{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:56px;padding:140px 80px;text-align:center}
+  .head{font-weight:600;color:var(--green);font-size:104px;line-height:1.02;letter-spacing:-2px;font-variation-settings:'opsz' 144}
+  .head .w{display:inline-block;white-space:pre;will-change:transform,opacity}
+  .head .accent{color:var(--terra)}
+  .rule{width:0;height:12px;border-radius:99px;background:var(--terra)}
+  .word{font-size:184px;color:var(--green);font-weight:600;letter-spacing:4px;line-height:1;display:flex}
+  .word span{display:inline-block;will-change:transform,opacity}
+  .sub{font-family:'Inter',sans-serif;font-weight:500;color:#6b6f6a;font-size:42px}
+  .cta{font-family:'Inter',sans-serif;font-weight:700;color:#fff;background:var(--green);border-radius:99px;padding:24px 48px;font-size:40px}
+  .device{perspective:1700px;will-change:transform,opacity}
+  .phone{width:600px;background:#0f100e;border-radius:66px;padding:14px;box-shadow:0 64px 120px -30px rgba(58,38,18,.55);transform-style:preserve-3d}
+  .scr{position:relative;border-radius:54px;overflow:hidden;background:#000;aspect-ratio:1320/2868}
+  .scr img{position:absolute;top:0;left:0;width:100%;will-change:transform}
+  .compass{will-change:transform,opacity}
+  #wipe{position:absolute;left:50%;top:48%;width:60px;height:60px;border-radius:50%;background:var(--terra);transform:translate(-50%,-50%) scale(0);will-change:transform;z-index:60}
+</style></head><body>
+<div id="stage"></div>
+<div id="wipe"></div>
+<script>
+const G=document.getElementById('stage'), WIPE=document.getElementById('wipe');
+const SPRING='cubic-bezier(.34,1.45,.5,1)', EASE='cubic-bezier(.4,0,.2,1)', EASEO='cubic-bezier(.22,1,.36,1)';
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const A=(el,kf,opt)=>el.animate(kf,{fill:'both',easing:EASE,...opt});
+function compass(size){return `<svg class="compass" width="${size}" height="${size}" viewBox="0 0 512 512"><g transform="translate(256,256)">
+ <circle class="c-ring" r="180" fill="none" stroke="#1a3a2f" stroke-width="9" stroke-dasharray="1131" stroke-dashoffset="1131"/>
+ <polygon points="0,160 20,40 -20,40" fill="#1a3a2f"/><polygon points="160,0 40,20 40,-20" fill="#1a3a2f"/><polygon points="-160,0 -40,20 -40,-20" fill="#1a3a2f"/>
+ <polygon points="0,-160 20,-40 -20,-40" fill="#c45c3e"/><circle r="30" fill="#c45c3e"/><circle r="14" fill="#faf8f5"/></g></svg>`;}
+function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+function words(container,text){ // split into word spans, "*x*"=accent
+  container.innerHTML='';
+  text.split('|').forEach((line,li)=>{
+    if(li)container.appendChild(document.createElement('br'));
+    line.split(' ').forEach((wd,i)=>{
+      const span=el('span','w');
+      span.innerHTML=(i? ' ':'')+wd.replace(/\*([^*]+)\*/g,'<span class="accent">$1</span>');
+      container.appendChild(span);
+    });
+  });
+  return [...container.querySelectorAll('.w')];
+}
+async function wipe(){ // terracotta circular sweep
+  WIPE.style.transform='translate(-50%,-50%) scale(0)';
+  await A(WIPE,{transform:['translate(-50%,-50%) scale(0)','translate(-50%,-50%) scale(34)']},{duration:480,easing:EASEO}).finished;
+  await wait(40);
+  await A(WIPE,{transform:['translate(-50%,-50%) scale(34)','translate(-50%,-50%) scale(0)']},{duration:520,easing:EASE,delay:60}).finished;
+}
+async function intro(word, sub){
+  const s=el('div','scene'); s.style.gap='44px';
+  s.appendChild(el('div',null,compass(280)));
+  const w=el('div','word'); [...word].forEach(c=>{const sp=document.createElement('span');sp.textContent=c;sp.style.opacity=0;w.appendChild(sp);});
+  s.appendChild(w);
+  const rule=el('div','rule'); s.appendChild(rule);
+  const sb=el('div','sub'); sb.textContent=sub; sb.style.clipPath='inset(0 100% 0 0)'; s.appendChild(sb);
+  G.appendChild(s); s.style.display='flex';
+  const comp=s.querySelector('.compass');
+  comp.style.opacity=0;
+  A(comp,{opacity:[0,1],transform:['scale(.2) rotate(-260deg)','scale(1) rotate(0deg)']},{duration:1150,easing:SPRING});
+  A(s.querySelector('.c-ring'),{strokeDashoffset:[1131,0]},{duration:1000,delay:250,easing:EASEO});
+  [...w.children].forEach((sp,i)=>A(sp,{opacity:[0,1],transform:['translateY(70px) scale(.8)','translateY(0) scale(1)']},{duration:760,delay:650+i*90,easing:SPRING}));
+  A(rule,{width:['0px','128px']},{duration:600,delay:1150,easing:EASEO});
+  A(sb,{clipPath:['inset(0 100% 0 0)','inset(0 0 0 0)']},{duration:760,delay:1300,easing:EASEO});
+  await wait(2700);
+  await A(s,{opacity:[1,0],transform:['scale(1)','scale(1.04)']},{duration:520,easing:EASE}).finished;
+  s.remove();
+}
+async function screen(cfg){
+  const s=el('div','scene');
+  const head=el('h1','head'); const ws=words(head, cfg.head); s.appendChild(head);
+  const rule=el('div','rule'); s.appendChild(rule);
+  const dev=el('div','device'); const ph=el('div','phone'); const scr=el('div','scr'); const img=el('img');
+  img.src=cfg.img; scr.appendChild(img); ph.appendChild(scr); dev.appendChild(ph); s.appendChild(dev);
+  G.appendChild(s); s.style.display='flex';
+  await new Promise(r=>{img.complete?r():(img.onload=img.onerror=r);});
+  // headline stagger
+  ws.forEach((wd,i)=>{wd.style.opacity=0;A(wd,{opacity:[0,1],transform:['translateY(46px)','translateY(0)']},{duration:620,delay:120+i*70,easing:SPRING});});
+  A(rule,{width:['0px','128px']},{duration:560,delay:240,easing:EASEO});
+  // device 3D entrance
+  dev.style.opacity=0;
+  A(dev,{opacity:[0,1],transform:['translateY(150px) rotateX(22deg) scale(.9)','translateY(0) rotateX(0deg) scale(1)']},{duration:1050,delay:160,easing:SPRING});
+  // content motion
+  const hold=cfg.hold||2300;
+  if(cfg.type==='scroll'){
+    img.style.transform='translateY(0)';
+    A(img,{transform:['translateY(0)',`translateY(${cfg.pan})`]},{duration:hold+700,delay:560,easing:'cubic-bezier(.45,.05,.35,1)'});
+  } else {
+    img.style.transformOrigin=cfg.origin||'50% 42%';
+    A(img,{transform:['scale(1)',`scale(${cfg.scale||1.15})`]},{duration:hold+800,delay:520,easing:'linear'});
+  }
+  await wait(hold);
+  await A(s,{opacity:[1,0],transform:['translateY(0) scale(1)','translateY(-46px) scale(.98)']},{duration:540,easing:EASE}).finished;
+  s.remove();
+}
+async function outro(){
+  const s=el('div','scene'); s.style.gap='46px';
+  s.appendChild(el('div',null,compass(250)));
+  s.appendChild(el('div','word','ROAM'));
+  const rule=el('div','rule'); s.appendChild(rule);
+  s.appendChild(el('div','sub','Local adventures, hand-picked.'));
+  const cta=el('div','cta','Free on iPhone &amp; Android'); s.appendChild(cta);
+  G.appendChild(s); s.style.display='flex';
+  const comp=s.querySelector('.compass'); comp.style.opacity=0;
+  A(comp,{opacity:[0,1],transform:['scale(.4) rotate(180deg)','scale(1) rotate(0deg)']},{duration:1000,easing:SPRING});
+  A(s.querySelector('.c-ring'),{strokeDashoffset:[1131,0]},{duration:900,delay:150,easing:EASEO});
+  const wd=s.querySelector('.word'); A(wd,{opacity:[0,1],transform:['translateY(40px)','translateY(0)']},{duration:700,delay:400,easing:SPRING});
+  A(rule,{width:['0px','128px']},{duration:560,delay:700,easing:EASEO});
+  cta.style.opacity=0; A(cta,{opacity:[0,1],transform:['scale(.8)','scale(1)']},{duration:600,delay:1050,easing:SPRING});
+  // gentle continuous compass rotation
+  comp.animate({transform:['rotate(0deg)','rotate(8deg)']},{duration:2600,delay:1150,easing:'ease-in-out',fill:'both'});
+  await wait(3400);
+}
+window.__done=false;
+(async()=>{
+  try{await document.fonts.ready;}catch(e){}
+  const pre=['raw/01-discover.png','raw/02-events.png','raw/03-plan.png','raw/04-social-full.png','raw/06-map.png'];
+  await Promise.all(pre.map(s=>new Promise(r=>{const im=new Image();im.onload=im.onerror=r;im.src=s;})));
+  await wait(300);
+  await intro('ROAM','Stop scrolling. Start roaming.');
+  await wipe();
+  await screen({img:'raw/01-discover.png', head:'Tap once.|Real places near you.', type:'pushin', origin:'50% 54%', scale:1.16, hold:2300});
+  await screen({img:'raw/02-events.png',   head:"Everything|that's on near you.", type:'pushin', origin:'50% 40%', scale:1.14, hold:2300});
+  await screen({img:'raw/03-plan.png',     head:'A day out,|planned in seconds.', type:'pushin', origin:'50% 34%', scale:1.2, hold:2300});
+  await screen({img:'raw/04-social-full.png', head:'See where your|friends love.', type:'scroll', pan:'-40%', hold:2600});
+  await screen({img:'raw/06-map.png',      head:'Keep every place|you find.', type:'pushin', origin:'50% 30%', scale:1.18, hold:2300});
+  await wipe();
+  await outro();
+  await wait(400); window.__done=true;
+})();
+</script></body></html>

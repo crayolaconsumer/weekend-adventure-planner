@@ -174,7 +174,7 @@ describe('parseQuery: golden, every query the app emits', () => {
     const q = snapQueryBbox(buildDiscoverOverpassQuery(51.5074, -0.1278, 75000, 'food').query)
     const plan = parseQuery(q)
     const [amenity, shop] = plan.groups[0].statements
-    expect(amenity.types).toEqual([1, 2])
+    expect(amenity.types).toEqual([1, 2, 3]) // nwr: relations too (the British Museum is one)
     expect(amenity.keys.amenity).toContain('restaurant')
     expect(amenity.name).toBe(true) // >50 km adds ["name"]
     expect(shop.keys.shop).toContain('bakery')
@@ -183,13 +183,15 @@ describe('parseQuery: golden, every query the app emits', () => {
     expect(plan.bbox).toEqual({ s: m[0], w: m[1], n: m[2], e: m[3] })
   })
 
-  it('parses town page queries into 8 limited statements', () => {
+  it('parses town page queries into 9 limited statements', () => {
     for (const [lat, lng] of CENTRES) {
       const plan = parseQuery(townOverpassQuery(lat, lng))
       expect(plan).not.toBeNull()
-      expect(plan.groups.map(g => g.limit)).toEqual([150, 100, 60, 40, 120, 100, 40, 150])
+      expect(plan.groups.map(g => g.limit)).toEqual([150, 250, 60, 40, 30, 120, 100, 40, 150])
       expect(plan.groups[0].statements[0]).toMatchObject({ types: [1, 2, 3], name: true, wikidata: true })
       expect(plan.groups[3].statements[0].keys).toEqual({ amenity: ['place_of_worship'] })
+      // notable libraries only
+      expect(plan.groups[4].statements[0]).toMatchObject({ keys: { amenity: ['library'] }, wikidata: true })
     }
   })
 
@@ -366,10 +368,10 @@ describe('SQL', () => {
     const town = parseQuery(townOverpassQuery(51.7635, -0.2259))
     const { sql } = buildSql(town)
     const parts = sql.split(' UNION ALL ')
-    expect(parts).toHaveLength(8)
+    expect(parts).toHaveLength(9)
     expect(sql.match(/MAX_EXECUTION_TIME/g)).toHaveLength(1)
     expect(parts[0]).toMatch(/^\(SELECT \/\*\+ MAX_EXECUTION_TIME\(800\) \*\/ 0 AS g,/)
-    expect(parts[7]).toMatch(/^\(SELECT 7 AS g,.* LIMIT \?\) ORDER BY g, osm_type, osm_id$/)
+    expect(parts[8]).toMatch(/^\(SELECT 8 AS g,.* LIMIT \?\) ORDER BY g, osm_type, osm_id$/)
     // ["name"] needs the name tag itself; has_name also counts name:en-only rows
     expect(parts[0]).toMatch(/has_name_tag = 1 AND has_wikidata = 1\)\) ORDER BY osm_type, osm_id LIMIT \?\)$/)
     // Regression: left to itself MySQL walked uq_osm for the LIMIT (York 24 s)
@@ -743,7 +745,8 @@ describe('relevance cap: dense Discover answers (shared/poiRank.mjs, two phases)
   function denseRows(count) {
     let seed = 7
     const rnd = () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822519) + 12345 | 0) >>> 0) / 2 ** 32
-    const kinds = [{ amenity: 'cafe' }, { amenity: 'pub' }, { amenity: 'restaurant' }, { leisure: 'park' }, { amenity: 'fast_food' },
+    // all in the default deck's types (fast_food left it in favour of dog parks: see shared/overpassQuery.js)
+    const kinds = [{ amenity: 'cafe' }, { amenity: 'pub' }, { amenity: 'restaurant' }, { leisure: 'park' }, { amenity: 'biergarten' },
       { amenity: 'bar' }, { shop: 'bakery' }, { amenity: 'ice_cream' }]
     return Array.from({ length: count }, (_, i) => {
       const lat = s + rnd() * (n - s)
@@ -1036,12 +1039,20 @@ describe('relevance cap: dense Discover answers (shared/poiRank.mjs, two phases)
     _resetPoiState()
     vi.useFakeTimers({ toFake: ['Date'] })
     try {
-      // each capped run SUCCEEDS but takes 1.1 s (past POI_DEADLINE_MS): the cap's failure only
+      // capped runs inside the cap's own budget (1.5 s < POI_CAP_DEADLINE_MS) are successes
       answer = (opts, params) => {
-        if (opts.sql.includes('q, cat, flags FROM')) vi.setSystemTime(Date.now() + 1100)
+        if (opts.sql.includes('q, cat, flags FROM')) vi.setSystemTime(Date.now() + 1500)
         return runSql({ sql: opts.sql, params }, rows)
       }
-      for (let i = 0; i < 3; i++) expect(await getPois(plan, `slow${i}`, { cap: true })).toMatchObject({ n: CAP })
+      for (let i = 0; i < 3; i++) expect(await getPois(plan, `ok${i}`, { cap: true })).toMatchObject({ n: CAP })
+      expect([breakerState(), capBreakerState()]).toEqual(['closed', 'closed'])
+      // each capped run takes 2.6 s (past POI_CAP_DEADLINE_MS, and the transaction's own 2 s
+      // bound ends it): the cap's failure only
+      answer = (opts, params) => {
+        if (opts.sql.includes('q, cat, flags FROM')) vi.setSystemTime(Date.now() + 2600)
+        return runSql({ sql: opts.sql, params }, rows)
+      }
+      for (let i = 0; i < 3; i++) expect(await getPois(plan, `slow${i}`, { cap: true })).toBeNull()
       expect([breakerState(), capBreakerState()]).toEqual(['closed', 'open'])
     } finally {
       vi.useRealTimers()
@@ -1089,7 +1100,7 @@ describe('relevance cap: dense Discover answers (shared/poiRank.mjs, two phases)
     try {
       const rows = denseRows(CAP) // within the cap: probe, then today's statement
       answer = (opts, params) => {
-        if (opts.sql.includes('FORCE INDEX (ix_rank)')) vi.setSystemTime(Date.now() + 1500) // a slow probe
+        if (opts.sql.includes('FORCE INDEX (ix_rank)')) vi.setSystemTime(Date.now() + 2600) // a slow probe
         return runSql({ sql: opts.sql, params }, rows)
       }
       for (let i = 0; i < 3; i++) expect(await getPois(plan, `slowprobe${i}`, { cap: true })).toMatchObject({ n: CAP })
@@ -1138,6 +1149,30 @@ describe('relevance cap: dense Discover answers (shared/poiRank.mjs, two phases)
     hold()
     await served
     expect([breakerState(), capBreakerState()]).toEqual(['closed', 'closed'])
+  })
+
+  it('shadow never moves the cap breaker: slow or failing shadow runs (own cold connection) leave serving capped', async () => {
+    const { shadowPois } = await import('../../../api/lib/poiQuery.js')
+    const rows = denseRows(4500)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      // 3 s capped shadow runs, then failing ones: neither may switch the cap off for users
+      shadowQuery.mockImplementation((opts, params) => {
+        if (opts.sql.includes('q, cat, flags FROM')) vi.setSystemTime(Date.now() + 3000)
+        return runSql({ sql: opts.sql, params }, rows)
+      })
+      for (let i = 0; i < 3; i++) await shadowPois(plan, `slow-shadow${i}`)
+      expect(capBreakerState()).toBe('closed')
+      shadowQuery.mockImplementation((opts, params) => {
+        if (opts.sql.includes('q, cat, flags FROM')) throw Object.assign(new Error('Query execution was interrupted'), { errno: 3024 })
+        return runSql({ sql: opts.sql, params }, rows)
+      })
+      for (let i = 0; i < 3; i++) await shadowPois(plan, `failing-shadow${i}`)
+      expect(capBreakerState()).toBe('closed')
+    } finally {
+      vi.useRealTimers()
+      shadowQuery.mockImplementation(answerSql)
+    }
   })
 
   it('shadow backs off 60 s after a failed connect (e.g. ER_CON_COUNT_ERROR), and never retries a connect inside a run', async () => {

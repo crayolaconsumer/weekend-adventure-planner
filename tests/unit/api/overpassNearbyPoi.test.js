@@ -269,6 +269,57 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     }
   })
 
+  // one slow statement (a cold page read): the whole DB answer takes ~1.6 s
+  const slowOnce = () => {
+    let slow = true
+    return () => (slow ? (slow = false, new Promise(resolve => setTimeout(() => resolve(dense()), 1600))) : dense())
+  }
+
+  it('dense tile, cap on: a capped answer that takes 1.6 s is still served from the DB (the fallback is Overpass timing out)', async () => {
+    pct = 100
+    capPct = 100
+    answer = slowOnce()
+    const out = await call(LONDON)
+    expect(out.headers['x-places-source']).toBe('db')
+    expect(out.body.elements).toHaveLength(CAP)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('cap on, DB slow, KV warm: the cached copy is served at ~1 s as before (only an empty KV waits longer for the cap)', async () => {
+    await call(LONDON) // pct 0: Overpass answers and fills KV
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    pct = 100
+    capPct = 100
+    answer = slowOnce()
+    const t = Date.now()
+    const out = await call(LONDON)
+    expect(Date.now() - t).toBeLessThan(1400)
+    expect(out.headers['x-overpass-cache']).toBe('HIT')
+    expect(out.body).toEqual(LIVE)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // no second Overpass call
+  })
+
+  it('cap on: a plan the cap can never serve (a town page, limited outputs) keeps the 1 s wait', async () => {
+    const { townOverpassQuery } = await import('../../../api/lib/towns.js')
+    pct = 100
+    capPct = 100
+    answer = slowOnce()
+    const t = Date.now()
+    const out = await call(townOverpassQuery(51.5074, -0.1278))
+    expect(Date.now() - t).toBeLessThan(1400)
+    expect(out.headers['x-places-source']).toBeUndefined()
+    expect(out.body).toEqual(LIVE)
+  })
+
+  it('cap off: the same 1.6 s DB answer still loses to the old path after ~1 s (only the cap gets longer)', async () => {
+    pct = 100
+    capPct = 0
+    answer = slowOnce()
+    const out = await call(LONDON)
+    expect(out.headers['x-places-source']).toBeUndefined()
+    expect(out.body).toEqual(LIVE)
+  })
+
   it('pct 100 + a DB that never answers: the old path serves after ~1 s', async () => {
     pct = 100
     answer = () => new Promise(() => {})

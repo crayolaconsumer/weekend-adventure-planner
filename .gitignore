@@ -68,3 +68,12 @@ ios/App/build/
 # Playwright MCP browser logs from local audits
 .playwright-mcp/
 scripts/ios-release/
+
+# Marketing media (reels, carousels, photos, music) stay local: no binaries in the repo.
+# The text, docs and the reel studio's source are committed; the studio regenerates media.
+marketing-assets/**/*.mp4
+marketing-assets/**/*.webm
+marketing-assets/**/*.mp3
+marketing-assets/**/*.png
+marketing-assets/**/*.jpg
+marketing-assets/**/*.zip

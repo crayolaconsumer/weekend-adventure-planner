@@ -250,10 +250,25 @@ export const TYPE_TO_KEYS = {
 
 const DEFAULT_KEYS = ['amenity', 'tourism']
 
-const LARGE_RADIUS_PRIORITY_TYPES = [
-  'attraction', 'museum', 'castle', 'ruins', 'monument', 'viewpoint', 'park', 'nature_reserve',
-  'restaurant', 'pub', 'cafe', 'cinema', 'theatre', 'artwork', 'memorial', 'beach', 'waterfall',
+// The type caps below keep only the first N types, so this order decides what the
+// default (all-categories) deck can contain. The first 20 are the large-radius set;
+// the next 15 fill the 35 kept for local decks. Without it the cap kept GOOD_CATEGORY_TYPES'
+// food-first order, and the default deck had no museums, sights or libraries at all.
+const PRIORITY_TYPES = [
+  'attraction', 'museum', 'gallery', 'castle', 'ruins', 'viewpoint', 'park', 'nature_reserve',
+  'library', 'theatre', 'zoo', 'aquarium', 'restaurant', 'pub', 'cafe', 'beach', 'monument',
+  'garden', 'cinema', 'waterfall',
+  'bar', 'arts_centre', 'theme_park', 'manor', 'palace', 'archaeological_site', 'ice_cream',
+  'bakery', 'biergarten', 'planetarium', 'music_venue', 'bowling_alley', 'picnic_site',
+  // dog mode (applyFilters dogCheck) passes these without a dog tag, so the default deck must fetch them
+  'dog_park', 'recreation_ground',
+  // memorial and artwork stay out of the default deck: York alone has 100+ (plaques, war
+  // memorials). They're still in the historic and unique category decks.
 ]
+const priorityRank = type => {
+  const i = PRIORITY_TYPES.indexOf(type)
+  return i === -1 ? PRIORITY_TYPES.length : i
+}
 
 export function getTypesForCategory(categoryKey) {
   return GOOD_CATEGORY_TYPES[categoryKey] || []
@@ -310,13 +325,8 @@ export function selectOverpassTypesForRadius(types, radius) {
   const isLargeRadius = radius > 15000
   const maxTypes = isLargeRadius ? 20 : 35
 
-  if (!isLargeRadius) {
-    return types.slice(0, maxTypes)
-  }
-
-  const priority = types.filter(type => LARGE_RADIUS_PRIORITY_TYPES.includes(type))
-  const others = types.filter(type => !LARGE_RADIUS_PRIORITY_TYPES.includes(type))
-  return [...priority, ...others].slice(0, maxTypes)
+  // Stable sort: priority types first in PRIORITY_TYPES order, the rest keep their category order
+  return [...types].sort((a, b) => priorityRank(a) - priorityRank(b)).slice(0, maxTypes)
 }
 
 export function buildOverpassQuery(lat, lng, radius, types) {
@@ -339,7 +349,9 @@ export function buildOverpassQuery(lat, lng, radius, types) {
   const typeFilters = Object.entries(grouped)
     .map(([key, keyTypes]) => {
       const regex = keyTypes.map(escapeOverpassRegex).join('|')
-      return `nw["${key}"~"^(${regex})$"]${nameFilter};`
+      // nwr: big landmarks are often relations (multipolygons: the British Museum is r177044);
+      // with nw they never reached Discover or the app's town pages
+      return `nwr["${key}"~"^(${regex})$"]${nameFilter};`
     })
     .join('\n      ')
 

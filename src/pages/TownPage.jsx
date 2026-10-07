@@ -17,6 +17,7 @@ import { getPublicShareUrl } from '../utils/nativeBridge'
 import { shareContent } from '../utils/shareCard'
 import { getCategoryForType } from '../utils/categories'
 import { rememberTown } from '../utils/recentTowns'
+import { rankTownPlaces } from '../utils/rankTownPlaces'
 import { BackIcon, ShareIcon, ChevronIcon } from './townIcons'
 import CategoryIcon from '../components/icons/CategoryIcon'
 import PlaceImage from '../components/PlaceImage'
@@ -114,9 +115,7 @@ export default function TownPage({ location }) {
     fetchNearbyPlaces(info.lat, info.lng, TOWN_RADIUS)
       .then(all => {
         if (cancelled) return
-        // Overpass returns ID order; surface the best-tagged places first
-        const ranked = [...all].sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))
-        setResult({ slug: info.slug, places: ranked.slice(0, PER_TOWN), error: false })
+        setResult({ slug: info.slug, places: rankTownPlaces(all).slice(0, PER_TOWN), error: false })
       })
       .catch(() => { if (!cancelled) setResult({ slug: info.slug, places: [], error: true }) })
     return () => { cancelled = true }

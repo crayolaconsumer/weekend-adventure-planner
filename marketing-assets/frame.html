@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#faf8f5;
+    --green:#1a3a2f;
+    --terracotta:#c45c3e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  /* Canvas — overridden by JS to exact store size */
+  html,body{width:1290px;height:2796px;background:var(--cream);overflow:hidden}
+  body{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:96px;padding:120px 0;
+  }
+  .headline{
+    font-family:'Fraunces',serif;
+    font-variation-settings:'opsz' 144,'SOFT' 0,'WONK' 0;
+    font-weight:600;
+    color:var(--green);
+    text-align:center;
+    font-size:108px;
+    line-height:1.03;
+    letter-spacing:-2px;
+    padding:0 96px;
+    max-width:1180px;
+  }
+  .headline .accent{color:var(--terracotta)}
+  .mark{display:none;margin-bottom:44px}
+  body.has-mark .mark{display:block}
+  .rule{
+    width:124px;height:11px;border-radius:6px;background:var(--terracotta);
+    margin-top:54px;
+  }
+  .hwrap{display:flex;flex-direction:column;align-items:center}
+  .phone{
+    position:relative;
+    width:980px;
+    background:#0f100e;
+    border-radius:104px;
+    padding:19px;
+    box-shadow:
+      0 70px 130px -28px rgba(58,38,18,.46),
+      0 24px 60px -24px rgba(0,0,0,.34),
+      inset 0 0 0 2px rgba(255,255,255,.06);
+  }
+  .screen{
+    border-radius:86px;
+    overflow:hidden;
+    display:block;
+    background:#000;
+  }
+  .screen img{display:block;width:100%;height:auto}
+</style>
+</head>
+<body>
+  <div class="hwrap">
+    <svg class="mark" viewBox="0 0 512 512" width="120" height="120" aria-hidden="true">
+      <g transform="translate(256,256)">
+        <circle r="180" fill="none" stroke="#1a3a2f" stroke-width="8"/>
+        <polygon points="0,-160 20,-40 -20,-40" fill="#c45c3e"/>
+        <polygon points="0,160 20,40 -20,40" fill="#1a3a2f"/>
+        <polygon points="160,0 40,20 40,-20" fill="#1a3a2f"/>
+        <polygon points="-160,0 -40,20 -40,-20" fill="#1a3a2f"/>
+        <circle r="30" fill="#c45c3e"/>
+        <circle r="14" fill="#faf8f5"/>
+      </g>
+    </svg>
+    <h1 class="headline" id="headline">Stop scrolling.<br>Start roaming.</h1>
+    <div class="rule"></div>
+  </div>
+  <div class="phone">
+    <div class="screen"><img id="shot" src="raw/01-discover.png" alt=""></div>
+  </div>
+
+<script>
+  // Data-drive from query params so one template renders every frame:
+  //   ?img=raw/02-events.png&headline=Everything happening|near you.&w=1290&h=2796
+  const q = new URLSearchParams(location.search);
+  const img = q.get('img');           if (img) document.getElementById('shot').src = img;
+  const hl  = q.get('headline');
+  if (hl) {
+    // "|" = line break.  "*word*" = terracotta accent span.
+    document.getElementById('headline').innerHTML = hl
+      .split('|')
+      .map(l => l.replace(/\*([^*]+)\*/g, '<span class="accent">$1</span>'))
+      .join('<br>');
+  }
+  if (q.get('mark')) document.body.classList.add('has-mark');
+  // Adaptive sizing so ONE template fits iOS 6.9" (1290×2796) and Play (1080×1920).
+  const cw = parseInt(q.get('w')||'1290',10), ch = parseInt(q.get('h')||'2796',10);
+  document.documentElement.style.width = document.body.style.width = cw+'px';
+  document.documentElement.style.height = document.body.style.height = ch+'px';
+  const ASPECT = 2868/1320;                 // captured screenshot h/w
+  const pad = cw*0.0147;
+  const deviceW = Math.min(cw*0.78, (ch*0.74 - pad*2)/ASPECT + pad*2);
+  const phone = document.querySelector('.phone');
+  phone.style.width = deviceW+'px';
+  phone.style.padding = pad+'px';
+  phone.style.borderRadius = (cw*0.081)+'px';
+  document.querySelector('.screen').style.borderRadius = (cw*0.067)+'px';
+  const head = document.querySelector('.headline');
+  head.style.fontSize = (cw*0.083)+'px';
+  head.style.padding = '0 '+(cw*0.074)+'px';
+  const rule = document.querySelector('.rule');
+  rule.style.width = (cw*0.096)+'px'; rule.style.height = (cw*0.0085)+'px';
+  const mark = document.querySelector('.mark');
+  mark.setAttribute('width', cw*0.093); mark.setAttribute('height', cw*0.093);
+  document.body.style.gap = (cw*0.072)+'px';
+  // Signal readiness once fonts + the screenshot image have loaded.
+  window.__ready = false;
+  Promise.all([
+    document.fonts.ready,
+    new Promise(res => { const im = document.getElementById('shot');
+      if (im.complete) res(); else { im.onload = res; im.onerror = res; } })
+  ]).then(() => { window.__ready = true; });
+</script>
+</body>
+</html>
