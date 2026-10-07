@@ -475,6 +475,17 @@ export default async function handler(req, res) {
       prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
       if (!hasPlaces(prefetched)) db = await within(pending, Math.max(0, deadlineAt - Date.now()))
     }
+    // A cold instance can spend the first try connecting and loading coverage (7 Oct: London's
+    // first request on a new deploy ran out of time, then Overpass timed out on it after 27 s).
+    // The connection is warm now: one more try before a fallback that can't answer dense tiles
+    if (!db && capWait && settled) {
+      if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
+      if (!hasPlaces(prefetched)) {
+        const again = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt: Date.now() + POI_CAP_DEADLINE_MS, cap })
+        waitUntil(again.catch(() => {}))
+        db = await within(again, POI_CAP_DEADLINE_MS)
+      }
+    }
     if (db && db.n > 0) {
       // The dog merge is not applied to DB-served bodies: the POI rollout is
       // shadow-only, and merging would need the body parsed back. Add it

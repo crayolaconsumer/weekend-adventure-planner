@@ -285,6 +285,27 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('cap on, cold instance: a first try that fails gets one more, served from the DB (regression: London 27 s on a new deploy)', async () => {
+    pct = 100
+    capPct = 100
+    let first = true
+    answer = async () => { if (first) { first = false; throw new Error('too close to the deadline') } return dense() }
+    const out = await call(LONDON)
+    expect(out.headers['x-places-source']).toBe('db')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('cap on, DB keeps failing: two tries, then Overpass', async () => {
+    pct = 100
+    capPct = 100
+    let tries = 0
+    answer = async () => { tries++; throw new Error('PROTOCOL_SEQUENCE_TIMEOUT') }
+    const out = await call(LONDON)
+    expect(tries).toBe(2)
+    expect(out.headers['x-overpass-cache']).toBe('MISS')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('cap on, DB slow, KV warm: the cached copy is served at ~1 s as before (only an empty KV waits longer for the cap)', async () => {
     await call(LONDON) // pct 0: Overpass answers and fills KV
     expect(fetchMock).toHaveBeenCalledTimes(1)
