@@ -42,6 +42,11 @@ describe('relations', () => {
     expect(query).toMatch(/\bnwr\["tourism"~/)
     expect(query).not.toMatch(/\bnw\["/)
   })
+  it('outside GB (public Overpass, no POI DB) keeps the lighter nodes-and-ways query', () => {
+    const { query } = buildDiscoverOverpassQuery(48.8566, 2.3522, 5000, null)
+    expect(query).toMatch(/\bnw\["tourism"~/)
+    expect(query).not.toMatch(/\bnwr\[/)
+  })
 })
 
 describe('category decks', () => {

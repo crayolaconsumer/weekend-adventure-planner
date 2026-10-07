@@ -345,13 +345,16 @@ export function buildOverpassQuery(lat, lng, radius, types) {
 
   const bbox = radiusToBbox(lat, lng, radius)
   const grouped = groupTypesByKey(uniqueTypes)
+  // ponytail: a box around Great Britain (it also takes in Ireland), not the build's own outline
+  const inGB = lat >= 49.8 && lat <= 60.9 && lng >= -8.7 && lng <= 1.8
 
   const typeFilters = Object.entries(grouped)
     .map(([key, keyTypes]) => {
       const regex = keyTypes.map(escapeOverpassRegex).join('|')
       // nwr: big landmarks are often relations (multipolygons: the British Museum is r177044);
-      // with nw they never reached Discover or the app's town pages
-      return `nwr["${key}"~"^(${regex})$"]${nameFilter};`
+      // with nw they never reached Discover or the app's town pages. Only in GB, where our
+      // POI DB answers: on public Overpass relations made Paris decks 2-3x slower (7 Oct)
+      return `${inGB ? 'nwr' : 'nw'}["${key}"~"^(${regex})$"]${nameFilter};`
     })
     .join('\n      ')
 
