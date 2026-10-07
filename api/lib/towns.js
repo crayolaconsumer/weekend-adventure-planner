@@ -241,9 +241,8 @@ export function townOverpassQuery(lat, lng) {
   const bbox = `${(lat - d).toFixed(4)},${(lng - w).toFixed(4)},${(lat + d).toFixed(4)},${(lng + w).toFixed(4)}`
   return `[bbox:${bbox}][out:json][timeout:25];` +
     'nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park)$"]["name"]["wikidata"];out tags bb 150;' +
-    // 250: big cities have more than 100 named sights without wikidata, and the cap cuts in
-    // ID order (Birmingham Museum & Art Gallery was cut)
-    'nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|artwork|memorial)$"]["name"];out tags bb 250;' +
+    // Kept at 100: 250 plus the library statement pushed New York past Overpass's timeout
+    'nwr["tourism"~"^(attraction|viewpoint|museum|gallery|zoo|theme_park|artwork|memorial)$"]["name"];out tags bb 100;' +
     'nwr["historic"~"^(castle|manor|monument|ruins|archaeological_site)$"]["name"];out tags bb 60;' +
     'nwr["amenity"="place_of_worship"]["name"]["wikidata"];out tags bb 40;' +
     // Notable libraries only (John Rylands, the Bodleian), not every branch library

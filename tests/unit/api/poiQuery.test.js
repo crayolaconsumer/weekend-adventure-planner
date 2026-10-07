@@ -187,7 +187,7 @@ describe('parseQuery: golden, every query the app emits', () => {
     for (const [lat, lng] of CENTRES) {
       const plan = parseQuery(townOverpassQuery(lat, lng))
       expect(plan).not.toBeNull()
-      expect(plan.groups.map(g => g.limit)).toEqual([150, 250, 60, 40, 30, 120, 100, 40, 150])
+      expect(plan.groups.map(g => g.limit)).toEqual([150, 100, 60, 40, 30, 120, 100, 40, 150])
       expect(plan.groups[0].statements[0]).toMatchObject({ types: [1, 2, 3], name: true, wikidata: true })
       expect(plan.groups[3].statements[0].keys).toEqual({ amenity: ['place_of_worship'] })
       // notable libraries only
