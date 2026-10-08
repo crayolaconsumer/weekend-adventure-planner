@@ -11,9 +11,10 @@ import { cellRanges, poiCell, CELL_PAD_DEG } from '../../../shared/poiCell.mjs'
 const PAD = CELL_PAD_DEG
 const POI_DEADLINE = 1000
 
+const kvStore = vi.hoisted(() => new Map())
 vi.mock('../../../api/lib/kvCache.js', () => ({
-  cacheGet: async () => null,
-  cacheSet: async () => true,
+  cacheGet: async key => kvStore.get(key) ?? null,
+  cacheSet: async (key, value) => { kvStore.set(key, JSON.parse(JSON.stringify(value))); return true },
   hashKey: v => v,
   isCacheEnabled: () => false,
   getClient: () => null
@@ -75,7 +76,7 @@ const { SNAP_GRID_DEGREES } = await import('../../../api/lib/bboxSnap.js')
 const { SCHEMA_VERSION } = await import('../../../shared/poiCell.mjs')
 const {
   parseQuery, buildSql, buildCandidateSql, buildElSql, buildProbeSql, isRankable, queryPois, getPois, isCovered, breakerState, capBreakerState, lruUsage,
-  _resetPoiState, TABLE_BUILD_SQL, POI_SCHEMA_VERSION, SCAN_ROWS, MAX_BODY_BYTES, CAP, RANK_SCAN_ROWS, LRU_BUDGET_BYTES, LRU_ENTRY_MAX_BYTES, MAX_CAP_RADIUS_KM
+  _resetPoiState, TABLE_BUILD_SQL, POI_SCHEMA_VERSION, SCAN_ROWS, MAX_BODY_BYTES, CAP, RANK_SCAN_ROWS, LRU_BUDGET_BYTES, LRU_ENTRY_MAX_BYTES, MAX_CAP_RADIUS_KM, POI_COVERAGE_KEY, toRuns, fromRuns
 } = await import('../../../api/lib/poiQuery.js')
 const { lookupPlace } = await import('../../../api/lib/placeLookup.js')
 const { parseOverpassResponse, fetchPlaceById } = await import('../../../src/utils/apiClient.js')
@@ -484,6 +485,7 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-09-27T12:00:00Z'))
     _resetPoiState()
+    kvStore.clear()
     poolQuery.mockClear()
     build = { build_id: 'uk-20260927T0215Z', schema_version: POI_SCHEMA_VERSION, osm_timestamp: new Date('2026-09-27T02:15:00Z'), coverage: JSON.stringify(GB), features_version: FEATURES_VERSION }
     answer = async () => [ROW]
@@ -510,6 +512,42 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     build = null
     expect(await getPois(plan, Q)).toBeNull()
     expect(isCovered(plan, { cells: null })).toBe(false)
+  })
+
+  it('a new instance whose first coverage read fails uses the KV copy another instance wrote (regression: Luton 503, 8 Oct)', async () => {
+    await getPois(plan, Q) // instance A reads coverage from the DB and writes the copy
+    expect(kvStore.get(POI_COVERAGE_KEY)).toMatchObject({ gen: 0, buildId: 'uk-20260927T0215Z' })
+    expect(JSON.stringify(kvStore.get(POI_COVERAGE_KEY)).length).toBeLessThan(10_000)
+    _resetPoiState() // instance B, cold
+    build = new Error('Query inactivity timeout')
+    poolQuery.mockClear()
+    const out = await getPois(plan, 'b-key')
+    expect(out).toMatchObject({ n: 1, buildId: 'uk-20260927T0215Z' })
+    expect(await getPois(parseQuery(OUTSIDE), OUTSIDE)).toBeNull() // still only GB
+  })
+
+  it('a KV copy from another generation (a swap or rollback since) is never used', async () => {
+    await getPois(plan, Q, { gen: 0 })
+    _resetPoiState()
+    build = new Error('connect ETIMEDOUT')
+    expect(await getPois(plan, 'k', { gen: 1 })).toBeNull()
+  })
+
+  it('writes the KV copy once per build, not on every refresh', async () => {
+    await getPois(plan, Q)
+    const first = kvStore.get(POI_COVERAGE_KEY)
+    kvStore.clear()
+    vi.setSystemTime(Date.now() + 5 * 60 * 1000 + 1)
+    await getPois(plan, 'k2')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(kvStore.has(POI_COVERAGE_KEY)).toBe(false)
+    expect(first.runs.length).toBeGreaterThan(0)
+  })
+
+  it('cell runs round-trip', () => {
+    const cells = [5, 1, 2, 3, 9, 10, 42]
+    expect(toRuns(cells)).toEqual([[1, 3], [5, 5], [9, 10], [42, 42]])
+    expect([...fromRuns(toRuns(cells))].sort((a, b) => a - b)).toEqual([1, 2, 3, 5, 9, 10, 42])
   })
 
   it('refreshes coverage every 5 minutes and keeps the last known one on error', async () => {

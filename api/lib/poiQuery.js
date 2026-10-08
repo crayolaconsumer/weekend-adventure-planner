@@ -30,7 +30,7 @@
  *   Overpass leaves out. Every parser reads them the same (tested).
  */
 import { getPool, dedicatedConnection, runQuery } from './db.js'
-import { cacheGet } from './kvCache.js'
+import { cacheGet, cacheSet } from './kvCache.js'
 import { cellRanges, CELL_PAD_DEG, LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, SCHEMA_VERSION } from '../../shared/poiCell.mjs'
 // The build's own osmium filter: a key=value outside it isn't in the table
 import { POI_KEYS, filterPairs } from '../../scripts/poi/filter.mjs'
@@ -622,6 +622,41 @@ function isoSeconds(v) {
 }
 
 // Holds the instance's single SQL slot (see `active`) for its duration
+// A copy of the coverage in KV, for a new instance whose first DB read fails: a dead
+// connection after a Fluid pause or a slow connect (8 Oct: hundreds a day) left that instance
+// sending every UK request to Overpass. As ranges ([first, last] cell runs): 3.8 KB, not 119 KB
+export const POI_COVERAGE_KEY = 'roam:poiCoverage'
+let mirrored = null // the gen|build this instance last wrote
+
+export function toRuns(cells) {
+  const runs = []
+  for (const c of [...cells].sort((a, b) => a - b)) {
+    const last = runs[runs.length - 1]
+    if (last && c === last[1] + 1) last[1] = c
+    else runs.push([c, c])
+  }
+  return runs
+}
+
+export function fromRuns(runs) {
+  const cells = new Set()
+  for (const [lo, hi] of runs) for (let c = lo; c <= hi; c++) cells.add(c)
+  return cells
+}
+
+// Only a copy made under the generation the caller asks for: a swap or rollback since then
+// bumps the generation, so a stale copy is never served (fails closed, like a failed read)
+async function coverageFromKv(gen) {
+  try {
+    const copy = await cacheGet(POI_COVERAGE_KEY)
+    if (!copy || copy.gen !== gen || copy.schemaVersion !== POI_SCHEMA_VERSION || !Array.isArray(copy.runs)) return false
+    Object.assign(coverage, { cells: fromRuns(copy.runs), buildId: copy.buildId, osmTimestamp: copy.osmTimestamp, features: copy.features, gen })
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function loadCoverage(gen) {
   active++
   try {
@@ -645,10 +680,17 @@ async function loadCoverage(gen) {
     coverage.gen = gen
     coverage.nextAt = Date.now() + COVERAGE_TTL_MS
     coverage.retryAt = 0
+    const stamp = `${gen}|${coverage.buildId}`
+    if (coverage.cells && mirrored !== stamp) {
+      mirrored = stamp
+      cacheSet(POI_COVERAGE_KEY, { gen, buildId: coverage.buildId, osmTimestamp: coverage.osmTimestamp, features: coverage.features,
+        schemaVersion: POI_SCHEMA_VERSION, runs: toRuns(coverage.cells) }, 7 * 24 * 60 * 60).catch(() => {})
+    }
   } catch (err) {
     // Last known coverage stays (for the gen it was read under); before the
-    // tables exist this is the normal path
-    console.warn('[poi] coverage refresh failed:', err.message)
+    // tables exist this is the normal path. With none yet, the KV copy stands in
+    const fromKv = !coverage.cells && await coverageFromKv(gen)
+    console.warn('[poi] coverage refresh failed:', err.message, fromKv ? '(using the KV copy)' : '')
     coverage.retryAt = Date.now() + COVERAGE_RETRY_MS
   } finally {
     active--
@@ -905,6 +947,7 @@ export async function shadowPois(plan, key, { gen = 0 } = {}) {
 export function _resetPoiState() {
   Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null, features: false, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false })
   active = 0
+  mirrored = null
   Object.assign(genCache, { value: 0, at: 0, loading: null, loadingAt: 0 })
   Object.assign(breaker, { fails: 0, openUntil: 0, probing: false })
   Object.assign(capBreaker, { fails: 0, openUntil: 0 })

@@ -413,7 +413,7 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     const line = logs.map(l => (typeof l === 'string' && l.includes('"evt":"places"') ? JSON.parse(l) : null)).find(Boolean)
     expect(line).toMatchObject({ src: 'db', n: 2, db_scanned: 2, db_cached: false })
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(store.size).toBe(0)
+    expect([...store.keys()].filter(k => k !== 'roam:poiCoverage')).toEqual([]) // only the coverage copy (poiQuery), never the answer
   })
 
   it('a roam:poiGen bump in KV (after a swap or rollback) stops cached DB answers being served', async () => {
