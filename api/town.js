@@ -16,6 +16,7 @@
  * (keyed on the real visitor). Pages are CDN-cached for a day.
  */
 
+import { waitUntil } from '@vercel/functions'
 import overpassProxy from './places/overpass/nearby.js'
 import ticketmasterProxy from './events/ticketmaster.js'
 import { weekendEvents } from './lib/townEvents.js'
@@ -78,7 +79,11 @@ export function callOverpassProxy(query, ip, proxy = overpassProxy, timeoutMs = 
       body: { query },
       socket: {}
     }
-    Promise.resolve(proxy(req, res)).catch(err => { clearTimeout(timer); reject(err) })
+    // Past our deadline the lookup carries on: keep the instance alive until it ends, so its answer
+    // reaches the cache (a frozen instance resumed it minutes later and failed: /place logged 21 min)
+    const run = Promise.resolve(proxy(req, res))
+    waitUntil(run.catch(() => {}))
+    run.catch(err => { clearTimeout(timer); reject(err) })
   })
 }
 

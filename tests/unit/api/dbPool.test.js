@@ -13,7 +13,7 @@ const fakePool = {
   pool: inner,
   getConnection: vi.fn(() => Promise.resolve(fakeConn)),
 }
-vi.mock('@vercel/functions', () => ({ attachDatabasePool: (p) => attach(p) }))
+vi.mock('@vercel/functions', () => ({ attachDatabasePool: (p) => attach(p), waitUntil: () => {} }))
 vi.mock('mysql2/promise', () => ({ default: { createPool: vi.fn(() => fakePool) } }))
 
 describe('db pool', () => {
@@ -75,6 +75,60 @@ describe('query timeout (a stuck query must free the pool connection)', () => {
     await expect(insert('INSERT')).resolves.toBe(7)
     await expect(update('UPDATE')).resolves.toBe(3)
     for (const [opts] of fakeConn.query.mock.calls) expect(opts.timeout).toBeGreaterThan(0)
+  })
+})
+
+describe('pause survivors and failed connects (regression: woken instances, 8 Oct)', () => {
+  const conn = () => ({ query: vi.fn(async () => [[{ n: 1 }], []]), release: vi.fn(), destroy: vi.fn() })
+  beforeEach(() => fakePool.getConnection.mockReset())
+
+  it('a connection idle past the reaper (it outlived a Fluid pause) is replaced before the query', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const { query } = await import('../../../api/lib/db.js')
+      const old = conn(), fresh = conn()
+      fakePool.getConnection.mockResolvedValueOnce(old).mockResolvedValueOnce(old).mockResolvedValueOnce(fresh)
+      await query('SELECT 1') // old goes back to the pool
+      vi.setSystemTime(Date.now() + 60_000) // the instance slept
+      await query('SELECT 2')
+      expect(old.destroy).toHaveBeenCalledTimes(1)
+      expect(old.query).toHaveBeenCalledTimes(1)
+      expect(fresh.query).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a recently used connection is reused as is', async () => {
+    const { query } = await import('../../../api/lib/db.js')
+    const c = conn()
+    fakePool.getConnection.mockResolvedValue(c)
+    await query('SELECT 1')
+    await query('SELECT 2')
+    expect(c.destroy).not.toHaveBeenCalled()
+    expect(c.query).toHaveBeenCalledTimes(2)
+  })
+
+  it('a connect that times out gets one more try (nothing ran, so writes are safe too)', async () => {
+    const { insert } = await import('../../../api/lib/db.js')
+    const c = conn()
+    c.query.mockResolvedValue([{ insertId: 9 }])
+    fakePool.getConnection.mockRejectedValueOnce(Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' })).mockResolvedValueOnce(c)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(insert('INSERT INTO t VALUES (1)')).resolves.toBe(9)
+    expect(c.query).toHaveBeenCalledTimes(1)
+  })
+
+  it('other connect errors are not retried, and a second connect failure is thrown', async () => {
+    const { query } = await import('../../../api/lib/db.js')
+    fakePool.getConnection.mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'ER_ACCESS_DENIED_ERROR' }))
+    await expect(query('SELECT 1')).rejects.toMatchObject({ code: 'ER_ACCESS_DENIED_ERROR' })
+    expect(fakePool.getConnection).toHaveBeenCalledTimes(1)
+    const timedOut = () => Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' })
+    fakePool.getConnection.mockRejectedValueOnce(timedOut()).mockRejectedValueOnce(timedOut())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await expect(query('SELECT 1')).rejects.toMatchObject({ code: 'ETIMEDOUT' })
+    expect(fakePool.getConnection).toHaveBeenCalledTimes(3)
   })
 })
 

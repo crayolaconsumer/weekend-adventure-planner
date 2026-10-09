@@ -29,7 +29,7 @@
  *   whatever the `out` mode, so `out tags bb` answers include coordinates
  *   Overpass leaves out. Every parser reads them the same (tested).
  */
-import { getPool, dedicatedConnection, runQuery } from './db.js'
+import { dedicatedConnection, runQuery, getFreshConnection, releaseConnection } from './db.js'
 import { cacheGet, cacheSet } from './kvCache.js'
 import { cellRanges, CELL_PAD_DEG, LARGE_CELL, OSM_TYPE_CODE, OSM_TYPE_NAME, SCHEMA_VERSION } from '../../shared/poiCell.mjs'
 // The build's own osmium filter: a key=value outside it isn't in the table
@@ -489,7 +489,7 @@ const RESTORE_SESSION = 'SET SESSION wait_timeout = @@GLOBAL.wait_timeout, lock_
  */
 async function queryCapped(plan, osmTimestamp, deadlineAt, buildId, dedicated = null) {
   // A dedicated (shadow) connection is the caller's, closed after this run: no settings to restore
-  const conn = dedicated ?? await getPool().getConnection()
+  const conn = dedicated ?? await getFreshConnection()
   let clean = false
   const run = async ({ sql, params }) => {
     // Like the first statement: none sent that would outlive the caller's wait
@@ -506,7 +506,7 @@ async function queryCapped(plan, osmTimestamp, deadlineAt, buildId, dedicated = 
     return result
   } finally {
     if (!dedicated) {
-      if (clean) conn.release()
+      if (clean) releaseConnection(conn)
       else conn.destroy()
     }
   }

@@ -69,7 +69,7 @@ const dedicatedConnection = vi.fn(async () => {
 // runQuery (db.js) routes a pool query as (sql, params, timeout); the mock
 // adapts it to the pool.query(options, params) shape the rest of the test uses
 const runQuery = vi.fn((sql, params, timeout) => poolQuery({ sql, timeout }, params))
-vi.mock('../../../api/lib/db.js', () => ({ getPool: () => ({ query: poolQuery, getConnection }), dedicatedConnection, runQuery }))
+vi.mock('../../../api/lib/db.js', () => ({ getPool: () => ({ query: poolQuery, getConnection }), dedicatedConnection, runQuery, getFreshConnection: () => getConnection(), releaseConnection: c => c.release() }))
 
 const { poiFeatures, rankCap, FEATURES_VERSION } = await import('../../../shared/poiRank.mjs')
 const { SNAP_GRID_DEGREES } = await import('../../../api/lib/bboxSnap.js')

@@ -46,6 +46,8 @@ const shadowQuery = vi.fn(answerSql)
 const shadowConns = { opened: 0, ended: 0 }
 vi.mock('../../../api/lib/db.js', () => ({
   getPool: () => ({ query: poolQuery, getConnection: async () => ({ query: poolQuery, release() {}, destroy() {} }) }),
+  getFreshConnection: async () => ({ query: poolQuery, release() {}, destroy() {} }),
+  releaseConnection: c => c.release(),
   dedicatedConnection: async () => { shadowConns.opened++; return { query: shadowQuery, end: async () => { shadowConns.ended++ }, destroy() {} } },
   // api/lib/db.js runQuery: the pool path poiQuery uses (7be9cc1), same fake pool
   runQuery: (sql, values = [], timeout) => poolQuery({ sql, values, timeout }, values),

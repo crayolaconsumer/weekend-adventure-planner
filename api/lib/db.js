@@ -89,8 +89,7 @@ const QUERY_TIMEOUT_MS = Math.max(1000, parseInt(process.env.DB_QUERY_TIMEOUT_MS
 // timeout: a destroyed connection is removed from the pool, so the next
 // request gets a fresh one. On success and on ordinary errors, release it.
 export async function runQuery(sql, params = [], timeout = QUERY_TIMEOUT_MS) {
-  const pool = getPool()
-  const conn = await pool.getConnection()
+  const conn = await getFreshConnection()
   let timedOut = false
   try {
     const [result, fields] = await conn.query({ sql, values: params, timeout })
@@ -100,8 +99,43 @@ export async function runQuery(sql, params = [], timeout = QUERY_TIMEOUT_MS) {
     throw err
   } finally {
     if (timedOut) conn.destroy()
-    else conn.release()
+    else releaseConnection(conn)
   }
+}
+
+// The idle reaper (idleTimeout above) closes a free connection within ~1.5 s, so one idle far
+// longer outlived a Fluid pause and its socket is usually dead: hundreds a day of "Query
+// inactivity timeout" / "connection is in closed state" on a woken instance's first query
+// (8 Oct). Replaced before use, at no cost to a live one
+const STALE_IDLE_MS = 5000
+const lastUsed = new WeakMap() // connection -> when it went back to the pool
+// Connecting failed, so nothing ran: one more try is safe for any statement, writes included
+const CONNECT_ERRORS = new Set(['ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'PROTOCOL_CONNECTION_LOST'])
+const connKey = conn => conn.connection ?? conn
+
+/** A pool connection that isn't a pause survivor; give it back with releaseConnection. */
+export async function getFreshConnection() {
+  const pool = getPool()
+  let conn
+  try {
+    conn = await pool.getConnection()
+  } catch (err) {
+    if (!CONNECT_ERRORS.has(err?.code)) throw err
+    console.warn('[db] connect failed, retrying once:', err.code)
+    conn = await pool.getConnection()
+  }
+  const last = lastUsed.get(connKey(conn))
+  if (last !== undefined && Date.now() - last > STALE_IDLE_MS) {
+    lastUsed.delete(connKey(conn))
+    conn.destroy()
+    conn = await pool.getConnection()
+  }
+  return conn
+}
+
+export function releaseConnection(conn) {
+  lastUsed.set(connKey(conn), Date.now())
+  conn.release()
 }
 
 /**
