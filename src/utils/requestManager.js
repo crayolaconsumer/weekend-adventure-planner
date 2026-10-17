@@ -12,7 +12,8 @@ import { getCache, setCache } from './geoCache'
 
 // Rate limits per data source (requests per minute)
 const SOURCE_LIMITS = {
-  overpass: { maxPerMinute: 10, minInterval: 6000 },      // 10/min, 6s between
+  // overpass: none. Loads go to our proxy (the POI DB) first, so a 6 s gap only delayed
+  // every filter change and Try again (17 Oct); tiling spaces its outer tiles itself
   wikipedia: { maxPerMinute: 30, minInterval: 2000 },     // 30/min, 2s between
   nominatim: { maxPerMinute: 1, minInterval: 60000 },     // 1/min (strict policy)
   weather: { maxPerMinute: 60, minInterval: 1000 }        // 60/min

@@ -66,6 +66,8 @@ const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
 // holder delete the next one's.
 const FETCH_LOCK_SECONDS = 60
 const WAIT_FOR_PEER_MS = 6000 // under the app's 8 s proxy timeout
+// Past POI_CAP_DEADLINE_MS, for a first DB try still ending. Retry worst case 2.5 + 1 + 2.5 s, under the app's 8 s proxy timeout
+const POI_SETTLE_GRACE_MS = 1000
 const PEER_POLL_MS = 500
 const hasPlaces = d => Boolean(d) && Array.isArray(d.elements) && d.elements.length > 0
 
@@ -111,8 +113,12 @@ function releaseFetch(lockKey, after = Promise.resolve()) {
 //    for every UK query were misread as a "degraded" mirror.
 //  - REMOVED overpass.private.coffee (timed out >300s in testing) and
 //    earlier maps.mail.ru (suspended 2026-03-16, 403).
+//  - 2026-10-17: overpass.openstreetmap.fr went white-list only (403) and
+//    overpass-api.de answered "at capacity" 502s; maps.mail.ru is back
+//    (Luton 2 km deck: 200, 357 elements, ~11 s, sends ACAO) so it's re-added.
 // 2 × PER_ENDPOINT_TIMEOUT_MS (28s) = 56s, inside the 60s maxDuration.
 const OVERPASS_ENDPOINTS = [
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass-api.de/api/interpreter'
 ]
 
@@ -478,6 +484,8 @@ export default async function handler(req, res) {
     // A cold instance can spend the first try connecting and loading coverage (7 Oct: London's
     // first request on a new deploy ran out of time, then Overpass timed out on it after 27 s).
     // The connection is warm now: one more try before a fallback that can't answer dense tiles
+    // A cold coverage read times out (2.5 s) just after that wait ends (17 Oct: Luton 503): let it finish
+    if (!db && capWait && !settled && !hasPlaces(prefetched)) await within(pending, POI_SETTLE_GRACE_MS)
     if (!db && capWait && settled) {
       if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
       if (!hasPlaces(prefetched)) {
@@ -600,7 +608,8 @@ export default async function handler(req, res) {
   for (const endpoint of attempts) {
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), PER_ENDPOINT_TIMEOUT_MS)
+      // Never past the 60 s maxDuration: the DB wait above can spend up to ~6 s of it
+      const timeoutId = setTimeout(() => controller.abort(), Math.min(PER_ENDPOINT_TIMEOUT_MS, Math.max(1000, 57000 - (Date.now() - t0))))
 
       const response = await fetch(endpoint, {
         method: 'POST',

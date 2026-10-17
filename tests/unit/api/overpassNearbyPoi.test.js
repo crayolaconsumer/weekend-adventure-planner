@@ -97,6 +97,7 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
   let logs
   beforeEach(() => {
     shadowQuery.mockImplementation(answerSql)
+    poolQuery.mockImplementation(answerSql)
     store.clear()
     kvReads.length = 0
     background.length = 0
@@ -295,6 +296,26 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
     const out = await call(LONDON)
     expect(out.headers['x-places-source']).toBe('db')
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('cap on, cold instance: a coverage read that times out at the 2.5 s deadline still gets the second try (regression: Luton 503, 17 Oct)', async () => {
+    pct = 100
+    capPct = 100
+    let first = true
+    poolQuery.mockImplementation(async (opts, params) => {
+      // runQuery's 2.5 s coverage timeout fires just after nearby.js stops waiting
+      if (first && opts.sql.includes('poi_builds')) { first = false; await new Promise(r => setTimeout(r, 2600)); throw new Error('Query inactivity timeout') }
+      return answerSql(opts, params)
+    })
+    // prod: the coverage read failed, so the KV copy said "covered"
+    const { POI_COVERAGE_KEY, toRuns } = await import('../../../api/lib/poiQuery.js')
+    store.set(POI_COVERAGE_KEY, { gen: 0, buildId: build.build_id, osmTimestamp: build.osm_timestamp, features: true, schemaVersion: POI_SCHEMA_VERSION, runs: toRuns(new Set(GB)) })
+    answer = async () => dense()
+    const t = Date.now()
+    const out = await call(LONDON)
+    expect(out.headers['x-places-source']).toBe('db')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(Date.now() - t).toBeLessThan(7000) // inside the app's 8 s proxy timeout
   })
 
   it('cap on, DB keeps failing: two tries, then Overpass', async () => {

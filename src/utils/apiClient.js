@@ -45,10 +45,8 @@ const WIKIPEDIA_ACTION_API = 'https://en.wikipedia.org/w/api.php'
 
 // Overpass proxy endpoint for edge caching
 const OVERPASS_PROXY = '/api/places/overpass/nearby'
-
-// Track proxy health to avoid repeated failures
-let proxyLastFailed = 0
-const PROXY_RETRY_DELAY = 60000 // 1 minute before retrying proxy after failure
+// A mirror at capacity can hold a request open for minutes
+const DIRECT_TIMEOUT_MS = 10000
 
 /**
  * Fetch places from Overpass API via proxy (for edge caching) with fallback to direct
@@ -76,60 +74,57 @@ async function fetchFromOverpass(query, signal = null, meta = {}, geo = null) {
   // staring at a spinner for a minute when it doesn't.
   const PROXY_CLIENT_TIMEOUT_MS = 8000
 
-  const now = Date.now()
-  if (now - proxyLastFailed > PROXY_RETRY_DELAY) {
-    const proxyAbort = new AbortController()
-    const proxyTimeoutId = setTimeout(() => proxyAbort.abort(), PROXY_CLIENT_TIMEOUT_MS)
-    // Chain external cancellation so we still abort if the caller cancels
-    const onExternalAbort = () => proxyAbort.abort()
-    if (signal) signal.addEventListener('abort', onExternalAbort, { once: true })
+  // Always the proxy first, even right after it failed: it answers UK tiles from the POI DB, and a
+  // retry lands on a warm instance (17 Oct: a 60 s skip sent every Try again to a dead Overpass)
+  const proxyAbort = new AbortController()
+  const proxyTimeoutId = setTimeout(() => proxyAbort.abort(), PROXY_CLIENT_TIMEOUT_MS)
+  // Chain external cancellation so we still abort if the caller cancels
+  const onExternalAbort = () => proxyAbort.abort()
+  if (signal) signal.addEventListener('abort', onExternalAbort, { once: true })
 
-    try {
-      const startTime = Date.now()
-      const response = await fetch(OVERPASS_PROXY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // geo (dogs + lat/lng/radius/category) goes only to the proxy: the
-        // server merges GeoApify dog places there, and the API key never
-        // reaches the browser. The direct-fallback path stays plain Overpass.
-        body: JSON.stringify(geo ? { query, ...geo } : { query }),
-        signal: proxyAbort.signal
+  try {
+    const startTime = Date.now()
+    const response = await fetch(OVERPASS_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // geo (dogs + lat/lng/radius/category) goes only to the proxy: the
+      // server merges GeoApify dog places there, and the API key never
+      // reaches the browser. The direct-fallback path stays plain Overpass.
+      body: JSON.stringify(geo ? { query, ...geo } : { query }),
+      signal: proxyAbort.signal
+    })
+
+    clearTimeout(proxyTimeoutId)
+    if (signal) signal.removeEventListener('abort', onExternalAbort)
+
+    if (response.ok) {
+      const data = await response.json()
+      const duration = Date.now() - startTime
+
+      recordApiCall({
+        source: 'overpass_proxy',
+        endpoint: OVERPASS_PROXY,
+        duration,
+        status: 'success',
+        resultCount: data.elements?.length || 0,
+        querySize: meta.querySize,
+        clauseCount: meta.clauseCount
       })
 
-      clearTimeout(proxyTimeoutId)
-      if (signal) signal.removeEventListener('abort', onExternalAbort)
-
-      if (response.ok) {
-        const data = await response.json()
-        const duration = Date.now() - startTime
-
-        recordApiCall({
-          source: 'overpass_proxy',
-          endpoint: OVERPASS_PROXY,
-          duration,
-          status: 'success',
-          resultCount: data.elements?.length || 0,
-          querySize: meta.querySize,
-          clauseCount: meta.clauseCount
-        })
-
-        return data
-      }
-
-      // Proxy returned error — mark failed, fall through to direct
-      proxyLastFailed = now
-    } catch (error) {
-      clearTimeout(proxyTimeoutId)
-      if (signal) signal.removeEventListener('abort', onExternalAbort)
-
-      // Caller cancelled — re-throw
-      if (signal?.aborted) throw error
-
-      // Otherwise this is either our 8s timeout firing OR a network
-      // error — both are "proxy not viable, go direct."
-      proxyLastFailed = now
-      console.warn('[Overpass] Proxy slow/failed, going direct:', error.message)
+      return data
     }
+
+    // Proxy returned error — fall through to direct
+  } catch (error) {
+    clearTimeout(proxyTimeoutId)
+    if (signal) signal.removeEventListener('abort', onExternalAbort)
+
+    // Caller cancelled — re-throw
+    if (signal?.aborted) throw error
+
+    // Otherwise this is either our 8s timeout firing OR a network
+    // error — both are "proxy not viable, go direct."
+    console.warn('[Overpass] Proxy slow/failed, going direct:', error.message)
   }
 
   return fetchFromOverpassDirect(query, signal, meta)
@@ -159,14 +154,23 @@ async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
       // so OSM sees the user's browser UA (acceptable per their TOS).
       // The proxy at /api/places/overpass/nearby sets a proper UA when
       // the request is server-side; this path is a degraded fallback.
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-        signal
-      })
-
-      const data = response.ok ? await response.json() : null
+      const attempt = new AbortController()
+      const onAbort = () => attempt.abort()
+      signal?.addEventListener('abort', onAbort, { once: true })
+      const timer = setTimeout(onAbort, DIRECT_TIMEOUT_MS)
+      let response, data
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: attempt.signal
+        })
+        data = response.ok ? await response.json() : null
+      } finally {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
+      }
       // A 200 with zero elements is a failure (e.g. overpass-api.de's
       // "Query timed out" remark) — try the next mirror, same as the proxy.
       if (data && Array.isArray(data.elements) && data.elements.length > 0) {
@@ -204,8 +208,8 @@ async function fetchFromOverpassDirect(query, signal = null, meta = {}) {
     } catch (error) {
       const duration = Date.now() - startTime
 
-      // Handle cancellation
-      if (error.name === 'AbortError') {
+      // Handle cancellation (our own timeout also aborts: that one tries the next mirror)
+      if (signal?.aborted) {
         recordApiCall({
           source: 'overpass',
           endpoint,

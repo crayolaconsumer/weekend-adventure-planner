@@ -64,18 +64,18 @@ describe('overpass nearby: grid-snapped cache key', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('retries at most once: an Overpass that keeps 504ing costs two calls, then 503', async () => {
+  it('retries at most once: mirrors that keep 504ing cost one call each plus one retry, then 503', async () => {
     fetchMock.mockImplementation(async () => ({ ok: false, status: 504, text: async () => '' }))
     const out = await call(buildDiscoverOverpassQuery(40.7128, -74.006, 3000, null).query)
     expect(out.status).toBe(503)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('a 429 is not retried: Overpass asked us to slow down', async () => {
     fetchMock.mockImplementation(async () => ({ ok: false, status: 429, text: async () => '' }))
     const out = await call(buildDiscoverOverpassQuery(40.7128, -74.006, 3000, null).query)
     expect(out.status).toBe(503)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2) // once per mirror, never again
   })
 
   it('two users a few metres apart share one cache entry (regression: raw coords never hit)', async () => {
