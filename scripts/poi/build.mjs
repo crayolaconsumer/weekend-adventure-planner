@@ -367,6 +367,7 @@ export function buildId(region, osmTimestamp, featuresVersion) {
 
 const MAX_DRIFT = 0.1 // per-key change vs the previous build
 const MIN_KEY_COUNT = 50 // keys smaller than this before are too noisy to judge
+const MIN_ABS_DRIFT = 50 // ±10% of a small key is a few elements; one mapping session crossed it (wildlife_hide 52 -> 76)
 
 /**
  * Local gates (plan §3 step 5). Returns human-readable failures; empty = pass.
@@ -386,7 +387,7 @@ export function gateFailures(m, prev, { minRows = 150000, minSentinelRatio = 0.9
   for (const [k, before] of Object.entries(prev?.per_key_counts || {})) {
     if (before < MIN_KEY_COUNT || !queried.has(k)) continue
     const now = m.per_key_counts[k] || 0
-    if (Math.abs(now / before - 1) > MAX_DRIFT) fails.push(`${k} ${before} -> ${now} (over ±${MAX_DRIFT * 100}%)`)
+    if (Math.abs(now / before - 1) > MAX_DRIFT && Math.abs(now - before) >= MIN_ABS_DRIFT) fails.push(`${k} ${before} -> ${now} (over ±${MAX_DRIFT * 100}%)`)
   }
   return fails
 }

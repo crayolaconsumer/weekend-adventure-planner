@@ -301,8 +301,15 @@ describe('gates and ids', () => {
   })
 
   it('drift applies to every key with 50+ rows before, not below', () => {
-    expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 60 } })).toEqual(['historic=castle 60 -> 100 (over ±10%)'])
+    expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 60 } })).toEqual([])
+    expect(gateFailures({ ...m, per_key_counts: { ...m.per_key_counts, 'historic=castle': 0 } }, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 50 } })).toEqual(['historic=castle 50 -> 0 (over ±10%)'])
     expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=castle': 49 } })).toEqual([])
+  })
+
+  it('small keys need a 50-element swing, not just 10% (wildlife_hide 52 -> 76 failed the 10-19 nightly)', () => {
+    const now = { ...m, per_key_counts: { ...m.per_key_counts, 'leisure=wildlife_hide': 76 } }
+    expect(gateFailures(now, { per_key_counts: { 'amenity=cafe': 10000, 'leisure=wildlife_hide': 52 } })).toEqual([])
+    expect(gateFailures(now, { per_key_counts: { 'amenity=cafe': 10000, 'leisure=wildlife_hide': 126 } })).toEqual(['leisure=wildlife_hide 126 -> 76 (over ±10%)'])
   })
 
   it('a key the app stopped querying is not drift (tourism=information was dropped on purpose)', () => {
