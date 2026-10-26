@@ -5,11 +5,14 @@
 // Britain these reach public Overpass through our proxy; never turn this into a load test).
 // Usage: node scripts/smoke-worldwide.mjs [BASE]   (default https://www.go-roam.uk)
 //        ONLY=town node scripts/smoke-worldwide.mjs   (just one check: places | town | weather | events)
+//        SMOKE_COOKIE='_vercel_jwt=…' node scripts/smoke-worldwide.mjs <preview url>   (protected preview)
 import { buildDiscoverOverpassQuery } from '../shared/overpassQuery.js'
 
 const BASE = process.argv[2] || 'https://www.go-roam.uk'
 const PAUSE_MS = 8000
 const ONLY = process.env.ONLY || ''
+// SMOKE_COOKIE='_vercel_jwt=...' reaches a protected preview (cookie from its _vercel_share link)
+const H = process.env.SMOKE_COOKIE ? { cookie: process.env.SMOKE_COOKIE } : {}
 const CITIES = [
   { name: 'Lisbon', slug: 'lisbon', country: 'PT', lat: 38.7105, lng: -9.1366 },
   { name: 'New York', slug: 'new-york', country: 'US', lat: 40.7580, lng: -73.9855 },
@@ -23,25 +26,25 @@ const timed = async (fn) => { const t = Date.now(); try { return { ...(await fn(
 
 async function places(c) {
   const query = buildDiscoverOverpassQuery(c.lat, c.lng, 5000, null).query
-  const r = await fetch(`${BASE}/api/places/overpass/nearby`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query }) })
+  const r = await fetch(`${BASE}/api/places/overpass/nearby`, { method: 'POST', headers: { 'content-type': 'application/json', ...H }, body: JSON.stringify({ query }) })
   const j = r.ok ? await r.json() : null
   return { status: r.status, n: j?.elements?.length ?? 0 }
 }
 // The guide itself, not just a 200: count the places the page lists (a 200 can be an empty guide)
 const MIN_TOWN_PLACES = 8
 async function town(c) {
-  const r = await fetch(`${BASE}/town/${c.slug}`)
+  const r = await fetch(`${BASE}/town/${c.slug}`, { headers: H })
   const html = r.ok ? await r.text() : ''
   const places = [...html.matchAll(/<ul class="places">([\s\S]*?)<\/ul>/g)].reduce((n, m) => n + (m[1].match(/<li\b/g) || []).length, 0)
   return { status: r.status, places }
 }
 async function weather(c) {
-  const r = await fetch(`${BASE}/api/weather?lat=${c.lat}&lng=${c.lng}`)
+  const r = await fetch(`${BASE}/api/weather?lat=${c.lat}&lng=${c.lng}`, { headers: H })
   return { status: r.status, ok: r.ok }
 }
 async function events(c, withCountry) {
   const q = new URLSearchParams({ lat: c.lat.toFixed(2), lng: c.lng.toFixed(2), radius: '30', page: '0', ...(withCountry ? { country: c.country } : {}) })
-  const r = await fetch(`${BASE}/api/events/ticketmaster?${q}`, { redirect: 'follow' })
+  const r = await fetch(`${BASE}/api/events/ticketmaster?${q}`, { redirect: 'follow', headers: H })
   const j = r.ok ? await r.json().catch(() => null) : null
   return { status: r.status, n: j?.events?.length ?? j?._embedded?.events?.length ?? 0 }
 }
