@@ -725,3 +725,57 @@ describe('town page thumbnails and border places', () => {
     expect(groupPlaces(els, basel).groups[0].places.map(p => p.name)).toEqual(['Schützenmattpark', 'Kannenfeldpark'])
   })
 })
+
+// Regression (26 Oct 2026): /town/durham opened "County Durham" (the top settlement hit),
+// not the city; the same shape as Luton -> Borough of Luton
+describe('pickSettlement', () => {
+  const hit = (name, addresstype, cc) => ({ name, addresstype, lat: '1', lon: '1', address: { country_code: cc } })
+  it("prefers the hit named exactly what was asked, in the top hit's country", async () => {
+    const { pickSettlement } = await import('../../../api/lib/towns.js')
+    const durham = [hit('County Durham', 'county', 'gb'), hit('Durham', 'city', 'us'), hit('Durham', 'city', 'gb'), hit('Durham County', 'county', 'us')]
+    expect(pickSettlement('durham', durham)).toBe(durham[2])
+    const luton = [hit('Borough of Luton', 'county', 'gb'), hit('Luton', 'town', 'gb')]
+    expect(pickSettlement('luton', luton)).toBe(luton[1])
+    const york = [hit('York', 'county', 'gb'), hit('York', 'city', 'gb')]
+    expect(pickSettlement('york', york)).toBe(york[0]) // the top hit is already named York: kept
+  })
+  it('keeps a top hit that is already a settlement (newcastle stays Newcastle upon Tyne)', async () => {
+    const { pickSettlement } = await import('../../../api/lib/towns.js')
+    const newcastle = [hit('Newcastle upon Tyne', 'city', 'gb'), hit('Newcastle', 'town', 'gb'), hit('Newcastle', 'village', 'gb')]
+    expect(pickSettlement('newcastle', newcastle)).toBe(newcastle[0])
+    const stoke = [hit('Stoke-on-Trent', 'city', 'gb'), hit('Stoke', 'village', 'gb')]
+    expect(pickSettlement('stoke', stoke)).toBe(stoke[0])
+    // an area top hit with no exact-name settlement in its country is kept too
+    const shire = [hit('Rutland', 'county', 'gb'), hit('Rutland', 'city', 'us')]
+    expect(pickSettlement('rutland', shire)).toBe(shire[0])
+  })
+  it('falls back to the top hit when nothing matches the name (東京 -> Tokyo), and handles accents', async () => {
+    const { pickSettlement } = await import('../../../api/lib/towns.js')
+    const tokyo = [hit('Tokyo', 'city', 'jp')]
+    expect(pickSettlement('東京', tokyo)).toBe(tokyo[0])
+    // a province on top (not a town at all) gives way to the city, accents compared via slugify
+    const malaga = [hit('Province of Málaga', 'province', 'es'), hit('Málaga', 'city', 'es')]
+    expect(pickSettlement('malaga', malaga)).toBe(malaga[1])
+    // "Brighton and Hove" is exactly what "brighton & hove" asks for: kept
+    const bh = [hit('Brighton and Hove', 'county', 'gb'), hit('Brighton', 'town', 'gb')]
+    expect(pickSettlement('brighton & hove', bh)).toBe(bh[0])
+    expect(pickSettlement('x', [])).toBe(null)
+  })
+  // Critic round 2: non-Latin text slugs to '' and "matched" any non-Latin name
+  it('non-Latin text keeps the top hit; a same-named province gives way to its city', async () => {
+    const { pickSettlement } = await import('../../../api/lib/towns.js')
+    const tokyo = [hit('Tokyo', 'province', 'jp'), hit('東京', 'village', 'jp')]
+    expect(pickSettlement('東京', tokyo)).toBe(tokyo[0])
+    const utrecht = [hit('Utrecht', 'state', 'nl'), hit('Utrecht', 'city', 'nl')]
+    expect(pickSettlement('utrecht', utrecht)).toBe(utrecht[1])
+  })
+  it('resolveTown asks for 5 results and resolves durham to the city', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse([
+      { name: 'County Durham', addresstype: 'county', lat: '54.66', lon: '-1.75', address: { country_code: 'gb', country: 'United Kingdom', county: 'County Durham' } },
+      { name: 'Durham', addresstype: 'city', lat: '54.7768', lon: '-1.5757', address: { country_code: 'gb', country: 'United Kingdom', county: 'County Durham' } },
+    ]))
+    const town = await resolveTown('durham', { fetchImpl, gate, raw: true })
+    expect(fetchImpl.mock.calls[0][0]).toContain('limit=5')
+    expect(town).toMatchObject({ slug: 'durham', name: 'Durham', lat: 54.7768, lng: -1.5757 })
+  })
+})

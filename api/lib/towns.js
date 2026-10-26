@@ -156,12 +156,31 @@ function withFeatured(town) {
   return featured ? { ...town, name: featured.name, blurb: featured.blurb } : town
 }
 
+// The top "settlement" hit can be the district named after the town: "durham" gives
+// County Durham, "luton" the Borough of Luton. Only then (top hit is a county-type
+// area not named exactly what was asked) prefer the hit that is, in the top hit's
+// country (Durham, England, not Durham, North Carolina). A top hit that is already a
+// settlement, or is named exactly right (York), is kept: "newcastle" stays Newcastle
+// upon Tyne. Same single request, 5 results instead of 1.
+const AREA_TYPES = new Set(['county', 'municipality', 'district', 'borough'])
+export function pickSettlement(text, results) {
+  if (!Array.isArray(results) || !results[0]) return null
+  const top = results[0]
+  const want = slugify(text)
+  const isArea = r => AREA_TYPES.has(r.addresstype) || NOT_A_TOWN.has(r.addresstype)
+  // Non-Latin text (東京) slugs to '': nothing to compare, keep the top hit. A top hit named exactly
+  // right is kept unless it can never be a town (a province: "utrecht" would 404, the city wouldn't)
+  if (!want || !isArea(top) || (slugify(top.name || '') === want && !NOT_A_TOWN.has(top.addresstype))) return top
+  const country = top.address?.country_code
+  return results.find(r => slugify(r.name || '') === want && !isArea(r) && r.address?.country_code === country) || top
+}
+
 async function searchSettlement(text, fetchImpl, gate) {
   const results = await nominatim(
-    `/search?q=${encodeURIComponent(text)}&format=jsonv2&limit=1&addressdetails=1&featureType=settlement&accept-language=en`,
+    `/search?q=${encodeURIComponent(text)}&format=jsonv2&limit=5&addressdetails=1&featureType=settlement&accept-language=en`,
     fetchImpl, gate
   )
-  return Array.isArray(results) && results[0] ? results[0] : null
+  return pickSettlement(text, results)
 }
 
 /** Resolve a slug to a town, or null if nothing matches. Errors throw (so they aren't cached). */
@@ -170,7 +189,7 @@ export async function resolveTown(slug, { fetchImpl = fetch, gate, raw = false }
   // raw: geocoder only, no shipped table or featured text (the generator verifies with it)
   const known = !raw && (UK_TOWN_BY_SLUG.get(slug) || WORLD_TOWN_BY_SLUG.get(slug))
   if (known) return withFeatured({ ...known, blurb: null })
-  const town = await cached(`town:geo:v2:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
+  const town = await cached(`town:geo:v3:${slug}`, v => v ? GEO_TTL : MISS_TTL, async () => {
     const r = await searchSettlement(slug.replace(/-/g, ' '), fetchImpl, gate)
     return r ? townFromResult(slug, r) : null
   })
@@ -198,7 +217,7 @@ export async function slugForQuery(text, { fetchImpl = fetch, gate } = {}) {
  */
 export async function resolveNear(lat, lng, { fetchImpl = fetch, gate } = {}) {
   // ~1km grid so neighbours share one cache entry and we never store exact positions
-  const key = `town:near:v2:${lat.toFixed(2)},${lng.toFixed(2)}`
+  const key = `town:near:v3:${lat.toFixed(2)},${lng.toFixed(2)}`
   return withFeatured(await cached(key, v => v ? GEO_TTL : MISS_TTL, async () => {
     const r = await nominatim(
       `/reverse?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&format=jsonv2&zoom=14&addressdetails=1&accept-language=en`,
