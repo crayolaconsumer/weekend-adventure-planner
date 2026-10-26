@@ -45,11 +45,11 @@
   },
   {
     "shot": "town-canterbury",
-    "head": "A town's highlights on one page",
+    "head": "Town highlights on one page",
     "accent": "on one page",
     "alt": "Town guide for Canterbury listing the cathedral, Eastbridge Hospital, the Beaney, St Augustine's Abbey and museums",
     "where": "/town/canterbury town guide, All filter",
-    "claim": "\"A town's highlights on one page\": the screen is one scrolling page for Canterbury listing its top-ranked places (sights, museums, theatres; the in-app guide shows up to 24, src/pages/TownPage.jsx PER_TOWN = 24) with category filters. No claim about every place or every town."
+    "claim": "\"Town highlights on one page\": the screen is one scrolling page for Canterbury listing its top-ranked places (sights, museums, theatres; the in-app guide shows up to 24, src/pages/TownPage.jsx PER_TOWN = 24) with category filters. No claim about every place or every town."
   },
   {
     "shot": "saved-search",
