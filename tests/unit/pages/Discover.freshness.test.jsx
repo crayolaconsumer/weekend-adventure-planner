@@ -150,6 +150,8 @@ describe('Discover: swiped cards are never dealt again after a reload', () => {
     const noped = await swipe('nope')
     const swiped = [liked, went, blocked, noped]
     expect(new Set(swiped).size).toBe(4)
+    // funnel step "first swipe": every regular swipe is tracked with its action
+    expect(tracked.filter(t => t.event === 'card-swiped').map(t => t.props.action)).toEqual(['like', 'go', 'like', 'nope'])
 
     // Reload: the store is re-read from storage and the deck rebuilt
     view.unmount()

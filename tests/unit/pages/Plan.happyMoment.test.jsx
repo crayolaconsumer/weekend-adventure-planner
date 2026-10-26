@@ -14,6 +14,8 @@ vi.mock('../../../src/components/plan/MiniMapRibbon', () => ({ default: () => nu
 vi.mock('../../../src/contexts/DistanceContext', () => ({ useFormatDistance: () => (km) => `${km} km` }))
 vi.mock('../../../src/components/PlaceDetail', () => ({ default: () => null }))
 vi.mock('../../../src/utils/reviewPrompt', () => ({ recordHappyMoment: (...a) => recordHappyMoment(...a) }))
+const track = vi.fn()
+vi.mock('../../../src/utils/analytics', () => ({ track: (...a) => track(...a) }))
 
 const { default: Plan } = await import('../../../src/pages/Plan')
 
@@ -123,6 +125,9 @@ describe('Plan: a newly generated plan counts again', () => {
     await waitFor(() => expect(recordHappyMoment).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: /generate itinerary/i }))
     await screen.findAllByText(/Spot \d/, {}, { timeout: 4000 })
+    // funnel step: the generated plan is tracked once, with its shape
+    expect(track).toHaveBeenCalledWith('plan-generated', expect.objectContaining({ stops: expect.any(Number), hours: expect.any(Number) }))
+    expect(track.mock.calls.filter(c => c[0] === 'plan-generated')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(recordHappyMoment).toHaveBeenCalledTimes(2))
   })

@@ -46,6 +46,7 @@ import { buildPlan, fitToDuration, estimateTravelMinutes, isOpenFor, planStart, 
 import { readDraft, writeDraft } from './Plan/draft'
 import { getAuthToken } from '../utils/authToken'
 import { recordHappyMoment } from '../utils/reviewPrompt'
+import { track } from '../utils/analytics'
 import { haversineKm } from '../../shared/geo.mjs'
 import './Plan.css'
 
@@ -217,6 +218,8 @@ export default function Plan({ location }) {
       const final = fitToDuration(planned, { start, origin: location, travel, durationMinutes })
       setItinerary(final)
       setPlanCounted(false) // a new plan: its first save is a happy moment
+      // Funnel step "plan generated"
+      track('plan-generated', { vibe: selectedVibe, hours: duration.hours, stops: final.length, mode: mode.key || null })
       return final
     }
 

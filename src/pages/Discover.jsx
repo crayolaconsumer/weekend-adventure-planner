@@ -885,6 +885,8 @@ export default function Discover({ location }) {
       // does a like until its save succeeds (then it's a like, for good).
       // A like the save limit blocked, or whose save failed, stays a skip.
       recordSeen(place.id, action === 'go' ? 'like' : 'skip')
+      // Funnel step "first swipe" (and swipe depth): every regular card, not just ready cards
+      track('card-swiped', { action, category: place.category?.key || null })
     }
     if (action === 'like') {
       // CHECK SAVE LIMIT FOR FREE USERS
