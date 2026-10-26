@@ -27,9 +27,14 @@ describe('Ticketmaster proxy country', () => {
 
   const sent = () => new URL(fetchMock.mock.calls[0][0]).searchParams
 
-  it('stays GB by default (the app\'s Events page), with the UK window unchanged', async () => {
+  it('no country by default: the app is used worldwide, lat/long + radius keep it local', async () => {
+    await call({ lat: '38.71', lng: '-9.14', from: '2026-10-02', to: '2026-10-04' })
+    expect(sent().has('countryCode')).toBe(false)
+    expect(sent().get('latlong')).toBe('38.71,-9.14')
+  })
+
+  it('a bare from/to still works (older app builds), with the UK window unchanged', async () => {
     await call({ lat: '51.5', lng: '-0.1', from: '2026-10-02', to: '2026-10-04' })
-    expect(sent().get('countryCode')).toBe('GB')
     expect(sent().get('startDateTime')).toBe('2026-10-01T23:00:00Z')
     expect(sent().get('endDateTime')).toBe('2026-10-04T23:59:59Z')
   })
@@ -47,9 +52,10 @@ describe('Ticketmaster proxy country', () => {
     expect(sent().get('endDateTime')).toBe('2026-10-04T23:59:59Z')
   })
 
-  it('ignores a malformed country', async () => {
+  it('ignores a malformed country (no filter, never an injected one)', async () => {
     await call({ lat: '51.5', lng: '-0.1', country: 'GB&apikey=x' })
-    expect(sent().get('countryCode')).toBe('GB')
+    expect(sent().has('countryCode')).toBe(false)
+    expect(sent().get('apikey')).toBe('test-key')
   })
 })
 

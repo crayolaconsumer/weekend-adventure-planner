@@ -45,10 +45,12 @@ async function fetchTicketmasterPage(lat, lng, radiusKm, page, from, to) {
     radius: radiusKm.toString(),
     page: page.toString()
   })
-  // Optional UK date range (YYYY-MM-DD) so date filters search the whole range
+  // Optional date range (YYYY-MM-DD, the user's own calendar days), sent as exact UTC
+  // instants for local midnight to 23:59:59, so "today" means today wherever they are
   if (from && to) {
-    params.set('from', from)
-    params.set('to', to)
+    const instant = d => d.toISOString().slice(0, 19) + 'Z'
+    params.set('start', instant(new Date(`${from}T00:00:00`)))
+    params.set('end', instant(new Date(`${to}T23:59:59`)))
   }
 
   const response = await fetchWithTimeout(`/api/events/ticketmaster?${params}`)

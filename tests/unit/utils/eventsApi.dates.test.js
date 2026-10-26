@@ -56,7 +56,7 @@ describe('eventsDateRange', () => {
 describe('fetchAllEvents date range', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('sends from/to to the Ticketmaster proxy', async () => {
+  it('sends the date range to the Ticketmaster proxy as the user\'s local day, in UTC instants', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ events: [] }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     await fetchAllEvents(51.5, -0.12, 25, { from: '2026-10-06', to: '2026-10-06' })
@@ -64,8 +64,9 @@ describe('fetchAllEvents date range', () => {
     expect(tm.length).toBeGreaterThan(0)
     for (const url of tm) {
       const q = new URL(url, 'http://x').searchParams
-      expect(q.get('from')).toBe('2026-10-06')
-      expect(q.get('to')).toBe('2026-10-06')
+      const instant = t => new Date(t).toISOString().slice(0, 19) + 'Z'
+      expect(q.get('start')).toBe(instant('2026-10-06T00:00:00'))
+      expect(q.get('end')).toBe(instant('2026-10-06T23:59:59'))
     }
   })
 })

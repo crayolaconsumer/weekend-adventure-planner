@@ -77,8 +77,9 @@ async function handler(req, res) {
 
   // Get and validate query parameters
   const { lat, lng, radius = '30', page = '0', from, to, start, end, country } = req.query
-  // GB unless a town page outside the UK asks for its own country (IE, US, CA, AU, NZ)
-  const countryCode = /^[a-z]{2}$/i.test(country || '') ? country.toUpperCase() : 'GB'
+  // A town page names its country; otherwise no country filter: the app is used
+  // worldwide, and lat/long + radius already keep results near the user
+  const countryCode = /^[a-z]{2}$/i.test(country || '') ? country.toUpperCase() : null
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'Missing required parameters: lat, lng' })
@@ -132,7 +133,7 @@ async function handler(req, res) {
       size: '50',
       page: pageNum.toString(),
       sort: 'date,asc',
-      countryCode
+      ...(countryCode ? { countryCode } : {})
     })
 
     // Identify ourselves honestly to Ticketmaster — the previous spoofed
