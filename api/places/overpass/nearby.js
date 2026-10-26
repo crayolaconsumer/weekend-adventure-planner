@@ -30,7 +30,7 @@ import { cacheGet, cacheSet, hashKey, isCacheEnabled, getClient } from '../../li
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
 import { fetchGeoApifyDogPlaces, mergeDogPlaces, dogCacheKey } from '../../lib/geoapify.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
-import { parseQuery, getPois, shadowPois, isCovered, isRankable, getPoiGen, peekPoiGen, POI_DEADLINE_MS, POI_CAP_DEADLINE_MS } from '../../lib/poiQuery.js'
+import { parseQuery, getPois, poiSlotBusy, shadowPois, isCovered, isRankable, getPoiGen, peekPoiGen, POI_DEADLINE_MS, POI_CAP_DEADLINE_MS } from '../../lib/poiQuery.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
@@ -471,25 +471,42 @@ export default async function handler(req, res) {
     const started = Date.now()
     const deadlineAt = started + (capWait ? POI_CAP_DEADLINE_MS : POI_DEADLINE_MS)
     let settled = false
-    const pending = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt, cap }).finally(() => { settled = true })
+    // Aborted once we stop waiting, so a query still queued for the slot gives up its place
+    const poiWait = new AbortController()
+    const pending = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt, cap, signal: poiWait.signal }).finally(() => { settled = true })
+    // Slot busy: our query will queue behind another, so read KV meanwhile. A KV hit withdraws
+    // it and is served now, not after the wait (the old decline-at-once got there in ~1 ms).
+    // Checked after the call: getPois may itself have started a coverage refresh that holds the slot
+    const kvEarly = poiSlotBusy() && isCacheEnabled() ? cacheGet(cacheKey).catch(() => null) : null
     // A capped answer holds a transaction (and the metadata lock that makes the loader's
     // RENAME wait) until its ROLLBACK: keep the instance alive until it ends even when we
     // stop waiting, or a suspended instance could hold that lock for hours
     waitUntil(pending.catch(() => {}))
-    let db = await within(pending, Math.max(0, started + POI_DEADLINE_MS - Date.now()))
+    const firstWait = Math.max(0, started + POI_DEADLINE_MS - Date.now())
+    let db = null
+    if (kvEarly) {
+      const kvHit = kvEarly.then(k => (hasPlaces(k) ? { k } : new Promise(() => {}))) // only a hit ends the race
+      const raced = await within(Promise.race([pending.then(d => ({ d })), kvHit]), firstWait)
+      if (raced?.k) prefetched = raced.k
+      else {
+        db = raced?.d ?? null
+        if (!db?.n) prefetched = await kvEarly // already read: don't read it again below
+      }
+    } else db = await within(pending, firstWait)
     if (!db && capWait && !settled) {
-      prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
+      if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
       if (!hasPlaces(prefetched)) db = await within(pending, Math.max(0, deadlineAt - Date.now()))
     }
     // A cold instance can spend the first try connecting and loading coverage (7 Oct: London's
     // first request on a new deploy ran out of time, then Overpass timed out on it after 27 s).
     // The connection is warm now: one more try before a fallback that can't answer dense tiles
     // A cold coverage read times out (2.5 s) just after that wait ends (17 Oct: Luton 503): let it finish
-    if (!db && capWait && !settled && !hasPlaces(prefetched)) await within(pending, POI_SETTLE_GRACE_MS)
+    if (!db && capWait && !settled && !hasPlaces(prefetched)) db = await within(pending, POI_SETTLE_GRACE_MS)
     if (!db && capWait && settled) {
       if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
-      if (!hasPlaces(prefetched)) {
-        const again = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt: Date.now() + POI_CAP_DEADLINE_MS, cap })
+      // Slot still busy: a second try would only queue again behind the same statement
+      if (!hasPlaces(prefetched) && !poiSlotBusy()) {
+        const again = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt: Date.now() + POI_CAP_DEADLINE_MS, cap, signal: poiWait.signal })
         waitUntil(again.catch(() => {}))
         db = await within(again, POI_CAP_DEADLINE_MS)
       }
@@ -503,6 +520,7 @@ export default async function handler(req, res) {
       shadowPoi(() => JSON.parse(db.body), 'db')
       return sent
     }
+    poiWait.abort()
   }
   // Shadow is sampled on its own (poiShadowPct), whatever the DB rollout: DB answers,
   // KV hits and Overpass answers all get compared, so the cap is measured at any poiDbPct

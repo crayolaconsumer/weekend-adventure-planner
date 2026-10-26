@@ -244,6 +244,156 @@ describe('overpass nearby: POI table (shadow + served path)', () => {
   const dense = () => Array.from({ length: CAP + 500 }, (_, i) => ({ osm_type: 1, osm_id: 10 + i,
     el: JSON.stringify({ type: 'node', id: 10 + i, lat: 51.47 + (i % 70) / 1000, lon: -0.2 + Math.floor(i / 70) / 1000, tags: { name: `Cafe ${i}`, amenity: 'cafe' } }) }))
 
+  // 26 Oct: getPois queues for the instance's one SQL slot. A request whose KV copy is warm
+  // must not sit in that queue (it took ~0.8-1 s; declining at once took ~1 ms), and a query
+  // whose caller has left must never run
+  const slotBusyWith = async (query, rows) => {
+    let release
+    let gated = true
+    answer = () => (gated ? (gated = false, new Promise(r => { release = () => r(rows) })) : rows)
+    const holder = call(query)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    return { holder, release: () => release() }
+  }
+  const OTHER = buildDiscoverOverpassQuery(51.38, -0.30, 5000, null).query
+
+  it('slot busy, KV warm: the KV copy is served at once, not after the queue wait', async () => {
+    shadowPct = 0
+    await call(LONDON) // pct 0: Overpass fills KV for LONDON
+    pct = 100
+    const busy = await slotBusyWith(OTHER, DB_ROWS)
+    poolQuery.mockClear()
+    const t = performance.now()
+    const b = await call(LONDON)
+    expect(b.headers['x-overpass-cache']).toBe('HIT')
+    expect(performance.now() - t).toBeLessThan(200)
+    busy.release()
+    await busy.holder
+    await Promise.all(background)
+    await new Promise(r => setTimeout(r, 20))
+    expect(dbRuns()).toHaveLength(0) // LONDON's queued query withdrew: OTHER's ran before the clear
+  })
+
+  it('cap path, slot busy, KV warm: served from KV at once and the withdrawn query never runs', async () => {
+    const { parseQuery } = await import('../../../api/lib/poiQuery.js')
+    const { snapQueryBbox } = await import('../../../api/lib/bboxSnap.js')
+    shadowPct = 0
+    await call(LONDON)
+    const bS = String(parseQuery(snapQueryBbox(LONDON)).bbox.s)
+    pct = 100
+    capPct = 100
+    const busy = await slotBusyWith(OTHER, dense())
+    poolQuery.mockClear()
+    const t = performance.now()
+    const b = await call(LONDON)
+    expect(b.headers['x-overpass-cache']).toBe('HIT')
+    expect(performance.now() - t).toBeLessThan(200)
+    busy.release()
+    await busy.holder
+    await Promise.all(background)
+    await new Promise(r => setTimeout(r, 50))
+    expect(poolQuery.mock.calls.filter(c => JSON.stringify(c[1] ?? c[0].values ?? []).includes(bS))).toHaveLength(0)
+  })
+
+  for (const capOn of [false, true]) {
+    it(`coverage refresh due and hanging (dead connection after idle), KV warm, cap ${capOn}: KV served at once`, async () => {
+      shadowPct = 0
+      await call(LONDON) // KV filled
+      pct = 100
+      capPct = capOn ? 100 : 0
+      await call(OTHER) // coverage loaded
+      vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true })
+      let finish
+      try {
+        vi.setSystemTime(Date.now() + 5 * 60 * 1000 + 10) // idle 5 min: this request starts the refresh
+        poolQuery.mockImplementation(async (opts, params) => (opts.sql.includes('poi_builds')
+          ? new Promise(r => { finish = () => r([[build]]); setTimeout(finish, 2400) }) : answerSql(opts, params)))
+        const t = performance.now()
+        const b = await call(LONDON)
+        expect(b.headers['x-overpass-cache']).toBe('HIT')
+        expect(performance.now() - t).toBeLessThan(200)
+      } finally {
+        finish?.()
+        await Promise.all(background)
+        vi.useRealTimers()
+      }
+    })
+  }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms))
+  const TILE_X = buildDiscoverOverpassQuery(52.2, 0.12, 5000, null).query
+
+  it('cap, KV cold: an answer landing in the settle grace is served even when a waiter takes the slot straight over', async () => {
+    shadowPct = 0 // shadow runs on its own connection: keep it out of the slot accounting
+    pct = 100
+    capPct = 100
+    await call(OTHER) // coverage warm
+    let releaseX
+    answer = async () => { await sleep(1350); return DB_ROWS } // probe + today's: ~2.7 s, past the 2.5 s deadline
+    const london = call(LONDON)
+    await sleep(2300)
+    let once = true
+    answer = () => (once ? (once = false, new Promise(r => { releaseX = () => r(DB_ROWS) })) : DB_ROWS)
+    const x = call(TILE_X) // queues behind LONDON, then holds the slot
+    const b = await london
+    expect(b.headers['x-overpass-cache']).toBeUndefined() // the DB answer, not Overpass
+    expect(b.body.elements.map(e => e.id).sort()).toEqual([1, 3])
+    await sleep(50)
+    releaseX?.()
+    await x
+    await Promise.all(background)
+  }, 15000)
+
+  it('cap, KV cold, slot stuck: one queue entry, not a second try behind the same statement', async () => {
+    shadowPct = 0 // shadow runs on its own connection: keep it out of the slot accounting
+    pct = 100
+    capPct = 100
+    await call(OTHER)
+    const busy = await slotBusyWith(TILE_X, DB_ROWS)
+    const t = performance.now()
+    const b = await call(LONDON)
+    expect(b.status).toBe(200) // Overpass fallback
+    expect(performance.now() - t).toBeLessThan(2600) // a second queue entry took ~4.6 s
+    busy.release()
+    await busy.holder
+    await Promise.all(background)
+  }, 15000)
+
+  it('slot busy, the DB answers first with 0 rows: KV is read once, not twice', async () => {
+    shadowPct = 0 // shadow runs on its own connection: keep it out of the slot accounting
+    pct = 100
+    await call(OTHER)
+    let release
+    let gated = true
+    answer = () => (gated ? (gated = false, new Promise(r => { release = () => r(DB_ROWS) })) : [])
+    const holder = call(TILE_X)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    kvReads.length = 0
+    const p = call(LONDON)
+    await sleep(20)
+    release()
+    await p
+    expect(kvReads.filter(k => k.startsWith('overpass:') && !k.includes('stale'))).toHaveLength(1)
+    await holder
+    await Promise.all(background)
+  })
+
+  it('slot busy, KV cold: the request waits its turn and is served from the DB (not declined to Overpass)', async () => {
+    shadowPct = 0
+    pct = 100
+    const busy = await slotBusyWith(OTHER, DB_ROWS)
+    fetchMock.mockClear()
+    const b = call(LONDON)
+    await new Promise(r => setTimeout(r, 20))
+    busy.release()
+    const res = await b
+    expect(res.status).toBe(200)
+    expect(res.body.elements.map(e => e.id).sort()).toEqual([1, 3]) // DB_ROWS, not LIVE
+    expect(fetchMock).not.toHaveBeenCalled()
+    await busy.holder
+  })
+
+
   it('poiCapPct 0 (the default, fail closed): a served dense tile is served exactly as before, uncapped', async () => {
     pct = 100
     answer = async () => dense()

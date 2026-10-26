@@ -566,11 +566,13 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     let finish
     poolQuery.mockImplementation(async (opts, params) => (opts.sql.includes('poi_builds') ? new Promise(resolve => { finish = () => resolve([[build]]) }) : realQuery(opts, params)))
     try {
-      // resolves although the refresh hangs; declined because the one slot is busy
-      expect(await getPois(plan, 'k2')).toBeNull()
+      // the caller never awaits the refresh itself; its query queues behind it for the one slot
+      const k2 = getPois(plan, 'k2', { deadlineAt: Date.now() + 2000 })
+      await new Promise(resolve => setTimeout(resolve, 20))
       expect(poiCalls()).toBe(1)
       finish()
-      await vi.waitFor(async () => expect(await getPois(plan, 'k3')).toMatchObject({ n: 1 }))
+      expect(await k2).toMatchObject({ n: 1 })
+      expect(poiCalls()).toBe(2)
     } finally {
       poolQuery.mockImplementation(realQuery)
     }
@@ -600,10 +602,14 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     const first = getPois(plan, 'a')
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
     vi.setSystemTime(Date.now() + 5 * 60 * 1000 + 1) // coverage now due
-    await getPois(plan, 'b')
-    expect(poolQuery.mock.calls.filter(c => c[0].sql.includes('poi_builds'))).toHaveLength(0) // slot busy
+    const coverageReads = () => poolQuery.mock.calls.filter(c => c[0].sql.includes('poi_builds')).length
+    // b's deadline runs out while 'a' holds the slot: null, and the refresh it queued hasn't run yet
+    expect(await getPois(plan, 'b', { deadlineAt: Date.now() + 250 })).toBeNull()
+    expect(coverageReads()).toBe(0) // slot busy
     release()
     await first
+    // the queued refresh still runs once the slot frees: steady traffic can't starve it
+    await vi.waitFor(() => expect(coverageReads()).toBe(1))
     _resetPoiState()
     poolQuery.mockClear()
     await getPois(plan, 'c', { deadlineAt: Date.now() + 150 })
@@ -665,18 +671,194 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     expect(await getPois(plan, Q, { gen: 0 })).toBeNull() // a stale flag read can't reach the old answers
   })
 
-  it('admits one query at a time per instance: a second key falls back at once', async () => {
+  it('runs one query at a time per instance: a second key waits its turn and is served (26 Oct: it fell back at once)', async () => {
     let release
     let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) })) // one gate for every statement of the run
     await getCoverageLoaded()
-    const first = getPois(plan, 'a')
+    const first = getPois(plan, 'a', { deadlineAt: Date.now() + 2000 })
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
-    expect(await getPois(plan, 'b')).toBeNull()
-    expect(poiCalls()).toBe(1)
+    const second = getPois(plan, 'b', { deadlineAt: Date.now() + 2000 })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(poiCalls()).toBe(1) // b is queued, not running alongside a
     release()
     expect(await first).toMatchObject({ n: 1 })
+    expect(await second).toMatchObject({ n: 1 })
+    expect(poiCalls()).toBe(2)
+  })
+
+  it('queued queries run in arrival order', async () => {
+    const releases = []
+    answer = () => new Promise(resolve => releases.push(() => resolve([ROW])))
+    await getCoverageLoaded()
+    const order = []
+    const runs = ['a', 'b', 'c'].map(k => getPois(plan, k, { deadlineAt: Date.now() + 2000 }).then(r => { order.push(k); return r }))
+    for (let i = 0; i < 3; i++) {
+      await vi.waitFor(() => expect(releases).toHaveLength(i + 1)) // exactly one statement at a time
+      releases[i]()
+    }
+    await Promise.all(runs)
+    expect(order).toEqual(['a', 'b', 'c'])
+  })
+
+  it('a queued query gives up (null, no SQL) once its deadline leaves under 200 ms, and frees nothing it never held', async () => {
+    let release
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) }))
+    await getCoverageLoaded()
+    const first = getPois(plan, 'a', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const t0 = performance.now()
+    expect(await getPois(plan, 'b', { deadlineAt: Date.now() + 300 })).toBeNull()
+    expect(performance.now() - t0).toBeLessThan(250) // gave up at deadline - 200 ms, not at the deadline
+    expect(poiCalls()).toBe(1)
+    // the slot is still a's: a third query queues rather than running alongside it
+    const third = getPois(plan, 'c', { deadlineAt: Date.now() + 2000 })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(poiCalls()).toBe(1)
+    release()
+    await first
+    expect(await third).toMatchObject({ n: 1 })
+  })
+
+  it('the same key asked while queued joins the queued run (one statement)', async () => {
+    let release
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) }))
+    await getCoverageLoaded()
+    const first = getPois(plan, 'a', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const b1 = getPois(plan, 'b', { deadlineAt: Date.now() + 2000 })
+    const b2 = getPois(plan, 'b', { deadlineAt: Date.now() + 2000 })
+    release()
+    await first
+    expect(await b1).toMatchObject({ n: 1 })
+    expect(await b2).toMatchObject({ n: 1 })
+    expect(poiCalls()).toBe(2) // a, then b once
+  })
+
+  it('a caller that withdraws (aborts its signal) leaves the queue: its query never runs', async () => {
+    let release
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) }))
+    await getCoverageLoaded()
+    const first = getPois(plan, 'a', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const stop = new AbortController()
+    const second = getPois(plan, 'b', { deadlineAt: Date.now() + 2000, signal: stop.signal })
+    await new Promise(resolve => setTimeout(resolve, 20)) // b is in the queue now
+    stop.abort()
+    // at once, not when its own deadline would have run out (1.8 s)
+    expect(await Promise.race([second, new Promise(resolve => setTimeout(() => resolve('still queued'), 200))])).toBeNull()
+    release()
+    await first
+    expect(poiCalls()).toBe(1)
+  })
+
+  it('no convoy: the slot skips a waiter without time left for a typical statement', async () => {
+    let release
+    let gate; answer = () => (gate ||= new Promise(resolve => {
+      release = () => { vi.setSystemTime(Date.now() + 1500); resolve([ROW]) } // a 1500 ms statement
+    }))
+    await getCoverageLoaded()
+    const t0 = Date.now()
+    const first = getPois(plan, 'a', { deadlineAt: t0 + 5000 })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    // ~400 ms left at handover: room to submit SQL (200), short of a typical statement now (200 + 300)
+    const late = getPois(plan, 'b', { deadlineAt: t0 + 1950 })
+    const roomy = getPois(plan, 'c', { deadlineAt: t0 + 5000 })
     answer = async () => [ROW]
-    expect(await getPois(plan, 'b')).toMatchObject({ n: 1 }) // free again
+    release()
+    await first
+    expect(await late).toBeNull()
+    expect(await roomy).toMatchObject({ n: 1 })
+    expect(poiCalls()).toBe(2) // a and c: b never ran after its caller had gone
+  })
+
+  it('a waiter refused by the breaker after its wait frees the slot (no leak)', async () => {
+    answer = async () => { throw new Error('timeout') }
+    for (let i = 0; i < 3; i++) await getPois(plan, `k${i}`)
+    vi.setSystemTime(Date.now() + 60 * 1000) // half-open
+    let fail
+    answer = () => new Promise((resolve, reject) => { fail = () => reject(new Error('timeout')) })
+    const probe = getPois(plan, 'probe', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(fail).toBeTypeOf('function'))
+    const queued = getPois(plan, 'queued', { deadlineAt: Date.now() + 2000 })
+    fail()
+    expect(await probe).toBeNull()
+    expect(await queued).toBeNull() // got the slot, the re-opened breaker refused it
+    expect(breakerState()).toBe('open')
+    answer = async () => [ROW]
+    vi.setSystemTime(Date.now() + 60 * 1000)
+    // a leaked slot would leave this queued until its deadline: null
+    expect(await getPois(plan, 'after', { deadlineAt: Date.now() + 1000 })).toMatchObject({ n: 1 })
+  })
+
+  it('a run from before _resetPoiState never frees the slot a newer run holds', async () => {
+    const releases = []
+    answer = () => new Promise(resolve => releases.push(() => resolve([ROW])))
+    await getCoverageLoaded()
+    const old = getPois(plan, 'old', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(releases).toHaveLength(1))
+    _resetPoiState()
+    await getCoverageLoaded()
+    const before = releases.length
+    const holder = getPois(plan, 'new', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(releases).toHaveLength(before + 1))
+    const waiter = getPois(plan, 'next', { deadlineAt: Date.now() + 2000 })
+    releases[0]() // the old run ends: must not hand 'new''s slot to 'next'
+    await old
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(releases).toHaveLength(before + 1) // 'next' still queued, not running alongside 'new'
+    releases[before]()
+    await holder
+    await vi.waitFor(() => expect(releases).toHaveLength(before + 2))
+    releases[before + 1]()
+    expect(await waiter).toMatchObject({ n: 1 })
+  })
+
+  const settlesWithin = (p, ms) => Promise.race([p, new Promise(resolve => setTimeout(() => resolve('still waiting'), ms))])
+
+  it('an already-withdrawn caller never queues', async () => {
+    let release
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) }))
+    await getCoverageLoaded()
+    const first = getPois(plan, 'a', { deadlineAt: Date.now() + 2000 })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    const stop = new AbortController()
+    stop.abort()
+    expect(await settlesWithin(getPois(plan, 'b', { deadlineAt: Date.now() + 2000, signal: stop.signal }), 100)).toBeNull()
+    release()
+    await first
+    expect(poiCalls()).toBe(1)
+  })
+
+  it('joining the queue needs time for a typical statement, not just the 200 ms floor', async () => {
+    answer = async () => { vi.setSystemTime(Date.now() + 1500); return [ROW] } // typical hold now ~300 ms
+    await getCoverageLoaded()
+    await getPois(plan, 'slow', { deadlineAt: Date.now() + 5000 })
+    let release
+    let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) }))
+    const first = getPois(plan, 'a', { deadlineAt: Date.now() + 5000 })
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    // 450 ms left: over the floor, under 200 + 300: declined at once instead of queueing
+    expect(await settlesWithin(getPois(plan, 'b', { deadlineAt: Date.now() + 450 }), 100)).toBeNull()
+    release()
+    await first
+  })
+
+  it('an open breaker declines at once even while the slot is busy (no wait to be refused)', async () => {
+    answer = async () => { throw new Error('timeout') }
+    for (let i = 0; i < 3; i++) await getPois(plan, `k${i}`)
+    expect(breakerState()).toBe('open')
+    // a newer generation's coverage read takes the slot and hangs
+    const realQuery = poolQuery.getMockImplementation()
+    let finish
+    poolQuery.mockImplementation(async (opts, params) => (opts.sql.includes('poi_builds') ? new Promise(resolve => { finish = () => resolve([[build]]) }) : realQuery(opts, params)))
+    try {
+      getPois(plan, 'kick', { gen: 1, deadlineAt: Date.now() + 2000 })
+      await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+      expect(await settlesWithin(getPois(plan, 'x', { deadlineAt: Date.now() + 2000 }), 100)).toBeNull()
+    } finally {
+      finish?.()
+      poolQuery.mockImplementation(realQuery)
+    }
   })
 
   it('submits no SQL with under 200 ms left before the deadline', async () => {
@@ -742,8 +924,8 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     answer = async () => { throw new Error('timeout') }
     for (let i = 0; i < 3; i++) expect(await getPois(plan, `k${i}`)).toBeNull()
     expect(breakerState()).toBe('open')
-    expect(await getPois(plan, 'k3')).toBeNull()
-    expect(poiCalls()).toBe(3) // open: no query at all
+    expect(await getPois(plan, 'k3', { deadlineAt: Date.now() + 2000 })).toBeNull()
+    expect(poiCalls()).toBe(3) // open: no query at all, and no wait for the slot
 
     vi.setSystemTime(Date.now() + 60 * 1000)
     expect(breakerState()).toBe('half-open')
@@ -751,10 +933,14 @@ describe('getPois: coverage, breaker, dedupe, LRU', () => {
     let gate; answer = () => (gate ||= new Promise(resolve => { release = () => resolve([ROW]) })) // one gate for every statement of the run
     const probe = getPois(plan, 'probe')
     await vi.waitFor(() => expect(release).toBeTypeOf('function'))
-    expect(await getPois(plan, 'second')).toBeNull() // only one probe at a time
+    // only one probe at a time: a second request queues behind it, then runs on the closed breaker
+    const second = getPois(plan, 'second', { deadlineAt: Date.now() + 2000 })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(poiCalls()).toBe(4)
     release()
     expect(await probe).toMatchObject({ n: 1 })
     expect(breakerState()).toBe('closed')
+    expect(await second).toMatchObject({ n: 1 })
   })
 
   it('a failed half-open probe re-opens for another 60 s', async () => {

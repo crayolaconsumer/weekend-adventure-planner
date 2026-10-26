@@ -658,7 +658,7 @@ async function coverageFromKv(gen) {
 }
 
 async function loadCoverage(gen) {
-  active++
+  const slot = await takeSlot() // background: waits its turn, so steady traffic can't starve a refresh
   try {
     const [rows] = await runQuery(
       // features_version: written into gate_report by the loader (no new column, so this
@@ -693,7 +693,7 @@ async function loadCoverage(gen) {
     console.warn('[poi] coverage refresh failed:', err.message, fromKv ? '(using the KV copy)' : '')
     coverage.retryAt = Date.now() + COVERAGE_RETRY_MS
   } finally {
-    active--
+    freeSlot(slot)
   }
   coverage.tried = true
 }
@@ -711,8 +711,8 @@ async function getCoverage(gen = 0, deadlineAt = Infinity) {
   const newer = coverage.gen === null || gen > coverage.gen
   const now = Date.now()
   const due = (now >= coverage.nextAt || newer) && now >= coverage.retryAt
-  // Shares the one SQL slot with data queries, and respects the caller's deadline
-  if (due && !coverage.loading && active === 0 && deadlineAt - now >= MIN_REMAINING_MS) {
+  // Shares the one SQL slot with data queries (queues for it), and respects the caller's deadline
+  if (due && !coverage.loading && deadlineAt - now >= MIN_REMAINING_MS) {
     coverage.loading = loadCoverage(newer ? gen : coverage.gen).finally(() => { coverage.loading = null })
   }
   if (!coverage.tried && coverage.loading) await coverage.loading
@@ -778,9 +778,65 @@ const LRU_TTL_MS = 10 * 60 * 1000
 const lru = new Map() // cacheKey -> { at, value, bytes }, least recently used first
 let lruBytes = 0
 const inflight = new Map()
-// Admission control: the pool has ONE connection, so a second query would only
-// queue behind the first and outlive the caller's deadline
-let active = 0
+// Admission control: the pool has ONE connection, so SQL runs one statement at a
+// time. A caller that finds the slot busy waits its turn (FIFO) while its deadline
+// still leaves time for a typical statement (MIN_REMAINING_MS + the running average
+// hold), else gets null. Declining at once sent every concurrent request to Overpass
+// (26 Oct: covered towns 503ed for crawlers in 25 ms, people waited 28-56 s on Overpass
+// for nothing). When statements turn slow the average grows and waiting degrades back
+// to declining, which beats a convoy of answers nobody is still waiting for.
+let active = 0 // 1 while a statement holds the slot
+let slotEpoch = 0 // bumped by _resetPoiState: a free from before the reset is ignored
+let heldSince = 0
+let holdMs = 0 // running average of how long the slot is held
+const slotWaiters = []
+const needMs = () => MIN_REMAINING_MS + holdMs
+/** A statement holds the slot: a getPois started now would queue (or decline). */
+export const poiSlotBusy = () => active === 1
+
+function grant() {
+  active = 1
+  heldSince = Date.now()
+  return slotEpoch
+}
+function unhook(waiter) {
+  clearTimeout(waiter.timer)
+  waiter.signal?.removeEventListener('abort', waiter.leave)
+}
+/** Resolves to a slot token for freeSlot, or null: the deadline left too little time,
+ *  or the caller withdrew (`signal` aborted: it stopped waiting for the answer). */
+function takeSlot(deadlineAt = Infinity, signal) {
+  if (signal?.aborted) return Promise.resolve(null)
+  if (active === 0) return Promise.resolve(grant())
+  const wait = deadlineAt - needMs() - Date.now()
+  if (wait <= 0) return Promise.resolve(null)
+  return new Promise(resolve => {
+    const waiter = { resolve, deadlineAt, signal, timer: null }
+    waiter.leave = () => {
+      const i = slotWaiters.indexOf(waiter)
+      if (i < 0) return
+      slotWaiters.splice(i, 1)
+      unhook(waiter)
+      resolve(null)
+    }
+    if (Number.isFinite(wait)) waiter.timer = setTimeout(waiter.leave, wait)
+    signal?.addEventListener('abort', waiter.leave, { once: true })
+    slotWaiters.push(waiter)
+  })
+}
+function freeSlot(token) {
+  if (token !== slotEpoch) return // taken before a reset: the slot is someone else's now
+  holdMs = holdMs * 0.8 + (Date.now() - heldSince) * 0.2
+  active = 0
+  // The oldest waiter with time left for a typical statement gets it; waiters ahead of
+  // it without that time give up now instead of running after their caller has left
+  while (slotWaiters.length) {
+    const next = slotWaiters.shift()
+    unhook(next)
+    if (next.deadlineAt - Date.now() >= needMs()) return next.resolve(grant())
+    next.resolve(null)
+  }
+}
 // LRU value meaning "too big for the DB path": skip the scan for 10 minutes
 const OVER_CAP = Symbol('over cap')
 
@@ -810,16 +866,16 @@ export const lruUsage = () => ({ entries: lru.size, bytes: lruBytes })
 /**
  * Serve a plan from the DB when it can be: returns { body, n, ids, buildId, ms, cached }
  * (plus { scanned, rankMs, timings } for a capped answer) or null (not covered, too big,
- * busy, too close to the deadline, breaker open, DB error). Never throws. `key`
+ * no slot in time, too close to the deadline, breaker open, DB error). Never throws. `key`
  * identifies the query (the snapped query string). `gen` is the roam:poiGen
  * generation: results are only served and cached for coverage loaded under the
- * same generation. `deadlineAt` is when the caller stops waiting. (Shadow uses
- * shadowPois, never this.)
+ * same generation. `deadlineAt` is when the caller stops waiting; abort `signal` if it
+ * stops sooner, so a queued query gives up its place. (Shadow uses shadowPois, never this.)
  * `cap`: this request may be capped (poiCapPct). It takes effect
  * only for a rankable plan on a build with this code's features while the cap
  * breaker is closed; capped and uncapped answers are cached apart.
  */
-export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap = false } = {}) {
+export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap = false, signal } = {}) {
   const cov = await getCoverage(gen, deadlineAt)
   if (cov.gen !== gen || !isCovered(plan, cov)) return null
   const { buildId } = cov
@@ -834,11 +890,17 @@ export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap =
     return { ...hit.value, ms: 0, cached: true }
   }
   if (inflight.has(cacheKey)) return inflight.get(cacheKey)
-  if (active > 0 || deadlineAt - Date.now() < MIN_REMAINING_MS) return null
-  if (!breakerAllows()) return null
+  if (deadlineAt - Date.now() < MIN_REMAINING_MS) return null
+  if (breakerState() === 'open') return null // don't queue for a slot the breaker would refuse
 
-  active++
   const run = (async () => {
+    // Registered in inflight before the wait, so the same query asked again joins this one
+    const slot = await takeSlot(deadlineAt, signal)
+    if (slot === null) return null
+    if (!breakerAllows()) {
+      freeSlot(slot)
+      return null
+    }
     const started = Date.now()
     try {
       const result = await queryPois(plan, { osmTimestamp: cov.osmTimestamp, deadlineAt, features: capOn, buildId })
@@ -871,10 +933,9 @@ export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap =
       console.warn('[poi] query failed:', err.message)
       return null
     } finally {
-      active--
-      inflight.delete(cacheKey)
+      freeSlot(slot)
     }
-  })()
+  })().finally(() => { if (inflight.get(cacheKey) === run) inflight.delete(cacheKey) })
   inflight.set(cacheKey, run)
   return run
 }
@@ -885,7 +946,7 @@ export async function getPois(plan, key, { gen = 0, deadlineAt = Infinity, cap =
 // breaker or the answer cache: each runs on its own short-lived connection, only while this
 // instance has no served query in flight, one at a time, and at most once per tile per
 // SHADOW_TTL_MS. Coverage is refreshed exactly as a served request would (getCoverage: one
-// small read, only when the instance is idle), so shadow works at poiDbPct 0. The cap
+// small read, queued for the slot), so shadow works at poiDbPct 0. The cap
 // breaker is shared with served capped runs (the same signal: the cap is slow or failing).
 const SHADOW_TTL_MS = 10 * 60 * 1000
 const SHADOW_SEEN_MAX = 1000
@@ -947,6 +1008,12 @@ export async function shadowPois(plan, key, { gen = 0 } = {}) {
 export function _resetPoiState() {
   Object.assign(coverage, { cells: null, buildId: null, osmTimestamp: null, features: false, gen: null, nextAt: 0, retryAt: 0, loading: null, tried: false })
   active = 0
+  slotEpoch++
+  holdMs = 0
+  for (const waiter of slotWaiters.splice(0)) {
+    unhook(waiter)
+    waiter.resolve(null)
+  }
   mirrored = null
   Object.assign(genCache, { value: 0, at: 0, loading: null, loadingAt: 0 })
   Object.assign(breaker, { fails: 0, openUntil: 0, probing: false })
