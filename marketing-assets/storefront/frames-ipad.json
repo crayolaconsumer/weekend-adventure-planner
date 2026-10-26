@@ -1,0 +1,42 @@
+[
+  {
+    "shot": "map-ipad",
+    "head": "See what's nearby on one map",
+    "accent": "on one map",
+    "where": "central York (53.9601,-1.0850), Discover in map view at iPad width (1024x1366 @2x)",
+    "claim": "\"See what's nearby on one map\": at tablet and desktop widths Discover has a map view (src/pages/Discover.jsx view toggle) plotting the deck's places, here the 50 places near central York, as in the screen.",
+    "alt": "Discover map view of central York with the 50 nearby places plotted as category pins over a street map"
+  },
+  {
+    "shot": "discover-ipad",
+    "head": "Find things to do, one swipe away",
+    "accent": "one swipe away",
+    "where": "central York (53.9601,-1.0850), Discover deck at iPad width (1024x1366 @2x)",
+    "claim": "Swipe deck of things to do near the user: Discover tab (src/pages/Discover.jsx), shown in the screen itself.",
+    "alt": "Discover deck at iPad size with a swipe card for York Minster, 514 m away, with skip, go and save buttons"
+  },
+  {
+    "shot": "plan-ipad",
+    "head": "A half-day out, planned in a tap",
+    "accent": "planned in a tap",
+    "where": "central York, Plan tab at iPad width, default Mix vibe and Half day, one tap on Generate itinerary from a fresh page, page clock started at 10:00",
+    "claim": "\"A half-day out, planned in a tap\": from the Plan tab's defaults (Mix adventure, Half day), one tap on Generate itinerary builds a timed 3-stop half-day plan with a route map (src/pages/Plan.jsx; a half day is 3 stops, src/pages/Plan/constants.ts), as in the screen.",
+    "alt": "Half-day plan on a York map with three numbered stops, starting at Barley Hall at 10:20, then Betty's Café Tea Rooms"
+  },
+  {
+    "shot": "saved-ipad",
+    "head": "Find any saved place in seconds",
+    "accent": "in seconds",
+    "where": "Saved tab at iPad width, search \"museum\", guest session with seven saved places in York",
+    "claim": "\"In seconds\": the saved-places search filters on the device as you type, with no network call (src/utils/placeSearch.js); the screen shows \"museum\" matching three of seven saved places, all three visible.",
+    "alt": "Saved places searched for \"museum\" at iPad size: Barley Hall, Bar Convent Museum and Micklegate Bar Museum"
+  },
+  {
+    "shot": "town-ipad",
+    "head": "Town highlights on one page",
+    "accent": "on one page",
+    "where": "/town/canterbury town guide at iPad width, All filter",
+    "claim": "\"Town highlights on one page\": the screen is one scrolling page for Canterbury listing its top-ranked places (the in-app guide shows up to 24, src/pages/TownPage.jsx PER_TOWN = 24) with category filters. No claim about every place or every town.",
+    "alt": "Canterbury town guide at iPad size listing the cathedral, Beaney House, St Augustine's Abbey, castle and museums"
+  }
+]

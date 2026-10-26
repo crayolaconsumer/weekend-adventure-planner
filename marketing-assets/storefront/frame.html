@@ -27,7 +27,7 @@
   .chip { display:inline-flex; align-items:center; gap:calc(1.8 * var(--u)); padding:calc(2.1 * var(--u)) calc(3.8 * var(--u)); border-radius:calc(99 * var(--u)); font-weight:600; font-size:calc(3.4 * var(--u)) }
   .chip svg { width:calc(3.8 * var(--u)); height:calc(3.8 * var(--u)) }
   /* The phone: the real screenshot, never redrawn */
-  .phone { position:absolute; left:50%; width:var(--pw); aspect-ratio:430/932; border-radius:calc(var(--pw) * .13);
+  .phone { position:absolute; left:50%; width:var(--pw); aspect-ratio:var(--aspect, 430/932); border-radius:calc(var(--pw) * .13);
     background:#0d0f0e; padding:calc(var(--pw) * .028); transform-origin:50% 100%;
     box-shadow:0 4cqh 8cqh -2cqh rgba(10,20,16,.55), 0 1.2cqh 3cqh -1cqh rgba(0,0,0,.35), inset 0 0 0 calc(.35 * var(--u)) rgba(255,255,255,.08) }
   .phone::after { content:''; position:absolute; top:calc(var(--pw) * .045); left:50%; width:calc(var(--pw) * .28); height:calc(var(--pw) * .075);
@@ -120,6 +120,8 @@
   if (q.get('zoom')) Object.assign(document.getElementById('shot').style, { transform: `scale(${q.get('zoom')})`, transformOrigin: 'top center' })
   if (q.get('contours')) c.style.setProperty('--contours', `url("${q.get('contours')}")`)
   if (q.get('device') === 'iphone') c.classList.add('iphone')
+  // ?aspect=1024/1366: an iPad-size capture in a plain rounded screen (no device)
+  if (q.get('aspect')) c.style.setProperty('--aspect', q.get('aspect'))
   if (q.get('statusbg')) document.querySelector('.screen').style.background = q.get('statusbg')
   document.getElementById('eyebrow').textContent = q.get('eyebrow') || ''
   // head: plain text with the accent phrase wrapped in <em>

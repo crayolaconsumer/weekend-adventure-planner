@@ -17,6 +17,7 @@ const { chromium } = require('playwright-core')
 const SIZES = {
   ios69: { width: 430, height: 932 },  // 1290x2796, iPhone 6.9"
   ios65: { width: 428, height: 926 },  // 1284x2778, iPhone 6.5"
+  ipad: { width: 1024, height: 1366, dpr: 2, aspect: '1024/1366' }, // 2048x2732, iPad Pro 12.9" (iPad-size captures)
   play: { width: 360, height: 640 },   // 1080x1920, Play phone 9:16
 }
 const variant = args.variant || 'A'
@@ -38,7 +39,8 @@ function contourSvg(seed) {
 const metrics = []
 const browser = await chromium.launch({ channel: 'chrome' })
 for (const size of sizes) {
-  const page = await browser.newPage({ viewport: SIZES[size], deviceScaleFactor: 3 })
+  const { dpr = 3, aspect, ...viewport } = SIZES[size]
+  const page = await browser.newPage({ viewport, deviceScaleFactor: dpr })
   const outDir = resolve(args.out, variant, size)
   mkdirSync(outDir, { recursive: true })
   // A full render replaces the set: frames dropped from frames.json must not linger
@@ -50,6 +52,7 @@ for (const size of sizes) {
     // The App Store set may show an iPhone; the Play set must not show another platform's device
     if (size.startsWith('ios') && args.device === 'iphone') q.set('device', 'iphone')
     q.set('contours', contourSvg(`roam-frame-${n}`))
+    if (aspect) q.set('aspect', aspect)
     if (f.recap) {
       q.set('items', JSON.stringify(f.items))
       q.set('icon', 'file://' + resolve(here, '../../public/icons/icon-512.png'))
