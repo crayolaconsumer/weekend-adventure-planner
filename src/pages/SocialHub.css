@@ -424,3 +424,14 @@
   margin-left: 4px;
   vertical-align: -1px;
 }
+
+.social-hub-rate-link {
+  margin-top: var(--space-md);
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}

@@ -1,3 +1,4 @@
+import { APP_STORE_ID, PLAY_STORE_URL } from '../../shared/appLinks.mjs'
 /**
  * Navigation Utilities
  * Handles opening external links, especially maps/directions
@@ -118,4 +119,18 @@ export async function openExternalLink(url) {
     }
   }
   window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+/**
+ * Open the store's review page for ROAM. iOS: the App Store app straight on the
+ * review sheet (itms-apps is a system scheme SFSafariViewController can't open, so
+ * it goes through location, as openAppSettings does). Android: the Play listing,
+ * which Custom Tabs hands to the Play Store app.
+ */
+export function openStoreReview(platform) {
+  if (platform === 'ios') {
+    window.location.href = `itms-apps://itunes.apple.com/app/id${APP_STORE_ID}?action=write-review`
+    return
+  }
+  openExternalLink(PLAY_STORE_URL)
 }

@@ -117,3 +117,24 @@ describe('openMapsDirections', () => {
     expect(openSpy.mock.calls[0][1]).toBe('_blank')
   })
 })
+
+describe('openStoreReview', async () => {
+  const { openStoreReview } = await import('../../../src/utils/navigation')
+  it('iOS: the App Store app on the write-review sheet (a system scheme, via location)', () => {
+    const orig = window.location
+    delete window.location
+    window.location = { href: '' }
+    try {
+      openStoreReview('ios')
+      expect(window.location.href).toBe('itms-apps://itunes.apple.com/app/id6768306617?action=write-review')
+    } finally {
+      window.location = orig
+    }
+  })
+  it('Android: the Play listing (Custom Tabs hands it to the Play Store app)', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    openStoreReview('android')
+    expect(open.mock.calls.flat().join(' ')).toContain('play.google.com/store/apps/details?id=com.goroam.app')
+    open.mockRestore()
+  })
+})

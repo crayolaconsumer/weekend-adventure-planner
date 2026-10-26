@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { haversineKm } from '../../shared/geo.mjs'
 import { getAuthToken } from '../utils/authToken'
+import { recordHappyMoment } from '../utils/reviewPrompt'
 
 const STORAGE_KEY = 'roam_visited_places'
 
@@ -162,6 +163,8 @@ export function useVisitedPlaces() {
     const existingLocal = local.find(v => v.placeId === placeId)
     const filtered = local.filter(v => v.placeId !== placeId)
     localStorage.setItem(STORAGE_KEY, JSON.stringify([makeEntry(existingLocal?.visitedAt), ...filtered]))
+    // Editing an existing review re-calls markVisited: only a new visit counts
+    if (!existingLocal) recordHappyMoment('visit_marked')
 
     // Sync to API if authenticated
     if (isAuthenticated) {

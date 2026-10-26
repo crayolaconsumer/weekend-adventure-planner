@@ -5,7 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { useDistance } from '../../contexts/DistanceContext'
 import { useSubscription } from '../../hooks/useSubscription'
 import { isNative, getPlatform } from '../../utils/nativeBridge'
-import { openExternalLink } from '../../utils/navigation'
+import { openExternalLink, openStoreReview } from '../../utils/navigation'
 import { usePrivacyChoices } from '../../hooks/usePrivacyChoices'
 import PremiumBadge from '../../components/PremiumBadge'
 import OfflinePackCard from '../../components/OfflinePackCard'
@@ -577,6 +577,17 @@ export default function SettingsTab({ user, onLogout }) {
         <Link to="/support" className="unified-profile-settings-link-row">
           Contact support
         </Link>
+        {/* Passive, always-available path to a store rating (no gating:
+            everyone sees it). Native only: a web visitor has no install to rate. */}
+        {isNative() && (
+          <button
+            type="button"
+            className="unified-profile-settings-link-row"
+            onClick={() => openStoreReview(getPlatform())}
+          >
+            Rate ROAM
+          </button>
+        )}
       </div>
 
       {/* Sign Out */}

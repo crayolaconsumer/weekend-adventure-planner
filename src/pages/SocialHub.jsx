@@ -23,6 +23,8 @@ import { reverseGeocodeLocality } from '../utils/apiClient'
 import PremiumBadge from '../components/PremiumBadge'
 import Avatar from '../components/Avatar'
 import LoadingState from '../components/LoadingState'
+import { isNative, getPlatform } from '../utils/nativeBridge'
+import { openStoreReview } from '../utils/navigation'
 import './SocialHub.css'
 
 // Icons
@@ -236,6 +238,12 @@ function SignedOutPrompt() {
           Create account
         </button>
       </div>
+      {/* Signed-out users never see Settings: the same no-gating path to a rating, native only */}
+      {isNative() && (
+        <button type="button" className="social-hub-rate-link" onClick={() => openStoreReview(getPlatform())}>
+          Rate ROAM
+        </button>
+      )}
     </section>
   )
 }

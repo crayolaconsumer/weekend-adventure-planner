@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getAuthToken } from '../utils/authToken'
+import { recordHappyMoment } from '../utils/reviewPrompt'
 
 const STORAGE_KEY = 'roam_wishlist'
 
@@ -102,6 +103,9 @@ export function useSavedPlaces() {
       return [entry, ...prev.filter(p => p.id !== place.id)]
     })
 
+    // A re-save of a place already in the list is not a new happy moment
+    const wasSaved = places.some(p => p.id === place.id)
+
     // Analytics — fire-and-forget, no-op when PostHog isn't initialised
     import('../utils/analytics').then(({ track }) => track('place-saved', {
       placeId: place.id,
@@ -124,6 +128,7 @@ export function useSavedPlaces() {
         if (!response.ok) {
           throw new Error('Failed to save place')
         }
+        if (!wasSaved) recordHappyMoment('place_saved')
         return { success: true }
       } catch (err) {
         // Roll back only this place: drop it, or restore the entry it replaced.
@@ -144,9 +149,10 @@ export function useSavedPlaces() {
         : placeWithTimestamp
       const updated = [localEntry, ...current.filter(p => p.id !== place.id)]
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      if (!existingLocal) recordHappyMoment('place_saved')
       return { success: true }
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, places])
 
   const removePlace = useCallback(async (placeId) => {
     // Store removed place for potential rollback

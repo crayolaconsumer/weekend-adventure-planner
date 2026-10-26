@@ -45,6 +45,7 @@ import { appendStops } from './Plan/appendStops'
 import { buildPlan, fitToDuration, estimateTravelMinutes, isOpenFor, planStart, scheduleStops } from './Plan/schedule'
 import { readDraft, writeDraft } from './Plan/draft'
 import { getAuthToken } from '../utils/authToken'
+import { recordHappyMoment } from '../utils/reviewPrompt'
 import { haversineKm } from '../../shared/geo.mjs'
 import './Plan.css'
 
@@ -77,6 +78,9 @@ export default function Plan({ location }) {
   const [availablePlaces, setAvailablePlaces] = useState([])
   const [showShareModal, setShowShareModal] = useState(false)
   const [shareCode, setShareCode] = useState(null)
+  // This plan's save already counted as a happy moment. Kept in the draft, so a
+  // signed-out user returning to the same saved plan doesn't count it again
+  const [planCounted, setPlanCounted] = useState(Boolean(draft?.counted))
   const [isSaving, setIsSaving] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -106,8 +110,9 @@ export default function Plan({ location }) {
       transport: selectedTransport,
       radius: selectedRadius,
       title: customTitle,
+      counted: planCounted,
     })
-  }, [itinerary, selectedVibe, selectedDuration, selectedTransport, selectedRadius, customTitle, shareCode])
+  }, [itinerary, selectedVibe, selectedDuration, selectedTransport, selectedRadius, customTitle, shareCode, planCounted])
 
   // Reopen a saved plan when navigated to /plan?planId=N. Hydrates the
   // editor state (vibe / duration / transport / title / stops) from
@@ -147,6 +152,7 @@ export default function Plan({ location }) {
               }
             })
           setItinerary(rehydrated)
+          setPlanCounted(true) // opened from Saved: editing it is not a new plan
         }
         // Strip the param so a refresh doesn't loop the hydration and
         // shoving the user back to whatever they had stored. URL stays
@@ -210,6 +216,7 @@ export default function Plan({ location }) {
       const travel = await realTravel(planned, location, mode)
       const final = fitToDuration(planned, { start, origin: location, travel, durationMinutes })
       setItinerary(final)
+      setPlanCounted(false) // a new plan: its first save is a happy moment
       return final
     }
 
@@ -375,6 +382,16 @@ export default function Plan({ location }) {
   const save = useCallback(async () => {
     if (!itinerary.length) { toast.info('Add stops first'); return }
     if (isSaving) return
+    // A plan counts once: not when re-saved, not when a plan opened from Saved is
+    // edited and saved again (both leave planCounted set until a new plan is generated)
+    const countPlan = () => {
+      if (planCounted) return
+      setPlanCounted(true)
+      // Into the draft now, too: if the user has already left the page, no render will write it
+      const current = readDraft()
+      if (current) writeDraft({ ...current, counted: true })
+      recordHappyMoment('plan_saved')
+    }
 
     setIsSaving(true)
     try {
@@ -422,6 +439,7 @@ export default function Plan({ location }) {
 
       if (res.ok) {
         const data = await res.json()
+        countPlan()
         setShareCode(data.plan.shareCode)
         toast.success('Saved! Ready to share.')
       } else if (res.status === 401) {
@@ -437,6 +455,7 @@ export default function Plan({ location }) {
         }
         localStorage.setItem('roam_adventures', JSON.stringify([adventure, ...saved].slice(0, 10)))
         toast.success('Saved locally! Sign in to share.')
+        countPlan()
       } else {
         toast.error('Failed to save')
       }
@@ -446,7 +465,7 @@ export default function Plan({ location }) {
     } finally {
       setIsSaving(false)
     }
-  }, [itinerary, selectedVibe, selectedDuration, selectedTransport, travelTimes, toast, isSaving])
+  }, [itinerary, selectedVibe, selectedDuration, selectedTransport, travelTimes, toast, isSaving, planCounted])
 
   // Share - opens modal
   const openShare = useCallback(() => {
