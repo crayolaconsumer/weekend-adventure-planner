@@ -65,6 +65,10 @@ export function initAnalytics() {
       // them in some PostHog version.
       disable_session_recording: true,
       disable_surveys: true,
+      // Native: CapacitorHttp patches fetch and can't carry the gzip ArrayBuffer body
+      // (it crosses the bridge as {} and native throws), so every app event was lost.
+      // Plain JSON strings pass through intact. Issue #1.
+      disable_compression: isNative(),
       persistence: 'localStorage+cookie',
       respect_dnt: true,
       loaded: (instance) => {
