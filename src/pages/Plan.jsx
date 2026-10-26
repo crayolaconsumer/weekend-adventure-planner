@@ -628,16 +628,17 @@ export default function Plan({ location }) {
       ? new Date(itinerary[0].scheduledTime).getHours()
       : new Date().getHours()
     if (firstTime >= 5 && firstTime < 11) {
-      // Morning — terracotta light into terracotta, settling on forest
-      return { gradient: 'linear-gradient(135deg, #e07a5f 0%, #c45c3e 60%, #1a3a2f 130%)', label: 'morning' }
+      // Morning — the lightest forest. One hue per card: terracotta blended into forest went muddy
+      // brown mid-card and clashed with the terracotta Generate button below it
+      return { gradient: 'linear-gradient(135deg, #3a6b5a 0%, #234a3d 100%)', label: 'morning' }
     }
     if (firstTime >= 11 && firstTime < 16) {
       // Midday — forest plus a brighter sage highlight
       return { gradient: 'linear-gradient(135deg, #2d5a4a 0%, #1a3a2f 70%, #0f2a22 100%)', label: 'midday' }
     }
     if (firstTime >= 16 && firstTime < 20) {
-      // Evening — terracotta dusk into forest (brand colours only)
-      return { gradient: 'linear-gradient(135deg, #c45c3e 0%, #1a3a2f 75%)', label: 'evening' }
+      // Evening — forest settling darker
+      return { gradient: 'linear-gradient(135deg, #234a3d 0%, #13302a 100%)', label: 'evening' }
     }
     // Night — deep forest
     return { gradient: 'linear-gradient(135deg, #1a3a2f 0%, #0f2a22 100%)', label: 'night' }

@@ -346,11 +346,8 @@
   width: 100%;
   padding: 12px 20px;
   margin-top: var(--space-xs);
-  background: linear-gradient(
-    135deg,
-    var(--roam-terracotta-light) 0%,
-    var(--roam-terracotta) 100%
-  );
+  /* Solid, like .btn-accent: a second terracotta gradient under the adventure card looked muddy */
+  background: var(--roam-terracotta);
   color: white;
   border: none;
   border-radius: var(--radius-full);
@@ -377,6 +374,7 @@
 }
 
 .plan-generate:hover:not(:disabled) {
+  background: var(--roam-terracotta-dark);
   box-shadow:
     0 4px 16px rgba(196, 92, 62, 0.35),
     0 8px 32px rgba(196, 92, 62, 0.25),
