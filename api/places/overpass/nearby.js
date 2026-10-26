@@ -726,7 +726,9 @@ export default async function handler(req, res) {
       // The dog merge is not applied to DB-served bodies: the POI rollout is
       // shadow-only, and merging would need the body parsed back. Add it
       // here when the DB goes primary.
-      logPlaces(req, t0, 'db', db.n, Object.assign(poiLog, { db_scanned: db.scanned ?? db.n, db_cached: db.cached }))
+      // dogs_started: a dog call began (DB slower than its first wait) but this body won't merge
+      // it, so up to 3 credits went nowhere (critic round 5 #1: measure how often in production)
+      logPlaces(req, t0, 'db', db.n, Object.assign(poiLog, { db_scanned: db.scanned ?? db.n, db_cached: db.cached, ...(dogMode && { dogs_started: dogPromise != null }) }))
       const sent = sendPoiBody(res, db)
       shadowPoi(() => JSON.parse(db.body), 'db')
       return sent

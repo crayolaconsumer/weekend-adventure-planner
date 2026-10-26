@@ -693,6 +693,27 @@ describe('overpass nearby: the POI DB step and its region', () => {
     }
   })
 
+  // Critic round 5 #1: a DB that answers after its first wait leaves a started dog call unused;
+  // the places log says so (dogs_started) so production can measure how often
+  it('logs dogs_started when the DB answers after its first wait', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] })
+    const logs = []
+    const spy = vi.spyOn(console, 'log').mockImplementation(l => { logs.push(String(l)) })
+    try {
+      const run = await withDb(vi.fn(() => new Promise(r => setTimeout(() => r({ n: 1, body: JSON.stringify(OVERPASS_BODY), buildId: 'b1' }), 1500))))
+      routeFetch({ overpass: 'hang' })
+      const pending = run(dogsAt(51.5074, -0.1278))
+      await vi.advanceTimersByTimeAsync(5000)
+      const out = await pending
+      expect(out.headers['x-places-source']).toBe('db')
+      const line = logs.map(l => { try { return JSON.parse(l) } catch { return null } }).find(l => l?.evt === 'places' && l.src === 'db')
+      expect(line?.dogs_started).toBe(true)
+    } finally {
+      spy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('when the DB can\'t answer, the dog fetch still runs and merges as before', async () => {
     const run = await withDb(vi.fn(async () => null))
     routeFetch({ overpass: 'ok' })
