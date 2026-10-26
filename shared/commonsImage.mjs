@@ -10,8 +10,13 @@
  */
 const ORIGINAL = /^(https?:\/\/upload\.wikimedia\.org\/wikipedia\/commons)\/([0-9a-f]\/[0-9a-f]{2})\/([^/?#]+\.(jpe?g|png|gif|webp|svg))$/i
 
+// Commons' imageinfo API now appends ?utm_source=…&utm_content=original to the
+// file URL; a query of only utm_* tracking params is dropped so it still sizes
+// (each param is its own &-separated utm_ key, values can't hold & # or ?, so no backtracking blow-up)
+const UTM_ONLY = /\?utm_[a-z]+=[^&#?]*(?:&utm_[a-z]+=[^&#?]*)*&?$/i
+
 export function sizedImageUrl(url) {
-  const m = typeof url === 'string' ? url.trim().match(ORIGINAL) : null
+  const m = typeof url === 'string' ? url.trim().replace(UTM_ONLY, '').match(ORIGINAL) : null
   if (!m) return url
   const [, base, hash, name, ext] = m
   if (/geograph/i.test(name)) return url

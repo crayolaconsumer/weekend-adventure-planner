@@ -39,7 +39,7 @@ interface WikidataEntity {
 }
 
 interface CommonsImageInfo {
-  imageinfo?: Array<{ url?: string }>
+  imageinfo?: Array<{ url?: string; width?: number; height?: number; thumburl?: string; thumbwidth?: number; thumbheight?: number }>
 }
 
 /**
@@ -76,6 +76,11 @@ export async function fetchWikipediaImage(title: string): Promise<string | null>
  * Two-hop: Wikidata entity → Commons imageinfo (avoids MD5 hash issues).
  */
 export async function fetchWikidataImage(wikidataId: string): Promise<string | null> {
+  return (await fetchWikidataImageInfo(wikidataId))?.url ?? null
+}
+
+/** The same lookup with the image size, so callers can rank it against other candidates. */
+export async function fetchWikidataImageInfo(wikidataId: string): Promise<{ url: string; width: number | null; height: number | null } | null> {
   try {
     // Step 1: Get filename from Wikidata
     const response = await fetch(
@@ -95,7 +100,8 @@ export async function fetchWikidataImage(wikidataId: string): Promise<string | n
     const commonsResponse = await fetch(
       `https://commons.wikimedia.org/w/api.php?` +
       `action=query&titles=File:${encodeURIComponent(filename)}` +
-      `&prop=imageinfo&iiprop=url&format=json&origin=*`,
+      // iiurlwidth: Commons' own 960 px thumbnail (never upscaled), not the multi-MB original
+      `&prop=imageinfo&iiprop=url|size&iiurlwidth=960&format=json&origin=*`,
     )
     if (!commonsResponse.ok) return null
 
@@ -104,7 +110,10 @@ export async function fetchWikidataImage(wikidataId: string): Promise<string | n
     }
     const pages = commonsData.query?.pages
     const page = pages ? Object.values(pages)[0] : null
-    return page?.imageinfo?.[0]?.url || null
+    const info = page?.imageinfo?.[0]
+    const url = info?.thumburl || info?.url
+    if (!url) return null
+    return { url, width: info?.thumbwidth ?? info?.width ?? null, height: info?.thumbheight ?? info?.height ?? null }
   } catch (error) {
     console.warn('Wikidata image fetch failed:', error)
     return null

@@ -580,6 +580,7 @@ export { fetchWeather, getWeatherDescription } from './apiClient/weather'
 import {
   fetchWikipediaImage,
   fetchWikidataImage,
+  fetchWikidataImageInfo,
   fetchWikipediaSummary,
 } from './apiClient/wikipedia'
 
@@ -959,13 +960,14 @@ export async function enrichPlace(place) {
   // Wikidata image fetch
   if (place.wikidata) {
     fetchPromises.push(
-      fetchWikidataImage(place.wikidata).then(image => {
+      fetchWikidataImageInfo(place.wikidata).then(info => {
+        const image = info?.url
         if (image) {
           imagePromises.push(Promise.resolve({
             url: image,
             source: 'wikidata',
-            width: null,
-            height: null,
+            width: info.width,
+            height: info.height,
             attribution: { name: null, url: null, source: 'Wikimedia Commons' }
           }))
         }
