@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Store screenshot frame. Rendered by render.mjs at each store size; everything
+     scales with the canvas (container units), so one layout serves iPhone 6.9"/6.5"
+     and Play 9:16. Query: ?v=A|B&bg=&shot=&eyebrow=&head=&accent=&sub=&c1=&c2=&tilt=&zoom=&statusbg= -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,500;1,6..72,600&family=Outfit:wght@500;600;700&display=block" rel="stylesheet">
+<style>
+  :root { --green:#1a3a2f; --green-deep:#0f241d; --cream:#faf8f5; --terracotta:#c45c3e; --gold:#d4a855; }
+  * { margin:0; padding:0; box-sizing:border-box }
+  html, body { width:100vw; height:100vh; overflow:hidden; background:var(--cream) }
+  .canvas { position:relative; width:100vw; height:100vh; container-type:size; overflow:hidden; font-family:'Outfit',sans-serif }
+  /* One unit for everything: canvas width on iPhone (19.5:9), height-led on shorter
+     canvases (Play 9:16) so the copy and the phone keep the same vertical rhythm */
+  .canvas > * { --u: min(1cqw, calc(100cqh * 430 / 932 / 100)) }
+  .bg { position:absolute; inset:0; background-size:cover; background-position:center }
+  .eyebrow { display:inline-flex; align-items:center; gap:calc(1.6 * var(--u)); padding:calc(1.5 * var(--u)) calc(3.6 * var(--u)); border-radius:calc(99 * var(--u));
+    font-weight:600; font-size:calc(3.2 * var(--u)); letter-spacing:.06em; text-transform:uppercase }
+  .eyebrow::before { content:''; width:calc(1.8 * var(--u)); height:calc(1.8 * var(--u)); border-radius:50%; background:var(--terracotta) }
+  .head { font-family:'Newsreader',serif; font-weight:600; font-size:calc(11.6 * var(--u)); line-height:.98; letter-spacing:-.02em; margin-top:calc(3.2 * var(--u)) }
+  .head em { font-style:italic; font-weight:500 }
+  .sub { font-weight:500; font-size:calc(4.3 * var(--u)); line-height:1.3; margin-top:calc(3 * var(--u)); max-width:calc(84 * var(--u)) }
+  .chips { display:flex; gap:calc(2.4 * var(--u)); flex-wrap:wrap; margin-top:calc(4.2 * var(--u)) }
+  .chip { display:inline-flex; align-items:center; gap:calc(1.8 * var(--u)); padding:calc(2.1 * var(--u)) calc(3.8 * var(--u)); border-radius:calc(99 * var(--u)); font-weight:600; font-size:calc(3.4 * var(--u)) }
+  .chip svg { width:calc(3.8 * var(--u)); height:calc(3.8 * var(--u)) }
+  /* The phone: the real screenshot, never redrawn */
+  .phone { position:absolute; left:50%; width:var(--pw); aspect-ratio:430/932; border-radius:calc(var(--pw) * .13);
+    background:#0d0f0e; padding:calc(var(--pw) * .028); transform-origin:50% 100%;
+    box-shadow:0 4cqh 8cqh -2cqh rgba(10,20,16,.55), 0 1.2cqh 3cqh -1cqh rgba(0,0,0,.35), inset 0 0 0 calc(.35 * var(--u)) rgba(255,255,255,.08) }
+  .phone::after { content:''; position:absolute; top:calc(var(--pw) * .045); left:50%; width:calc(var(--pw) * .28); height:calc(var(--pw) * .075);
+    transform:translateX(-50%); background:#000; border-radius:calc(99 * var(--u)) }
+  .screen { width:100%; height:100%; border-radius:calc(var(--pw) * .105); overflow:hidden; background:#000 }
+  .screen img { width:100%; height:100%; object-fit:cover; object-position:top; display:block }
+
+  /* ---- A: full-bleed photo ---- */
+  .A .bg::after { content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(8,22,17,.72) 0%, rgba(8,22,17,.38) 30%, rgba(8,22,17,0) 52%, rgba(8,22,17,0) 78%, rgba(8,22,17,.28) 100%) }
+  .A .copy { position:absolute; top:7.5cqh; left:calc(7 * var(--u)); right:calc(7 * var(--u)); color:#fff; text-shadow:0 calc(.4 * var(--u)) calc(2.4 * var(--u)) rgba(0,0,0,.25) }
+  .A .eyebrow { background:rgba(250,248,245,.94); color:var(--green); text-shadow:none }
+  .A .head em { color:#f3c9a8 }
+  .A .sub { color:rgba(255,255,255,.9) }
+  .A .chip { background:rgba(255,255,255,.16); color:#fff; border:calc(.25 * var(--u)) solid rgba(255,255,255,.35); backdrop-filter:blur(calc(2 * var(--u))); text-shadow:none }
+  .A .phone { --pw:calc(66 * var(--u)); bottom:-9cqh; transform:translateX(-50%) rotate(var(--tilt, -3deg)) }
+
+  /* ---- B: postcard, in the app's own look ---- */
+  .B { background:var(--cream) var(--contours, none) center / cover no-repeat }
+  .B .bg { inset:auto; left:calc(5 * var(--u)); right:calc(5 * var(--u)); top:33cqh; bottom:5cqh; border-radius:calc(6 * var(--u));
+    box-shadow:0 2cqh 5cqh -2cqh rgba(26,58,47,.45) }
+  .B .copy { position:absolute; top:6.5cqh; left:calc(7 * var(--u)); right:calc(7 * var(--u)); color:var(--green) }
+  .B .eyebrow { background:none; padding:0; color:var(--terracotta); font-size:calc(3.4 * var(--u)); letter-spacing:.14em }
+  .B .eyebrow::before { display:none }
+  .B .head::after { content:''; display:block; width:calc(14 * var(--u)); height:calc(1.3 * var(--u)); border-radius:99px; background:var(--terracotta); margin-top:calc(4 * var(--u)) }
+  .B .head em { color:var(--terracotta) }
+  .B .sub { color:#4b5a54 }
+  .B .chips { position:absolute; left:calc(5 * var(--u)); right:calc(5 * var(--u)); bottom:3.4cqh; margin:0; justify-content:center }
+  .B .chip { background:var(--green); color:var(--cream); font-size:calc(4.1 * var(--u)); padding:calc(2.5 * var(--u)) calc(4.4 * var(--u)); box-shadow:0 .6cqh 1.6cqh -.6cqh rgba(26,58,47,.35) }
+  .B .chip svg { color:var(--gold) }
+  .B .phone { --pw:calc(62 * var(--u)); bottom:2.5cqh; left:50%; transform:translateX(-50%) }
+  .B .chips { display:none }
+
+  /* ---- C: research-led. One short headline, a big real screen, the photo behind it ---- */
+  .C { background:var(--cream) var(--contours, none) center / cover no-repeat }
+  .C .eyebrow, .C .sub, .C .chips { display:none }
+  .C .copy { position:absolute; top:4.6cqh; left:calc(7 * var(--u)); right:calc(7 * var(--u)); color:var(--green) }
+  .C .head { margin-top:0; font-size:calc(11.4 * var(--u)); text-wrap:balance }
+  .C .head em { color:var(--terracotta) }
+  .C .head::after { content:''; display:block; width:calc(13 * var(--u)); height:calc(1.2 * var(--u)); border-radius:99px; background:var(--terracotta); margin-top:calc(3.4 * var(--u)) }
+  .C .bg { inset:auto; left:calc(4.5 * var(--u)); right:calc(4.5 * var(--u)); top:33cqh; bottom:-4cqh; border-radius:calc(6 * var(--u)); box-shadow:0 2cqh 5cqh -2cqh rgba(26,58,47,.4) }
+  /* A plain rounded screen (Play: no other platform's device); ?device=iphone adds the iPhone frame for the App Store */
+  .C .phone { --pw:max(calc(76 * var(--u)), 70cqw); top:22.5cqh; bottom:auto; left:50%; transform:translateX(-50%);
+    padding:calc(var(--pw) * .014); border-radius:calc(var(--pw) * .085); background:#1c1f1d }
+  .C .phone::after { display:none }
+  .C .screen { border-radius:calc(var(--pw) * .072) }
+  .C.iphone .phone { padding:calc(var(--pw) * .028); border-radius:calc(var(--pw) * .13); background:#0d0f0e }
+  .C.iphone .phone::after { display:block }
+  .C.iphone .screen { border-radius:calc(var(--pw) * .105) }
+  /* Web captures have no status-bar inset: start the screenshot below the Dynamic Island, on the screenshot's own top colour (?statusbg=, default the app background) */
+  .C.iphone .screen { padding-top:calc(var(--pw) * .115); background:#f8f6f3 }
+
+  /* ---- Recap: every reason on one frame (no UI shown, so nothing to fake) ---- */
+  .recap .bg, .recap .phone, .recap #chips-bottom { display:none }
+  .recap .list { position:absolute; left:calc(6 * var(--u)); right:calc(6 * var(--u)); top:28cqh; display:flex; flex-direction:column; gap:calc(2.6 * var(--u)) }
+  .recap .item { display:flex; align-items:center; gap:calc(4 * var(--u)); background:#fff; border-radius:calc(4.5 * var(--u)); padding:calc(4 * var(--u)) calc(4.6 * var(--u));
+    box-shadow:0 .5cqh 1.6cqh -.6cqh rgba(26,58,47,.22) }
+  .recap .dot { flex:none; width:calc(11 * var(--u)); height:calc(11 * var(--u)); border-radius:50%; background:var(--green); color:var(--gold);
+    display:grid; place-items:center; font-family:'Newsreader',serif; font-weight:600; font-size:calc(5.4 * var(--u)) }
+  .recap .t { font-weight:700; font-size:calc(5 * var(--u)); color:var(--green); line-height:1.15 }
+  .recap .d { font-weight:500; font-size:calc(3.8 * var(--u)); color:#5b6862; margin-top:calc(.6 * var(--u)) }
+  .recap .sign { position:absolute; left:0; right:0; bottom:3cqh; display:flex; align-items:center; justify-content:center; gap:calc(3 * var(--u));
+    font-family:'Newsreader',serif; font-weight:600; font-size:calc(7 * var(--u)); color:var(--green) }
+  .recap .sign img { width:calc(12 * var(--u)); height:calc(12 * var(--u)); border-radius:calc(3 * var(--u)) }
+</style>
+</head>
+<body>
+<div class="canvas" id="c">
+  <div class="bg" id="bg"></div>
+  <div class="copy">
+    <span class="eyebrow" id="eyebrow"></span>
+    <h1 class="head" id="head"></h1>
+    <p class="sub" id="sub"></p>
+    <div class="chips" id="chips-top"></div>
+  </div>
+  <div class="phone"><div class="screen"><img id="shot" alt=""></div></div>
+  <div class="chips" id="chips-bottom"></div>
+  <div class="list" id="list"></div>
+  <div class="sign" id="sign" hidden></div>
+</div>
+<script>
+  const q = new URLSearchParams(location.search)
+  const v = q.get('v') || 'A'
+  const c = document.getElementById('c')
+  c.classList.add(v)
+  if (q.get('bg')) document.getElementById('bg').style.backgroundImage = `url("${q.get('bg')}")`
+  else document.getElementById('bg').hidden = true
+  if (q.get('shot')) document.getElementById('shot').src = q.get('shot')
+  // zoom>1 crops the real screenshot's margins (from top centre) so the card reads larger
+  if (q.get('zoom')) Object.assign(document.getElementById('shot').style, { transform: `scale(${q.get('zoom')})`, transformOrigin: 'top center' })
+  if (q.get('contours')) c.style.setProperty('--contours', `url("${q.get('contours')}")`)
+  if (q.get('device') === 'iphone') c.classList.add('iphone')
+  if (q.get('statusbg')) document.querySelector('.screen').style.background = q.get('statusbg')
+  document.getElementById('eyebrow').textContent = q.get('eyebrow') || ''
+  // head: plain text with the accent phrase wrapped in <em>
+  const head = q.get('head') || '', accent = q.get('accent') || ''
+  const h = document.getElementById('head')
+  if (accent && head.includes(accent)) {
+    const [a, b] = head.split(accent)
+    h.append(a); const em = document.createElement('em'); em.textContent = accent; h.append(em, b)
+  } else h.textContent = head
+  document.getElementById('sub').textContent = q.get('sub') || ''
+  if (q.get('tilt')) c.style.setProperty('--tilt', q.get('tilt'))
+  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+  const chips = [q.get('c1'), q.get('c2')].filter(Boolean)
+  if (q.get('items')) {
+    c.classList.add('recap')
+    for (const [i, [t, d]] of JSON.parse(q.get('items')).entries()) {
+      const el = document.createElement('div'); el.className = 'item'
+      el.innerHTML = `<span class="dot">${i + 1}</span><div><div class="t"></div><div class="d"></div></div>`
+      el.querySelector('.t').textContent = t; el.querySelector('.d').textContent = d
+      document.getElementById('list').append(el)
+    }
+    const sign = document.getElementById('sign'); sign.hidden = false
+    sign.innerHTML = `<img src="${q.get('icon')}" alt="">Go Roam`
+  }
+  const target = document.getElementById(v === 'B' ? 'chips-bottom' : 'chips-top')
+  for (const t of chips) { const s = document.createElement('span'); s.className = 'chip'; s.innerHTML = icon; s.append(t); target.append(s) }
+</script>
+</body>
+</html>

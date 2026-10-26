@@ -1,0 +1,85 @@
+[
+  {
+    "shot": "bored",
+    "bg": "01_coast",
+    "eyebrow": "Bored this weekend?",
+    "head": "Find a day out in seconds.",
+    "accent": "in seconds.",
+    "sub": "Tap I'm bored and ROAM picks somewhere good nearby, open right now.",
+    "c1": "Open now",
+    "c2": "Picked for you"
+  },
+  {
+    "shot": "swipe",
+    "bg": "03_park",
+    "eyebrow": "Swipe to discover",
+    "head": "Swipe right on places you'll love.",
+    "accent": "you'll love.",
+    "sub": "Castles, cafés, walks and hidden gems near you, one card at a time.",
+    "c1": "Thousands of UK places",
+    "c2": "No sign-up needed"
+  },
+  {
+    "shot": "plan",
+    "bg": "10_york_street",
+    "eyebrow": "Plan in one tap",
+    "head": "Your whole day, planned for you.",
+    "accent": "planned for you.",
+    "sub": "Stops, timings and a route on the map. Change anything you like.",
+    "c1": "Route on the map",
+    "c2": "Share with friends"
+  },
+  {
+    "shot": "detail",
+    "bg": "06_castle",
+    "eyebrow": "Know before you go",
+    "head": "The story behind every spot.",
+    "accent": "every spot.",
+    "sub": "History, opening times and directions for each place, not just a pin on a map.",
+    "c1": "Local history",
+    "c2": "Opening times"
+  },
+  {
+    "shot": "town",
+    "bg": "11_whitby",
+    "eyebrow": "Every town",
+    "head": "Not just London. Everywhere.",
+    "accent": "Everywhere.",
+    "sub": "Seaside towns, villages and cities across the UK, each with its own guide.",
+    "c1": "Towns and villages",
+    "c2": "Free town guides"
+  },
+  {
+    "recap": true,
+    "eyebrow": "All in one free app",
+    "head": "Everything for a great day out.",
+    "accent": "great day out.",
+    "sub": "",
+    "items": [
+      [
+        "I'm bored",
+        "An instant pick nearby, open now"
+      ],
+      [
+        "Swipe to discover",
+        "Thousands of UK places, one card at a time"
+      ],
+      [
+        "Plan the whole day",
+        "Stops, timings and a route on the map"
+      ],
+      [
+        "Know before you go",
+        "History, opening times, directions"
+      ],
+      [
+        "Every town",
+        "Seaside towns, villages and cities"
+      ],
+      [
+        "Save it for later",
+        "Your list, ready when you're free"
+      ]
+    ]
+  }
+]

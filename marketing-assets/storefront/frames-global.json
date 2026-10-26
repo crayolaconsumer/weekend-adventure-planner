@@ -1,0 +1,62 @@
+[
+  {
+    "shot": "discover-newyork",
+    "zoom": "1.08",
+    "head": "Find things to do, one swipe away",
+    "accent": "one swipe away",
+    "alt": "Swipe deck card for the Empire State Building, a Landmark 1.1 km away and open now, with skip, go and save buttons",
+    "where": "New York (40.7580,-73.9855), Discover deck",
+    "claim": "Swipe deck of things to do near the user: Discover tab (src/pages/Discover.jsx), shown in the screen itself."
+  },
+  {
+    "shot": "bored",
+    "head": "Bored? We'll pick for you",
+    "accent": "We'll pick for you",
+    "alt": "I'm bored pick: York Guildhall, a Landmark only 60 m away, with Show another and Let's go buttons",
+    "where": "central York (53.9601,-1.0850), I'm bored pick; the blurred deck card behind the sheet is York Guildhall too, the same credited photo",
+    "claim": "\"We'll pick for you\": the I'm bored button picks one nearby place and shows it with its distance (\"Only 60m away\" here; an Open now chip appears only when the place's hours are known, and none shows on this screen), as in the screen.",
+    "statusbg": "#4d4c4b"
+  },
+  {
+    "shot": "plan",
+    "head": "A half-day out, planned in a tap",
+    "accent": "planned in a tap",
+    "alt": "Half-day plan on a York map: three numbered stops from Barley Hall at 10:20 to Brew & Brownie, with Maps, Share and Save",
+    "where": "central York, Plan tab, default Mix vibe and Half day, one tap on Generate itinerary from a fresh page, page clock started at 10:00",
+    "claim": "\"A half-day out, planned in a tap\": from the Plan tab's defaults (Mix adventure, Half day), one tap on Generate itinerary builds a timed 3-stop half-day plan with a route map (src/pages/Plan.jsx; a half day is 3 stops, src/pages/Plan/constants.ts), as in the screen."
+  },
+  {
+    "shot": "events-jazz",
+    "head": "See what's on this weekend",
+    "accent": "this weekend",
+    "alt": "What's on this weekend: live jazz at Piano Bar Soho, London, on a swipe card with skip, tickets and save buttons",
+    "where": "London (51.5072,-0.1276), Events, Weekend, Cards view",
+    "meta": "events-cards-jazz",
+    "claim": "\"See what's on this weekend\": Events tab with the Weekend filter, listings from the Ticketmaster Discovery API near the user, as in the screen (London, 40 events). Coverage depends on Ticketmaster in that country."
+  },
+  {
+    "shot": "detail",
+    "head": "The story behind the place",
+    "accent": "behind the place",
+    "alt": "Place sheet for Treasurer's House, York: photo, Landmark and Historic tags, 423 m away, Wikipedia history, address and hours",
+    "where": "/place/w241061247 (Treasurer's House, York) in the Android app's view: a production build with isNative() true, so it opens as the in-app sheet",
+    "claim": "\"The story behind the place\": place pages show the Wikipedia/Wikidata history when one exists, as for Treasurer's House in the screen. Not every place has one, so the caption says \"the place\", not \"every place\".",
+    "statusbg": "#3a554c"
+  },
+  {
+    "shot": "town-canterbury",
+    "head": "A town's highlights on one page",
+    "accent": "on one page",
+    "alt": "Town guide for Canterbury listing the cathedral, Eastbridge Hospital, the Beaney, St Augustine's Abbey and museums",
+    "where": "/town/canterbury town guide, All filter",
+    "claim": "\"A town's highlights on one page\": the screen is one scrolling page for Canterbury listing its top-ranked places (sights, museums, theatres; the in-app guide shows up to 24, src/pages/TownPage.jsx PER_TOWN = 24) with category filters. No claim about every place or every town."
+  },
+  {
+    "shot": "saved-search",
+    "head": "Find any saved place in seconds",
+    "accent": "in seconds",
+    "alt": "Saved places searched for \"museum\": York Army Museum and Barley Hall, each with a Go button",
+    "where": "Saved tab, search \"museum\", guest session with seven saved places in York",
+    "claim": "\"In seconds\": the saved-places search filters on the phone as you type, with no network call (src/utils/placeSearch.js); \"museum\" matches three of the seven saved places; two are visible on screen."
+  }
+]
