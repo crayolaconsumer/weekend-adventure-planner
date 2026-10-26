@@ -191,6 +191,23 @@ export function getCategoryForType(type: string | null | undefined): CategoryWit
   return null
 }
 
+/**
+ * The category a place shows. tourism=attraction sits in 'unique' (Hidden
+ * Gems), which put the Empire State Building and Grand Central under
+ * "Hidden Gems". A notable one (a Wikipedia article or a heritage listing)
+ * keeps the 'unique' key, so filters and stats are unchanged, but reads
+ * "Landmark".
+ */
+export function getPlaceCategory(place: {
+  type?: string | null,
+  wikipedia?: string | null,
+  heritage?: string | null,
+}): CategoryWithKey | null {
+  const category = getCategoryForType(place.type)
+  if (category?.key === 'unique' && (place.wikipedia || place.heritage)) return { ...category, label: 'Landmark', icon: '🏛️' }
+  return category
+}
+
 /** Check if a type is blacklisted (substring match) */
 export function isBlacklisted(type: string | null | undefined): boolean {
   if (!type) return false

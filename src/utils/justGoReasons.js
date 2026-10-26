@@ -5,6 +5,7 @@
  */
 
 import { getOpeningState } from './openingHours'
+import { GOOD_CATEGORIES } from './categories'
 import { weatherVerdict } from './placeFilter'
 
 const OUTDOOR = ['nature', 'active', 'entertainment']
@@ -33,7 +34,7 @@ export function getJustGoReasons(place, { weather, formatDistance, interests = [
   else if (opening.state === 'closing_soon') reasons.push({ kind: 'open', text: `Open now, ${opening.stateLabel.toLowerCase()}` })
 
   if (category?.key && interests.includes(category.key)) {
-    reasons.push({ kind: 'match', text: `Matches your interest in ${category.label.toLowerCase()}` })
+    reasons.push({ kind: 'match', text: `Matches your interest in ${(GOOD_CATEGORIES[category.key]?.label || category.label).toLowerCase()}` })
   }
 
   // Weather, only from real weather: indoor copy when it is wet or cold,

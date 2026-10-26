@@ -127,3 +127,41 @@ describe('categories', () => {
     })
   })
 })
+
+// Regression (26 Oct 2026): every tourism=attraction is in 'unique', so the Empire State
+// Building and Grand Central showed "Hidden Gems" on their cards
+describe('getPlaceCategory', () => {
+  it('labels a notable attraction a Landmark, keeping the unique key for filters', async () => {
+    const { getPlaceCategory } = await import('../../../src/utils/categories')
+    const esb = getPlaceCategory({ type: 'attraction', wikipedia: 'en:Empire State Building' })
+    expect(esb.key).toBe('unique')
+    expect(esb.label).toBe('Landmark')
+    expect(esb.icon).toBe('🏛️') // not the Hidden Gems diamond
+    expect(getPlaceCategory({ type: 'attraction', heritage: '2' }).label).toBe('Landmark')
+  })
+  it('a little-known attraction is still a Hidden Gem, and other categories are untouched', async () => {
+    const { getPlaceCategory, getCategoryForType } = await import('../../../src/utils/categories')
+    expect(getPlaceCategory({ type: 'windmill' }).label).toBe('Hidden Gems')
+    expect(getPlaceCategory({ type: 'museum', wikipedia: 'en:Louvre' })).toEqual(getCategoryForType('museum'))
+    expect(getPlaceCategory({ type: null })).toBeNull()
+    // the shared category table is not mutated
+    expect(getCategoryForType('attraction').label).toBe('Hidden Gems')
+  })
+  it('the deck path (enhancePlace) uses it', async () => {
+    const { enhancePlace } = await import('../../../src/utils/placeFilter')
+    expect(enhancePlace({ id: 1, type: 'attraction', wikipedia: 'en:Grand Central Terminal', lat: 40.75, lng: -73.97 }, null).category.label).toBe('Landmark')
+  })
+})
+
+describe('justGo reasons name the interest, not the place label', () => {
+  it('a Landmark pick still matches an interest in Hidden Gems', async () => {
+    const { getPlaceCategory } = await import('../../../src/utils/categories')
+    const mod = await import('../../../src/utils/justGoReasons')
+    const fn = mod.justGoReasons || mod.default || Object.values(mod).find(v => typeof v === 'function')
+    const place = { id: 1, name: 'York Guildhall', type: 'attraction', wikipedia: 'en:Guildhall, York' }
+    place.category = getPlaceCategory(place)
+    const reasons = fn(place, { interests: ['unique'] })
+    const match = (Array.isArray(reasons) ? reasons : []).find(r => r.kind === 'match')
+    expect(match?.text).toBe('Matches your interest in hidden gems')
+  })
+})

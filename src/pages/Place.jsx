@@ -15,7 +15,7 @@ import { isNative } from '../utils/nativeBridge'
 import LoadingState from '../components/LoadingState'
 import { useSEO } from '../hooks/useSEO'
 import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
-import { getCategoryForType } from '../utils/categories'
+import { getPlaceCategory } from '../utils/categories'
 import './Place.css'
 
 // Compass + wordmark lockup, the same header as the town pages. Links back
@@ -80,7 +80,7 @@ export default function Place({ location }) {
         const merged = { ...foundPlace, ...enriched }
         // Places fetched by id carry only the OSM type; derive the category
         // so the page shows its badge and branded image fallback.
-        setPlace({ ...merged, category: merged.category || getCategoryForType(merged.type) })
+        setPlace({ ...merged, category: merged.category || getPlaceCategory(merged) })
       } catch (err) {
         console.error('Failed to load place:', err)
         // Set specific error messages based on error type

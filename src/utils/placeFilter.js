@@ -7,7 +7,8 @@ import {
   GOOD_CATEGORIES,
   shouldKeepPlace,
   hasBoringName,
-  getCategoryForType
+  getCategoryForType,
+  getPlaceCategory
 } from './categories'
 import { getPersonalizationBoost } from './tasteProfile'
 import { isChainPlace, CHAIN_PENALTY } from './badges'
@@ -307,7 +308,7 @@ export function filterPlaces(places, options = {}) {
     // Add category info first so we can filter by it
     .map(place => ({
       ...place,
-      category: getCategoryForType(place.type)
+      category: getPlaceCategory(place)
     }))
     // Hard filter by selected categories (if any selected)
     .filter(place => {
@@ -660,7 +661,7 @@ export function enhancePlace(place, userLocation, context = {}) {
   return {
     ...place,
     score: scorePlace(place, context),
-    category: getCategoryForType(place.type),
+    category: getPlaceCategory(place),
     isOpen: isOpenNow(place),
     distance: userLocation ? calculateDistance(
       userLocation.lat,

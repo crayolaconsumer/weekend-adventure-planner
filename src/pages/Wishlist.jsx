@@ -405,12 +405,10 @@ export default function Wishlist() {
                     All
                   </button>
                   {categories.map(cat => {
+                    // The pill names the filter (the category), not one saved place's
+                    // label: a notable Hidden Gem reads "Landmark" on its own card
                     const category = wishlist.find(p => p.category?.key === cat)?.category
-                    // Some legacy saves stored category as the bare key
-                    // (or with the key/label mangled) so the label can be
-                    // missing — fall back to the canonical GOOD_CATEGORIES
-                    // label so the filter pill never renders blank.
-                    const label = category?.label || GOOD_CATEGORIES[cat]?.label || cat
+                    const label = GOOD_CATEGORIES[cat]?.label || category?.label || cat
                     return (
                       <button
                         key={cat}
