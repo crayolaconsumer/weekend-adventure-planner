@@ -17,6 +17,7 @@
  */
 
 import { whenIdle } from './whenIdle'
+import { isNative, getPlatform } from './nativeBridge'
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY
 // Use the ingestion endpoint (eu.i.posthog.com) not the dashboard URL
 // (eu.posthog.com). Events POSTed to the dashboard URL are dropped
@@ -72,6 +73,15 @@ export function initAnalytics() {
         }
       },
     })
+    // Every event says where it came from: the apps are the product, so app and web
+    // must be separable in every funnel (platform: ios | android | web)
+    ph.register({ platform: getPlatform(), surface: isNative() ? 'app' : 'web' })
+    if (isNative()) {
+      import('@capacitor/app')
+        .then(({ App }) => App.getInfo())
+        .then(info => ph.register({ app_version: info.version, app_build: info.build }))
+        .catch(() => {})
+    }
     return ph
   }).catch((err) => {
     console.warn('PostHog failed to load:', err)
