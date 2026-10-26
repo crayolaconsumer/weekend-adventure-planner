@@ -25,7 +25,6 @@ export default function DiscoverHeader({
   loading,
   loadError,
   weather,
-  travelMode,
   travelModeLabel,
   onOpenFilters,
   onTriggerJustGo,

@@ -8,6 +8,7 @@
  *
  * Run: npm run test:e2e   (E2E_BASE to point at a preview)
  */
+import process from 'node:process'
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { TRAVEL_MODES } from '../../src/pages/Discover/constants.ts'
 
