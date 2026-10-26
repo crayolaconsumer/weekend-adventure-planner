@@ -262,3 +262,26 @@ describe('SwipeCard calm layout', () => {
     })
   })
 })
+
+describe('Discover top-up cards (dryDeck)', () => {
+  it('a saved place dealt back says so, and its right swipe reads PLAN, not SAVE', () => {
+    renderCard({ place: { ...basePlace, readyToGo: true } })
+    expect(screen.getByText('Ready to go? You saved this')).toBeTruthy()
+    expect(screen.getByText('PLAN')).toBeTruthy()
+    expect(screen.queryByText('SAVE')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Plan a visit' })).toBeTruthy()
+  })
+
+  it('a place past the band is labelled A bit further', () => {
+    renderCard({ place: { ...basePlace, further: true, distance: 21 } })
+    expect(screen.getByText('A bit further')).toBeTruthy()
+    expect(screen.getByText('SAVE')).toBeTruthy()
+  })
+
+  it('an ordinary card has neither label', () => {
+    renderCard()
+    expect(screen.queryByText(/Ready to go/)).toBeNull()
+    expect(screen.queryByText('A bit further')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save to wishlist' })).toBeTruthy()
+  })
+})

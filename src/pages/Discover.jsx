@@ -14,6 +14,8 @@ import { getPendingVisit, setPendingVisit, clearPendingVisit } from '../utils/pe
 import { useToast } from '../hooks/useToast'
 import { useCurrentTown } from '../hooks/useCurrentTown'
 import { useSavedPlaces } from '../hooks/useSavedPlaces'
+import { useVisitedPlaces } from '../hooks/useVisitedPlaces'
+import { track } from '../utils/analytics'
 import { useTasteProfile } from '../hooks/useTasteProfile'
 import { useSponsoredPlaces } from '../hooks/useSponsoredPlaces'
 import { useSubscription } from '../hooks/useSubscription'
@@ -35,7 +37,8 @@ import { buildFreshDeck, excludeSeen, recordSeen } from '../utils/seenPlaces'
 import DeckRunningDryNotice, { nextWider } from './Discover/DeckRunningDryNotice'
 import { applyDiscoverFilters, passesEligibility, buildFilterKey as buildFilterKeyPure, firstOpening, MIN_OPEN_CARDS } from './Discover/applyFilters'
 import ClosedNowNotice from './Discover/ClosedNowNotice'
-import { DEFAULT_BAND, bandStorageKey, getBandsFor } from './Discover/distanceBands'
+import { DEFAULT_BAND, bandStorageKey, getBandsFor, getBandFor } from './Discover/distanceBands'
+import { topUpDeck, readySwipe, withoutDeckFlags, READY_EVERY } from './Discover/dryDeck'
 import { buildWentOutPatch, buildStreakPatch } from './Discover/stats'
 import { shouldShowPlanPrompt, PLAN_PROMPT_FIRST_SAVE } from './Discover/planPrompt'
 import ErrorRecovery from './Discover/ErrorRecovery'
@@ -54,7 +57,8 @@ const FRIEND_ACTIVITY_PLACE_LIMIT = 20
 export default function Discover({ location }) {
   const navigate = useNavigate()
   const toast = useToast()
-  const { savePlace, places: savedPlaces } = useSavedPlaces()
+  const { savePlace, places: savedPlaces, loading: savedLoading } = useSavedPlaces()
+  const { visitedPlaces, loading: visitedLoading } = useVisitedPlaces()
   const { profile: userProfile } = useTasteProfile()
   const { isPremium } = useSubscription()
   // Places swiped this session (any direction). I'm Bored must not offer
@@ -354,13 +358,80 @@ export default function Discover({ location }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seenVersion: the seen store changed; now: recompute the off-peak clock as time passes
     [basePlaces, applyFilters, weather, friendActivity, seenVersion, canRecycle, now],
   )
-  const filteredPlaces = freshDeck.places
+  // Saved, unvisited places as of the last deck rebuild: read when places load or
+  // reload, not on every save, so the deck in hand never reshuffles under a swipe
+  // A new pool means a new deck (CardStack restarts at card one), so it changes only
+  // when the places change anyway, or before the first swipe (saved places can load
+  // after the deck: picking them up later would re-deal cards already swiped)
+  const [readyPool, setReadyPool] = useState([])
+  // Regular cards swiped since the last ready card: where the next one is due
+  const regularSinceReadyRef = useRef(0)
+  const readyBaseRef = useRef(null)
+  useEffect(() => {
+    // Track the places the pool was last built against even while saved/visited
+    // places are loading, so a late load after a swipe can't count as a rebuild
+    const rebuilt = readyBaseRef.current !== basePlaces
+    readyBaseRef.current = basePlaces
+    if (savedLoading || visitedLoading) return
+    if (!rebuilt && swipedIdsRef.current.size > 0) return
+    // Ids as strings: the server sends strings, the deck uses OSM numbers
+    const visited = new Set((visitedPlaces || []).map(v => String(v.placeId)))
+    const next = (savedPlaces || []).filter(p => !visited.has(String(p.id)))
+    // Same places: keep the same array, or the deck would rebuild a second time
+    setReadyPool(prev => (prev.length === next.length && prev.every((p, i) => p === next[i]) ? prev : next))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshed with the deck (basePlaces), not per save/visit
+  }, [savedLoading, visitedLoading, basePlaces])
+  // Running dry: top the deck up with places just past the band ("A bit further")
+  // and saved places worth going to now ("Ready to go?") before the notice asks
+  // the user to widen anything. A full deck is untouched.
+  const deck = useMemo(() => {
+    const mode = TRAVEL_MODES[effectiveTravelMode(travelMode, isPremium)]
+    const band = selectedBand ? getBandFor(travelMode, selectedBand) : null
+    // Past this mode's radius only when the next mode is one the user has
+    // (a free driver never gets Day trip's 30 km+ for free); the load-more caps
+    const bands = getBandsFor(travelMode)
+    const nextMode = nextWider(travelMode, bands[bands.length - 1].key, isPremium)
+    const reachM = nextMode ? Math.min(mode.maxRadius * 1.5, isPremium ? 200000 : 50000) : mode.maxRadius
+    return topUpDeck({
+      freshDeck,
+      basePlaces,
+      readyPool,
+      pick: (list, overrides) => applyFilters(list, weather, friendActivity, overrides),
+      bandMaxKm: (band ? band.maxMeters : mode.maxRadius) / 1000,
+      furtherMaxKm: reachM / 1000,
+      rangeKm: mode.maxRadius / 1000,
+      origin: fetchCenter,
+      // Category and eligibility filters say what the user wants right now:
+      // saved places of other kinds would ignore them
+      filtered: hasDeckFilters,
+      // Swiped this session (fresh, further or ready): never dealt back as a ready card
+      exclude: new Set([...swipedIdsRef.current].map(String)),
+      // The gap still owed before the next ready card, so a rebuild keeps it in place
+      readyLead: Math.max(0, READY_EVERY - 1 - regularSinceReadyRef.current),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchCenter moves with basePlaces; travel/band/filters already rebuild freshDeck
+  }, [freshDeck, basePlaces, readyPool, hasDeckFilters])
+  const filteredPlaces = deck.places
   // New cards in this deck the user hasn't swiped yet (the running-dry count)
   const [swipeTick, setSwipeTick] = useState(0)
   const freshLeft = useMemo(
     () => freshDeck.places.slice(0, freshDeck.fresh).filter(p => !swipedIdsRef.current.has(p.id)).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- swipeTick: swipedIdsRef changed
     [freshDeck, swipeTick],
+  )
+  // Further cards dealt but not swiped yet: when they run out too, the notice
+  // (and, once per search, the wider fetch) takes over without waiting for a rebuild
+  const furtherLeft = useMemo(
+    () => deck.places.filter(p => p.further && !swipedIdsRef.current.has(p.id)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- swipeTick: swipedIdsRef changed
+    [deck, swipeTick],
+  )
+  // Any card still in hand (new, further or ready): a fetch that rebuilds the deck
+  // must never pull one of those out from under the user's thumb
+  const cardsLeft = useMemo(
+    () => deck.places.filter(p => !swipedIdsRef.current.has(p.id)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- swipeTick: swipedIdsRef changed
+    [deck, swipeTick],
   )
 
   // Too few open places (night time): would including closed ones help?
@@ -625,6 +696,42 @@ export default function Discover({ location }) {
     }
   }, [fetchCenter, effectiveLocation, loadingMore, travelMode, selectedCategories, showFreeOnly, accessibilityMode, showDogs, includeClosed, weather, seenPlaceIds, userProfile, isPremium])
 
+  // Dry with nothing past the band yet: fetch the wider ring once per search,
+  // without waiting for the card stack to ask (an empty deck has no stack)
+  // The running-dry notice waits for that fetch (searchKey in autoMoreDone):
+  // until the wider ring is known to be empty, offering to widen is premature
+  const searchKey = fetchCenter ? `${buildFilterKey()}|${fetchCenter.lat},${fetchCenter.lng}` : null
+  const autoMoreKeyRef = useRef(null)
+  const [autoMoreDone, setAutoMoreDone] = useState(null)
+  useEffect(() => {
+    // Fetch the wider ring when the deck has nothing past the band yet (the first
+    // top-up), or once every card in hand is swiped; never mid-hand after further
+    // cards were dealt (the rebuild would pull the ready card the user is holding)
+    if (!freshDeck.dry || loading || loadingMore || !searchKey) return
+    if (deck.further > 0 && cardsLeft > 0) return
+    if (autoMoreKeyRef.current === searchKey) return
+    autoMoreKeyRef.current = searchKey
+    Promise.resolve(loadMorePlaces()).finally(() => setAutoMoreDone(searchKey))
+  }, [freshDeck.dry, deck.further, cardsLeft, loading, loadingMore, searchKey, loadMorePlaces])
+
+  // Each topped-up deck the user is dealt, and what it adds (does it keep heavy savers
+  // swiping?). Only when the dealt cards change (a clock tick or a merge that adds
+  // nothing rebuilds an identical deck), and settled, so a rebuild that briefly
+  // deals an in-between deck (places, then the ready pool) counts once
+  const dealtIdsRef = useRef(new Set())
+  useEffect(() => {
+    if (!deck.further && !deck.ready) return
+    // A rebuild drops swiped cards, so a changed list isn't news: only a card
+    // the user hasn't been dealt this session is
+    if (deck.places.every(p => dealtIdsRef.current.has(String(p.id)))) return
+    const timer = setTimeout(() => {
+      deck.places.forEach(p => dealtIdsRef.current.add(String(p.id)))
+      track('discover-deck-topped-up', { fresh: deck.fresh, further: deck.further, ready: deck.ready, travelMode })
+    }, 400)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- per dealt deck
+  }, [deck])
+
   // Sync places state with memoized filtered results
   // This is more efficient than the old useEffect because filteredPlaces
   // only changes when basePlaces or actual filter values change
@@ -752,7 +859,25 @@ export default function Discover({ location }) {
 
   // Handle swipe actions
   const handleSwipe = async (action, place) => {
+    // A saved place dealt back: it's already saved and already a like in the
+    // seen store, so none of that runs. Go = directions (CardStack opened them)
+    // and a pending visit; right = plan it; left = snooze it for a while
+    if (place?.readyToGo) {
+      regularSinceReadyRef.current = 0
+      swipedIdsRef.current.add(place.id)
+      setSwipeTick(t => t + 1)
+      const outcome = readySwipe(action, place, {
+        plan: setPlanPromptPlace,
+        wentOut: p => {
+          setPendingVisit(p)
+          updateStats(buildWentOutPatch(stats))
+        },
+      })
+      track('ready-card-swiped', { outcome, placeId: place.id })
+      return
+    }
     if (place?.id != null) {
+      regularSinceReadyRef.current += 1
       swipedIdsRef.current.add(place.id)
       setSwipeTick(t => t + 1)
       // Every swipe leaves the deck, before any early return below. A go
@@ -771,7 +896,7 @@ export default function Discover({ location }) {
       }
 
       // Save to wishlist (hook handles localStorage vs API)
-      const saveResult = await savePlace(place)
+      const saveResult = await savePlace(withoutDeckFlags(place))
       if (!saveResult.success && !saveResult.fallback) {
         toast.error('Failed to save place. Please try again.')
       } else if (place?.id != null) {
@@ -1023,9 +1148,10 @@ export default function Discover({ location }) {
           />
         )}
 
-        {/* Running out of places the user hasn't swiped: say so, offer a
-            wider search. The closed-now offer comes first when it applies. */}
-        {!loading && !loadError && freshDeck.dry && !closedOffer && (
+        {/* Running out of places the user hasn't swiped, and nothing just
+            further out to top the deck up with: say so, offer a wider search.
+            The closed-now offer comes first when it applies. */}
+        {!loading && !loadError && freshDeck.dry && furtherLeft === 0 && !loadingMore && autoMoreDone === searchKey && !closedOffer && (
           <DeckRunningDryNotice
             freshCount={freshLeft}
             recycledCount={freshDeck.recycled}
@@ -1097,7 +1223,8 @@ export default function Discover({ location }) {
         {isDesktop && viewMode === 'list' && (
           <Suspense fallback={<div className="discover-view-loading">Loading list...</div>}>
             <DiscoverList
-              places={places}
+              // Ready cards are swipe-deck only: the list's heart would save them twice
+              places={places.filter(p => !p.readyToGo)}
               selectedPlace={selectedPlace}
               onSelectPlace={setSelectedPlace}
               onSavePlace={savePlace}

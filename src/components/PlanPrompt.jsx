@@ -156,7 +156,8 @@ export default function PlanPrompt({ place, onClose, onAddToPlan }) {
             transition={{ delay: 0.2 }}
           >
             <h3 id="plan-prompt-title" className="plan-prompt-title">
-              Saved
+              {/* A saved place dealt back in Discover was saved long ago, not just now */}
+              {place.readyToGo ? 'Ready when you are' : 'Saved'}
             </h3>
             <p className="plan-prompt-text">
               Add <strong>{place.name}</strong> to an adventure?

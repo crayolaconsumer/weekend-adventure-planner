@@ -35,6 +35,16 @@ const XIcon = () => (
   </svg>
 )
 
+// Plan a visit: the right action on a saved place dealt back (Discover/dryDeck)
+const CalendarIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+)
+
 const HeartIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
     <path d="M20.84,4.61a5.5,5.5,0,0,0-7.78,0L12,5.67,10.94,4.61a5.5,5.5,0,0,0-7.78,7.78l1.06,1.06L12,21.23l7.78-7.78,1.06-1.06a5.5,5.5,0,0,0,0-7.78Z"/>
@@ -581,7 +591,7 @@ export default function SwipeCard({
         className="swipe-card-indicator like"
         style={{ opacity: likeOpacity }}
       >
-        SAVE
+        {place.readyToGo ? 'PLAN' : 'SAVE'}
       </motion.div>
       <motion.div
         className="swipe-card-indicator nope"
@@ -624,6 +634,11 @@ export default function SwipeCard({
             {place.dogInferred ? 'Usually dog-friendly' : 'Dog friendly'}
           </span>
         )}
+
+        {/* Dealt when the nearby deck runs dry (Discover/dryDeck): a saved
+            place worth going to now, or a place just past the chosen band */}
+        {place.readyToGo && <span className="swipe-card-flag ready">Ready to go? You saved this</span>}
+        {place.further && <span className="swipe-card-flag">A bit further</span>}
 
         <h2 className="swipe-card-name">{place.name}</h2>
 
@@ -690,9 +705,9 @@ export default function SwipeCard({
               className="swipe-card-btn like"
               onPointerDownCapture={(e) => e.stopPropagation()}
               onClick={() => handleButtonClick('like')}
-              aria-label="Save to wishlist"
+              aria-label={place.readyToGo ? 'Plan a visit' : 'Save to wishlist'}
             >
-              <HeartIcon />
+              {place.readyToGo ? <CalendarIcon /> : <HeartIcon />}
             </button>
           </div>
         </div>

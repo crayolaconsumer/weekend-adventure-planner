@@ -20,9 +20,10 @@ const destroyNativeAd = vi.fn()
 const track = vi.fn()
 
 vi.mock('../../../src/components/SwipeCard', () => ({
-  default: ({ place, onSwipe, isTop }) => (isTop ? (
+  default: ({ place, onSwipe, isTop, saveCapNudge }) => (isTop ? (
     <div>
       <span>{`card ${place.id}`}</span>
+      {saveCapNudge && <span>save-cap nudge</span>}
       <button onClick={() => onSwipe?.('nope')}>{`skip ${place.id}`}</button>
     </div>
   ) : null),
@@ -444,5 +445,15 @@ describe('CardStack ad slots', () => {
     skipRegularCards(6, 10)
     expect(screen.queryByText(/^ad /)).toBeNull()
     expect(screen.getByText('card p16')).toBeInTheDocument()
+  })
+})
+
+describe('CardStack: Discover top-up cards', () => {
+  it('a free user at the save cap sees the nudge on an ordinary card, never on a saved place dealt back', () => {
+    const { rerender } = renderStack({ places: [{ id: 'r1', name: 'Saved', lat: 1, lng: 2, readyToGo: true }], savesCount: 10 })
+    expect(screen.getByText('card r1')).toBeTruthy()
+    expect(screen.queryByText('save-cap nudge')).toBeNull()
+    rerender({ places: [{ id: 'o1', name: 'New', lat: 1, lng: 2 }], savesCount: 10 })
+    expect(screen.getByText('save-cap nudge')).toBeTruthy()
   })
 })

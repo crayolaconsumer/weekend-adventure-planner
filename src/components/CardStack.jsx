@@ -801,7 +801,7 @@ export default function CardStack({
                     isTop={isTop}
                     topContribution={topContributions?.[place.id] || null}
                     friendActivity={friendActivity?.[place.id] || null}
-                    saveCapNudge={isTop && !isPremium && savesCount >= 10}
+                    saveCapNudge={isTop && !isPremium && savesCount >= 10 && !place.readyToGo}
                     lifted={isTop && lifted?.id === place.id}
                   />
                 )}
