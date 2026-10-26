@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { buildDiscoverOverpassQuery } from '../../../shared/overpassQuery.js'
 
 const store = new Map()
+// Dog mode reserves GeoApify credits in KV before calling (api/lib/geoapify.js): a counter is needed
+const counters = new Map()
+let kvClient
+const makeClient = () => ({
+  set: async () => 'OK', del: async () => 1, exists: async () => 0,
+  get: async k => counters.get(k) ?? null,
+  incrby: async (k, n) => { counters.set(k, (counters.get(k) || 0) + n); return counters.get(k) },
+  decrby: async (k, n) => { counters.set(k, (counters.get(k) || 0) - n); return counters.get(k) },
+  expire: async () => 1,
+  pipeline: () => ({ incr() { return this }, expire() { return this }, exec: async () => [1, 1] }),
+})
+const creditKey = () => `geoapify:credits:${new Date().toISOString().slice(0, 10)}`
 const cacheGet = vi.fn(async key => store.get(key) ?? null)
 const cacheSet = vi.fn(async (key, value) => { store.set(key, value); return true })
 vi.mock('../../../api/lib/kvCache.js', async () => {
@@ -11,7 +23,7 @@ vi.mock('../../../api/lib/kvCache.js', async () => {
     cacheSet: (...a) => cacheSet(...a),
     hashKey: v => createHash('sha1').update(v).digest('hex'),
     isCacheEnabled: () => true,
-    getClient: () => null
+    getClient: () => kvClient
   }
 })
 vi.mock('../../../api/lib/flags.js', () => ({ isFeatureEnabled: async () => true }))
@@ -44,6 +56,19 @@ function call(body) {
   })
 }
 
+function callFrom(ipAddr, body) {
+  return new Promise(resolve => {
+    const res = {
+      statusCode: 200, headers: {},
+      setHeader(k, v) { this.headers[k.toLowerCase()] = v },
+      status(c) { this.statusCode = c; return this },
+      json(b) { resolve({ status: this.statusCode, headers: this.headers, body: b }); return this },
+      end() { resolve({ status: this.statusCode, headers: this.headers }); return this }
+    }
+    handler({ method: 'POST', headers: { 'x-forwarded-for': ipAddr }, body, socket: {} }, res)
+  })
+}
+
 function dogBody() {
   const query = buildDiscoverOverpassQuery(51.5, -0.12, 5000, null).query
   return { query, dogs: true, lat: 51.5, lng: -0.12, radius: 5000, category: null }
@@ -60,6 +85,8 @@ describe('overpass nearby: dog-friendly merge', () => {
   let fetchMock
   beforeEach(() => {
     store.clear()
+    counters.clear()
+    kvClient = makeClient()
     cacheGet.mockClear()
     cacheSet.mockClear()
     vi.stubEnv('GEOAPIFY_API_KEY', 'test-key')
@@ -183,6 +210,70 @@ describe('overpass nearby: dog-friendly merge', () => {
     expect(out.body.elements).toEqual(ELEMENTS.elements)
     expect(geoapifyCalls()).toBe(0)
     expect(overpassCalls()).toBe(1)
+  })
+
+  // Regression (critic M15): dog calls spend the same free-tier credits and must be counted
+  it('reserves 3 credits per dog call on the shared daily counter', async () => {
+    await call(dogBody())
+    expect(geoapifyCalls()).toBe(1)
+    expect(counters.get(creditKey())).toBe(3)
+  })
+
+  it('respects the hard ceiling: at 2,798 a dog call (3) would pass 2,800, so none is made and the count is rolled back', async () => {
+    counters.set(creditKey(), 2798)
+    const out = await call(dogBody())
+    expect(out.status).toBe(200)
+    expect(out.body.elements).toEqual(ELEMENTS.elements) // plain Overpass deck
+    expect(geoapifyCalls()).toBe(0)
+    expect(counters.get(creditKey())).toBe(2798)
+  })
+
+  it('may use the 2,400-2,800 band the places fallback leaves it', async () => {
+    counters.set(creditKey(), 2500)
+    await call(dogBody())
+    expect(geoapifyCalls()).toBe(1)
+    expect(counters.get(creditKey())).toBe(2503)
+  })
+
+  // Regression (critic round 3 P1): one IP varying lat drained the shared credits through dog mode
+  it('one IP gets 40 dog calls a day; the 41st+ make none and reserve nothing; another IP still can', async () => {
+    const out = []
+    for (let i = 0; i < 45; i++) {
+      out.push(await callFrom('203.0.113.7', { ...dogBody(), lat: 51.5 + i * 0.001 }))
+    }
+    expect(out.every(o => o.status === 200)).toBe(true)
+    expect(geoapifyCalls()).toBe(40)
+    expect(counters.get(creditKey())).toBe(120) // 40 x 3, not 45 x 3
+    await callFrom('198.51.100.9', { ...dogBody(), lat: 51.7 })
+    expect(geoapifyCalls()).toBe(41)
+  })
+
+  it('a dog call the global cap refuses does not use up the visitor\'s dog allowance', async () => {
+    counters.set(creditKey(), 2798)
+    await callFrom('203.0.113.8', dogBody())
+    const ipKey = `geoapify:ipdogs:${new Date().toISOString().slice(0, 10)}:203.0.113.8`
+    expect(counters.get(ipKey)).toBe(0)
+    expect(geoapifyCalls()).toBe(0)
+  })
+
+  it('KV unavailable: no reservation, no dog call (fails closed)', async () => {
+    kvClient = null
+    const out = await call(dogBody())
+    expect(out.status).toBe(200)
+    expect(geoapifyCalls()).toBe(0)
+  })
+
+  it('the dog fetch runs alongside the Overpass attempt, not after it', async () => {
+    let release
+    fetchMock = vi.fn(url => (url.includes('geoapify')
+      ? Promise.resolve({ ok: true, status: 200, json: async () => DOG_FEATURES })
+      : new Promise(r => { release = () => r({ ok: true, status: 200, json: async () => ELEMENTS }) })))
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = call(dogBody())
+    await new Promise(r => setTimeout(r, 20))
+    expect(geoapifyCalls()).toBe(1) // already asked while Overpass is still out
+    release()
+    expect((await pending).body.elements).toHaveLength(2)
   })
 
   it('a non-dog request never touches GeoApify', async () => {

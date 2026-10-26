@@ -77,6 +77,14 @@ describe('api/town — web pages', () => {
     expect(f).not.toHaveBeenCalled()
   })
 
+  it('a GeoApify stand-in (Overpass slow or down outside GB/IE) renders with places but is cached 10 min, so the full answer replaces it (regression: /town/bruges 503)', async () => {
+    const h = createHandler({ proxy: proxy({ body: { generator: 'geoapify', elements: PLACES.elements } }), fetchImpl: vi.fn(), gate, ticketmaster: noEvents })
+    const res = await run(h, { slug: 'bruges' })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toContain('Hatfield House')
+    expect(res.headers['cache-control']).toBe('public, s-maxage=600')
+  })
+
   it('world cities come from the shipped world table: no geocoder call, no redirect', async () => {
     const f = vi.fn()
     const h = createHandler({ proxy: proxy(), fetchImpl: f, gate, ticketmaster: noEvents })

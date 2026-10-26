@@ -1,10 +1,11 @@
 /**
  * Cron: Prewarm Overpass KV
  *
- * Starts a chained warmer for popular UK city centers across all Discover
- * travel-mode radii. Each invocation warms one query, waits one second,
- * then schedules the next invocation. This keeps Overpass traffic
- * sequential without requiring one long-running 35 minute function.
+ * Starts a chained warmer for GB/IE city centres (the KV backup behind the
+ * POI DB) and the world's most-visited city centres (shared/prewarmCities.mjs).
+ * Each invocation warms one query, waits DELAY_BETWEEN_CALLS_MS, then
+ * schedules the next invocation. This keeps Overpass traffic sequential
+ * (one query in flight, ~400 a night) without one long-running function.
  */
 
 export const config = {
@@ -16,15 +17,21 @@ import { recordCronRun } from '../lib/cronRuns.js'
 import { buildDiscoverOverpassQuery } from '../../shared/overpassQuery.js'
 import { appOrigin } from '../lib/origin.js'
 import { isAuthorizedCron } from '../lib/cronAuth.js'
+import { PREWARM_CITIES, ALL_RADII_SLUGS } from '../../shared/prewarmCities.mjs'
 
 const JOB_NAME = 'overpass-prewarm'
 // 4s between chained warm calls (was 1s). Warming 48 cities × 5 radii = 240
 // queries from one Vercel egress IP at 1/s tripped Overpass's per-IP rate
 // limit (a run failed ~236/240). 1 query / 4s stays under the burst threshold
-// so the cache actually warms; ~16 min wall-clock at 3am is fine.
-const DELAY_BETWEEN_CALLS_MS = 4000
+// so the cache actually warms. The gap starts after the previous query has
+// answered, so at most one query is in flight; ~400 queries finish in about 1.5 h from 3am.
+export const DELAY_BETWEEN_CALLS_MS = 4000
 
-const CITIES = [
+// GB and Ireland: restored exactly as at HEAD (same cities, coordinates and all five radii).
+// The POI DB answers these areas, but these warm copies are the KV backup for when it can't.
+// Dublin was in HEAD's launch set; it is kept here with the same entry.
+// ponytail: static GB/IE tiles (R2) are planned to replace this backup; until then it stays
+const GB_IE_CITIES = [
   { name: 'London', lat: 51.5074, lng: -0.1278 },
   { name: 'Manchester', lat: 53.4808, lng: -2.2426 },
   { name: 'Birmingham', lat: 52.4862, lng: -1.8904 },
@@ -53,44 +60,11 @@ const CITIES = [
   { name: 'Luton', lat: 51.8787, lng: -0.4200 },
   { name: 'Dunstable', lat: 51.8859, lng: -0.5210 },
   { name: 'St Albans', lat: 51.7553, lng: -0.3360 },
-  // Global launch set — major worldwide cities across continents.
-  // Added alongside the UK core so first-card reload perf is warm
-  // for international users from day one. Lat/lng are city-centre.
-  // Europe
-  { name: 'Paris', lat: 48.8566, lng: 2.3522 },
-  { name: 'Berlin', lat: 52.5200, lng: 13.4050 },
-  { name: 'Madrid', lat: 40.4168, lng: -3.7038 },
-  { name: 'Rome', lat: 41.9028, lng: 12.4964 },
-  { name: 'Amsterdam', lat: 52.3676, lng: 4.9041 },
-  { name: 'Lisbon', lat: 38.7223, lng: -9.1393 },
   { name: 'Dublin', lat: 53.3498, lng: -6.2603 },
-  // North America
-  { name: 'New York', lat: 40.7128, lng: -74.0060 },
-  { name: 'Los Angeles', lat: 34.0522, lng: -118.2437 },
-  { name: 'Chicago', lat: 41.8781, lng: -87.6298 },
-  { name: 'Toronto', lat: 43.6532, lng: -79.3832 },
-  { name: 'Mexico City', lat: 19.4326, lng: -99.1332 },
-  // South America
-  { name: 'Sao Paulo', lat: -23.5505, lng: -46.6333 },
-  { name: 'Buenos Aires', lat: -34.6037, lng: -58.3816 },
-  // Asia
-  { name: 'Tokyo', lat: 35.6762, lng: 139.6503 },
-  { name: 'Seoul', lat: 37.5665, lng: 126.9780 },
-  { name: 'Singapore', lat: 1.3521, lng: 103.8198 },
-  { name: 'Hong Kong', lat: 22.3193, lng: 114.1694 },
-  { name: 'Bangkok', lat: 13.7563, lng: 100.5018 },
-  { name: 'Mumbai', lat: 19.0760, lng: 72.8777 },
-  // Middle East
-  { name: 'Dubai', lat: 25.2048, lng: 55.2708 },
-  // Oceania
-  { name: 'Sydney', lat: -33.8688, lng: 151.2093 },
-  { name: 'Melbourne', lat: -37.8136, lng: 144.9631 },
-  { name: 'Auckland', lat: -36.8485, lng: 174.7633 },
-  // Africa
-  { name: 'Cape Town', lat: -33.9249, lng: 18.4241 },
 ]
 
 const RADII = [
+  // Discover's first open: walking (the default travel mode), all categories
   { mode: 'walking', modeRadius: 5000, queryRadius: 5000 },
   { mode: 'transit', modeRadius: 15000, queryRadius: 15000 },
   { mode: 'driving', modeRadius: 30000, queryRadius: 30000 },
@@ -101,8 +75,9 @@ const RADII = [
   { mode: 'explorer', modeRadius: 150000, queryRadius: 35000 },
 ]
 
-const TARGETS = CITIES.flatMap(city =>
-  RADII.map(mode => ({
+// GB/IE and the world launch set at every radius, the first-open query (walking) for the rest
+export const TARGETS = [...GB_IE_CITIES.map(c => ({ ...c, allRadii: true })), ...PREWARM_CITIES].flatMap(city =>
+  (city.allRadii || ALL_RADII_SLUGS.has(city.slug) ? RADII : RADII.slice(0, 1)).map(mode => ({
     ...city,
     mode: mode.mode,
     modeRadius: mode.modeRadius,
@@ -132,18 +107,26 @@ async function warmTarget(origin, target) {
   const { query } = buildDiscoverOverpassQuery(target.lat, target.lng, target.queryRadius, null)
   const response = await fetch(`${origin}/api/places/overpass/nearby`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // The bearer makes the proxy wait for Overpass instead of answering from a stale copy or
+    // GeoApify and refreshing in the background, which would put several queries in flight
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
     body: JSON.stringify({ query }),
   })
 
+  // Overpass said 429 (the proxy's header), or our own limiter did. Read whatever the status:
+  // after a 429 the proxy can still answer 200 from a stale copy or a mirror's empty body, and
+  // nearly every target has a stale copy, so a 200 with this header is the usual rate-limited case
+  const rateLimited = response.status === 429 || response.headers.get('x-overpass-upstream') === 'rate-limited'
   if (!response.ok) {
-    throw new Error(`Proxy returned ${response.status}`)
+    const err = new Error(`Proxy returned ${response.status}`)
+    err.rateLimited = rateLimited
+    throw err
   }
 
-  return response.headers.get('x-overpass-cache') || 'UNKNOWN'
+  return { cacheStatus: response.headers.get('x-overpass-cache') || 'UNKNOWN', rateLimited }
 }
 
-async function dispatchNext(origin, req, nextIndex, sent, failed, runId) {
+async function dispatchNext(origin, req, nextIndex, sent, failed, runId, streak = 0) {
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
     const remaining = TARGETS.length - nextIndex
@@ -160,6 +143,7 @@ async function dispatchNext(origin, req, nextIndex, sent, failed, runId) {
     sent: String(sent),
     failed: String(failed),
     runId,
+    streak: String(streak),
   })
 
   try {
@@ -189,19 +173,28 @@ async function dispatchNext(origin, req, nextIndex, sent, failed, runId) {
   }
 }
 
-async function processOne(req, origin, index, sent, failed, runId) {
+// Consecutive rate-limited warms that end the night's run: a 429 means Overpass wants us to
+// back off, and the next ~400 queries would only make it worse. The cache stays as it is.
+export const STOP_AFTER_RATE_LIMITED = 3
+
+async function processOne(req, origin, index, sent, failed, runId, streak = 0) {
   const target = TARGETS[index]
   let nextSent = sent
   let nextFailed = failed
+  // Rate-limited warms in a row: a 429 adds one, a real warm resets it, any other failure (a
+  // timeout, a 503) leaves it as it is, since a rate-limiting Overpass mixes 429s with timeouts
+  let nextStreak = streak
 
   try {
-    const cacheStatus = await warmTarget(origin, target)
+    const { cacheStatus, rateLimited } = await warmTarget(origin, target)
     nextSent++
+    nextStreak = rateLimited ? streak + 1 : 0
     console.log(
       `[cron] ${JOB_NAME} warmed ${target.name} ${target.mode} ${target.queryRadius}m query (${cacheStatus})`,
     )
   } catch (err) {
     nextFailed++
+    if (err?.rateLimited) nextStreak = streak + 1
     console.error(
       `[cron] ${JOB_NAME} failed ${target.name} ${target.mode} ${target.queryRadius}m query:`,
       err?.message || err,
@@ -209,6 +202,14 @@ async function processOne(req, origin, index, sent, failed, runId) {
   }
 
   const nextIndex = index + 1
+  if (nextStreak >= STOP_AFTER_RATE_LIMITED) {
+    await recordRun({
+      sent: nextSent,
+      failed: nextFailed + (TARGETS.length - nextIndex),
+      errorMessage: `Stopped at index ${nextIndex}: Overpass rate-limited ${nextStreak} warms in a row`,
+    })
+    return
+  }
   if (nextIndex >= TARGETS.length) {
     await recordRun({
       sent: nextSent,
@@ -219,7 +220,7 @@ async function processOne(req, origin, index, sent, failed, runId) {
   }
 
   await delay(DELAY_BETWEEN_CALLS_MS)
-  await dispatchNext(origin, req, nextIndex, nextSent, nextFailed, runId)
+  await dispatchNext(origin, req, nextIndex, nextSent, nextFailed, runId, nextStreak)
 }
 
 export default async function handler(req, res) {
@@ -235,6 +236,7 @@ export default async function handler(req, res) {
   const sent = Math.max(0, getIntParam(req.query.sent, 0))
   const failed = Math.max(0, getIntParam(req.query.failed, 0))
   const runId = String(req.query.runId || new Date().toISOString().slice(0, 10))
+  const streak = Math.max(0, getIntParam(req.query.streak, 0))
 
   if (index >= TARGETS.length) {
     await recordRun({ sent, failed })
@@ -243,7 +245,7 @@ export default async function handler(req, res) {
 
   const origin = appOrigin(req)
   waitUntil(
-    processOne(req, origin, index, sent, failed, runId).catch(err => {
+    processOne(req, origin, index, sent, failed, runId, streak).catch(err => {
       console.error(`[cron] ${JOB_NAME} step crashed:`, err?.message || err)
     }),
   )

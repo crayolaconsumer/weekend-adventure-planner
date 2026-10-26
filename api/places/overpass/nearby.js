@@ -28,10 +28,12 @@ export const config = {
 
 import { cacheGet, cacheSet, hashKey, isCacheEnabled, getClient } from '../../lib/kvCache.js'
 import { trimOverpassResponse } from '../../lib/overpassTrim.js'
-import { fetchGeoApifyDogPlaces, mergeDogPlaces, dogCacheKey } from '../../lib/geoapify.js'
+import { fetchGeoApifyDogPlaces, mergeDogPlaces, dogCacheKey, fetchGeoapifyPlaces, geoapifyPlacesWorstCase, queryBbox, reserveGeoapifyCredits, reserveGeoapifyForIp, settleGeoapifyCredits, GEOAPIFY_DAILY_CREDIT_CAP, GEOAPIFY_FALLBACK_CREDIT_CAP, GEOAPIFY_DOG_CREDITS } from '../../lib/geoapify.js'
+import { inPoiRegion } from '../../../shared/overpassQuery.js'
+import { isAuthorizedCron } from '../../lib/cronAuth.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
 import { parseQuery, getPois, poiSlotBusy, shadowPois, isCovered, isRankable, getPoiGen, peekPoiGen, POI_DEADLINE_MS, POI_CAP_DEADLINE_MS } from '../../lib/poiQuery.js'
-import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders } from '../../lib/rateLimit.js'
+import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders, getRateLimitKey } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
 
@@ -56,6 +58,24 @@ const OVERPASS_SHARED_LIMIT = { max: 300, windowSec: 60 }
 // tradeoff between freshness and upstream load. Matches the
 // `s-maxage` header we already advertise to CDN-style intermediaries.
 const OVERPASS_CACHE_TTL_SECONDS = 24 * 60 * 60
+// Last-known-good copies. Outside the POI DB's region they are also what a returning
+// visitor is served at once while a refresh runs (stale-while-revalidate), so they live
+// 30 days there; inside it the DB answers and they are only an outage copy.
+const STALE_TTL_SECONDS = 7 * 24 * 60 * 60
+const WORLD_STALE_TTL_SECONDS = 30 * 24 * 60 * 60
+// A GeoApify answer is kept under its own key, read only after the fresh and stale
+// Overpass copies miss: Overpass's fuller answer always wins once it lands. 24 h so a
+// tile Overpass can't answer at all (Mexico City, 26 Oct) spends credits once a day.
+const GEOAPIFY_COPY_TTL_SECONDS = 24 * 60 * 60
+const GEOAPIFY_TIMEOUT_MS = 2500
+// Single flight for GeoApify per tile: the first visitor calls, the others poll for its copy
+// (overpass:ga:<hash>) until it should have landed. The lock outlives the call (2.5 s).
+const GEOAPIFY_LOCK_SECONDS = 10
+const GEOAPIFY_PEER_WAIT_MS = GEOAPIFY_TIMEOUT_MS + 500
+const GEOAPIFY_PEER_POLL_MS = 250
+// A call that came back with nothing usable (no mappable places, refused, timed out) leaves a
+// marker so the tile doesn't spend again on every visit (critic P1: 5 visits = 15 credits)
+const GEOAPIFY_NONE_TTL_SECONDS = 45 * 60
 
 // Single flight across instances: while one request fetches a tile from
 // Overpass, the others wait for its answer instead of sending the same query
@@ -355,6 +375,163 @@ async function poiShadow(plan, key, live, gen, liveSrc) {
   }))
 }
 
+// Fetch a tile from the Overpass mirrors; the caller holds its lock. A success writes the
+// fresh and stale copies and releases the lock once the fresh copy lands; a failure releases
+// it at once. Never throws: { data, endpoint } or { empty, error } (empty: a mirror's 200 with
+// no elements, the last resort below). t0 is the request's start, for the 60 s budget.
+// Try endpoints in priority order with a short per-endpoint timeout: 28 s x 2 endpoints
+// fits the 60 s function budget (a 55 s timeout used to burn it all on one slow mirror).
+const PER_ENDPOINT_TIMEOUT_MS = 28000
+// Overpass's busy 5xx comes back in seconds, and a second try usually lands
+// (7 Oct: alternate tries of one town query failed and passed). One fast 5xx
+// gets one retry, which still fits the town page's 27 s budget. A 429 means
+// slow down and a timeout has spent the time: neither is retried
+const RETRY_IF_FAILED_WITHIN_MS = 12000
+
+// After a failed worldwide fetch: no new Overpass attempt for this tile until it expires, so a
+// failing tile costs Overpass at most one attempt per window however many visitors arrive
+// (critic P5: 10 visitors on a 429ing tile = 20 requests). Longer when Overpass said 429.
+// It grows for a tile Overpass keeps failing (timeouts count like any failure): 2, 4, 8 ... min,
+// capped at 1 h, so a tile Overpass never answers isn't retried every 2 min all day. The count
+// lives 6 h and a success clears it. A 429 never backs off for less than 5 min.
+const BACKOFF_SECONDS = 120
+const BACKOFF_MAX_SECONDS = 60 * 60
+const BACKOFF_429_SECONDS = 300
+const BACKOFF_COUNT_TTL_SECONDS = 6 * 60 * 60
+export function backoffSeconds(failures, rateLimited) {
+  const grown = Math.min(BACKOFF_SECONDS * 2 ** Math.max(0, failures - 1), BACKOFF_MAX_SECONDS)
+  return rateLimited ? Math.max(BACKOFF_429_SECONDS, grown) : grown
+}
+// A tile too big for KV stays too big: refetch it at most every 30 min
+const BACKOFF_UNCACHEABLE_SECONDS = 30 * 60
+
+async function fetchOverpass(upstreamQuery, keys, t0) {
+  let lastError = null
+  let emptyResponse = null
+  let rateLimited = false
+  const attempts = endpointsByPriority()
+  const loopStart = Date.now()
+  let retried = false
+
+  for (const endpoint of attempts) {
+    try {
+      const controller = new AbortController()
+      // Never past the 60 s maxDuration: the DB wait above can spend up to ~6 s of it
+      const timeoutId = setTimeout(() => controller.abort(), Math.min(PER_ENDPOINT_TIMEOUT_MS, Math.max(1000, 57000 - (Date.now() - t0))))
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          // OSM Foundation Overpass usage policy requires an identifying
+          // User-Agent with a contact URL. Without this, OSM operators
+          // can (and have) blocked anonymous traffic at the IP range.
+          'User-Agent': 'ROAM/1.0 (+https://www.go-roam.uk; support@extrastaff.com)'
+        },
+        body: `data=${encodeURIComponent(upstreamQuery)}`,
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        markEndpointFailed(endpoint)
+        if (response.status === 429) rateLimited = true
+        lastError = new Error(`Overpass returned ${response.status}`)
+        if (response.status >= 500 && !retried && Date.now() - loopStart < RETRY_IF_FAILED_WITHIN_MS) {
+          retried = true
+          attempts.push(endpoint)
+        }
+        continue
+      }
+
+      // Drop the tags no client reads: halves the payload, and the cache copy with it
+      const data = trimOverpassResponse(await response.json())
+
+      // A 200 with zero elements is a failure mode (overpass-api.de returns
+      // 200 + 0 elements + a "Query timed out" remark when it runs out of
+      // time) — NOT a real "no places here", since a healthy mirror
+      // returns the data. Treat empty as a
+      // SOFT failure: deprioritise this endpoint, remember the empty body
+      // as a last resort, and try the next mirror. Crucially we NEVER
+      // cache an empty result — caching it previously poisoned the tile
+      // for 24h and kept Discover empty long after Overpass recovered.
+      if (!Array.isArray(data.elements) || data.elements.length === 0) {
+        markEndpointFailed(endpoint)
+        emptyResponse = data
+        lastError = new Error(`Overpass returned 0 elements (degraded: ${endpoint})`)
+        console.warn(`[Overpass Proxy] 0 elements from ${endpoint} — failing over`)
+        continue
+      }
+
+      markEndpointHealthy(endpoint)
+
+      // Persist to KV so subsequent callers in the 24h window get cache
+      // hits, plus a 7-day "last known good" copy for the never-empty
+      // fallback below. Only non-empty results reach here, so we never
+      // cache a degraded-empty response.
+      if (isCacheEnabled()) {
+        const wrote = cacheSet(keys.cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => false)
+        // Worldwide, a tile KV refused (over the payload cap) would otherwise be refetched on
+        // every visit, since nothing fresh ever lands (critic P3): back off it like a failure
+        const cachedFresh = keys.backoffKey
+          ? wrote.then(ok => ok === false && getClient()?.set(keys.backoffKey, '1', { ex: BACKOFF_UNCACHEABLE_SECONDS })).catch(() => {})
+          : wrote
+        waitUntil(cachedFresh)
+        releaseFetch(keys.lockKey, cachedFresh) // after the copy peers are polling for lands
+        // Answered: the next failure of this tile starts its back-off from 2 min again
+        if (keys.backoffCountKey) waitUntil(Promise.resolve(getClient()?.del(keys.backoffCountKey)).catch(() => {}))
+        // Outage copy: 7 days in the DB's region, 30 outside it (STALE_TTL_SECONDS)
+        waitUntil(cacheSet(keys.staleKey, data, keys.staleTtl).catch(() => {}))
+      }
+      return { data, endpoint }
+
+    } catch (error) {
+      markEndpointFailed(endpoint)
+      lastError = error
+
+      // If it's an abort (timeout), try next endpoint
+      if (error.name === 'AbortError') {
+        console.warn(`[Overpass Proxy] Timeout on ${endpoint}`)
+        continue
+      }
+
+      console.error(`[Overpass Proxy] Error on ${endpoint}:`, error.message)
+    }
+  }
+
+  console.error('[Overpass Proxy] All endpoints failed:', lastError?.message)
+  // The back-off is written before the lock goes, so no visitor sees neither
+  if (keys.backoffKey) {
+    const client = getClient()
+    const backoff = client
+      ? (async () => {
+          const failures = Number(await client.incr(keys.backoffCountKey)) || 1
+          await client.expire(keys.backoffCountKey, BACKOFF_COUNT_TTL_SECONDS)
+          await client.set(keys.backoffKey, '1', { ex: backoffSeconds(failures, rateLimited) })
+        })().catch(() => client.set(keys.backoffKey, '1', { ex: backoffSeconds(1, rateLimited) }).catch(() => {}))
+      : Promise.resolve()
+    waitUntil(backoff)
+    releaseFetch(keys.lockKey, backoff)
+  } else releaseFetch(keys.lockKey)
+  return { empty: emptyResponse, error: lastError, rateLimited }
+}
+
+// The first promise to resolve truthy; null once all have resolved falsy (a rejection is falsy)
+function firstAnswer(promises) {
+  const live = promises.filter(Boolean)
+  return new Promise(resolve => {
+    let left = live.length
+    if (!left) resolve(null)
+    for (const p of live) {
+      p.then(v => v, () => null).then(v => {
+        if (v) resolve(v)
+        else if (--left === 0) resolve(null)
+      })
+    }
+  })
+}
+
 export default async function handler(req, res) {
   const t0 = Date.now()
   applyCorsHeaders(res)
@@ -399,26 +576,46 @@ export default async function handler(req, res) {
   }
 
   // Bring-the-dog: GeoApify dog places ride as synthetic elements on every
-  // Overpass-shaped serve. Started now so it runs alongside the Overpass attempt.
+  // Overpass-shaped serve. The dog cache read starts now, alongside the DB step, as before.
+  // The paid part (the reservations and the GeoApify call) starts only once dogs will likely be
+  // merged: when the DB's first wait has passed with no answer, or once the DB step is past.
+  // DB-served bodies never merge dogs, so a DB that answers in its first wait never spends on them.
   const GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY
   const dogMode = body.dogs === true && Boolean(GEOAPIFY_API_KEY) &&
     Number.isFinite(body.lat) && Number.isFinite(body.lng) &&
     Number.isFinite(body.radius) && body.radius > 0 && body.radius <= 100000
-  const dogPromise = dogMode
+  const dogCategory = typeof body.category === 'string' ? body.category : null
+  const dogKey = dogMode ? dogCacheKey(body.lat, body.lng, body.radius, dogCategory) : null
+  const dogCached = dogMode ? cacheGet(dogKey).catch(() => null) : null
+  let dogPromise = null
+  const startDogs = () => (dogPromise ??= dogMode
     ? (async () => {
-        const category = typeof body.category === 'string' ? body.category : null
-        const key = dogCacheKey(body.lat, body.lng, body.radius, category)
-        const cached = await cacheGet(key)
+        const category = dogCategory
+        const key = dogKey
+        const cached = await dogCached
         if (Array.isArray(cached)) return cached
+        // Same free-tier credits as the places fallback, so the same hard ceiling (geoapify.js).
+        // The whole worst case (3) is kept, never refunded: fetchGeoApifyDogPlaces returns null
+        // alike for a refusal, a timeout and a dropped connection, and [] alike for an empty answer
+        // and one whose places all lacked dogs.yes, so it can't say what GeoApify billed. Keeping
+        // 3 errs toward the cap, never toward charges.
+        // Per-IP allowance first (its own counter), so one client can't drain the shared credits
+        const client = getClient()
+        const ipReservation = await reserveGeoapifyForIp(client, getRateLimitKey(req), 'dogs')
+        if (!ipReservation) return []
+        if (!(await reserveGeoapifyCredits(client, GEOAPIFY_DOG_CREDITS, GEOAPIFY_DAILY_CREDIT_CAP))) {
+          waitUntil(settleGeoapifyCredits(client, ipReservation, 0)) // no call made: the visitor keeps it
+          return []
+        }
         const p = await fetchGeoApifyDogPlaces({ lat: body.lat, lng: body.lng, radius: body.radius, category, apiKey: GEOAPIFY_API_KEY })
         if (p?.length && isCacheEnabled()) cacheSet(key, p, OVERPASS_CACHE_TTL_SECONDS).catch(() => {})
         return p || []
       })()
-    : Promise.resolve([])
+    : Promise.resolve([]))
 
   // The KV tile stores the plain Overpass body; dogs are merged per request
   const sendPlaces = async (data, src, log) => {
-    const elements = dogMode ? mergeDogPlaces(data.elements, await dogPromise) : data.elements
+    const elements = dogMode ? mergeDogPlaces(data.elements, await startDogs()) : data.elements
     logPlaces(req, t0, src, elements.length, log)
     return res.status(200).json({ ...data, elements })
   }
@@ -451,7 +648,17 @@ export default async function handler(req, res) {
   // active build, the breaker is open or the DB errored; that, or 0 rows (an
   // id outside the build), falls through to the path below unchanged.
   // Crawlers may use it: it costs Overpass nothing.
-  const poiPlan = parseQuery(upstreamQuery)
+  // Outside the POI DB's region (GB + Ireland) nothing local answers a tile, and public
+  // Overpass takes 20-50 s there or fails (26 Oct: Sydney 53 s, Cape Town 503 after 28 s).
+  // The DB step is skipped there: it can't cover the tile, and on a cold instance its
+  // coverage load and cap wait could spend seconds of the first-visit budget finding that out
+  const bbox = queryBbox(upstreamQuery)
+  const outsideDb = Boolean(bbox) && !inPoiRegion((bbox.s + bbox.n) / 2, (bbox.w + bbox.e) / 2)
+  const poiPlan = outsideDb ? null : parseQuery(upstreamQuery)
+  // A GeoApify stand-in for this tile (worldwide only, below): read after the Overpass copies
+  const gaKey = `overpass:ga:${hashKey(upstreamQuery)}`
+  const gaNoneKey = `overpass:ganone:${hashKey(upstreamQuery)}`
+  const readGaCopy = async () => (outsideDb ? cacheGet(gaKey).then(d => (hasPlaces(d) ? d : null)) : null)
   const poiPct = poiPlan ? await poiFlags() : POI_OFF
   const poiBucket = poiPlan ? rolloutBucket(upstreamQuery) : 100
   const poiServe = poiBucket < poiPct.serve
@@ -493,6 +700,10 @@ export default async function handler(req, res) {
         if (!db?.n) prefetched = await kvEarly // already read: don't read it again below
       }
     } else db = await within(pending, firstWait)
+    // First wait over with no DB answer: the deck will most likely come from KV or Overpass, so
+    // the dog call starts now and overlaps the rest of the DB wait (critic round 4 #2: serial
+    // DB miss + dog fetch could pass the app's 8 s timeout)
+    if (!(db && db.n > 0)) startDogs()
     if (!db && capWait && !settled) {
       if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
       if (!hasPlaces(prefetched)) db = await within(pending, Math.max(0, deadlineAt - Date.now()))
@@ -522,6 +733,7 @@ export default async function handler(req, res) {
     }
     poiWait.abort()
   }
+  startDogs() // past the DB step: every serve from here on merges dogs
   // Shadow is sampled on its own (poiShadowPct), whatever the DB rollout: DB answers,
   // KV hits and Overpass answers all get compared, so the cap is measured at any poiDbPct
   function shadowPoi(live, liveSrc) {
@@ -568,6 +780,13 @@ export default async function handler(req, res) {
         res.setHeader('X-Overpass-Fallback', 'killswitch')
         return sendPlaces(staleData, 'stale', poiLog)
       }
+      // Still cache-only: a GeoApify copy a visitor's request already paid for, never a call
+      const gaCopy = await readGaCopy()
+      if (gaCopy) {
+        res.setHeader('Cache-Control', 'no-store')
+        res.setHeader('X-Overpass-Fallback', 'killswitch')
+        return sendPlaces(gaCopy, 'geoapify', Object.assign(poiLog, { ga_cached: true }))
+      }
     }
     res.setHeader('Cache-Control', 'no-store')
     res.setHeader('Retry-After', '120')
@@ -576,7 +795,137 @@ export default async function handler(req, res) {
   }
 
   const lockKey = `overpass:lock:${hashKey(upstreamQuery)}`
-  if (!(await claimFetch(lockKey))) {
+  // backoffKey: worldwide only; in GB a failed fetch releases the lock at once, as before
+  const backoffKey = outsideDb ? `overpass:backoff:${hashKey(upstreamQuery)}` : null
+  const backoffCountKey = outsideDb ? `overpass:backoffn:${hashKey(upstreamQuery)}` : null
+  const keys = { cacheKey, staleKey, lockKey, backoffKey, backoffCountKey, staleTtl: outsideDb ? WORLD_STALE_TTL_SECONDS : STALE_TTL_SECONDS }
+  // KV can't say: not backed off (fetch as before)
+  const inBackoff = async () => {
+    try {
+      return (await getClient()?.exists(backoffKey)) > 0
+    } catch {
+      return false
+    }
+  }
+  const sendOverpass = result => {
+    dropRateLimitHeaders(res)
+    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
+    res.setHeader('X-Overpass-Endpoint', result.endpoint.replace('https://', '').split('/')[0])
+    res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
+    shadowPoi(result.data, 'overpass')
+    return sendPlaces(result.data, 'overpass', poiLog)
+  }
+  // One line per Overpass fetch on the worldwide path, which may finish after the response
+  const tracedOverpass = () => fetchOverpass(upstreamQuery, keys, t0).then(r => {
+    console.log(JSON.stringify({ evt: 'overpass_fetch', ok: Boolean(r.data), ms: Date.now() - t0, n: r.data?.elements.length ?? 0, error: r.error?.message ?? null }))
+    return r
+  })
+
+  let won = null // claimed the fetch lock: null = not asked yet
+  let result = null // this request's Overpass outcome
+  // The prewarm cron (its bearer) waits for Overpass as before: filling KV is its job
+  if (outsideDb && !isAuthorizedCron(req)) {
+    // Stale-while-revalidate: a last-known-good copy (else a GeoApify one) answers now, and
+    // one refresh per tile runs after the response; the lock keeps it to one across instances
+    const stale = await readStale()
+    const ga = hasPlaces(stale) ? null : await readGaCopy()
+    const copy = hasPlaces(stale) ? { data: stale, src: 'stale' } : ga && { data: ga, src: 'geoapify' }
+    if (copy) {
+      // Lock first, then the back-off: checked the other way round, a peer failing in between
+      // (back-off written, lock released) would let one more fetch through (critic P2)
+      waitUntil(claimFetch(lockKey).then(async claimed => {
+        if (!claimed) return
+        if (await inBackoff()) return releaseFetch(lockKey)
+        return tracedOverpass()
+      }).catch(() => {}))
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('X-Overpass-Cache', 'STALE')
+      res.setHeader('X-Overpass-Fallback', 'swr')
+      return sendPlaces(copy.data, copy.src, Object.assign(poiLog, { swr: true }))
+    }
+
+    // Nothing cached: Overpass and GeoApify race, the first good answer is served. Overpass
+    // runs on to completion either way (waitUntil) and its full answer fills KV for next time.
+    // GeoApify is asked at once, not after an Overpass deadline: a cold tile out here never
+    // came back from Overpass in under 2.5 s, so waiting first would only add latency.
+    won = await claimFetch(lockKey)
+    if (won && await inBackoff()) {
+      poiLog.overpass_backoff = true
+      releaseFetch(lockKey)
+      won = false
+    }
+    const overpass = won ? tracedOverpass() : null
+    if (overpass) waitUntil(overpass)
+    const gaLog = {}
+    const geoapify = (async () => {
+      const worst = GEOAPIFY_API_KEY ? geoapifyPlacesWorstCase(upstreamQuery) : 0
+      const client = getClient()
+      if (!worst || !client) return null // no key, a query it can't answer, or KV can't count
+      if (await cacheGet(gaNoneKey)) {
+        gaLog.ga_none = true // asked recently, nothing usable came back
+        return null
+      }
+      const gaLockKey = `overpass:galock:${hashKey(upstreamQuery)}`
+      let mine = false
+      try {
+        mine = (await client.set(gaLockKey, '1', { nx: true, ex: GEOAPIFY_LOCK_SECONDS })) === 'OK'
+      } catch {
+        // unknown: don't call, a peer may be
+      }
+      if (!mine) {
+        // Another visitor is asking GeoApify for this tile: wait for its copy, never a second call
+        gaLog.ga_peer = true
+        for (const until = Date.now() + GEOAPIFY_PEER_WAIT_MS; Date.now() < until;) {
+          await new Promise(resolve => setTimeout(resolve, GEOAPIFY_PEER_POLL_MS))
+          const held = await lockHeld(gaLockKey)
+          const d = await cacheGet(gaKey)
+          if (hasPlaces(d)) return d
+          if (!held) break // the peer finished without an answer
+        }
+        return null
+      }
+      let landed = Promise.resolve()
+      try {
+        const ipReservation = await reserveGeoapifyForIp(client, getRateLimitKey(req))
+        if (!ipReservation) {
+          gaLog.ga_ip_capped = true
+          return null
+        }
+        const reservation = await reserveGeoapifyCredits(client, worst, GEOAPIFY_FALLBACK_CREDIT_CAP)
+        if (!reservation) {
+          gaLog.ga_capped = true
+          waitUntil(settleGeoapifyCredits(client, ipReservation, 0)) // no call made: the visitor keeps it
+          return null
+        }
+        const started = Date.now()
+        const ga = await fetchGeoapifyPlaces(upstreamQuery, { apiKey: GEOAPIFY_API_KEY, timeoutMs: GEOAPIFY_TIMEOUT_MS })
+        // ga_credits: today's count once the unused part is refunded
+        Object.assign(gaLog, { ga_ms: Date.now() - started, ga_credits: reservation.total - (worst - ga.credits) })
+        waitUntil(settleGeoapifyCredits(client, reservation, ga.credits))
+        landed = (ga.data
+          ? cacheSet(gaKey, ga.data, GEOAPIFY_COPY_TTL_SECONDS)
+          : cacheSet(gaNoneKey, 1, GEOAPIFY_NONE_TTL_SECONDS)).catch(() => {})
+        return ga.data
+      } finally {
+        // Released once the copy peers poll for has landed
+        waitUntil(landed.then(() => client.del(gaLockKey)).catch(() => {}))
+      }
+    })().catch(() => null)
+    // Its tail (refund, copy or marker write, lock release) must finish even when Overpass wins
+    waitUntil(geoapify)
+    const first = await firstAnswer([overpass?.then(r => (r.data ? r : null)), geoapify.then(data => data && { geoapify: data })])
+    if (first?.geoapify) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('X-Overpass-Fallback', 'geoapify')
+      return sendPlaces(first.geoapify, 'geoapify', Object.assign(poiLog, gaLog))
+    }
+    Object.assign(poiLog, gaLog) // ga_credits / ga_capped on the Overpass line too
+    if (first) return sendOverpass(first)
+    if (overpass) result = await overpass // settled: both failed, so the failure path below
+  }
+
+  if (won === null) won = await claimFetch(lockKey)
+  if (!won) {
     // Another request is fetching this tile from Overpass. A last-known-good
     // copy answers at once; else wait for the peer's answer while it still
     // holds the lock (a failed fetch releases it at once), never a second call
@@ -588,7 +937,9 @@ export default async function handler(req, res) {
       return sendPlaces(staleData, 'stale', Object.assign(poiLog, { fallback: 'peer' }))
     }
     if (hasPlaces(staleData)) return serveStale()
-    for (const until = Date.now() + WAIT_FOR_PEER_MS; Date.now() < until;) {
+    // Worldwide, the GeoApify attempt above already spent up to 3 s: the wait counts from the
+    // request's start there, so a visitor is never held past the app's 8 s proxy timeout
+    for (const until = (outsideDb ? t0 : Date.now()) + WAIT_FOR_PEER_MS; Date.now() < until;) {
       await new Promise(resolve => setTimeout(resolve, PEER_POLL_MS))
       // Lock first, then answer: a peer writes its answer before releasing, so
       // "released" read first can't miss an answer that has landed
@@ -611,110 +962,14 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Overpass API unavailable', message: 'This area is loading. Please retry in a moment.' })
   }
 
-  let lastError = null
-  let emptyResponse = null
-  const PER_ENDPOINT_TIMEOUT_MS = 28000
-  // Overpass's busy 5xx comes back in seconds, and a second try usually lands
-  // (7 Oct: alternate tries of one town query failed and passed). One fast 5xx
-  // gets one retry, which still fits the town page's 27 s budget. A 429 means
-  // slow down and a timeout has spent the time: neither is retried
-  const RETRY_IF_FAILED_WITHIN_MS = 12000
-  const attempts = endpointsByPriority()
-  const loopStart = Date.now()
-  let retried = false
-
-  for (const endpoint of attempts) {
-    try {
-      const controller = new AbortController()
-      // Never past the 60 s maxDuration: the DB wait above can spend up to ~6 s of it
-      const timeoutId = setTimeout(() => controller.abort(), Math.min(PER_ENDPOINT_TIMEOUT_MS, Math.max(1000, 57000 - (Date.now() - t0))))
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          // OSM Foundation Overpass usage policy requires an identifying
-          // User-Agent with a contact URL. Without this, OSM operators
-          // can (and have) blocked anonymous traffic at the IP range.
-          'User-Agent': 'ROAM/1.0 (+https://www.go-roam.uk; support@extrastaff.com)'
-        },
-        body: `data=${encodeURIComponent(upstreamQuery)}`,
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (!response.ok) {
-        markEndpointFailed(endpoint)
-        lastError = new Error(`Overpass returned ${response.status}`)
-        if (response.status >= 500 && !retried && Date.now() - loopStart < RETRY_IF_FAILED_WITHIN_MS) {
-          retried = true
-          attempts.push(endpoint)
-        }
-        continue
-      }
-
-      // Drop the tags no client reads: halves the payload, and the cache copy with it
-      const data = trimOverpassResponse(await response.json())
-
-      // A 200 with zero elements is a failure mode (overpass-api.de returns
-      // 200 + 0 elements + a "Query timed out" remark when it runs out of
-      // time) — NOT a real "no places here", since a healthy mirror
-      // returns the data. Treat empty as a
-      // SOFT failure: deprioritise this endpoint, remember the empty body
-      // as a last resort, and try the next mirror. Crucially we NEVER
-      // cache an empty result — caching it previously poisoned the tile
-      // for 24h and kept Discover empty long after Overpass recovered.
-      if (!Array.isArray(data.elements) || data.elements.length === 0) {
-        markEndpointFailed(endpoint)
-        emptyResponse = data
-        lastError = new Error(`Overpass returned 0 elements (degraded: ${endpoint})`)
-        console.warn(`[Overpass Proxy] 0 elements from ${endpoint} — failing over`)
-        continue
-      }
-
-      markEndpointHealthy(endpoint)
-
-      // Persist to KV so subsequent callers in the 24h window get cache
-      // hits, plus a 7-day "last known good" copy for the never-empty
-      // fallback below. Only non-empty results reach here, so we never
-      // cache a degraded-empty response.
-      if (isCacheEnabled()) {
-        const cachedFresh = cacheSet(cacheKey, data, OVERPASS_CACHE_TTL_SECONDS).catch(() => {})
-        waitUntil(cachedFresh)
-        releaseFetch(lockKey, cachedFresh) // after the copy peers are polling for lands
-        // 7-day outage copy: long enough to ride out an Overpass outage without
-        // filling the KV store with month-old tiles
-        waitUntil(cacheSet(staleKey, data, 7 * 24 * 60 * 60).catch(() => {}))
-      }
-
-      dropRateLimitHeaders(res)
-      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
-      res.setHeader('X-Overpass-Endpoint', endpoint.replace('https://', '').split('/')[0])
-      res.setHeader('X-Overpass-Cache', isCacheEnabled() ? 'MISS' : 'BYPASS')
-      shadowPoi(data, 'overpass')
-      return await sendPlaces(data, 'overpass', poiLog)
-
-    } catch (error) {
-      markEndpointFailed(endpoint)
-      lastError = error
-
-      // If it's an abort (timeout), try next endpoint
-      if (error.name === 'AbortError') {
-        console.warn(`[Overpass Proxy] Timeout on ${endpoint}`)
-        continue
-      }
-
-      console.error(`[Overpass Proxy] Error on ${endpoint}:`, error.message)
-    }
-  }
-
-  // All attempts failed.
-  console.error('[Overpass Proxy] All endpoints failed:', lastError?.message)
-  releaseFetch(lockKey)
+  if (!result) result = await fetchOverpass(upstreamQuery, keys, t0)
+  if (result.data) return sendOverpass(result)
+  const emptyResponse = result.empty
+  // Tells the prewarm cron Overpass said 429, so it can stop for the night (it only sees our 503)
+  if (result.rateLimited) res.setHeader('X-Overpass-Upstream', 'rate-limited')
 
   // Never-empty fallback: serve the last known good result for this exact
-  // query (up to 7 days old, written on every success above) instead of 503.
+  // query (up to 7 days old, 30 outside the DB's region) instead of 503.
   // A deck of slightly-stale REAL places beats an empty Discover for a
   // paying user during a total Overpass outage. Flagged via header so the
   // degraded mode stays observable in telemetry. Brand-new tiles never
@@ -735,11 +990,11 @@ export default async function handler(req, res) {
   // real dog-friendly places beats a 503 for a premium user mid-outage —
   // the normal deck cannot be served at all at this point.
   if (dogMode) {
-    const dogOnly = await dogPromise
+    const dogOnly = await startDogs()
     if (Array.isArray(dogOnly) && dogOnly.length > 0) {
       res.setHeader('Cache-Control', 'no-store')
       res.setHeader('X-Overpass-Fallback', 'geoapify')
-      logPlaces(req, t0, 'geoapify', dogOnly.length, poiLog)
+      logPlaces(req, t0, 'geoapify', dogOnly.length, Object.assign(poiLog, { dogs_only: true }))
       return res.status(200).json({ elements: dogOnly })
     }
   }

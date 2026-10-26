@@ -97,7 +97,8 @@ async function fetchGroupedPlaces(town, ip, proxy, deadline, from) {
   try {
     const { status, body } = await callOverpassProxy(townOverpassQuery(town.lat, town.lng), ip, proxy, deadline - Date.now(), from)
     if (status === 200 && Array.isArray(body?.elements) && body.elements.length > 0) {
-      return { grouped: groupPlaces(body.elements, town), ok: true }
+      // standIn: outside GB/IE the proxy answered from GeoApify while Overpass was slow or down
+      return { grouped: groupPlaces(body.elements, town), ok: true, standIn: body.generator === 'geoapify' }
     }
     console.warn(`[town] places ${town.slug}: proxy ${status}`)
   } catch (err) {
@@ -242,7 +243,7 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, 
 
       const ip = getRateLimitKey(req)
       // Events are extra: fetched alongside places, never allowed to hold the page up
-      const [{ grouped, ok }, events] = await Promise.all([
+      const [{ grouped, ok, standIn }, events] = await Promise.all([
         fetchGroupedPlaces(town, ip, proxy, deadline, req),
         // bot: cache-only, a miss is "no events", never a Ticketmaster call
         weekendEvents(town, ip, ticketmaster, { bot: cacheOnly || isPreviewBot(req) })
@@ -258,7 +259,9 @@ export function createHandler({ proxy = overpassProxy, fetchImpl = fetch, gate, 
       // Listed events go out of date, so those pages refresh within hours
       // Events missing because Ticketmaster failed must not be cached as "none" for a day
       // Events are optional: Ticketmaster failing only means retrying them in 3h
-      const cache = grouped.total === 0 ? 'public, s-maxage=600' : events === null || events.length ? EVENTS_CACHE : LONG_CACHE
+      // A GeoApify stand-in is approximate (api/lib/geoapify.js geoapifyCanAnswer): 10 min, so the
+      // full Overpass answer, which lands in KV meanwhile, replaces it on the next render
+      const cache = grouped.total === 0 || standIn ? 'public, s-maxage=600' : events === null || events.length ? EVENTS_CACHE : LONG_CACHE
       return sendHtml(res, 200, renderTownPage(town, grouped, events || []), cache)
     } catch (err) {
       // Geocoder down, busy or timed out: say so, don't cache it

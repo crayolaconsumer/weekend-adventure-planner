@@ -329,6 +329,19 @@ export function selectOverpassTypesForRadius(types, radius) {
   return [...types].sort((a, b) => priorityRank(a) - priorityRank(b)).slice(0, maxTypes)
 }
 
+// The self-built POI DB's region (scripts/poi/build.sh: the great-britain and
+// ireland-and-northern-ireland extracts). Outside it only KV, public Overpass and GeoApify
+// can answer (api/places/overpass/nearby.js). West to -10.7 for Ireland's west coast
+// (Dingle -10.27, the Blaskets -10.6); south from 49.8 takes in Scilly but not the Channel
+// Islands, which are a separate extract the build doesn't load. Deliberately not the
+// query-shaping box in buildOverpassQuery (west edge -8.7): changing that would move query
+// text and every cache key.
+// ponytail: a box, not the build's own outline; it also takes in the French coast from
+// Dieppe to Boulogne, which then simply keeps the old path
+export function inPoiRegion(lat, lng) {
+  return lat >= 49.8 && lat <= 60.9 && lng >= -10.7 && lng <= 1.8
+}
+
 export function buildOverpassQuery(lat, lng, radius, types) {
   const timeout = 20
   const isVeryLargeRadius = radius > 50000
