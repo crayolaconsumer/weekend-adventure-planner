@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "E2E=1 vitest run tests/e2e",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package"
   },

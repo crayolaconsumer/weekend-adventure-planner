@@ -192,3 +192,13 @@ describe('share-meta: plans and profiles', () => {
     expect(res.body).toBe(TEMPLATE)
   })
 })
+
+// 26 Oct: a cold /place lookup carries on in waitUntil after the page is sent so its answer
+// is cached, but the proxy can take 56 s; at maxDuration 15 it was killed (~48 timeouts/day)
+// and the answer never reached the cache
+it('share-meta lives long enough for the background place lookup it keeps alive', () => {
+  const fns = JSON.parse(readFileSync('vercel.json', 'utf8')).functions
+  const nearby = readFileSync('api/places/overpass/nearby.js', 'utf8')
+  const perEndpoint = Number(/PER_ENDPOINT_TIMEOUT_MS = (\d+)/.exec(nearby)[1])
+  expect(fns['api/share-meta.js'].maxDuration * 1000).toBeGreaterThan(2 * perEndpoint)
+})
