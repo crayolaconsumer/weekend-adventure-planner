@@ -137,6 +137,43 @@
   box-shadow: 0 2px 6px rgba(26, 58, 47, 0.18);
 }
 
+.wishlist-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-md);
+  padding: 0 14px;
+  border: 1.5px solid var(--roam-parchment);
+  border-radius: var(--radius-full);
+  background: var(--roam-paper);
+  color: var(--color-text-muted);
+}
+
+.wishlist-search:focus-within {
+  border-color: var(--roam-forest);
+}
+
+.wishlist-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 16px; /* 16px stops iOS zooming on focus */
+  outline: none;
+}
+
+.wishlist-no-results {
+  text-align: center;
+  padding: var(--space-xl) var(--space-md);
+  color: var(--color-text-secondary);
+}
+
+.wishlist-no-results p {
+  margin-bottom: var(--space-md);
+}
+
 /* Grid */
 .wishlist-grid {
   display: grid;

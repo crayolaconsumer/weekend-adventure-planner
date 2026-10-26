@@ -20,6 +20,7 @@ import { useFormatDistance } from '../contexts/DistanceContext'
 import { openMapsDirections } from '../utils/navigation'
 import { GOOD_CATEGORIES } from '../utils/categories'
 import { calculateDistance } from '../utils/placeFilter'
+import { matchesPlaceQuery } from '../utils/placeSearch'
 import { getCurrentPosition as nativeGetCurrentPosition } from '../utils/nativePlugins'
 import { haversineKm } from '../../shared/geo.mjs'
 import './Wishlist.css'
@@ -55,6 +56,13 @@ const NEARBY_PIN_SVG = `<svg width="32" height="32" viewBox="0 0 24 24" fill="no
 const NavigationIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
     <polygon points="3,11 22,2 13,21 11,13"/>
+  </svg>
+)
+
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="8"/>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
   </svg>
 )
 
@@ -143,6 +151,7 @@ export default function Wishlist() {
   const { events: savedEvents, loading: eventsLoading, unsaveEvent, refresh: refreshEvents } = useSavedEvents()
   const [activeTab, setActiveTab] = useState(TABS.PLACES)
   const [filter, setFilter] = useState('all')
+  const [query, setQuery] = useState('')
   const { isPremium } = useSubscription()
   const formatDistance = useFormatDistance()
 
@@ -228,13 +237,14 @@ export default function Wishlist() {
     wishlist.map(p => normaliseCategoryKey(p.category?.key) || normaliseCategoryKey(p.category)).filter(Boolean)
   )]
 
-  // Filter wishlist
-  const filteredWishlist = filter === 'all'
-    ? wishlist
-    : wishlist.filter(p => {
-        const key = normaliseCategoryKey(p.category?.key) || normaliseCategoryKey(p.category)
-        return key === filter
-      })
+  // Filter wishlist by category chip, then by search text
+  const filteredWishlist = wishlist.filter(p => {
+    if (filter !== 'all') {
+      const key = normaliseCategoryKey(p.category?.key) || normaliseCategoryKey(p.category)
+      if (key !== filter) return false
+    }
+    return matchesPlaceQuery(p, query)
+  })
 
   // Paginated items
   const displayedPlaces = filteredWishlist.slice(0, placesDisplayLimit).map(place => ({
@@ -323,6 +333,7 @@ export default function Wishlist() {
           onClick={() => {
             setActiveTab(TABS.PLACES)
             setFilter('all')
+            setQuery('')
             setPlacesDisplayLimit(PAGE_SIZE)
           }}
         >
@@ -362,6 +373,24 @@ export default function Wishlist() {
           ) : wishlist.length > 0 ? (
             <>
               <NearbyVisitedNudge wishlist={wishlist} />
+
+              {/* Search: only worth the space once the list is long */}
+              {wishlist.length > 6 && (
+                <div className="wishlist-search" role="search">
+                  <SearchIcon />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={e => {
+                      setQuery(e.target.value)
+                      setPlacesDisplayLimit(PAGE_SIZE)
+                    }}
+                    placeholder="Search saved places"
+                    aria-label="Search saved places"
+                    enterKeyHint="search"
+                  />
+                </div>
+              )}
 
               {/* Category Filters */}
               {categories.length > 1 && (
@@ -497,6 +526,18 @@ export default function Wishlist() {
                   ))}
                 </AnimatePresence>
               </div>
+
+              {filteredWishlist.length === 0 && (
+                <div className="wishlist-no-results">
+                  <p>No saved places match{query.trim() ? ` "${query.trim()}"` : ' this filter'}.</p>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => { setQuery(''); setFilter('all') }}
+                  >
+                    Clear search
+                  </button>
+                </div>
+              )}
 
               {/* Load More Button */}
               {hasMorePlaces && (
