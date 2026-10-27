@@ -17,6 +17,7 @@ import { useBottomSheetDismiss } from '../hooks/useBottomSheetDismiss'
 import { resolvePlaceImageSync, resolvePlaceImageAsync } from '../utils/placeImage'
 import { getJustGoReasons } from '../utils/justGoReasons'
 import { tap as hapticTap, success as hapticSuccess } from '../utils/haptics'
+import { dimStatusBar } from '../utils/nativePlugins'
 import './JustGoModal.css'
 
 // Icons (use simple SVGs matching existing app patterns)
@@ -150,6 +151,12 @@ export default function JustGoModal({
   const [showCelebration, setShowCelebration] = useState(false)
   const formatDistance = useFormatDistance()
   const focusTrapRef = useFocusTrap(isOpen)
+  // The native status bar dims with the sheet's scrim, and returns to the theme on close
+  useEffect(() => {
+    if (!isOpen) return
+    dimStatusBar(true)
+    return () => { dimStatusBar(false) }
+  }, [isOpen])
   // Swipe-down-to-dismiss. Disabled mid-celebration so the user
   // can't accidentally drag the confetti screen away.
   const dismissDrag = useBottomSheetDismiss(onClose, { enabled: !showCelebration })

@@ -374,6 +374,32 @@ export async function hideSplashScreen() {
   }
 }
 
+// The I'm-bored sheet dims the page with a black scrim at 70%: the native status
+// bar should dim with it (Android draws the bar outside the WebView), then return
+// to the theme. The colour is the scrim blended over the theme's background.
+const SCRIM_ALPHA = 0.7
+export function scrimOver(hex) {
+  const n = parseInt(hex.slice(1), 16)
+  const ch = s => Math.round(((n >> s) & 255) * (1 - SCRIM_ALPHA)).toString(16).padStart(2, '0')
+  return `#${ch(16)}${ch(8)}${ch(0)}`
+}
+export async function dimStatusBar(on) {
+  if (!isNative()) return
+  if (!on) return configureStatusBar()
+  try {
+    const { StatusBar, Style } = await import('@capacitor/status-bar')
+    const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
+    const color = scrimOver(isDark ? NATIVE_BACKGROUND.dark : NATIVE_BACKGROUND.light)
+    await StatusBar.setStyle({ style: Style.Dark }) // light icons on the dimmed bar
+    await StatusBar.setBackgroundColor({ color })
+    if (getPlatform() === 'android') {
+      await window.Capacitor?.Plugins?.RoamTheme?.setSystemBarsBackground?.({ color })
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function configureStatusBar() {
   if (!isNative()) return
   try {

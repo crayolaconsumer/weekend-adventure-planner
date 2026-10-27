@@ -37,3 +37,18 @@ describe('status bar icons match the theme', () => {
     expect(setStyle).toHaveBeenLastCalledWith({ style: 'LIGHT' })
   })
 })
+
+describe("the status bar dims with the I'm bored sheet", () => {
+  it('dims to the scrim blended over the theme background with light icons, then restores the theme', async () => {
+    const { dimStatusBar, scrimOver } = await import('../../../src/utils/nativePlugins')
+    const { StatusBar } = await import('@capacitor/status-bar')
+    expect(scrimOver('#faf8f5')).toBe('#4b4a4a')
+    document.documentElement.setAttribute('data-theme', 'light')
+    await dimStatusBar(true)
+    expect(setStyle).toHaveBeenLastCalledWith({ style: 'DARK' })
+    expect(StatusBar.setBackgroundColor).toHaveBeenLastCalledWith({ color: '#4b4a4a' })
+    await dimStatusBar(false)
+    expect(setStyle).toHaveBeenLastCalledWith({ style: 'LIGHT' })
+    expect(StatusBar.setBackgroundColor).toHaveBeenLastCalledWith({ color: '#faf8f5' })
+  })
+})
