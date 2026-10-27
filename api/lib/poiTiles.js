@@ -26,7 +26,7 @@
  * counterpart here.
  */
 import { cellRanges, CELL_PAD_DEG, LARGE_CELL, SCHEMA_VERSION } from '../../shared/poiCell.mjs'
-import { blockKey, blockOf, decodeHeader, decodeIdHeader, decodeRowsAsync, findIdCell, idShardOf, idsKey, largeKey, HEADER_BYTES, ID_HEADER_BYTES } from '../../shared/poiTiles.mjs'
+import { blockKey, blockOf, decodeHeader, decodeHeaderPack, decodeIdHeader, decodeRowsAsync, findIdCell, idShardOf, idsKey, largeKey, HEADER_BYTES, ID_HEADER_BYTES } from '../../shared/poiTiles.mjs'
 import { r2Store } from './poiStore.js'
 import { rankCap, FEATURES_VERSION, ELIGIBLE, CAP } from '../../shared/poiRank.mjs'
 import { isRankable, toAnswer, SCAN_ROWS, RANK_SCAN_ROWS, CAP_MIN_ELIGIBLE } from './poiQuery.js'
@@ -41,7 +41,7 @@ export const MAX_READ_BYTES = 12_000_000
 export const RANGE_GAP_BYTES = 64 * 1024
 const MANIFEST_TTL_MS = 60 * 1000
 // Decoded headers by object key: keys are content-addressed, so an entry never goes stale
-export const HEADER_LRU_MAX = 2048
+export const HEADER_LRU_MAX = 2048 // = MAX_PACK_BLOCKS (shared/poiTiles.mjs)
 
 // Decodes: a London-sized read is ~5 MB of brotli -> ~100 MB of rows (~130 ms of CPU). They run
 // on the threadpool (decodeRowsAsync), at most DECODE_CONCURRENCY at once per instance, so N
@@ -113,11 +113,33 @@ async function cachedJson(store, key, ttl, cachedOnly = false) {
  */
 export async function loadManifest(store, buildId = null, { exact = false, cachedOnly = false } = {}) {
   if (buildId && /^[\w-]+$/.test(buildId)) {
-    const m = await cachedJson(store, `manifests/${buildId}.json`, Infinity, cachedOnly)
+    const m = seedHeaders(await cachedJson(store, `manifests/${buildId}.json`, Infinity, cachedOnly))
     if (m || exact) return m
   } else if (exact) return null
   const cur = await cachedJson(store, 'current.json', MANIFEST_TTL_MS, cachedOnly)
-  return cur ? cachedJson(store, cur.manifest, Infinity, cachedOnly) : null
+  return cur ? seedHeaders(await cachedJson(store, cur.manifest, Infinity, cachedOnly)) : null
+}
+
+// Headers packed into the manifest (header_pack, scripts/poi/tiles.mjs) go straight into the
+// header LRU, once per manifest object, so a cold read skips the header Range GETs. A header is
+// filed only when its packed sha is the one this manifest lists for the block it names; one that
+// doesn't match or decode, or a bad pack, is skipped and those blocks Range GET as before
+const seeded = new WeakSet()
+function seedHeaders(m) {
+  if (!m?.header_pack || seeded.has(m)) return m
+  seeded.add(m)
+  let pack
+  try { pack = decodeHeaderPack(m.header_pack) } catch { return m }
+  for (const { sha, header } of pack.blocks) {
+    try {
+      const h = decodeHeader(header)
+      if (m.blocks?.[h.block] === sha) headerCacheSet(blockKey(h.block, sha), h)
+    } catch { /* that block's header comes from R2 */ }
+  }
+  if (m.ids) {
+    try { headerCacheSet(idsKey(m.ids), decodeIdHeader(pack.ids)) } catch { /* as above */ }
+  }
+  return m
 }
 
 /** Header LRU (exported for tests). */

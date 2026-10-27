@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { LARGE_CELL } from '../../shared/poiCell.mjs'
-import { blockKey, blockOf, encodeBlock, encodeIdIndex, encodeRow, encodeRows, idsKey, largeKey, sha8, HEADER_BYTES } from '../../shared/poiTiles.mjs'
+import { blockKey, blockOf, encodeBlock, encodeHeaderPack, encodeIdIndex, MAX_PACK_BLOCKS, encodeRow, encodeRows, idsKey, largeKey, sha8, HEADER_BYTES, ID_HEADER_BYTES } from '../../shared/poiTiles.mjs'
 import { brotliCompressSync, constants } from 'node:zlib'
 
 export async function* releaseRows(dir) {
@@ -61,12 +61,14 @@ export function writeTiles({ blocks, covered, large }, meta, outDir, { measure =
   }
   const ids = [...new Set([...blocks.keys(), ...covered.keys()])].sort((a, b) => a - b)
   const entries = {}
+  const headers = []
   const stats = { blocks: 0, bytes: 0, rows: 0, written: 0, largest: null, wholeBlockBytes: 0, headerBytes: 0 }
   for (const block of ids) {
     const cells = blocks.get(block) || new Map()
     const buf = encodeBlock(block, cells, covered.get(block) || [])
     const sha = sha8(buf)
     entries[block] = sha
+    headers.push({ sha, header: Buffer.from(buf.subarray(0, HEADER_BYTES)) }) // a copy: the block buffer can go
     if (put(blockKey(block, sha), buf)) stats.written++
     const rows = [...cells.values()].reduce((n, c) => n + c.length, 0)
     stats.blocks++
@@ -89,7 +91,11 @@ export function writeTiles({ blocks, covered, large }, meta, outDir, { measure =
   const idsSha = sha8(idsBuf)
   if (put(idsKey(idsSha), idsBuf)) stats.written++
   stats.idsBytes = idsBuf.length
-  const manifest = { ...meta, format_version: 1, header_bytes: HEADER_BYTES, blocks: entries, large: largeSha, large_rows: large.length, ids: idsSha }
+  // Every header rides in the manifest (header_pack: GB's manifest goes 3 KB -> 43 KB), so a cold
+  // instance reads manifest -> cells: two R2 round trips, not three. Readers fall back to Range
+  // GETs without it (and builds too big for it go without)
+  const manifest = { ...meta, format_version: 1, header_bytes: HEADER_BYTES, blocks: entries, large: largeSha, large_rows: large.length, ids: idsSha,
+    ...(headers.length <= MAX_PACK_BLOCKS ? { header_pack: encodeHeaderPack(idsBuf.subarray(0, ID_HEADER_BYTES), headers) } : {}) }
   const manifestKey = `manifests/${meta.build_id}.json`
   writeFileSync(join(outDir, manifestKey), JSON.stringify(manifest))
   writeFileSync(join(outDir, 'current.json'), JSON.stringify({ manifest: manifestKey, build_id: meta.build_id }))

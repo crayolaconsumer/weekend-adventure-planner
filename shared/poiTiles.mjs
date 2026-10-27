@@ -6,7 +6,7 @@
  *   b/<blockId>.<sha8>.bin   header + one brotli member per 0.1-degree cell
  *   b/large.<sha8>.bin       one brotli member: every LARGE_CELL row
  *   b/ids.<sha8>.bin         id index: (osm_type, osm_id) -> cell (see encodeIdIndex)
- *   manifests/<build>.json   { build_id, ..., blocks: { blockId: sha8 }, large: sha8, ids: sha8 }
+ *   manifests/<build>.json   { build_id, ..., blocks: { blockId: sha8 }, large: sha8, ids: sha8, header_pack }
  *   current.json             { manifest: 'manifests/<build>.json' }
  *
  * Block header (HEADER_BYTES, little-endian):
@@ -175,6 +175,27 @@ export function decodeIdHeader(buf) {
   if (buf.length < ID_HEADER_BYTES || buf.toString('latin1', 0, 4) !== ID_MAGIC) throw new Error('not a POI id index')
   if (buf.readUInt8(4) !== FORMAT_VERSION || buf.readUInt32LE(8) !== ID_SHARDS) throw new Error('POI id index version')
   return Array.from({ length: ID_SHARDS }, (_, i) => ({ offset: buf.readUInt32LE(12 + i * 8), length: buf.readUInt32LE(16 + i * 8) }))
+}
+
+/**
+ * The manifest's `header_pack`: base64 of one brotli member holding the id-index header, then one
+ * entry per block: its sha8 (8 ASCII bytes) and its header (HEADER_BYTES, naming its block).
+ * GB: 164 blocks, ~35 KB of base64, so a cold reader gets every header with the manifest instead
+ * of a Range GET per block. Builds over MAX_PACK_BLOCKS go without (readers Range GET as before).
+ */
+export const MAX_PACK_BLOCKS = 2048 // = the server's header LRU (HEADER_LRU_MAX): a bigger pack would evict itself
+const PACK_ENTRY = 8 + HEADER_BYTES
+export function encodeHeaderPack(idsHeader, blockHeaders) {
+  const entries = blockHeaders.map(({ sha, header }) => Buffer.concat([Buffer.from(sha, 'latin1'), header]))
+  return brotliCompressSync(Buffer.concat([idsHeader, ...entries]), { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }).toString('base64')
+}
+/** -> { ids, blocks: [{ sha, header }] }, headers undecoded. Throws on a bad pack. */
+export function decodeHeaderPack(b64) {
+  const buf = brotliDecompressSync(Buffer.from(b64, 'base64'), { maxOutputLength: ID_HEADER_BYTES + MAX_PACK_BLOCKS * PACK_ENTRY })
+  if (buf.length < ID_HEADER_BYTES || (buf.length - ID_HEADER_BYTES) % PACK_ENTRY) throw new Error('bad header pack')
+  const blocks = []
+  for (let o = ID_HEADER_BYTES; o < buf.length; o += PACK_ENTRY) blocks.push({ sha: buf.toString('latin1', o, o + 8), header: buf.subarray(o + 8, o + PACK_ENTRY) })
+  return { ids: buf.subarray(0, ID_HEADER_BYTES), blocks }
 }
 
 /** One shard member -> the cell of (type, id), or null when the build doesn't have it. */

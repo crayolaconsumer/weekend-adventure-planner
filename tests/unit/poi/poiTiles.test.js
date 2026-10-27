@@ -5,7 +5,8 @@ import { Buffer } from 'node:buffer'
 import { join } from 'node:path'
 import { poiCell, isLarge, LARGE_CELL, OSM_TYPE_CODE } from '../../../shared/poiCell.mjs'
 import { poiFeatures, CAP, ELIGIBLE, rankCap } from '../../../shared/poiRank.mjs'
-import { blockOf, cellOf, encodeBlock, decodeHeader, decodeRows, encodeRows, HEADER_BYTES, CELLS } from '../../../shared/poiTiles.mjs'
+import { blockOf, cellOf, encodeBlock, decodeHeader, decodeHeaderPack, encodeHeaderPack, decodeRows, encodeRows, HEADER_BYTES, ID_HEADER_BYTES, CELLS } from '../../../shared/poiTiles.mjs'
+import { brotliCompressSync } from 'node:zlib'
 import { buildDiscoverOverpassQuery } from '../../../shared/overpassQuery.js'
 import { snapQueryBbox, SNAP_GRID_DEGREES } from '../../../api/lib/bboxSnap.js'
 
@@ -319,6 +320,16 @@ describe('getTilePois over a block store', () => {
   const calls = { get: 0, range: 0 }
   const store = { get: k => { calls.get++; return base.get(k) }, getRange: (k, a, b) => { calls.range++; return base.getRange(k, a, b) } }
   beforeEach(() => { _resetTileState(); table.rows = rows; calls.get = 0; calls.range = 0 })
+  // A manifest as built before headers were embedded (or edited): manifests pass through `edit`
+  const withManifest = edit => ({
+    get: async k => {
+      calls.get++
+      const buf = await base.get(k)
+      return k.startsWith('manifests/') ? Buffer.from(JSON.stringify(edit(JSON.parse(buf)))) : buf
+    },
+    getRange: (k, a, b) => { calls.range++; return base.getRange(k, a, b) },
+  })
+  const legacy = withManifest(m => { delete m.header_pack; return m })
 
   it('writes every row once', () => {
     expect(stats.rows).toBe(rows.length)
@@ -338,15 +349,70 @@ describe('getTilePois over a block store', () => {
     })
   }
 
-  it('one header read per block, then the coalesced body ranges; headers cached after that', async () => {
+  it('the manifest packs every block header and the id-index header, byte for byte', async () => {
+    const m = JSON.parse(await base.get('manifests/uk-test.json'))
+    const pack = decodeHeaderPack(m.header_pack)
+    const want = await Promise.all(Object.entries(m.blocks).map(([b, sha]) => base.getRange(`b/${b}.${sha}.bin`, 0, HEADER_BYTES - 1)))
+    expect(pack.blocks.map(b => b.header.toString('hex')).sort()).toEqual(want.map(b => b.toString('hex')).sort())
+    expect(Object.fromEntries(pack.blocks.map(b => [decodeHeader(b.header).block, b.sha]))).toEqual(m.blocks)
+    expect(pack.ids).toEqual(await base.getRange(`b/ids.${m.ids}.bin`, 0, ID_HEADER_BYTES - 1))
+  })
+
+  it('cold read: headers come with the manifest, so R2 serves the coalesced body ranges only', async () => {
     const ql = SHAPES(51.85, -1.2, 52.15, -0.8)['node only']
     const trace = {}
     await getTilePois(parseQuery(ql), ql, { store, trace })
     expect(trace.reads).toBe(4) // small fixture cells: every block's needed cells sit within RANGE_GAP_BYTES
+    expect(calls.range).toBe(4) // 4 bodies, no header reads
+  })
+
+  it('a manifest without embedded headers: one header read per block, then cached', async () => {
+    const ql = SHAPES(51.85, -1.2, 52.15, -0.8)['node only']
+    const tiles = await getTilePois(parseQuery(ql), ql, { store: legacy })
     expect(calls.range).toBe(4 + 4) // 4 headers + 4 bodies
     calls.range = 0
-    await getTilePois(parseQuery(ql), ql, { store })
+    await getTilePois(parseQuery(ql), ql, { store: legacy })
     expect(calls.range).toBe(4)
+    _resetTileState()
+    expect((await getTilePois(parseQuery(ql), ql, { store })).body).toBe(tiles.body)
+  })
+
+  it('a packed header that is junk, missing, or carries another sha is skipped: those blocks read their own, same answer', async () => {
+    const ql = SHAPES(51.85, -1.2, 52.15, -0.8)['node only']
+    const want = (await getTilePois(parseQuery(ql), ql, { store })).body
+    _resetTileState()
+    calls.range = 0
+    const broken = withManifest(m => {
+      const { ids, blocks } = decodeHeaderPack(m.header_pack)
+      // slot 0 repeats block 1 (block 0 has none), slot 2 is junk, slot 3 has a sha this manifest doesn't list
+      return { ...m, header_pack: encodeHeaderPack(ids, [blocks[1], blocks[1], { sha: blocks[2].sha, header: Buffer.alloc(HEADER_BYTES, 7) }, { ...blocks[3], sha: 'deadbeef' }, ...blocks.slice(4)]) }
+    })
+    expect((await getTilePois(parseQuery(ql), ql, { store: broken })).body).toBe(want)
+    expect(calls.range).toBe(4 + 3) // all four blocks are in the box: the three without a good header read it from R2
+  })
+
+  it('the DB build path (buildId) seeds from the pack too: cold, body ranges only', async () => {
+    const ql = SHAPES(51.85, -1.2, 52.15, -0.8)['node only']
+    await getTilePois(parseQuery(ql), ql, { store, buildId: 'uk-test' })
+    expect(calls.get).toBe(2) // the build's manifest and LARGE; never current.json (that path makes 3)
+    expect(calls.range).toBe(4)
+  })
+
+  it('a manifest is unpacked once, not per request (evicted headers then come from R2, not a re-seed)', async () => {
+    const ql = SHAPES(51.85, -1.2, 52.15, -0.8)['node only']
+    await getTilePois(parseQuery(ql), ql, { store })
+    for (const k of [...Array(5000).keys()]) headerCacheSet(`filler${k}`, {}) // evict every seeded header
+    calls.range = 0
+    await getTilePois(parseQuery(ql), `${ql}again`, { store })
+    expect(calls.range).toBe(4 + 4) // headers from R2: the pack was not unpacked a second time
+  })
+
+  it('a pack that does not decode is ignored as a whole (headers from R2), never thrown', async () => {
+    const ql = SHAPES(51.85, -1.2, 52.15, -0.8)['node only']
+    const junk = withManifest(m => ({ ...m, header_pack: 'bm90IGJyb3RsaQ==' }))
+    expect((await getTilePois(parseQuery(ql), ql, { store: junk })).n).toBeGreaterThan(0)
+    expect(calls.range).toBe(4 + 4)
+    expect(() => decodeHeaderPack(Buffer.from(brotliCompressSync(Buffer.alloc(ID_HEADER_BYTES + 5))).toString('base64'))).toThrow(/bad header pack/)
   })
 
   it('cells more than RANGE_GAP_BYTES apart are read as separate ranges, and still decode right', async () => {
@@ -398,8 +464,12 @@ describe('getTilePois over a block store', () => {
     const trace = {}
     expect(await getTilePois(parseQuery(ql), ql, { store, trace, maxReadBytes: 1000 })).toBeNull()
     expect(trace.why).toBe('read_cap')
-    expect(calls.range).toBe(4) // headers only
+    expect(calls.range).toBe(0) // the headers came with the manifest: nothing read from R2
     expect(await getTilePois(parseQuery(ql), ql, { store, maxReadBytes: trace.bytesRead })).not.toBeNull()
+    _resetTileState()
+    calls.range = 0
+    expect(await getTilePois(parseQuery(ql), ql, { store: legacy, maxReadBytes: 1000 })).toBeNull()
+    expect(calls.range).toBe(4) // without embedded headers: headers only
   })
 
   it('junk is not served here', async () => {
@@ -425,14 +495,20 @@ describe('getTilePois over a block store', () => {
     })
   }
 
-  it('id lookup: index header once, then shard + block header + cell; the header is cached after', async () => {
+  it('id lookup: the index and block headers come with the manifest, so R2 serves shard + cell only', async () => {
+    const r = sample(1)
+    await getTilePois(parseQuery(idQl('node', r.osm_id)), 'k1', { store })
+    expect(calls.range).toBe(2)
+  })
+
+  it('id lookup without embedded headers: index header once, then shard + block header + cell; cached after', async () => {
     const r = sample(1)
     const ql = idQl('node', r.osm_id)
-    await getTilePois(parseQuery(ql), ql, { store })
+    await getTilePois(parseQuery(ql), ql, { store: legacy })
     expect(calls.range).toBe(4) // id header, shard, block header, cell
     calls.range = 0
     const r2 = rows.find(x => x.osm_type === 1 && x.cell !== LARGE_CELL && blockOf(x.cell).block === blockOf(r.cell).block && x.osm_id !== r.osm_id)
-    await getTilePois(parseQuery(idQl('node', r2.osm_id)), 'k2', { store })
+    await getTilePois(parseQuery(idQl('node', r2.osm_id)), 'k2', { store: legacy })
     expect(calls.range).toBe(2) // shard + cell: both headers cached
   })
 
