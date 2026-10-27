@@ -24,13 +24,13 @@ async function get(headers = {}) {
 }
 
 describe('GET /api/contributions caching', () => {
-  it('anonymous views are CDN-cacheable, varied on credentials', async () => {
+  it('anonymous views are CDN-cacheable, varied on Authorization but never Cookie', async () => {
     user = null
     const res = await get()
     expect(res.statusCode).toBe(200)
-    expect(res.headers['cache-control']).toBe('public, s-maxage=60, stale-while-revalidate=300')
+    expect(res.headers['cache-control']).toBe('public, s-maxage=60, stale-while-revalidate=600')
     expect(res.headers.vary).toMatch(/Authorization/)
-    expect(res.headers.vary).toMatch(/Cookie/)
+    expect(res.headers.vary).not.toMatch(/Cookie/) // Vercel refuses to cache Vary: Cookie
     expect(res.headers.vary).toMatch(/Origin/) // withCors' Vary survives
   })
 

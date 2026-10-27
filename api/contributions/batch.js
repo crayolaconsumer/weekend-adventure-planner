@@ -7,7 +7,8 @@
 
 import { query } from '../lib/db.js'
 import { getUserFromRequest } from '../lib/auth.js'
-import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { shareIfAnonymous, TIPS_CACHE } from '../lib/edgeCache.js'
 import { withCors } from '../lib/cors.js'
 
 // Per-instance set of place_ids that have ANY approved tip (every visibility).
@@ -75,18 +76,9 @@ async function handler(req, res) {
     // top-tip preview text from a blocked user.
     const currentUser = await getUserFromRequest(req).catch(() => null)
 
-    // Anonymous answers are the same for everyone: let the CDN share them.
-    // Signed-in answers apply the viewer's blocks and follows: never shared.
-    // Vary keeps a cached anonymous copy from being served to a request that
-    // carries a token (Bearer on native, roam_token cookie on web).
-    if (currentUser) {
-      res.setHeader('Cache-Control', 'private, no-store')
-    } else {
-      dropRateLimitHeaders(res)
-      res.setHeader('Cache-Control', 'public, s-maxage=60')
-      const vary = res.getHeader?.('Vary')
-      res.setHeader('Vary', [vary, 'Authorization', 'Cookie'].filter(Boolean).join(', '))
-    }
+    // Anonymous answers are the same for everyone: shared at the edge.
+    // Anything sent with a credential (blocks, follows) is private, no-store.
+    shareIfAnonymous(req, res, TIPS_CACHE)
 
     const contributionsByPlace = Object.fromEntries(ids.map(id => [id, null]))
 

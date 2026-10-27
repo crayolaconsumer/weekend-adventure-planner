@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { authHeaders, viewerParam } from '../utils/authToken'
 
 // Module-level cache: placeId -> { timestamp, promise<contribution|null> }.
 // Storing the promise (not the result) means an id already in flight is never
@@ -28,7 +29,9 @@ export async function fetchBatchContributions(placeIds) {
   })
 
   if (missing.length > 0) {
-    const request = fetch(`/api/contributions/batch?placeIds=${missing.join(',')}`)
+    // Signed in: the viewer marker and token (web too, not just the cookie)
+    // keep the CDN's shared guest copy, which skips the viewer's blocks, away
+    const request = fetch(`/api/contributions/batch?placeIds=${missing.join(',')}${viewerParam()}`, { headers: authHeaders() })
       .then(response => (response.ok ? response.json() : null))
       .then(body => body?.contributions || {})
       .catch(() => ({})) // Silently fail - API might not be configured in development

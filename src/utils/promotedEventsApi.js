@@ -8,6 +8,8 @@
  * Fails soft everywhere: a promoted-events failure must never break the feed.
  */
 
+import { haversineKm } from '../../shared/geo.mjs'
+
 const SESSION_KEY = 'roam_session_id'
 
 /** Stable per-session id, shared with the sponsored-card tracker. */
@@ -32,16 +34,31 @@ function getSessionId() {
 export async function fetchPromotedEvents(lat, lng, radiusKm = 30) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return []
   try {
+    // Rounded to 0.01 deg (~1 km) like the Ticketmaster call, so neighbours
+    // share one edge-cached answer. eventsApi recomputes distances from the
+    // exact location.
     const params = new URLSearchParams({
-      lat: String(lat),
-      lng: String(lng),
+      lat: String(Math.round(lat * 100) / 100),
+      lng: String(Math.round(lng * 100) / 100),
       radiusKm: String(radiusKm)
     })
     const res = await fetch(`/api/events/promoted?${params.toString()}`)
     if (!res.ok) return []
     const data = await res.json()
     const promoted = Array.isArray(data?.promoted) ? data.promoted : []
-    return promoted.map(mapToRoamEvent).filter(Boolean)
+    // The server filtered on the rounded point with ~1 km slack: apply the
+    // real rule here, from the exact location. Shown only within BOTH the
+    // organiser's paid radius and the user's filter radius.
+    return promoted
+      .filter(p => {
+        const vLat = p.venue?.lat
+        const vLng = p.venue?.lng
+        if (typeof vLat !== 'number' || typeof vLng !== 'number') return false
+        const limit = Math.min(typeof p.promoRadiusKm === 'number' ? p.promoRadiusKm : Infinity, radiusKm)
+        return haversineKm(lat, lng, vLat, vLng) <= limit
+      })
+      .map(mapToRoamEvent)
+      .filter(Boolean)
   } catch {
     return []
   }

@@ -2,19 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 
 vi.mock('../../../src/contexts/AuthContext', () => ({ useAuth: () => ({ isAuthenticated: true, loading: false }) }))
-vi.mock('../../../src/utils/authToken', () => ({ getAuthToken: () => 'tok' }))
+vi.mock('../../../src/utils/authToken', async importOriginal => ({ ...(await importOriginal()), getAuthToken: () => 'tok' }))
 vi.mock('../../../src/utils/analytics', () => ({ track: () => {} }))
 
 const { useSavedPlaces } = await import('../../../src/hooks/useSavedPlaces')
 
 const server = [{ id: 'a', name: 'A', savedAt: 1 }, { id: 'b', name: 'B', savedAt: 2 }]
 
-describe('useSavedPlaces failed save (logged in)', () => {
+// A save the server refuses for good (403: free-tier cap) rolls back. A save
+// that fails for a reason that may pass is kept and retried: see
+// useSavedPlaces.outbox.test.jsx.
+describe('useSavedPlaces refused save (logged in)', () => {
   beforeEach(() => {
     localStorage.clear()
+    sessionStorage.clear() // signed-in device caches (session-scoped without a local token)
     localStorage.setItem('roam_wishlist', JSON.stringify([{ id: 'anon', name: 'Anon' }]))
     vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => opts.method === 'POST'
-      ? new Response('{}', { status: 500 })
+      ? new Response('{}', { status: 403 })
       : new Response(JSON.stringify({ places: server }), { status: 200 })))
   })
   afterEach(() => vi.unstubAllGlobals())
@@ -29,7 +33,7 @@ describe('useSavedPlaces failed save (logged in)', () => {
     expect(JSON.parse(localStorage.getItem('roam_wishlist'))).toEqual([{ id: 'anon', name: 'Anon' }])
   })
 
-  it('a failed re-save restores the original entry', async () => {
+  it('a refused re-save restores the original entry', async () => {
     const { result } = renderHook(() => useSavedPlaces())
     await waitFor(() => expect(result.current.places).toHaveLength(2))
     await act(async () => { await result.current.savePlace({ id: 'b', name: 'B2' }) })

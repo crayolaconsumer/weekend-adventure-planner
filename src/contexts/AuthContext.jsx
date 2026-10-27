@@ -11,7 +11,10 @@ import { identifyUserToRC, logoutFromRC } from '../utils/revenueCat'
 import { bestEffortUnsubscribePushNotifications } from '../hooks/usePushNotifications'
 import { rememberPremium, forgetPremium } from '../utils/adEligibility'
 import { clearDraft } from '../pages/Plan/draft'
-import { TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY, getAuthToken } from '../utils/authToken'
+import { TOKEN_STORAGE_KEY, SESSION_TOKEN_STORAGE_KEY, getAuthToken, isSignedInHere, readUserData, writeUserData, removeUserData } from '../utils/authToken'
+import { clearContributionCache } from '../hooks/useTopContributions'
+import { clearTrendingCache } from '../hooks/useTrendingPlaces'
+import { clearOutbox, flushOutbox } from '../utils/outbox'
 
 const MIGRATION_KEY = 'roam_places_migrated'
 const WISHLIST_KEY = 'roam_wishlist'
@@ -23,6 +26,31 @@ const WISHLIST_KEY = 'roam_wishlist'
 // whose session has lapsed, give them a soft prompt to come back."
 const HAS_SIGNED_IN_KEY = 'roam_has_signed_in'
 
+// Local-first startup: the last user /api/auth returned on this device. A
+// signed-in user renders from it at once and /api/auth revalidates in the
+// background. Its presence (or a stored token) is also the "signed in here"
+// marker: with neither, the visitor is a guest and /api/auth is never called.
+// Cleared on every sign-out, together with the saved-places cache and the
+// write outbox, so nothing follows the next person on this device.
+const CACHED_USER_KEY = 'roam_cached_user'
+const SAVED_CACHE_KEY = 'roam_saved_cache' // written by useSavedPlaces
+
+function readCachedUser() {
+  try {
+    const u = JSON.parse(readUserData(CACHED_USER_KEY) || 'null')
+    return u && typeof u === 'object' && u.id != null ? u : null
+  } catch { return null }
+}
+
+function clearDeviceUserData() {
+  removeUserData(CACHED_USER_KEY)
+  removeUserData(SAVED_CACHE_KEY)
+  try {
+    localStorage.removeItem('roam_visited_places') // useVisitedPlaces' cache, in case it isn't mounted
+  } catch { /* private mode */ }
+  clearOutbox()
+}
+
 const AuthContext = createContext(null)
 
 /**
@@ -30,8 +58,17 @@ const AuthContext = createContext(null)
  */
 export function AuthProvider({ children }) {
   const hadUserRef = useRef(false)
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Bumped on sign-in and sign-out: a background /api/auth check started
+  // before either must not overwrite the result when it lands
+  const sessionGenRef = useRef(0)
+  // Read once on mount: cached user renders immediately; a token with no
+  // cache (first open after this shipped) waits for /api/auth as before.
+  const [boot] = useState(() => {
+    const cached = readCachedUser()
+    return { cached, mustCheck: Boolean(cached || getAuthToken()) }
+  })
+  const [user, setUser] = useState(boot.cached)
+  const [loading, setLoading] = useState(boot.mustCheck && !boot.cached)
   const [error, setError] = useState(null)
 
   const getStoredToken = useCallback(() => getAuthToken(), [])
@@ -110,18 +147,28 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Check auth status on mount
+  // Check auth status on mount. Guests (no token, no cached user) skip it:
+  // there is no session to check, and the answer would always be 401.
   useEffect(() => {
-    checkAuth()
+    if (boot.mustCheck) checkAuth()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only run on mount
   }, [])
 
+  // Back online: send any saves/visits that failed while offline.
+  useEffect(() => {
+    const onOnline = () => { if (isSignedInHere()) flushOutbox() }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
+
   /**
-   * Check current authentication status
+   * Check current authentication status. Runs in the background: whoever is
+   * on screen stays there until the answer lands (no loading flip, so hooks
+   * gated on auth don't reload on every resume or subscription poll).
    */
   const checkAuth = useCallback(async () => {
+    const gen = sessionGenRef.current
     try {
-      setLoading(true)
       const storedToken = getStoredToken()
       // X-Roam-Remember: a renewed web cookie keeps the lifetime this login
       // chose ("Keep me signed in" off = session token = short cookie)
@@ -134,11 +181,14 @@ export function AuthProvider({ children }) {
         headers
       })
 
+      if (gen !== sessionGenRef.current) return // signed in or out meanwhile
       if (response.ok) {
         const data = await response.json()
+        if (gen !== sessionGenRef.current) return
         // Sliding session: keep the renewed token wherever the current one lives
         if (data.token) storeToken(data.token, remembered)
         setUser(data.user)
+        flushOutbox() // session confirmed: retry writes that failed earlier
         return
       }
 
@@ -152,20 +202,25 @@ export function AuthProvider({ children }) {
       // a cold-start 502 from the auth endpoint was wiping the JWT
       // on every other open.
       if (response.status === 401 || response.status === 403) {
+        // Session invalid (expired, revoked, banned): sign out, including the
+        // cached user a local-first start rendered. ReSignInBanner then offers
+        // a way back in.
+        sessionGenRef.current++
         clearStoredToken()
+        clearDeviceUserData()
+        // Premium flag and plan draft stay: a lapsed session is the same
+        // person (adEligibility clears premium only on an explicit sign-out)
         setUser(null)
         return
       }
-      // Transient (5xx, 429): keep whoever is signed in. Setting user=null
-      // here showed people as signed out (and logged them out of RevenueCat
-      // and analytics) on every server hiccup. With no token, nobody is.
-      if (!getStoredToken()) setUser(null)
+      // Transient (5xx, 429): keep whoever is signed in (or the cached user
+      // shown at start). Setting user=null here showed people as signed out
+      // (and logged them out of RevenueCat and analytics) on every hiccup.
     } catch (err) {
       // Network failure / fetch threw: likely transient (offline, DNS
       // hiccup, cold start). Keep the token and the signed-in user; the
       // next mount or app foreground re-validates.
       console.error('Auth check failed:', err)
-      if (!getStoredToken()) setUser(null)
     } finally {
       setLoading(false)
     }
@@ -178,7 +233,8 @@ export function AuthProvider({ children }) {
   // call) and only fires on real foreground transitions, dispatched by
   // nativeAppLifecycle's appStateChange listener.
   useEffect(() => {
-    const onForeground = () => { checkAuth() }
+    // Guests have no session to refresh: no request
+    const onForeground = () => { if (isSignedInHere()) checkAuth() }
     window.addEventListener('roam-app-foreground', onForeground)
     return () => window.removeEventListener('roam-app-foreground', onForeground)
   }, [checkAuth])
@@ -188,6 +244,7 @@ export function AuthProvider({ children }) {
   // No-ops when env vars aren't set.
   useEffect(() => {
     if (user) {
+      writeUserData(CACHED_USER_KEY, JSON.stringify(user))
       // Remember the tier so ads stay off if a later auth check fails.
       rememberPremium(user)
       identifyUser({ id: user.id, username: user.username, email: user.email })
@@ -214,6 +271,18 @@ export function AuthProvider({ children }) {
     hadUserRef.current = Boolean(user)
   }, [user])
 
+  // Card tip previews and trending are memoised per JS session and filtered
+  // for the viewer (own/followers-only tips, blocks): drop them when the
+  // viewer changes, so the next person never sees the last one's answers
+  const viewerId = user?.id ?? null
+  const viewerRef = useRef(viewerId)
+  useEffect(() => {
+    if (viewerRef.current === viewerId) return
+    viewerRef.current = viewerId
+    clearContributionCache()
+    clearTrendingCache()
+  }, [viewerId])
+
   /**
    * Register with email and password
    */
@@ -232,6 +301,8 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed')
       }
+
+      sessionGenRef.current++ // a check in flight from before sign-in must not undo it
 
       setUser(data.user)
       storeToken(data.token, true)
@@ -263,6 +334,8 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         throw new Error(data.error || 'Login failed')
       }
+
+      sessionGenRef.current++ // a check in flight from before sign-in must not undo it
 
       setUser(data.user)
       storeToken(data.token, remember)
@@ -304,6 +377,8 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         throw new Error(data.error || 'Google login failed')
       }
+
+      sessionGenRef.current++ // a check in flight from before sign-in must not undo it
 
       setUser(data.user)
       storeToken(data.token, true)
@@ -367,6 +442,7 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         throw new Error(`${data.error || 'Apple sign-in failed'} (HTTP ${response.status})`)
       }
+      sessionGenRef.current++ // a check in flight from before sign-in must not undo it
       setUser(data.user)
       storeToken(data.token, true)
       migrateLocalData(data.token, data.user?.id)
@@ -400,7 +476,9 @@ export function AuthProvider({ children }) {
       if (!response.ok) {
         return { success: false, error: data.error, code: data.code }
       }
+      sessionGenRef.current++
       clearStoredToken()
+      clearDeviceUserData()
       forgetPremium()
       setUser(null)
       return { success: true }
@@ -413,6 +491,7 @@ export function AuthProvider({ children }) {
    * Logout
    */
   const logout = useCallback(async () => {
+    sessionGenRef.current++
     try {
       bestEffortUnsubscribePushNotifications()
       await fetch('/api/auth', {
@@ -425,8 +504,13 @@ export function AuthProvider({ children }) {
       console.error('Logout error:', err)
     } finally {
       clearStoredToken()
+      clearDeviceUserData()
       forgetPremium()
       clearDraft() // a half-built plan must not follow the next person on this device
+      // Again after cleanup: a check that started during the logout request
+      // saw the token and the first bump; logout doesn't revoke the JWT, so it
+      // would get a 200 and sign the user back in
+      sessionGenRef.current++
       setUser(null)
     }
   }, [clearStoredToken])

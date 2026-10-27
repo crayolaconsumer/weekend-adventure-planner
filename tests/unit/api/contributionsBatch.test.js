@@ -117,9 +117,9 @@ describe('GET /api/contributions/batch: visibility', () => {
   it('anonymous viewers see public tips only, and that answer is CDN-shared', async () => {
     const res = await get(ALL)
     expect(visibleIds(res)).toEqual(['node/pub'])
-    expect(res.headers['cache-control']).toBe('public, s-maxage=60')
+    expect(res.headers['cache-control']).toBe('public, s-maxage=60, stale-while-revalidate=600')
     expect(res.headers.vary).toMatch(/Authorization/)
-    expect(res.headers.vary).toMatch(/Cookie/)
+    expect(res.headers.vary).not.toMatch(/Cookie/) // Vercel refuses to cache Vary: Cookie
     expect(res.headers.vary).toMatch(/Origin/)
     expect(Object.keys(res.headers).filter(h => h.startsWith('x-ratelimit'))).toEqual([])
   })
@@ -148,7 +148,7 @@ describe('GET /api/contributions/batch: visibility', () => {
     user = null
     const res = await get(ALL)
     expect(visibleIds(res)).toEqual(['node/pub'])
-    expect(res.headers['cache-control']).toBe('public, s-maxage=60')
+    expect(res.headers['cache-control']).toBe('public, s-maxage=60, stale-while-revalidate=600')
   })
 
   // The fake DB above reads the clause loosely; this pins the exact rule, so a

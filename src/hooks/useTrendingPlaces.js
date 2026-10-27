@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { authHeaders, viewerParam } from '../utils/authToken'
 
 // Cache for trending data
 let trendingCache = null
@@ -26,7 +27,8 @@ export function useTrendingPlaces({ limit = 10, days = 7 } = {}) {
     }
 
     try {
-      const res = await fetch(`/api/places/trending?limit=${limit}&days=${days}`)
+      // Signed in: marker + token keep the CDN's shared guest copy (no block filter) away
+      const res = await fetch(`/api/places/trending?limit=${limit}&days=${days}${viewerParam()}`, { headers: authHeaders() })
 
       if (!res.ok) {
         // Silently fail - API might not be configured

@@ -16,11 +16,19 @@
 
 import { query } from '../lib/db.js'
 import { parseCoordinates, validatePagination } from '../lib/validation.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { isFeatureEnabled } from '../lib/flags.js'
 import { haversineKm as geoHaversineKm } from '../../shared/geo.mjs'
 
+// Same for every viewer (no auth read). Clients round lat/lng to 0.01 deg so
+// neighbours share an entry. 5 min: promotions are bought by the day.
+// Error and no-location answers keep withCors' private, no-store.
+const PROMOTED_CACHE = 'public, s-maxage=300, stale-while-revalidate=600'
+// Clients send coordinates rounded to 0.01 deg, up to ~0.8 km from the user.
+// Keep events that close to the edge; the client filters on its exact location
+// against promoRadiusKm (older clients get at most this much extra reach).
+const ROUNDING_SLACK_KM = 1
 const MAX_RADIUS_KM = 100
 const DEFAULT_RADIUS_KM = 30
 
@@ -37,6 +45,7 @@ async function handler(req, res) {
   try {
     // Kill-switch: disable the whole feature without a deploy.
     if (!(await isFeatureEnabled('promotedEvents'))) {
+      // Not cached: flipping the switch back on must take effect at once
       return res.status(200).json({ promoted: [], count: 0 })
     }
 
@@ -51,7 +60,7 @@ async function handler(req, res) {
     const category = typeof req.query.category === 'string' ? req.query.category : null
 
     // Bounding-box prefilter keeps the query light on the shared Aurora box.
-    const box = boundingBox(coords.lat, coords.lng, radiusKm)
+    const box = boundingBox(coords.lat, coords.lng, radiusKm + ROUNDING_SLACK_KM)
 
     let sql = `
       SELECT
@@ -91,7 +100,7 @@ async function handler(req, res) {
       })
       // Within BOTH the organiser's purchased radius AND the user's filter.
       .filter(({ row, distance }) =>
-        distance != null && distance <= Math.min(Number(row.promo_radius_km) || MAX_RADIUS_KM, radiusKm)
+        distance != null && distance <= Math.min(Number(row.promo_radius_km) || MAX_RADIUS_KM, radiusKm) + ROUNDING_SLACK_KM
       )
       .sort((a, b) => a.distance - b.distance)
       .slice(0, limit)
@@ -108,9 +117,12 @@ async function handler(req, res) {
         priceInfo: row.price_info,
         ticketType: row.ticket_type,
         orgName: row.org_name,
+        promoRadiusKm: Number(row.promo_radius_km) || MAX_RADIUS_KM,
         distanceKm: distance
       }))
 
+    dropRateLimitHeaders(res)
+    res.setHeader('Cache-Control', PROMOTED_CACHE)
     return res.status(200).json({ promoted: results, count: results.length })
   } catch (error) {
     console.error('Promoted events error:', error)

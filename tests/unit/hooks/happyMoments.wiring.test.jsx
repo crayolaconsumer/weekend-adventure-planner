@@ -6,7 +6,7 @@ import { renderHook, waitFor, act } from '@testing-library/react'
 const auth = { isAuthenticated: true, loading: false }
 const recordHappyMoment = vi.fn()
 vi.mock('../../../src/contexts/AuthContext', () => ({ useAuth: () => auth }))
-vi.mock('../../../src/utils/authToken', () => ({ getAuthToken: () => 'tok' }))
+vi.mock('../../../src/utils/authToken', async importOriginal => ({ ...(await importOriginal()), getAuthToken: () => 'tok' }))
 vi.mock('../../../src/utils/analytics', () => ({ track: () => {} }))
 vi.mock('../../../src/utils/reviewPrompt', () => ({ recordHappyMoment: (...a) => recordHappyMoment(...a) }))
 
@@ -16,6 +16,7 @@ const { useVisitedPlaces } = await import('../../../src/hooks/useVisitedPlaces')
 let postStatus = 200
 beforeEach(() => {
   localStorage.clear()
+  sessionStorage.clear() // signed-in device caches (session-scoped without a local token)
   recordHappyMoment.mockClear()
   Object.assign(auth, { isAuthenticated: true, loading: false })
   postStatus = 200

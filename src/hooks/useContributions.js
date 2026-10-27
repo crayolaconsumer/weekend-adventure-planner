@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { authHeaders } from '../utils/authToken'
+import { authHeaders, viewerParam } from '../utils/authToken'
 
 /**
  * Hook for fetching contributions for a place
@@ -33,7 +33,8 @@ export function useContributions(placeId) {
     setError(null)
 
     try {
-      const response = await fetch(`/api/contributions?placeId=${encodeURIComponent(placeId)}`, {
+      // viewerParam: signed in, never the CDN's guest copy (no own votes/blocks)
+      const response = await fetch(`/api/contributions?placeId=${encodeURIComponent(placeId)}${viewerParam()}`, {
         credentials: 'include',
         headers: authHeaders()
       })
@@ -89,7 +90,7 @@ export function useUserContributions(userId) {
     setError(null)
 
     try {
-      const response = await fetch(`/api/contributions?userId=${userId}`, {
+      const response = await fetch(`/api/contributions?userId=${userId}${viewerParam()}`, {
         credentials: 'include',
         headers: authHeaders()
       })

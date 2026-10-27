@@ -7,7 +7,7 @@
 
 import { query } from '../lib/db.js'
 import { parseCoordinates, validatePagination } from '../lib/validation.js'
-import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
 import { haversineKm } from '../../shared/geo.mjs'
 
@@ -92,6 +92,12 @@ async function handler(req, res) {
       }
     })
 
+    // Same for every viewer (no auth read; the SQL ignores location), so the
+    // edge shares it. Current clients send no lat/lng (distance is computed on
+    // the device), giving one entry per category. 60 s keeps the rotation and
+    // budget cut-off fresh.
+    dropRateLimitHeaders(res)
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
     return res.status(200).json({
       sponsored: results,
       count: results.length

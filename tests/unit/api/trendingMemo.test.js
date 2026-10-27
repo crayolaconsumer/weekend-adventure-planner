@@ -6,7 +6,7 @@ const query = vi.fn()
 let viewer = null
 vi.mock('../../../api/lib/db.js', () => ({ query: (...a) => query(...a) }))
 vi.mock('../../../api/lib/auth.js', () => ({ getUserFromRequest: async () => viewer }))
-vi.mock('../../../api/lib/rateLimit.js', () => ({ applyRateLimit: () => null, RATE_LIMITS: {} }))
+vi.mock('../../../api/lib/rateLimit.js', () => ({ applyRateLimit: () => null, RATE_LIMITS: {}, dropRateLimitHeaders: () => {} }))
 
 const { default: handler, _resetTrendingMemo, publicPlaceData } = await import('../../../api/places/trending.js')
 

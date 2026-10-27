@@ -33,6 +33,8 @@ describe('native fetch interceptor auth', () => {
     '/api/events/skiddle?lat=53.96&lng=-1.08',
     '/api/flags',
     '/api/push/vapid-public-key',
+    '/api/ads/sponsored?limit=3',
+    '/api/events/promoted?lat=53.96&lng=-1.08&radiusKm=30',
   ])('sends no token to public %s', async path => {
     const r = await authFor(path)
     expect(r.url).toBe(`https://www.go-roam.uk${path}`)

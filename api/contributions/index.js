@@ -6,7 +6,8 @@
 
 import { getUserFromRequest } from '../lib/auth.js'
 import { query, queryOne, insert, update, transaction } from '../lib/db.js'
-import { applyRateLimit, RATE_LIMITS, dropRateLimitHeaders } from '../lib/rateLimit.js'
+import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
+import { shareIfAnonymous, TIPS_CACHE } from '../lib/edgeCache.js'
 import { validateContent, validateId } from '../lib/validation.js'
 import { notifyContributionUpvote, notifyContributionRemoved } from '../lib/pushNotifications.js'
 import { waitUntil } from '@vercel/functions'
@@ -188,6 +189,7 @@ async function handleGet(req, res) {
   // every viewer see what other users actually wrote about a place,
   // and lets the client merge a user's rating + tip + photo into a
   // single visible entry per user instead of three orphaned rows.
+  let partial = false // reviews failed to load: don't share an incomplete list
   if (placeId) {
     try {
       let reviewSql = `
@@ -256,21 +258,14 @@ async function handleGet(req, res) {
       // Reviews are a best-effort enrichment — never break the
       // contributions response if the join hits a transient error.
       console.warn('Review enrichment failed', err)
+      partial = true
     }
   }
 
-  // Anonymous views are the same for everyone, so the CDN can absorb them.
-  // Signed-in views carry the viewer's votes and pending posts: never shared.
-  // Vary keeps a cached anonymous copy from being served to a request that
-  // carries a token (Bearer on native, roam_token cookie on web).
-  if (currentUser) {
-    res.setHeader('Cache-Control', 'private, no-store')
-  } else {
-    dropRateLimitHeaders(res)
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
-    const vary = res.getHeader?.('Vary')
-    res.setHeader('Vary', [vary, 'Authorization', 'Cookie'].filter(Boolean).join(', '))
-  }
+  // Anonymous views are the same for everyone: shared at the edge.
+  // Signed-in views carry the viewer's votes and pending posts: private.
+  if (partial) res.setHeader('Cache-Control', 'private, no-store')
+  else shareIfAnonymous(req, res, TIPS_CACHE)
   return res.status(200).json({ contributions: formatted })
 }
 

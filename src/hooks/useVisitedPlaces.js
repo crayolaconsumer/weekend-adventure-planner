@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { haversineKm } from '../../shared/geo.mjs'
 import { getAuthToken } from '../utils/authToken'
 import { recordHappyMoment } from '../utils/reviewPrompt'
+import { pending, writeOrQueue } from '../utils/outbox'
 
 const STORAGE_KEY = 'roam_visited_places'
 
@@ -20,6 +21,18 @@ function loadLocalVisited() {
   } catch {
     return []
   }
+}
+
+// Visits/unvisits still in the outbox, applied over the server list so a
+// refresh can't drop a visit the server hasn't received yet.
+function withPending(list) {
+  let out = list
+  for (const e of pending('visited:')) {
+    const id = e.key.slice('visited:'.length)
+    out = out.filter(v => String(v.placeId) !== id)
+    if (e.method === 'POST' && e.local) out = [e.local, ...out]
+  }
+  return out
 }
 
 // visited_places.rating is a 1-5 TINYINT (CHECK 1-5). Older callers/cached data may
@@ -40,14 +53,20 @@ export function useVisitedPlaces() {
   // Cancel an in-flight load so a fast logout→login (or unmount) can't let a
   // stale request resolve and clobber state. Mirrors useSavedPlaces.
   const abortControllerRef = useRef(null)
+  // Visits made while a load is in flight (placeId -> entry, or null when
+  // removed): put back over a server answer that may predate them
+  const editsRef = useRef(new Map())
 
   // Load visited places
   const loadVisited = useCallback(async () => {
     if (abortControllerRef.current) abortControllerRef.current.abort()
     abortControllerRef.current = new AbortController()
     const { signal } = abortControllerRef.current
+    editsRef.current = new Map()
 
-    setLoading(true)
+    // Local-first: a signed-in user with a cached list sees it now; the
+    // request below refreshes it in the background
+    setLoading(!(isAuthenticated && loadLocalVisited().length > 0))
 
     try {
       if (isAuthenticated) {
@@ -61,9 +80,14 @@ export function useVisitedPlaces() {
         if (response.ok) {
           const data = await response.json()
           if (signal.aborted) return
-          setVisitedPlaces(data.visited || [])
+          let visited = withPending(data.visited || [])
+          for (const [id, entry] of editsRef.current) {
+            visited = visited.filter(v => String(v.placeId) !== id)
+            if (entry) visited = [entry, ...visited]
+          }
+          setVisitedPlaces(visited)
           // Cache in localStorage
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data.visited || []))
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(visited))
         } else {
           setVisitedPlaces(loadLocalVisited())
         }
@@ -161,6 +185,7 @@ export function useVisitedPlaces() {
     // Update localStorage (preserve original visitedAt likewise)
     const local = loadLocalVisited()
     const existingLocal = local.find(v => v.placeId === placeId)
+    editsRef.current.set(String(placeId), makeEntry(existingLocal?.visitedAt))
     const filtered = local.filter(v => v.placeId !== placeId)
     localStorage.setItem(STORAGE_KEY, JSON.stringify([makeEntry(existingLocal?.visitedAt), ...filtered]))
     // Editing an existing review re-calls markVisited: only a new visit counts
@@ -169,22 +194,15 @@ export function useVisitedPlaces() {
     // Sync to API if authenticated
     if (isAuthenticated) {
       try {
-        const token = getAuthToken()
-        await fetch('/api/users/visited', {
+        // Offline / hiccup: queued and retried later; the visit stays on screen
+        const outcome = await writeOrQueue({
+          key: `visited:${placeId}`,
+          url: '/api/users/visited',
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            placeId,
-            placeData: place,
-            rating
-          })
+          body: { placeId, placeData: place, rating },
+          local: makeEntry(existingLocal?.visitedAt)
         })
-      } catch (err) {
-        console.error('Error marking visited:', err)
+        if (outcome === 'refused') console.error('Visit not recorded by the server')
       } finally {
         setSaving(false)
       }
@@ -198,6 +216,7 @@ export function useVisitedPlaces() {
     // L8: Set saving state
     setSaving(true)
     // Optimistic local update
+    editsRef.current.set(String(placeId), null)
     setVisitedPlaces(prev => prev.filter(v => v.placeId !== placeId))
 
     // Update localStorage
@@ -207,14 +226,11 @@ export function useVisitedPlaces() {
     // Sync to API if authenticated
     if (isAuthenticated) {
       try {
-        const token = getAuthToken()
-        await fetch(`/api/users/visited?placeId=${encodeURIComponent(placeId)}`, {
-          method: 'DELETE',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          credentials: 'include'
+        await writeOrQueue({
+          key: `visited:${placeId}`,
+          url: `/api/users/visited?placeId=${encodeURIComponent(placeId)}`,
+          method: 'DELETE'
         })
-      } catch (err) {
-        console.error('Error removing visited:', err)
       } finally {
         setSaving(false)
       }

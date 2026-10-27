@@ -9,6 +9,7 @@ import { query } from '../lib/db.js'
 import { getUserFromRequest } from '../lib/auth.js'
 import { applyRateLimit, RATE_LIMITS } from '../lib/rateLimit.js'
 import { withCors } from '../lib/cors.js'
+import { shareIfAnonymous, TRENDING_CACHE } from '../lib/edgeCache.js'
 
 // The ranking and the place data are global (the same for every viewer) and
 // move slowly, but the ranking is a 30-day UNION/GROUP BY over three tables:
@@ -262,15 +263,10 @@ async function handler(req, res) {
       }
     })
 
-    // Cache trending at the edge for 10 minutes, with 1-hour stale-while-
-    // revalidate. The data is "places trending in last 30 days" — it
-    // barely changes minute-to-minute. Edge cache deduplicates the
-    // moderately-heavy UNION ALL query across the whole user base.
-    // Never shared at the edge: the top-tip subtitle is filtered by the
-    // viewer's blocked users, and the CDN would serve a cached anonymous copy
-    // to a signed-in web user (cookie auth isn't part of the cache key) before
-    // this code runs, skipping their block list.
-    res.setHeader('Cache-Control', 'private, max-age=120')
+    // Guests share one edge copy (10 min, 1 h stale-while-revalidate): the
+    // ranking is global and slow-moving. Signed-in viewers send Authorization
+    // and get their own block-filtered answer, never stored at the edge.
+    shareIfAnonymous(req, res, TRENDING_CACHE)
     return res.status(200).json({
       trending: result,
       period: `${days} days`

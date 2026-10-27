@@ -57,6 +57,8 @@ const PUBLIC_API_PATHS = new Set([
   '/api/flags',
   '/api/weather',
   '/api/push/vapid-public-key',
+  '/api/ads/sponsored',
+  '/api/events/promoted',
 ])
 
 /**
