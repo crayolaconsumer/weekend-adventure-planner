@@ -42,7 +42,10 @@ describe('POST /api/admin/flags', () => {
     expect(res.body.flags).toMatchObject({ overpassProxy: false, pushNudges: false })
   })
 
-  it('every flag the server reads can be switched off here, and has a dashboard control', async () => {
+  // Finished place-data rollouts: set once in roam:flags, changed through this endpoint only,
+  // deliberately not on the dashboard (dd21f0c). Any other flag needs a dashboard control
+  const RETIRED_FROM_DASHBOARD = ['poiDbPct', 'poiShadowPct', 'poiCapPct', 'poiTilesShadowPct', 'poiTilesFallback']
+  it('every flag the server reads can be switched off here; every live one has a dashboard control', async () => {
     const { DEFAULTS } = await import('../../../api/lib/flags.js')
     const { readFileSync } = await import('node:fs')
     const dashboard = readFileSync('src/pages/AdminDashboard.jsx', 'utf8')
@@ -51,8 +54,10 @@ describe('POST /api/admin/flags', () => {
       const res = await post({ [key]: off })
       expect(res.statusCode).toBe(200)
       expect(res.body.flags[key]).toBe(off)
-      expect(dashboard).toContain(`key: '${key}'`)
+      if (RETIRED_FROM_DASHBOARD.includes(key)) expect(dashboard).not.toContain(`key: '${key}'`)
+      else expect(dashboard).toContain(`key: '${key}'`)
     }
+    for (const key of RETIRED_FROM_DASHBOARD) expect(DEFAULTS).toHaveProperty(key) // a stale name here fails
   })
 
   it('a KV read error writes nothing', async () => {
