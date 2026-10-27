@@ -71,8 +71,10 @@ async function applyNativeStatusBar(resolved) {
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar')
     const backgroundColor = resolved === 'dark' ? NATIVE_BACKGROUND.dark : NATIVE_BACKGROUND.light
-    // Style.Light = LIGHT icons (use on dark bg); Style.Dark = dark icons.
-    await StatusBar.setStyle({ style: resolved === 'dark' ? Style.Light : Style.Dark })
+    // Capacitor's naming is by background: Style.Dark = light icons for a dark
+    // background, Style.Light = dark icons for a light one (definitions.d.ts).
+    // Inverted before 27 Oct: light theme showed white icons on cream.
+    await StatusBar.setStyle({ style: resolved === 'dark' ? Style.Dark : Style.Light })
     await StatusBar.setBackgroundColor({ color: backgroundColor })
     if (window.Capacitor.getPlatform() === 'android') {
       await window.Capacitor.Plugins?.RoamTheme?.setSystemBarsBackground?.({ color: backgroundColor })

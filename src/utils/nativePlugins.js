@@ -386,10 +386,10 @@ export async function configureStatusBar() {
     const isDark = typeof document !== 'undefined' &&
       document.documentElement.getAttribute('data-theme') === 'dark'
     const backgroundColor = isDark ? NATIVE_BACKGROUND.dark : NATIVE_BACKGROUND.light
-    // Capacitor convention is inverted from "what the user sees":
-    //   Style.Light = LIGHT icons (use on DARK bg)
-    //   Style.Dark  = DARK icons (use on LIGHT bg)
-    await StatusBar.setStyle({ style: isDark ? Style.Light : Style.Dark })
+    // Capacitor names styles by background (definitions.d.ts):
+    //   Style.Dark  = light icons, for a DARK background
+    //   Style.Light = dark icons, for a LIGHT background
+    await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light })
     await StatusBar.setBackgroundColor({ color: backgroundColor })
     if (getPlatform() === 'android') {
       await window.Capacitor?.Plugins?.RoamTheme?.setSystemBarsBackground?.({ color: backgroundColor })
