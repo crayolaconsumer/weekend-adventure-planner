@@ -266,3 +266,21 @@ describe('weaveReady lead (a ready card keeps its place across rebuilds)', async
     }
   })
 })
+
+describe('aheadOfReady (which cards a ready card sits behind)', async () => {
+  const { aheadOfReady } = await import('../../../src/pages/Discover/dryDeck')
+  const hand = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 'fav', readyToGo: true }, { id: 4 }, { id: 'fav2', readyToGo: true }]
+  it('the unswiped regular cards before the next unswiped ready card, as strings', () => {
+    expect([...aheadOfReady(hand, new Set())]).toEqual(['1', '2', '3'])
+    expect([...aheadOfReady(hand, new Set([1, 3]))]).toEqual(['2'])
+    expect([...aheadOfReady(hand, new Set(['1', '3']))]).toEqual(['2']) // swiped ids as strings match numeric ids
+  })
+  it('the first ready card swiped: the cards ahead of the next one', () => {
+    expect([...aheadOfReady(hand, new Set([1, 2, 3, 'fav']))]).toEqual(['4'])
+  })
+  it('no ready card left in hand: nothing (the count alone places the next one)', () => {
+    expect(aheadOfReady([{ id: 1 }, { id: 2 }], new Set()).size).toBe(0)
+    expect(aheadOfReady(hand, new Set(['fav', 'fav2'])).size).toBe(0)
+    expect(aheadOfReady([], new Set()).size).toBe(0)
+  })
+})

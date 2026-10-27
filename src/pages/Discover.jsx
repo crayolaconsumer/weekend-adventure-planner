@@ -38,7 +38,7 @@ import DeckRunningDryNotice, { nextWider } from './Discover/DeckRunningDryNotice
 import { applyDiscoverFilters, passesEligibility, buildFilterKey as buildFilterKeyPure, firstOpening, MIN_OPEN_CARDS } from './Discover/applyFilters'
 import ClosedNowNotice from './Discover/ClosedNowNotice'
 import { DEFAULT_BAND, bandStorageKey, getBandsFor, getBandFor } from './Discover/distanceBands'
-import { topUpDeck, readySwipe, withoutDeckFlags, READY_EVERY } from './Discover/dryDeck'
+import { topUpDeck, aheadOfReady, readySwipe, withoutDeckFlags, READY_EVERY } from './Discover/dryDeck'
 import { buildWentOutPatch, buildStreakPatch } from './Discover/stats'
 import { shouldShowPlanPrompt, PLAN_PROMPT_FIRST_SAVE } from './Discover/planPrompt'
 import ErrorRecovery from './Discover/ErrorRecovery'
@@ -366,6 +366,8 @@ export default function Discover({ location }) {
   const [readyPool, setReadyPool] = useState([])
   // Regular cards swiped since the last ready card: where the next one is due
   const regularSinceReadyRef = useRef(0)
+  // The hand as dealt, read by the next rebuild
+  const heldPlacesRef = useRef([])
   const readyBaseRef = useRef(null)
   useEffect(() => {
     // Track the places the pool was last built against even while saved/visited
@@ -408,9 +410,12 @@ export default function Discover({ location }) {
       exclude: new Set([...swipedIdsRef.current].map(String)),
       // The gap still owed before the next ready card, so a rebuild keeps it in place
       readyLead: Math.max(0, READY_EVERY - 1 - regularSinceReadyRef.current),
+      // ...behind the same cards: the ones still ahead of it in the hand
+      readyAfter: aheadOfReady(heldPlacesRef.current, swipedIdsRef.current),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchCenter moves with basePlaces; travel/band/filters already rebuild freshDeck
   }, [freshDeck, basePlaces, readyPool, hasDeckFilters])
+  useEffect(() => { heldPlacesRef.current = deck.places }, [deck])
   const filteredPlaces = deck.places
   // New cards in this deck the user hasn't swiped yet (the running-dry count)
   const [swipeTick, setSwipeTick] = useState(0)

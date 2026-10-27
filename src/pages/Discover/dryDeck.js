@@ -93,6 +93,14 @@ export function weaveReady(cards, ready, lead = READY_EVERY - 1) {
   return { places: out, ready: r }
 }
 
+/** Ids (strings) of the unswiped regular cards dealt ahead of the next unswiped ready card; empty when none is in hand. */
+export function aheadOfReady(places, swiped) {
+  const gone = new Set([...swiped].map(String))
+  const left = places.filter(p => !gone.has(String(p.id)))
+  const next = left.findIndex(p => p.readyToGo)
+  return new Set(next < 0 ? [] : left.slice(0, next).map(p => String(p.id)))
+}
+
 /**
  * The deck to deal: `freshDeck` (buildFreshDeck's result) as it is when full;
  * when dry, its cards, then further cards, with ready cards woven in. `pick`
@@ -100,12 +108,18 @@ export function weaveReady(cards, ready, lead = READY_EVERY - 1) {
  * band's edge; `rangeKm` the travel mode's reach (ready cards stay inside it);
  * `filtered` = category/eligibility filters on (ready cards wait).
  */
-export function topUpDeck({ freshDeck, basePlaces, readyPool, pick, bandMaxKm, furtherMaxKm, rangeKm, origin, filtered, exclude, readyLead, now }) {
+export function topUpDeck({ freshDeck, basePlaces, readyPool, pick, bandMaxKm, furtherMaxKm, rangeKm, origin, filtered, exclude, readyLead, readyAfter, now }) {
   if (!freshDeck.dry) return { places: freshDeck.places, fresh: freshDeck.fresh, further: 0, ready: 0 }
   const deckIds = new Set(freshDeck.places.map(p => String(p.id)))
   const further = furtherCards(excludeSeen(basePlaces, now), deckIds, bandMaxKm, list => pick(list, { selectedBand: null }), furtherMaxKm)
-  const regular = freshDeck.places.concat(further)
-  const ready = filtered ? [] : readyCards(readyPool, { origin, maxKm: rangeKm, deckIds: new Set(regular.map(p => String(p.id))), exclude, now })
+  // readyAfter: ids (strings) of the cards the user holds ahead of the next ready card. A rebuild
+  // re-ranks (time of day, diversity), so a count alone would let a different card slip ahead of
+  // it: those cards go first, in the new order (only when a ready card is actually woven in)
+  const ranked = freshDeck.places.concat(further)
+  const ready = filtered ? [] : readyCards(readyPool, { origin, maxKm: rangeKm, deckIds: new Set(ranked.map(p => String(p.id))), exclude, now })
+  const regular = readyAfter?.size && ready.length
+    ? ranked.filter(p => readyAfter.has(String(p.id))).concat(ranked.filter(p => !readyAfter.has(String(p.id))))
+    : ranked
   const woven = weaveReady(regular, ready, readyLead)
   return { places: woven.places, fresh: freshDeck.fresh, further: further.length, ready: woven.ready }
 }

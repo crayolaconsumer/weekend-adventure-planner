@@ -610,7 +610,10 @@ describe('Discover top-up: critic round 3 regressions', () => {
   })
 })
 
-describe('Discover top-up: critic round 4 regressions (a ready card keeps its place)', () => {
+// The deck ranks by time of day (morning scores differ), so the slot must hold at every hour
+for (const T of ['2026-10-27T02:00:00Z', '2026-10-27T06:00:00Z', '2026-10-27T10:45:00Z', '2026-10-27T15:00:00Z', '2026-10-27T20:00:00Z']) describe(`Discover top-up: critic round 4 regressions (a ready card keeps its place) at ${T.slice(11, 16)}Z`, () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'], now: new Date(T) }) })
+  afterEach(() => { vi.useRealTimers() })
   const ids = () => (screen.queryByTestId('dealt')?.textContent || '').split(',').filter(Boolean)
   const topS = () => screen.queryByTestId('top')?.textContent || ''
   const swipeS = async action => { await act(async () => { fireEvent.click(screen.getByRole('button', { name: action })) }) }
