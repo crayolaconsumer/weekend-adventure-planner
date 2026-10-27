@@ -42,6 +42,14 @@ export const DEFAULTS = Object.freeze({
   // Percentage (0-100) of served dense Discover tiles cut to the relevance cap
   // (shared/poiRank.mjs); the rest are served as before. Shadow always measures it
   poiCapPct: 0,
+  // Static POI tiles on R2 (api/lib/poiTiles.js), same answers as the POI table.
+  // poiTilesPct: percentage (0-100) of covered tiles served from tiles FIRST, the DB only
+  // as their fallback. poiTilesShadowPct: percentage of DB-served answers also read from
+  // tiles and compared (evt=poi_tiles_shadow, never served). poiTilesFallback: when the DB
+  // fails, times out or is busy, answer from tiles before KV or Overpass (kill switch)
+  poiTilesPct: 0,
+  poiTilesShadowPct: 10,
+  poiTilesFallback: true,
 })
 
 const CACHE_TTL_MS = 30 * 1000

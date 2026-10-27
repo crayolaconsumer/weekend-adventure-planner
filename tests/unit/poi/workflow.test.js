@@ -35,8 +35,26 @@ describe('poi-build.yml static hardening', () => {
     const jobEnv = yml.slice(yml.indexOf('    env:'), yml.indexOf('    steps:'))
     expect(jobEnv).not.toMatch(/GH_TOKEN|SECRET/)
     const withSecret = steps.filter(s => s.includes('secrets.POI_LOAD_SECRET')).map(s => s.split('\n')[0])
-    expect(withSecret).toEqual(['name: Previous manifest (per-key drift gate)', 'name: Load into the database', 'name: Prune releases (keep the newest 7 builds)'])
+    expect(withSecret).toEqual(['name: Previous manifest (per-key drift gate)', 'name: Load into the database',
+      'name: Tiles (switch current.json, prune old blocks)', 'name: Prune releases (keep the newest 7 builds)'])
     for (const s of steps.filter(s => s.includes('GH_TOKEN'))) expect(s).toMatch(/gh release/)
+  })
+
+  it('tiles: built and uploaded (no switch) before the load, switched and pruned only after it went live; never fail the run', () => {
+    const names = steps.map(s => s.split('\n')[0])
+    const upload = step('Tiles (build, upload blocks and manifest)')
+    const swap = step('Tiles (switch current.json, prune old blocks)')
+    expect(names.indexOf('name: Tiles (build, upload blocks and manifest)')).toBeLessThan(names.indexOf('name: Load into the database'))
+    expect(names.indexOf('name: Tiles (switch current.json, prune old blocks)')).toBeGreaterThan(names.indexOf('name: Load into the database'))
+    expect(upload).toMatch(/tilesUpload\.mjs --tiles "\$WORK\/tiles" --no-switch/)
+    expect(swap).toMatch(/if: \$\{\{ steps\.load\.outputs\.active == 'true' && steps\.tiles\.outcome == 'success' \}\}/)
+    expect(swap).toMatch(/--switch-only/)
+    for (const s of [upload, swap]) {
+      expect(s).toMatch(/continue-on-error: true/)
+      for (const k of ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ENDPOINT', 'R2_BUCKET']) expect(s).toContain(`${k}: \${{ secrets.${k} }}`)
+    }
+    // R2 secrets live only in those two steps
+    expect(steps.filter(s => s.includes('secrets.R2_')).map(s => s.split('\n')[0])).toEqual(['name: Tiles (build, upload blocks and manifest)', 'name: Tiles (switch current.json, prune old blocks)'])
   })
 
   it('prunes only after this run went live', () => {
@@ -111,6 +129,39 @@ describe('workflow steps (run for real against fake curl + gh)', () => {
       all: r.stdout + r.stderr,
     }
   }
+
+  describe('Tiles (switch current.json, prune old blocks)', () => {
+    // node is faked too: the step's only job here is choosing the arguments
+    const swap = responses => {
+      writeFileSync(join(dir, 'node'), '#!/bin/bash\necho "$*" >> "$FAKE_DIR/node.log"\n')
+      chmodSync(join(dir, 'node'), 0o755)
+      writeFileSync(join(dir, 'node.log'), '')
+      const r = exec('Tiles (switch current.json, prune old blocks)', { POI_LOAD_SECRET: 's3cret-value' }, responses)
+      return { ...r, node: readFileSync(join(dir, 'node.log'), 'utf8').trim() }
+    }
+    it('keeps the DB\'s active and previous builds when pruning (a rollback target keeps its tiles)', () => {
+      const r = swap(['200 {"active_build_id":"uk-20261025T2121Z-f2","previous_release_tag":"poi-uk-20261023T2020Z-f2"}'])
+      expect(r.code).toBe(0)
+      expect(r.node).toMatch(/--switch-only --prune 3 --keep-builds uk-20261025T2121Z-f2,uk-20261023T2020Z-f2$/)
+    })
+    it('a junk previous build (not a release tag) is dropped, the active one still kept and the switch made', () => {
+      for (const prev of ['poi-../../x', 'poi-uk-2026', 'uk-20261023T2020Z-f2;rm -rf /', '"poi-uk-20261023T2020Z\\nx"']) {
+        const r = swap([`200 {"active_build_id":"uk-20261025T2121Z-f2","previous_release_tag":${JSON.stringify(prev)}}`])
+        expect(r.code, prev).toBe(0)
+        expect(r.node, prev).toMatch(/--switch-only --prune 3 --keep-builds uk-20261025T2121Z-f2$/)
+      }
+    })
+    it('no previous build: keeps the active one only', () => {
+      expect(swap(['200 {"active_build_id":"uk-20261025T2121Z-f2"}']).node).toMatch(/--keep-builds uk-20261025T2121Z-f2$/)
+    })
+    it('status unreachable, an error or junk: switches without pruning', () => {
+      for (const resp of ['EXIT 7', '500 {}', '500 {"active_build_id":"uk-20261025T2121Z-f2"}', '200 {"active_build_id":"../../etc"}', '200 not json']) {
+        const r = swap([resp])
+        expect(r.code, resp).toBe(0)
+        expect(r.node, resp).toMatch(/--switch-only$/)
+      }
+    })
+  })
 
   describe('Load into the database', () => {
     const load = env => exec('Load into the database', { POI_LOAD_SECRET: 's3cret-value', BUILD_ID: 'uk-20260926T2022Z', ...env })

@@ -166,6 +166,29 @@ jobs:
           fi
           gh release edit "$tag" --draft=false
 
+      # Static tiles (api/lib/poiTiles.js) from the same chunks, on Cloudflare R2. Blocks,
+      # the id index and manifests/<build>.json go up BEFORE the load: the API reads the
+      # manifest of the DB's active build, so tiles hold that build the moment it swaps.
+      # Content-addressed, so only changed blocks are sent. Never fails the run: a tiles
+      # problem leaves yesterday's tiles serving and the DB load untouched.
+      - name: Tiles (build, upload blocks and manifest)
+        id: tiles
+        continue-on-error: true
+        timeout-minutes: 30
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PREFIX: tiles/
+        run: |
+          if [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ] || [ -z "$R2_ENDPOINT" ] || [ -z "$R2_BUCKET" ]; then
+            echo "::warning::R2 secrets not set: no tiles tonight"
+            exit 1
+          fi
+          node scripts/poi/tiles.mjs --release "$WORK/out" --out "$WORK/tiles"
+          node scripts/poi/tilesUpload.mjs --tiles "$WORK/tiles" --no-switch
+
       # scripts/poi/load.mjs: begin (noop when this build is already active,
       # resumes from chunks_loaded), every chunk, photos, finalize. Retries network
       # errors, 5xx, 429 and a busy lock (409 {"retry":true}) with backoff; any
@@ -182,6 +205,42 @@ jobs:
             exit 1
           fi
           node scripts/poi/load.mjs --build "$BUILD_ID" && echo active=true >> "$GITHUB_OUTPUT"
+
+      # Only once this build is live in the DB and all its tiles went up: current.json moves
+      # to it (after every object it names is checked), then old blocks are deleted, keeping
+      # what the newest 3 manifests name plus the DB's active and previous builds (a rollback
+      # target keeps its tiles; the API serves the DB's build). Loader status unavailable or
+      # junk: switch only, prune nothing. A failure leaves the previous tiles current.
+      - name: Tiles (switch current.json, prune old blocks)
+        if: ${{ steps.load.outputs.active == 'true' && steps.tiles.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 15
+        env:
+          POI_LOAD_SECRET: ${{ secrets.POI_LOAD_SECRET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PREFIX: tiles/
+        run: |
+          id_re='^[a-z]{2,8}-[0-9]{8}T[0-9]{4}Z(-f[0-9]+)?$'
+          args=(--tiles "$WORK/tiles" --switch-only)
+          if code=$(curl -sS -o "$RUNNER_TEMP/tiles-status.json" -w '%{http_code}' --max-time 30 \
+              -H "Authorization: Bearer ${POI_LOAD_SECRET}" "https://www.go-roam.uk/api/admin/poi-load?step=status") && [ "$code" = 200 ]; then
+            active=$(jq -r '.active_build_id // ""' "$RUNNER_TEMP/tiles-status.json" 2>/dev/null || true)
+            previous=$(jq -r '.previous_release_tag // "" | sub("^poi-"; "")' "$RUNNER_TEMP/tiles-status.json" 2>/dev/null || true)
+            if [[ "$active" =~ $id_re ]]; then
+              [[ "$previous" =~ $id_re ]] || previous=
+              keep="$active${previous:+,$previous}"
+              echo "Pruning tiles: keeping the newest 3 manifests plus $keep"
+              args+=(--prune 3 --keep-builds "$keep")
+            else
+              echo "Loader status has no active build: switching without pruning"
+            fi
+          else
+            echo "Loader status unavailable: switching without pruning"
+          fi
+          node scripts/poi/tilesUpload.mjs "${args[@]}"
 
       # Only after this run's build went live. Keeps the newest 7 plus whatever
       # the database says is active and previous (a rollback can make an old

@@ -32,7 +32,8 @@ import { fetchGeoApifyDogPlaces, mergeDogPlaces, dogCacheKey, fetchGeoapifyPlace
 import { inPoiRegion } from '../../../shared/overpassQuery.js'
 import { isAuthorizedCron } from '../../lib/cronAuth.js'
 import { getFlags, peekFlags, isFeatureEnabled } from '../../lib/flags.js'
-import { parseQuery, getPois, poiSlotBusy, shadowPois, isCovered, isRankable, getPoiGen, peekPoiGen, POI_DEADLINE_MS, POI_CAP_DEADLINE_MS } from '../../lib/poiQuery.js'
+import { parseQuery, getPois, poiSlotBusy, shadowPois, isCovered, isRankable, getPoiGen, peekPoiGen, activePoiBuild, POI_DEADLINE_MS, POI_CAP_DEADLINE_MS } from '../../lib/poiQuery.js'
+import { tilePois, tilesConfigured, tilesBusy } from '../../lib/poiTiles.js'
 import { applyRateLimit, applySharedRateLimit, dropRateLimitHeaders, getRateLimitKey } from '../../lib/rateLimit.js'
 import { snapQueryBbox } from '../../lib/bboxSnap.js'
 import { waitUntil } from '@vercel/functions'
@@ -303,7 +304,17 @@ function applyCorsHeaders(res) {
 // waits long on the flag store. With both percentages at 0 the generation
 // isn't read at all.
 const POI_FLAGS_WAIT_MS = 50
-const POI_OFF = { serve: 0, shadow: 0, cap: 0, gen: 0 }
+const POI_OFF = { serve: 0, shadow: 0, cap: 0, gen: 0, tiles: 0, tilesShadow: 0, tilesFallback: false }
+// Static tiles (api/lib/poiTiles.js, R2). Tiles-first waits this long before the DB path takes
+// over (an answer that slow also counts against the tiles breaker, TILES_SLOW_MS). As the DB's
+// fallback they start once the DB's first wait passes with no answer, and are awaited until
+// TILES_FALLBACK_BY_MS into the request (at least TILES_FALLBACK_MIN_MS): under the app's 8 s
+// proxy timeout, where public Overpass would take 20-56 s (26 Oct 18:46)
+export const TILES_FIRST_MS = 1500
+const TILES_FALLBACK_BY_MS = 6500
+const TILES_FALLBACK_MIN_MS = 500
+/** How long the DB's tiles fallback is still waited for, `elapsed` ms into the request. */
+export const tilesFallbackWaitMs = elapsed => Math.max(TILES_FALLBACK_MIN_MS, TILES_FALLBACK_BY_MS - elapsed)
 function within(promise, ms) {
   let timer
   const late = new Promise(resolve => { timer = setTimeout(resolve, ms, null) })
@@ -312,10 +323,11 @@ function within(promise, ms) {
 async function poiFlags() {
   try {
     const flags = peekFlags() || await within(getFlags(), POI_FLAGS_WAIT_MS)
-    if (!flags || !(flags.poiDbPct > 0 || flags.poiShadowPct > 0)) return POI_OFF
+    if (!flags || !(flags.poiDbPct > 0 || flags.poiShadowPct > 0 || flags.poiTilesPct > 0)) return POI_OFF
     const gen = peekPoiGen() ?? await within(getPoiGen(), POI_FLAGS_WAIT_MS)
     if (gen === null) return POI_OFF
-    return { serve: flags.poiDbPct || 0, shadow: flags.poiShadowPct || 0, cap: flags.poiCapPct || 0, gen }
+    return { serve: flags.poiDbPct || 0, shadow: flags.poiShadowPct || 0, cap: flags.poiCapPct || 0, gen,
+      tiles: flags.poiTilesPct || 0, tilesShadow: flags.poiTilesShadowPct || 0, tilesFallback: flags.poiTilesFallback !== false }
   } catch {
     return POI_OFF
   }
@@ -324,10 +336,10 @@ async function poiFlags() {
 // Stable per tile, so a tile stays on one side of the rollout (clean A/B)
 const rolloutBucket = q => parseInt(hashKey(q).slice(0, 8), 16) % 100
 
-function sendPoiBody(res, db) {
+function sendPoiBody(res, db, src = 'db') {
   dropRateLimitHeaders(res)
   res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=172800')
-  res.setHeader('X-Places-Source', 'db')
+  res.setHeader('X-Places-Source', src)
   res.setHeader('X-Places-Build', db.buildId)
   res.status(200)
   // The body is already JSON text; in-process callers (town.js) only have json()
@@ -372,6 +384,30 @@ async function poiShadow(plan, key, live, gen, liveSrc) {
     // (phase 1), rank, el (phase 2), and today's statement when it served instead
     probe_ms: db.timings?.probe ?? null, candidates_ms: db.timings?.candidates ?? null,
     el_ms: db.timings?.el ?? null, today_ms: db.timings?.today ?? null, cap_fallback: db.capFallback ?? null
+  }))
+}
+
+const idJaccard = (a, b) => {
+  const A = new Set(a)
+  let both = 0
+  for (const id of b) if (A.has(id)) both++
+  const union = A.size + new Set(b).size - both
+  return union ? Math.round((both / union) * 1000) / 1000 : 1
+}
+
+// Tiles shadow (poiTilesShadowPct): the tiles' answer for a body the DB just served, from
+// the DB's own build (exactly: never another), capped exactly when the DB's was, compared byte
+// for byte. After the response (waitUntil); never served. A repeat while the tile's answer is in
+// the tiles LRU (16 MB, per instance) is a hit (tiles_cached): no R2 read, no decode.
+async function poiTilesShadow(plan, key, db) {
+  const trace = {}
+  const started = Date.now()
+  const t = await tilePois(plan, key, { cap: Boolean(db.capPath), buildId: db.buildId, exact: true, trace })
+  console.log(JSON.stringify({
+    evt: 'poi_tiles_shadow', kind: plan.kind, db_build: db.buildId, tiles_build: t?.buildId ?? null,
+    n_db: db.n, n_tiles: t?.n ?? null, bytes_equal: Boolean(t) && t.body === db.body, jaccard: t ? idJaccard(db.ids, t.ids) : null,
+    tiles_ms: Date.now() - started, db_ms: db.ms, db_cached: Boolean(db.cached), tiles_cached: Boolean(trace.cached),
+    bytes_read: trace.bytesRead ?? null, reads: trace.reads ?? null, why: t ? null : trace.why ?? null
   }))
 }
 
@@ -666,14 +702,68 @@ export default async function handler(req, res) {
   // (covered is read when the line is logged, after any coverage load)
   const poiLog = { bucket: poiPlan ? poiBucket : null, get covered() { return Boolean(poiPlan) && isCovered(poiPlan) } }
   let prefetched // a KV read made while deciding whether to wait longer for the cap
-  if (poiServe) {
+  const poiCap = poiBucket < poiPct.cap
+  // Tiles (api/lib/poiTiles.js): the same answers as the DB, from R2. One helper for both modes;
+  // every try leaves tiles_* fields on the places line (tiles_why: why it gave no answer)
+  let tilesPending = null
+  // The tile answer once it lands, empty included: it is the build's own answer, so the DB's
+  // cold-instance retry is not sent for it (the DB would say the same). Only one with rows is
+  // served (and ends a DB wait: tilesWin); an empty one takes the old path
+  let tilesAnswer = null
+  const tryTiles = (mode, opts) => {
+    poiLog.tiles_mode = mode
+    const trace = {}
+    const started = Date.now()
+    return tilePois(poiPlan, upstreamQuery, { cap: poiCap, trace, ...opts }).then(t => {
+      Object.assign(poiLog, { tiles_ms: Date.now() - started, tiles_cached: Boolean(trace.cached), tiles_bytes: trace.bytesRead ?? 0, ...(!t && { tiles_why: trace.why ?? 'none' }) })
+      // An empty answer counts only when it is the DB's own build (same chunks); one from another
+      // build (current.json) may lack rows the DB has, so the DB's retry still runs
+      if (t && (t.n > 0 || (opts.buildId && t.buildId === opts.buildId))) tilesAnswer = t
+      return t
+    })
+  }
+  // Resolves only when tiles have an answer with rows (racing a DB wait against it)
+  const tilesWin = () => (tilesPending ? tilesPending.then(t => (t?.n > 0 ? { t } : new Promise(() => {}))) : new Promise(() => {}))
+  const dbOrTiles = (query, ms) => within(Promise.race([query.then(d => ({ d })), tilesWin()]), ms).then(r => r?.d ?? null)
+  const sendTiles = t => {
+    // dogs_started: a GeoApify dog call began (DB slower than its first wait) but tiles bodies
+    // never merge dogs, so up to 3 credits went nowhere (as on the DB branch)
+    delete poiLog.tiles_why // a slow read that landed after all: served, not timed out
+    logPlaces(req, t0, 'tiles', t.n, Object.assign(poiLog, { tiles_build: t.buildId, ...(dogMode && { dogs_started: dogPromise != null }) }))
+    return sendPoiBody(res, t, 'tiles')
+  }
+  // Tiles first (poiTilesPct): the DB is only asked when tiles give no answer. An empty answer
+  // is the build's answer (the DB would say the same), so it goes straight to the old path.
+  // Only the DB's active build is served (exact): after a rollback (which bumps the
+  // generation) tiles follow it; while that build is unknown, the DB path serves instead, with
+  // the usual tiles fallback behind it. A tiles-first read slower than TILES_FIRST_MS keeps
+  // running as the DB's fallback: if the DB then fails, its late answer still serves
+  let tilesEmpty = false
+  if (poiPlan && poiBucket < poiPct.tiles) {
+    const firstBy = Date.now() + TILES_FIRST_MS
+    const buildId = await within(activePoiBuild(poiPct.gen, firstBy), TILES_FIRST_MS)
+    let t = null
+    let landed = false
+    if (buildId) {
+      tilesPending = tryTiles('first', { buildId, exact: true }).then(r => { landed = true; return r })
+      t = await within(tilesPending, Math.max(0, firstBy - Date.now()))
+    } else Object.assign(poiLog, { tiles_mode: 'first', tiles_why: 'no_db_build' })
+    if (!t && !landed) poiLog.tiles_why ??= 'timeout'
+    // That build has no manifest on R2 (a night the tiles step failed): the fallback makes its own
+    // read (current.json, yesterday's tiles) if the DB fails too. Any other miss (R2 error,
+    // breaker, not covered) would only fail again: no second read
+    if (landed && !t && poiLog.tiles_why === 'no_build') tilesPending = null
+    if (t?.n > 0) return sendTiles(t)
+    tilesEmpty = t?.n === 0
+  }
+  if (poiServe && !tilesEmpty) {
     // The DB gets POI_DEADLINE_MS before we use the old path; a query still
     // running carries on, is killed server-side by MAX_EXECUTION_TIME, and
     // counts as a breaker failure in getPois when it was this slow
     // The relevance cap serves only in its own rollout bucket (poiCapPct, fail closed). A plan
     // it may cap gets up to POI_CAP_DEADLINE_MS, but only waits past POI_DEADLINE_MS when KV has
     // nothing: then the fallback is Overpass, which times out on dense tiles
-    const cap = poiBucket < poiPct.cap
+    const cap = poiCap
     const capWait = cap && isRankable(poiPlan)
     const started = Date.now()
     const deadlineAt = started + (capWait ? POI_CAP_DEADLINE_MS : POI_DEADLINE_MS)
@@ -704,22 +794,34 @@ export default async function handler(req, res) {
     // the dog call starts now and overlaps the rest of the DB wait (critic round 4 #2: serial
     // DB miss + dog fetch could pass the app's 8 s timeout)
     if (!(db && db.n > 0)) startDogs()
+    // No DB answer in its first wait: start the tiles fallback now, so it overlaps the rest of the
+    // DB's wait instead of adding to it (a KV copy already in hand is served instead). The DB's
+    // build when coverage knows it (getPois loaded it); else current.json's, which beats Overpass
+    if (!db && poiPct.tilesFallback && !hasPlaces(prefetched)) {
+      tilesPending ??= within(activePoiBuild(poiPct.gen), 100).then(buildId => tryTiles('fallback', { buildId }))
+    }
+    // From here every DB wait also ends when tiles answer: same rows, and an overloaded DB
+    // (26 Oct 18:46) is not sent a second statement for an answer already in hand
     if (!db && capWait && !settled) {
       if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
-      if (!hasPlaces(prefetched)) db = await within(pending, Math.max(0, deadlineAt - Date.now()))
+      if (!hasPlaces(prefetched)) db = await dbOrTiles(pending, Math.max(0, deadlineAt - Date.now()))
     }
     // A cold instance can spend the first try connecting and loading coverage (7 Oct: London's
     // first request on a new deploy ran out of time, then Overpass timed out on it after 27 s).
     // The connection is warm now: one more try before a fallback that can't answer dense tiles
     // A cold coverage read times out (2.5 s) just after that wait ends (17 Oct: Luton 503): let it finish
-    if (!db && capWait && !settled && !hasPlaces(prefetched)) db = await within(pending, POI_SETTLE_GRACE_MS)
+    if (!db && capWait && !settled && !hasPlaces(prefetched)) db = await dbOrTiles(pending, POI_SETTLE_GRACE_MS)
     if (!db && capWait && settled) {
       if (prefetched === undefined) prefetched = isCacheEnabled() ? await cacheGet(cacheKey) : null
+      // The tiles fallback running: its answer first (bounded by its own timeouts). Only when it
+      // has none does the DB get a second statement: an overloaded DB is not asked twice for an
+      // answer tiles can give (26 Oct 18:46)
+      if (tilesPending && !tilesAnswer && !hasPlaces(prefetched)) await within(tilesPending, POI_CAP_DEADLINE_MS)
       // Slot still busy: a second try would only queue again behind the same statement
-      if (!hasPlaces(prefetched) && !poiSlotBusy()) {
+      if (!tilesAnswer && !hasPlaces(prefetched) && !poiSlotBusy()) {
         const again = getPois(poiPlan, upstreamQuery, { gen: poiPct.gen, deadlineAt: Date.now() + POI_CAP_DEADLINE_MS, cap, signal: poiWait.signal })
         waitUntil(again.catch(() => {}))
-        db = await within(again, POI_CAP_DEADLINE_MS)
+        db = await dbOrTiles(again, POI_CAP_DEADLINE_MS)
       }
     }
     if (db && db.n > 0) {
@@ -731,9 +833,25 @@ export default async function handler(req, res) {
       logPlaces(req, t0, 'db', db.n, Object.assign(poiLog, { db_scanned: db.scanned ?? db.n, db_cached: db.cached, ...(dogMode && { dogs_started: dogPromise != null }) }))
       const sent = sendPoiBody(res, db)
       shadowPoi(() => JSON.parse(db.body), 'db')
+      // Shadow yields to live work: skipped while tile decodes are queued on this instance
+      if (poiBucket < poiPct.tilesShadow && tilesConfigured() && !tilesBusy()) waitUntil(poiTilesShadow(poiPlan, upstreamQuery, db).catch(() => {}))
       return sent
     }
     poiWait.abort()
+    // The DB failed, timed out or stayed busy (db null; an empty answer is an answer): tiles hold
+    // the same rows, so a tile answer in hand beats KV's Overpass copy and Overpass. Still
+    // pending: waited for (up to TILES_FALLBACK_BY_MS into the request) only when KV has no
+    // copy; with one, KV serves now
+    if (!db && tilesPending) {
+      const t = tilesAnswer ?? (hasPlaces(prefetched) ? null : await within(tilesPending, tilesFallbackWaitMs(Date.now() - t0)))
+      if (!t && !hasPlaces(prefetched)) poiLog.tiles_why ??= 'timeout'
+      if (t?.n > 0) return sendTiles(t)
+    }
+  } else if (tilesPending) {
+    // Tiles first with no DB step for this bucket (poiDbPct below poiTilesPct): a slow tiles-first
+    // read is still the best answer there is, so it is waited for as the fallback would be
+    const t = await within(tilesPending, tilesFallbackWaitMs(Date.now() - t0))
+    if (t?.n > 0) return sendTiles(t)
   }
   startDogs() // past the DB step: every serve from here on merges dogs
   // Shadow is sampled on its own (poiShadowPct), whatever the DB rollout: DB answers,

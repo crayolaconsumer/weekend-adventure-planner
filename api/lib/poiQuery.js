@@ -79,7 +79,7 @@ const HINT = '/*+ MAX_EXECUTION_TIME(800) */'
 // The relevance cap's size lives with the ranker (shared/poiRank.mjs), so the eval uses the same
 export { CAP }
 // Below this share of deck-eligible candidates the features are not trusted (see cappedAnswer)
-const CAP_MIN_ELIGIBLE = 0.5
+export const CAP_MIN_ELIGIBLE = 0.5
 export const RANK_SCAN_ROWS = 60_000
 const ID_BATCH = 1000
 // LRU: a byte budget, not an entry count. A capped dense answer is ~1.1 MB
@@ -376,7 +376,7 @@ function envelope(els, osmTimestamp) {
 
 // Envelope from rows in output order. { body, n, ids }, or { truncated: true }
 // when an unlimited group passes SCAN_ROWS or the body passes MAX_BODY_BYTES.
-function toAnswer(plan, rows, osmTimestamp) {
+export function toAnswer(plan, rows, osmTimestamp) {
   const els = []
   const ids = []
   const perGroup = new Array(plan.groups.length).fill(0)
@@ -717,6 +717,17 @@ async function getCoverage(gen = 0, deadlineAt = Infinity) {
   }
   if (!coverage.tried && coverage.loading) await coverage.loading
   return coverage
+}
+
+/**
+ * The DB's active build id under generation `gen` (which tile manifest to read: tiles serve the
+ * build the DB holds, after a rollback too, since rollback bumps the generation). Loads coverage
+ * like getPois (first load awaited within `deadlineAt`, then refreshed in the background); null
+ * when it can't be known for this generation. Never throws.
+ */
+export async function activePoiBuild(gen = 0, deadlineAt = Infinity) {
+  const cov = await getCoverage(gen, deadlineAt)
+  return cov.gen === gen ? cov.buildId : null
 }
 
 /** Is the plan answerable from the active build? Id lookups only need a build.

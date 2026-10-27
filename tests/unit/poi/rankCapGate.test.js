@@ -55,12 +55,12 @@ describe('rank-cap gate: the capped answer deals the uncapped deck', () => {
     const capped = rankCap(rows, center, CAP)
     expect(capped).toHaveLength(CAP)
     expect(minOverlap(capped)).toBeGreaterThanOrEqual(FLOOR)
-  })
+  }, 30000) // ~2 s idle; past the 5 s default under a loaded full suite
 
   it('and the floor has teeth: a plain sort by q, or the first rows, falls below it', () => {
     const byQ = capWith(rows, center, CAP, list => [...list].sort((a, b) => b.q - a.q).slice(0, CAP))
     expect(byQ).toHaveLength(CAP)
     expect(minOverlap(byQ)).toBeLessThan(FLOOR)
     expect(minOverlap(rows.slice(0, CAP))).toBeLessThan(FLOOR)
-  })
+  }, 30000)
 })
