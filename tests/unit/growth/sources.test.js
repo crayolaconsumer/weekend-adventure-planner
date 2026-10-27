@@ -228,22 +228,30 @@ describe('posthog', () => {
       const q = JSON.parse(init.body).query
       bodies.push(q)
       if (q.kind === 'HogQLQuery') return json({ results: [[10, 12, 15, 21]] })
-      if (q.kind === 'FunnelsQuery') return json({ results: [{ count: 100 }, { count: 30 }] })
+      if (q.kind === 'FunnelsQuery') return json({ results: [{ count: 100 }, { count: 60 }, { count: 30 }, { count: 9 }] })
       return json({ results: [
         { values: [{ count: 10 }, { count: 4 }, { count: 3 }, { count: 2 }, { count: 2 }, { count: 2 }, { count: 2 }, { count: 1 }] },
         { values: [{ count: 20 }, { count: 6 }] }, // too young for day 7
         { values: [{ count: 5 }] },               // too young for day 1
       ] })
     }
-    const r = await posthog.collect(win, { fetch, key: 'phx_test', project: '176178', host: 'https://eu.i.posthog.com' })
+    const tester = 'e46dbdf7-bbf6-5217-bf06-6d06ab41abe0'
+    const r = await posthog.collect(win, { fetch, key: 'phx_test', project: '176178', host: 'https://eu.i.posthog.com', testPersons: [tester, "x') OR (1=1"] })
     expect(r.active30d).toBe(21)
     expect(r.trend.map(t => t.active30d)).toEqual([10, 12, 15, 21])
-    expect(r.funnel.map(f => f.value)).toEqual([100, null, 30, null])
-    expect(r.funnel[1].missing).toMatch(/swipe/)
+    expect(r.funnel.map(f => f.value)).toEqual([100, 60, 30, 9])
     expect(r.day1).toEqual({ rate: 10 / 30, base: 30, kept: 10 })
     expect(r.day7).toEqual({ rate: 0.1, base: 10, kept: 1 })
     expect(bodies[0].query).toContain("timestamp < toDateTime('2026-10-26 00:00:00')")
-    expect(bodies[1].series.map(s => s.event)).toEqual(['$pageview', 'place-saved'])
+    expect(bodies[1].series.map(s => s.event)).toEqual(['$pageview', 'card-swiped', 'place-saved', 'plan-generated'])
+    // crawlers' server-side town views, emulators and listed testers never count as users
+    for (const b of [bodies[0].query, bodies[1].properties[0].key, bodies[2].properties[0].key]) {
+      expect(b).toContain("event != 'town_page_view'")
+      expect(b).toContain('sdk_gphone')
+      expect(b).toContain("properties.$os, '') != 'Linux'")
+      expect(b).toContain(`NOT IN ('${tester}')`)
+      expect(b).not.toContain('1=1') // malformed ids are dropped, not injected
+    }
   })
 })
 
