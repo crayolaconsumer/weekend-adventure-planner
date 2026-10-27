@@ -25,15 +25,12 @@ const FLAG_META = [
   { key: 'pushNudges', label: 'Marketing push nudges', desc: 'Off pauses the re-engagement and weekend nudge crons. Visit reminders are unaffected.' },
   { key: 'promotedEvents', label: 'Promoted events', desc: 'Off switches the whole feature off: hides promoted events, stops their pushes and closes the partner portal API (account, events, quote, checkout).' },
   { key: 'promotedEventPush', label: 'Promoted event pushes', desc: 'Off pauses only the promoted-event and local-events digest pushes; events stay visible.' },
-  { key: 'poiTilesFallback', label: 'Place tiles: DB fallback', desc: 'When the place database fails or is busy, answer from the static tiles (same places) before trying Overpass.' },
 ]
-// Place database rollout, 0-100% of Discover/town requests. 0 is the kill switch.
+// The one live rollout. The finished ones stay set in roam:flags (poiDbPct 100, poiCapPct 100,
+// poiShadowPct 0, poiTilesShadowPct 10, poiTilesFallback on) and are changed through
+// /api/admin/flags if ever needed, not from here.
 const PCT_META = [
-  { key: 'poiDbPct', label: 'Place database: serve', desc: 'Share of place lookups answered from our own database instead of Overpass.' },
-  { key: 'poiShadowPct', label: 'Place database: shadow', desc: 'Share of Overpass answers also checked against our database (logged, never shown).' },
-  { key: 'poiCapPct', label: 'Place database: dense-area cap', desc: 'Share of database-served dense areas (over 3,500 places) cut to the 3,500 the deck would pick. Off: they are served as before.' },
-  { key: 'poiTilesPct', label: 'Place tiles: serve first', desc: 'Share of place lookups answered from the static tiles on R2 first, the database only as their fallback. Takes load off the database.' },
-  { key: 'poiTilesShadowPct', label: 'Place tiles: shadow', desc: 'Share of database answers also read from the tiles and compared byte for byte (logged as poi_tiles_shadow, never shown).' },
+  { key: 'poiTilesPct', label: 'Places from tiles', desc: 'Share of place lookups answered from the static tiles on R2 first, with the database behind them. Raise it to take load off the database; 0 turns it off.' },
 ]
 
 const EXTERNAL = [
