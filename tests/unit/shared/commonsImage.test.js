@@ -27,6 +27,18 @@ describe('sizedImageUrl', () => {
     expect(sizedImageUrl('https://upload.wikimedia.org/wikipedia/commons/1/1c/X.jpg?utm_source=a&download')).toBe('https://upload.wikimedia.org/wikipedia/commons/1/1c/X.jpg?utm_source=a&download')
   })
 
+  // Regression (27 Oct 2026): Canterbury Cathedral's image= tag is a Commons FILE PAGE,
+  // so its card and town-guide row showed the placeholder forever
+  it('turns a Commons or Wikipedia file page into the image itself (Special:FilePath, 960 px)', () => {
+    expect(sizedImageUrl('http://commons.wikimedia.org/wiki/File:Canterbury_Cathedral_-_Portal_Nave_Cross-spire.jpeg'))
+      .toBe('https://commons.wikimedia.org/wiki/Special:FilePath/Canterbury_Cathedral_-_Portal_Nave_Cross-spire.jpeg?width=960')
+    expect(sizedImageUrl('https://commons.m.wikimedia.org/wiki/File:X%20Y.jpg')).toBe('https://commons.wikimedia.org/wiki/Special:FilePath/X%20Y.jpg?width=960')
+    expect(sizedImageUrl('https://en.wikipedia.org/wiki/File:Local.png')).toBe('https://en.wikipedia.org/wiki/Special:FilePath/Local.png?width=960')
+    // a category or an article is not a photo: left alone
+    expect(sizedImageUrl('https://commons.wikimedia.org/wiki/Category:York')).toBe('https://commons.wikimedia.org/wiki/Category:York')
+    expect(sizedImageUrl('https://en.wikipedia.org/wiki/York_Minster')).toBe('https://en.wikipedia.org/wiki/York_Minster')
+  })
+
   it.each([
     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Church.jpg/240px-Church.jpg',
     'https://upload.wikimedia.org/wikipedia/en/1/1c/Local_file.jpg',

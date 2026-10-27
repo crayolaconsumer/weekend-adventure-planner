@@ -15,7 +15,15 @@ const ORIGINAL = /^(https?:\/\/upload\.wikimedia\.org\/wikipedia\/commons)\/([0-
 // (each param is its own &-separated utm_ key, values can't hold & # or ?, so no backtracking blow-up)
 const UTM_ONLY = /\?utm_[a-z]+=[^&#?]*(?:&utm_[a-z]+=[^&#?]*)*&?$/i
 
+// Some OSM image= tags hold a Commons (or Wikipedia) FILE PAGE, not the image:
+// http://commons.wikimedia.org/wiki/File:Canterbury_Cathedral.jpeg. An <img> can't
+// show a web page (Canterbury Cathedral never had a photo). Special:FilePath on the
+// same wiki redirects to the image itself, here at the 960 px step.
+const FILE_PAGE = /^https?:\/\/((?:commons|[a-z-]{2,12})\.(?:m\.)?(?:wikimedia|wikipedia)\.org)\/wiki\/(?:File|Image):([^?#]+)$/i
+
 export function sizedImageUrl(url) {
+  const page = typeof url === 'string' ? url.trim().match(FILE_PAGE) : null
+  if (page) return `https://${page[1].replace('.m.', '.')}/wiki/Special:FilePath/${page[2]}?width=960`
   const m = typeof url === 'string' ? url.trim().replace(UTM_ONLY, '').match(ORIGINAL) : null
   if (!m) return url
   const [, base, hash, name, ext] = m
