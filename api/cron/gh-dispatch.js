@@ -23,6 +23,7 @@ const WORKFLOWS = { synthetic: 'synthetic.yml', 'poi-build': 'poi-build.yml' }
 const ALERT_EMAIL = process.env.MODERATION_ALERT_EMAIL || 'fittonj@gmail.com'
 const ALERT_THROTTLE_SECONDS = 6 * 60 * 60
 const lastAlertAt = {}
+const RETRY_DELAY_MS = 2000
 
 export default async function handler(req, res) {
   if (!isAuthorizedCron(req)) return res.status(401).json({ error: 'Unauthorized' })
@@ -33,7 +34,11 @@ export default async function handler(req, res) {
 
   const token = process.env.GITHUB_DISPATCH_TOKEN
   let error = token ? null : 'GITHUB_DISPATCH_TOKEN not set'
-  if (token) {
+  // One retry on a timeout or a 5xx: a single slow GitHub answer (4 Nov, 11:00) is not an outage.
+  // A retry after a slow-but-delivered call can start the workflow twice; both have a concurrency group.
+  for (let attempt = 0; token && attempt < 2; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+    let retryable = false
     try {
       const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${file}/dispatches`, {
         method: 'POST',
@@ -46,10 +51,13 @@ export default async function handler(req, res) {
         body: JSON.stringify({ ref: 'main' }),
         signal: AbortSignal.timeout(10_000),
       })
-      if (r.status !== 204) error = `GitHub answered ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`
+      error = r.status === 204 ? null : `GitHub answered ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`
+      retryable = r.status >= 500
     } catch (err) {
       error = err.message
+      retryable = !/invalid header value/i.test(err.message) // a bad token won't fix itself
     }
+    if (!error || !retryable) break
   }
 
   if (!error) return res.status(200).json({ dispatched: name })

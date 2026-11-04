@@ -23,8 +23,9 @@ describe('cron gh-dispatch', () => {
     kv.clear(); sendEmail.mockClear()
     fetchMock = vi.fn(async () => ({ status: 204, text: async () => '' }))
     vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(fn => { fn(); return 0 }) // skip the retry pause
   })
-  afterEach(() => { vi.unstubAllGlobals(); delete process.env.GITHUB_DISPATCH_TOKEN })
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); delete process.env.GITHUB_DISPATCH_TOKEN })
 
   it.each([['synthetic', 'synthetic.yml'], ['poi-build', 'poi-build.yml']])('%s dispatches %s on main', async (name, file) => {
     const res = await run(name)
@@ -88,5 +89,34 @@ describe('cron gh-dispatch', () => {
     fetchMock.mockImplementation(async () => { throw new Error('ETIMEDOUT') })
     expect((await run('synthetic')).statusCode).toBe(502)
     expect(sendEmail.mock.calls[0][0].text).toContain('ETIMEDOUT')
+  })
+
+  it('one slow GitHub answer is retried, no email (4 Nov 11:00: "The operation was aborted due to timeout")', async () => {
+    fetchMock.mockImplementationOnce(async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError') })
+    expect((await run('synthetic')).statusCode).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['a 5xx', async () => ({ status: 502, text: async () => '' })],
+    ['a network error', async () => { throw new TypeError('fetch failed') }],
+  ])('%s is retried once', async (_, fail) => {
+    fetchMock.mockImplementationOnce(fail)
+    expect((await run('poi-build')).statusCode).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('two failures in a row still email', async () => {
+    fetchMock.mockImplementation(async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError') })
+    expect((await run('synthetic')).statusCode).toBe(502)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([403, 404, 422])('a %i is not retried (a bad token or repo will not fix itself)', async status => {
+    fetchMock.mockImplementation(async () => ({ status, text: async () => '' }))
+    await run('synthetic')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
