@@ -68,6 +68,15 @@ describe('build.sh source hardening', () => {
     expect(buildSh).toMatch(/fetch "\$GEOFABRIK\/\$ex\/\$name\.poly"/)
   })
 
+  it('fetches the directory listing through fetch() (same multi-minute retry as downloads)', () => {
+    // Regression: the listing used its own 3-try/30 s curl loop, so a brief
+    // Geofabrik connect outage on 20 Nov failed the build before any download.
+    const body = buildSh.match(/newest_extract\(\) \{([\s\S]*?)\n\}/)[1]
+    expect(body).toMatch(/fetch "\$GEOFABRIK\/\$1\/"/)
+    expect(body).not.toMatch(/\bcurl\b/)
+    expect(buildSh).toMatch(/fetch\(\) \{ curl [^}]*--retry 5 --retry-delay 60 --retry-all-errors/)
+  })
+
   it('fails loudly when the dated pbf cannot be resolved', () => {
     expect(buildSh).toMatch(/\[ -n "\$dated" \] \|\| \{ echo "could not resolve \$ex" >&2; exit 1; \}/)
   })

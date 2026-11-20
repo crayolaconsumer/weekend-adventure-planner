@@ -29,16 +29,11 @@ md5of() { (md5sum "$1" 2>/dev/null || md5 -r "$1") | cut -d' ' -f1; }
 # Geofabrik dropped the "latest" symlinks for .md5 and .poly (Nov 2026): the
 # "latest" pbf still resolves to a dated file, so fetch the pbf, its .md5 and
 # the .poly from the dated subdirectory. Pick the newest dated pbf from the
-# directory listing, retrying transient TLS drops.
+# directory listing. The listing goes through fetch() so it waits out the same
+# multi-minute outages as the downloads (a 30 s retry lost the 20 Nov build).
 newest_extract() {
-  local ex="$1" name="$2" newest
-  for try in 1 2 3; do
-    newest=$(curl -sS --max-time 30 -A "$UA" "$GEOFABRIK/$ex/" | grep -oE "$name-[0-9]{6}\.osm\.pbf" | sort | tail -1)
-    [ -n "$newest" ] && break
-    echo "list try $try failed for $ex, retrying" >&2
-    sleep $((try * 5))
-  done
-  printf '%s' "$newest"
+  fetch "$GEOFABRIK/$1/" "$WORK/$2.listing" || return 0
+  grep -oE "$2-[0-9]{6}\.osm\.pbf" "$WORK/$2.listing" | sort | tail -1 || true
 }
 
 mkdir -p "$WORK/out"
