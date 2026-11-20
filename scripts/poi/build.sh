@@ -26,6 +26,20 @@ UA='ROAM-poi-build/1.0 (https://www.go-roam.uk; support@extrastaff.com)'
 # Geofabrik outages last minutes (502 on 2 Oct, a redirect loop on 1 Oct): wait them out
 fetch() { curl -fsSL --max-redirs 5 --retry 5 --retry-delay 60 --retry-all-errors -A "$UA" -o "$2" "$1"; }
 md5of() { (md5sum "$1" 2>/dev/null || md5 -r "$1") | cut -d' ' -f1; }
+# Geofabrik dropped the "latest" symlinks for .md5 and .poly (Nov 2026): the
+# "latest" pbf still resolves to a dated file, so fetch the pbf, its .md5 and
+# the .poly from the dated subdirectory. Pick the newest dated pbf from the
+# directory listing, retrying transient TLS drops.
+newest_extract() {
+  local ex="$1" name="$2" newest
+  for try in 1 2 3; do
+    newest=$(curl -sS --max-time 30 -A "$UA" "$GEOFABRIK/$ex/" | grep -oE "$name-[0-9]{6}\.osm\.pbf" | sort | tail -1)
+    [ -n "$newest" ] && break
+    echo "list try $try failed for $ex, retrying" >&2
+    sleep $((try * 5))
+  done
+  printf '%s' "$newest"
+}
 
 mkdir -p "$WORK/out"
 rm -f "$WORK"/out/*
@@ -38,10 +52,12 @@ for ex in $EXTRACTS; do
   name=$(basename "$ex")
   pbf="$WORK/$name-latest.osm.pbf"
   if [ "${REUSE:-0}" != 1 ] || [ ! -s "$pbf" ]; then
-    echo "Downloading $ex"
-    fetch "$GEOFABRIK/$ex-latest.osm.pbf" "$pbf"
-    fetch "$GEOFABRIK/$ex-latest.osm.pbf.md5" "$pbf.md5"
-    fetch "$GEOFABRIK/$ex.poly" "$WORK/$name.poly"
+    dated=$(newest_extract "$ex" "$name")
+    [ -n "$dated" ] || { echo "could not resolve $ex" >&2; exit 1; }
+    echo "Downloading $ex ($dated)"
+    fetch "$GEOFABRIK/$ex/$dated" "$pbf"
+    fetch "$GEOFABRIK/$ex/$dated.md5" "$pbf.md5"
+    fetch "$GEOFABRIK/$ex/$name.poly" "$WORK/$name.poly"
   fi
   if [ "$(cut -d' ' -f1 "$pbf.md5")" != "$(md5of "$pbf")" ]; then
     echo "md5 mismatch for $pbf" >&2
