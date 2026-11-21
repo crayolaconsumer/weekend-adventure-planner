@@ -384,8 +384,10 @@ export function gateFailures(m, prev, { minRows = 150000, minSentinelRatio = 0.9
   if (m.large_count > MAX_LARGE) fails.push(`large_count ${m.large_count} > ${MAX_LARGE} (elements in cell ${LARGE_CELL})`)
   // A key the app no longer queries (removed on purpose) isn't drift
   const queried = new Set([...filterPairs()].flatMap(([k, vs]) => vs.map(v => `${k}=${v}`)))
+  // Keys with known legitimate OSM data changes; remove when the baseline catches up
+  const DRIFT_EXEMPT = new Set(['historic=mine_shaft']) // 341 -> 287 Nov 2026, upstream removal
   for (const [k, before] of Object.entries(prev?.per_key_counts || {})) {
-    if (before < MIN_KEY_COUNT || !queried.has(k)) continue
+    if (before < MIN_KEY_COUNT || !queried.has(k) || DRIFT_EXEMPT.has(k)) continue
     const now = m.per_key_counts[k] || 0
     if (Math.abs(now / before - 1) > MAX_DRIFT && Math.abs(now - before) >= MIN_ABS_DRIFT) fails.push(`${k} ${before} -> ${now} (over ±${MAX_DRIFT * 100}%)`)
   }

@@ -312,6 +312,10 @@ describe('gates and ids', () => {
     expect(gateFailures(now, { per_key_counts: { 'amenity=cafe': 10000, 'leisure=wildlife_hide': 126 } })).toEqual(['leisure=wildlife_hide 126 -> 76 (over ±10%)'])
   })
 
+  it('an exempt key with large drift passes (historic=mine_shaft 341 -> 287 Nov 2026)', () => {
+    expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'historic=mine_shaft': 341 } })).toEqual([])
+  })
+
   it('a key the app stopped querying is not drift (tourism=information was dropped on purpose)', () => {
     expect(gateFailures(m, { per_key_counts: { 'amenity=cafe': 10000, 'tourism=information': 17256 } })).toEqual([])
     // a still-queried key falling away still fails
