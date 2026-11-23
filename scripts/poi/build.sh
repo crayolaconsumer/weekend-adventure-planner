@@ -25,15 +25,21 @@ UA='ROAM-poi-build/1.0 (https://www.go-roam.uk; support@extrastaff.com)'
 
 # Geofabrik outages last minutes (502 on 2 Oct, a redirect loop on 1 Oct): wait them out
 fetch() { curl -fsSL --max-redirs 5 --retry 5 --retry-delay 60 --retry-all-errors -A "$UA" -o "$2" "$1"; }
+# No-retry fetch for the fallback loop: a 404 on a stable file is permanent, so
+# fail fast and move to the previous day's file instead of burning 5 min of retries.
+fetch_once() { curl -fsSL --max-redirs 5 -A "$UA" -o "$2" "$1"; }
 md5of() { (md5sum "$1" 2>/dev/null || md5 -r "$1") | cut -d' ' -f1; }
 # Geofabrik dropped the "latest" symlinks for .md5 and .poly (Nov 2026): the
 # "latest" pbf still resolves to a dated file, so fetch the pbf, its .md5 and
 # the .poly from the dated subdirectory. Pick the newest dated pbf from the
 # directory listing. The listing goes through fetch() so it waits out the same
 # multi-minute outages as the downloads (a 30 s retry lost the 20 Nov build).
-newest_extract() {
+# Dated pbfs newest-first from the directory listing. The newest is often the
+# one Geofabrik is still uploading at the 02:15 run, so callers try each in
+# turn and fall back to the previous day's stable file on a 404.
+extracts_dated() {
   fetch "$GEOFABRIK/$1/" "$WORK/$2.listing" || return 0
-  grep -oE "$2-[0-9]{6}\.osm\.pbf" "$WORK/$2.listing" | sort | tail -1 || true
+  grep -oE "$2-[0-9]{6}\.osm\.pbf" "$WORK/$2.listing" | sort -ru | head -2
 }
 
 mkdir -p "$WORK/out"
@@ -47,11 +53,16 @@ for ex in $EXTRACTS; do
   name=$(basename "$ex")
   pbf="$WORK/$name-latest.osm.pbf"
   if [ "${REUSE:-0}" != 1 ] || [ ! -s "$pbf" ]; then
-    dated=$(newest_extract "$ex" "$name")
-    [ -n "$dated" ] || { echo "could not resolve $ex" >&2; exit 1; }
-    echo "Downloading $ex ($dated)"
-    fetch "$GEOFABRIK/$ex/$dated" "$pbf"
-    fetch "$GEOFABRIK/$ex/$dated.md5" "$pbf.md5"
+    ok=
+    for dated in $(extracts_dated "$ex" "$name"); do
+      echo "Downloading $ex ($dated)"
+      if fetch_once "$GEOFABRIK/$ex/$dated" "$pbf" \
+         && fetch_once "$GEOFABRIK/$ex/$dated.md5" "$pbf.md5"; then
+        ok=1; break
+      fi
+      rm -f "$pbf" "$pbf.md5"
+    done
+    [ -n "$ok" ] || { echo "could not download $ex" >&2; exit 1; }
     fetch "$GEOFABRIK/$ex/$name.poly" "$WORK/$name.poly"
   fi
   if [ "$(cut -d' ' -f1 "$pbf.md5")" != "$(md5of "$pbf")" ]; then
