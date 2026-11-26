@@ -49,6 +49,9 @@
       "maxDuration": 60,
       "includeFiles": "dist/index.html"
     },
+    "api/cron/gh-dispatch.js": {
+      "maxDuration": 40
+    },
     "api/cron/prewarm-overpass.js": {
       "maxDuration": 120
     },

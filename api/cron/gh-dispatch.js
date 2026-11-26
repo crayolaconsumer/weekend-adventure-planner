@@ -34,8 +34,10 @@ export default async function handler(req, res) {
 
   const token = process.env.GITHUB_DISPATCH_TOKEN
   let error = token ? null : 'GITHUB_DISPATCH_TOKEN not set'
-  // One retry on a timeout or a 5xx: a single slow GitHub answer (4 Nov, 11:00) is not an outage.
-  // A retry after a slow-but-delivered call can start the workflow twice; both have a concurrency group.
+  // One retry on a timeout, a 5xx or a network error: a single slow GitHub answer (4 Nov, 11:00) is not an outage.
+  // A POST that times out may still have been accepted. A duplicate synthetic run is
+  // harmless (read-only, cancel-in-progress); a duplicate poi-build is a second 2 h build and load,
+  // so poi-build is not retried after a timeout.
   for (let attempt = 0; token && attempt < 2; attempt++) {
     if (attempt) await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
     let retryable = false
@@ -55,7 +57,8 @@ export default async function handler(req, res) {
       retryable = r.status >= 500
     } catch (err) {
       error = err.message
-      retryable = !/invalid header value/i.test(err.message) // a bad token won't fix itself
+      const timedOut = err?.name === 'TimeoutError'
+      retryable = (!timedOut || name === 'synthetic') && !/invalid header value/i.test(err.message) // a bad token won't fix itself
     }
     if (!error || !retryable) break
   }
@@ -63,6 +66,7 @@ export default async function handler(req, res) {
   if (!error) return res.status(200).json({ dispatched: name })
 
   // fetch echoes an invalid header value (a token pasted with a newline) in its error
+  const tokenProblem = !token || /answered (401|403|404)|invalid header value/.test(error)
   if (token) error = error.replaceAll(token, '[token]')
   console.error(`[gh-dispatch] ${name}: ${error}`)
   const throttleKey = `alert:gh-dispatch:${name}`
@@ -73,7 +77,9 @@ export default async function handler(req, res) {
     await sendEmail({
       to: ALERT_EMAIL,
       subject: `ROAM: could not start the ${name} workflow`,
-      text: `Vercel's cron could not start GitHub workflow ${file}.\n\n${error}\n\nIf the token expired or lost access, make a new fine-grained token (this repo only, Actions: read and write) and replace GITHUB_DISPATCH_TOKEN in Vercel.`,
+      text: `Vercel's cron could not start GitHub workflow ${file}.\n\n${error}\n\n${tokenProblem
+        ? 'If the token expired or lost access, make a new fine-grained token (this repo only, Actions: read and write) and replace GITHUB_DISPATCH_TOKEN in Vercel.'
+        : "This does not look like a token problem. Check the workflow's recent runs and githubstatus.com if it keeps repeating."}`,
     })
   }
   return res.status(502).json({ error: 'dispatch failed' })

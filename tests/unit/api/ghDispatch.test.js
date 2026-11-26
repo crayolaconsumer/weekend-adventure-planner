@@ -85,6 +85,83 @@ describe('cron gh-dispatch', () => {
     expect(sendEmail).toHaveBeenCalledTimes(1)
   })
 
+  const timeout = async () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError') }
+
+  it.each([
+    ['a timeout', timeout],
+    ['a 5xx', async () => ({ status: 502, text: async () => 'bad gateway' })],
+  ])('synthetic retries once after %s and stays quiet if the retry lands', async (_label, first) => {
+    fetchMock.mockImplementationOnce(first)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect((await run('synthetic')).statusCode).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(sendEmail).not.toHaveBeenCalled()
+    expect(logged).not.toHaveBeenCalled()
+    logged.mockRestore()
+  })
+
+  it('each attempt gets its own timeout signal', async () => {
+    fetchMock.mockImplementationOnce(timeout)
+    await run('synthetic')
+    const [a, b] = fetchMock.mock.calls.map(c => c[1].signal)
+    expect(a).toBeInstanceOf(AbortSignal)
+    expect(b).toBeInstanceOf(AbortSignal)
+    expect(b).not.toBe(a)
+  })
+
+  it('synthetic timing out twice alerts without blaming the token', async () => {
+    fetchMock.mockImplementation(timeout)
+    expect((await run('synthetic')).statusCode).toBe(502)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const { text } = sendEmail.mock.calls[0][0]
+    expect(text).toContain('aborted due to timeout')
+    expect(text).not.toContain('make a new fine-grained token')
+  })
+
+  it('poi-build is never retried: a timed-out POST may have started a 2 h build', async () => {
+    fetchMock.mockImplementation(timeout)
+    expect((await run('poi-build')).statusCode).toBe(502)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([401, 403, 404])('a %i is not retried and does point at the token', async status => {
+    fetchMock.mockImplementation(async () => ({ status, text: async () => 'nope' }))
+    expect((await run('synthetic')).statusCode).toBe(502)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(sendEmail.mock.calls[0][0].text).toContain('make a new fine-grained token')
+  })
+
+  it('a 422 or 429 is not retried and does not blame the token', async () => {
+    for (const status of [422, 429]) {
+      kv.clear(); sendEmail.mockClear(); fetchMock.mockClear()
+      vi.resetModules(); ({ default: handler } = await import('../../../api/cron/gh-dispatch.js'))
+      fetchMock.mockImplementation(async () => ({ status, text: async () => 'nope' }))
+      await run('synthetic')
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(sendEmail.mock.calls[0][0].text).not.toContain('make a new fine-grained token')
+    }
+  })
+
+  it('a missing or malformed token does point at the token', async () => {
+    delete process.env.GITHUB_DISPATCH_TOKEN
+    await run('synthetic')
+    expect(sendEmail.mock.calls[0][0].text).toContain('make a new fine-grained token')
+
+    kv.clear(); sendEmail.mockClear()
+    vi.resetModules(); ({ default: handler } = await import('../../../api/cron/gh-dispatch.js'))
+    process.env.GITHUB_DISPATCH_TOKEN = 'bad\ntoken'
+    fetchMock.mockImplementation(async (_url, init) => { throw new TypeError(`Headers.append: "${init.headers.Authorization}" is an invalid header value.`) })
+    await run('synthetic')
+    expect(sendEmail.mock.calls[0][0].text).toContain('make a new fine-grained token')
+  })
+
+  it('gives the function room for two 10 s attempts plus the alert', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { functions } = JSON.parse(readFileSync('vercel.json', 'utf8'))
+    expect(functions['api/cron/gh-dispatch.js'].maxDuration).toBeGreaterThanOrEqual(30)
+  })
+
   it('a network error is reported', async () => {
     fetchMock.mockImplementation(async () => { throw new Error('ETIMEDOUT') })
     expect((await run('synthetic')).statusCode).toBe(502)
