@@ -23,11 +23,18 @@ REGION=${REGION:-uk}
 GEOFABRIK=https://download.geofabrik.de
 UA='ROAM-poi-build/1.0 (https://www.go-roam.uk; support@extrastaff.com)'
 
-# Geofabrik outages last minutes (502 on 2 Oct, a redirect loop on 1 Oct): wait them out
-fetch() { curl -fsSL --max-redirs 5 --retry 5 --retry-delay 60 --retry-all-errors -A "$UA" -o "$2" "$1"; }
-# No-retry fetch for the fallback loop: a 404 on a stable file is permanent, so
-# fail fast and move to the previous day's file instead of burning 5 min of retries.
+# Geofabrik outages last minutes (502 on 2 Oct, a redirect loop on 1 Oct): wait them out.
+# A 404 on a stable file is permanent, so curl fails fast on 404 (no --retry-all-errors) and the
+# fallback loop moves to the previous day's file; connection failures are retried until the
+# outage clears (or the retry budget is exhausted).
+fetch() { curl -fsSL --max-redirs 5 --retry 30 --retry-delay 30 -A "$UA" -o "$2" "$1"; }
+# No-retry fetch for the small files (.md5): a 404 on a stable file is permanent, so fail fast
+# and let the fallback loop move to the previous day's file.
 fetch_once() { curl -fsSL --max-redirs 5 -A "$UA" -o "$2" "$1"; }
+# PBF download: resume from a partial file (-C -) so a connection drop mid-download doesn't
+# restart the whole ~18 min transfer. 404 still fails fast so the fallback loop moves to the
+# previous day.
+fetch_pbf() { curl -fsSL --max-redirs 5 --retry 30 --retry-delay 30 -C - -A "$UA" -o "$2" "$1"; }
 md5of() { (md5sum "$1" 2>/dev/null || md5 -r "$1") | cut -d' ' -f1; }
 # Geofabrik dropped the "latest" symlinks for .md5 and .poly (Nov 2026): the
 # "latest" pbf still resolves to a dated file, so fetch the pbf, its .md5 and
@@ -56,7 +63,7 @@ for ex in $EXTRACTS; do
     ok=
     for dated in $(extracts_dated "$ex" "$name"); do
       echo "Downloading $ex ($dated)"
-      if fetch_once "$GEOFABRIK/$ex/$dated" "$pbf" \
+      if fetch_pbf "$GEOFABRIK/$ex/$dated" "$pbf" \
          && fetch_once "$GEOFABRIK/$ex/$dated.md5" "$pbf.md5"; then
         ok=1; break
       fi
